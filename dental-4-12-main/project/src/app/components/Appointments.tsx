@@ -86,7 +86,10 @@ export const Appointments = () => {
   // deadline or a filter default.
   const [appointmentDate, setAppointmentDate] = useState(TODAY);
   const [appointmentTime, setAppointmentTime] = useState('');
-  const [appointmentType, setAppointmentType] = useState('');
+  // A visit is often more than one thing at once (a checkup that also gets
+  // fluoride, say), and appointment_type is one free-text-ish field on the
+  // server — so multiple picks are joined with ", " on submit.
+  const [appointmentTypes, setAppointmentTypes] = useState<string[]>([]);
   const [appointmentTypeOther, setAppointmentTypeOther] = useState('');
   const [appointmentDentistId, setAppointmentDentistId] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
@@ -149,7 +152,7 @@ export const Appointments = () => {
     // prefill for the next appointment, which is when it is most wanted.
     setAppointmentDate(TODAY);
     setAppointmentTime('');
-    setAppointmentType('');
+    setAppointmentTypes([]);
     setAppointmentTypeOther('');
     setCreateError(null);
   };
@@ -178,7 +181,10 @@ export const Appointments = () => {
     // dentist are automatic, and time defaults below. A student to book it
     // for and a type to record are still unavoidable: an Appointment row
     // cannot mean anything without either.
-    const resolvedType = appointmentType === OTHER_TYPE ? appointmentTypeOther.trim() : appointmentType;
+    const resolvedType = appointmentTypes
+      .map(t => (t === OTHER_TYPE ? appointmentTypeOther.trim() : t))
+      .filter(Boolean)
+      .join(', ');
     if (!appointmentDate) {
       setCreateError('Date is required.');
       return;
@@ -197,7 +203,11 @@ export const Appointments = () => {
       return;
     }
     if (!resolvedType) {
-      setCreateError(appointmentType === OTHER_TYPE ? 'Type the appointment type.' : 'Select an appointment type.');
+      setCreateError(
+        appointmentTypes.includes(OTHER_TYPE) && !appointmentTypeOther.trim()
+          ? 'Type the "Other" appointment type, or pick a listed one.'
+          : 'Select at least one appointment type.',
+      );
       return;
     }
     if (!appointmentDentistId) {
@@ -322,7 +332,10 @@ export const Appointments = () => {
   const getStatus = (a: AppointmentSession) => a.status;
 
   // Tab filters
-  const todayAppts = appointments.filter(a => a.date === TODAY);
+  // Resolved (Completed/Missed) appointments move to their own tabs even
+  // when the date is today — Today is "what's still open today", not
+  // "everything dated today".
+  const todayAppts = appointments.filter(a => a.date === TODAY && getStatus(a) !== 'Completed' && getStatus(a) !== 'Missed');
   const upcomingAppts = appointments.filter(a => a.date > TODAY && getStatus(a) === 'Scheduled');
   const completedAppts = appointments.filter(a => getStatus(a) === 'Completed');
   // Past-dated sessions never marked Completed/Missed would otherwise appear in no tab at all
@@ -865,14 +878,30 @@ export const Appointments = () => {
                   <p className="text-[11px] text-muted-foreground mt-1">Defaults to 8:00 AM if left blank.</p>
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">Appointment Type</label>
-                  <select value={appointmentType} onChange={e => setAppointmentType(e.target.value)}
-                    className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring">
-                    <option value="">Select type</option>
-                    {APPOINTMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                    <option value={OTHER_TYPE}>Other…</option>
-                  </select>
-                  {appointmentType === OTHER_TYPE && (
+                  <label className="block text-xs font-medium text-muted-foreground mb-2">
+                    Appointment Type <span className="font-normal">(pick any that apply)</span>
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {[...APPOINTMENT_TYPES, OTHER_TYPE].map(t => {
+                      const selected = appointmentTypes.includes(t);
+                      return (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => setAppointmentTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                            selected
+                              ? 'bg-primary text-white border-primary'
+                              : 'bg-card text-foreground border-border hover:bg-gray-50'
+                          }`}
+                        >
+                          {selected && <Check className="w-3 h-3" />}
+                          {t === OTHER_TYPE ? 'Other' : t}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {appointmentTypes.includes(OTHER_TYPE) && (
                     <input
                       type="text"
                       value={appointmentTypeOther}
