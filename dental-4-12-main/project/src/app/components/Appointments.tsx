@@ -302,9 +302,10 @@ export const Appointments = () => {
   // chronological so it reads like a full schedule rather than a log.
   const allAppts = [...appointments].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
 
-  const historyScopeBar = (label: string) => (
-    <div className="px-4 py-3 border-b border-gray-100">
+  const historyScopeBar = (label: string, tabKey: string) => (
+    <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
       <span className="text-sm font-semibold text-foreground">{label}</span>
+      <TabActionsMenu tabKey={tabKey} />
     </div>
   );
 
@@ -366,10 +367,45 @@ export const Appointments = () => {
     }
   };
 
-  // Today's three-dot menu → Delete: toggles a per-row delete icon rather
-  // than deleting on the spot, so a stray click can't remove an appointment.
-  const [todayDeleteMenuOpen, setTodayDeleteMenuOpen] = useState(false);
-  const [todayDeleteMode, setTodayDeleteMode] = useState(false);
+  // Every list tab but Calendar gets the same three-dot menu → Delete, which
+  // toggles a per-row delete icon rather than deleting on the spot (a stray
+  // click can't remove an appointment). One menu-open/delete-mode pair
+  // shared across tabs, not one per tab, since only one tab is ever visible
+  // at a time — kept generic (tabKey-driven) so a second menu item can be
+  // added later without a new state variable per tab.
+  const [openTabMenu, setOpenTabMenu] = useState<string | null>(null);
+  const [deleteModeTab, setDeleteModeTab] = useState<string | null>(null);
+
+  useEffect(() => { setDeleteModeTab(null); setOpenTabMenu(null); }, [activeTab]);
+
+  const TabActionsMenu = ({ tabKey }: { tabKey: string }) => (
+    deleteModeTab === tabKey ? (
+      <button onClick={() => setDeleteModeTab(null)}
+        className="text-xs font-medium text-foreground border border-border rounded-md px-2 py-1 hover:bg-gray-50">
+        Done
+      </button>
+    ) : (
+      <div className="relative">
+        <button onClick={() => setOpenTabMenu(v => v === tabKey ? null : tabKey)}
+          className="p-1.5 rounded-lg text-muted-foreground hover:bg-gray-100 hover:text-foreground" title="More options">
+          <MoreVertical className="w-4 h-4" />
+        </button>
+        {openTabMenu === tabKey && (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setOpenTabMenu(null)} />
+            <div className="absolute right-0 top-full mt-1 z-20 bg-card border border-border rounded-lg shadow-md py-1 w-40">
+              <button
+                onClick={() => { setDeleteModeTab(tabKey); setOpenTabMenu(null); }}
+                className="w-full text-left px-3 py-2 text-sm text-destructive hover:bg-danger-surface flex items-center gap-2"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Delete…
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    )
+  );
 
   const statusBadge = (status: string) => {
     const map: Record<string, string> = {
@@ -545,32 +581,7 @@ export const Appointments = () => {
           <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
             <span className="text-sm font-bold text-foreground flex-1">Today, {formatDateWithWeekday(TODAY)}</span>
-            {todayDeleteMode ? (
-              <button onClick={() => setTodayDeleteMode(false)}
-                className="text-xs font-medium text-foreground border border-border rounded-md px-2 py-1 hover:bg-gray-50">
-                Done
-              </button>
-            ) : (
-              <div className="relative">
-                <button onClick={() => setTodayDeleteMenuOpen(v => !v)}
-                  className="p-1.5 rounded-lg text-muted-foreground hover:bg-gray-100 hover:text-foreground" title="More options">
-                  <MoreVertical className="w-4 h-4" />
-                </button>
-                {todayDeleteMenuOpen && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setTodayDeleteMenuOpen(false)} />
-                    <div className="absolute right-0 top-full mt-1 z-20 bg-card border border-border rounded-lg shadow-md py-1 w-40">
-                      <button
-                        onClick={() => { setTodayDeleteMode(true); setTodayDeleteMenuOpen(false); }}
-                        className="w-full text-left px-3 py-2 text-sm text-destructive hover:bg-danger-surface flex items-center gap-2"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" /> Delete…
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
+            <TabActionsMenu tabKey="today" />
           </div>
           {todayAppts.length === 0 ? (
             <div className="py-12 text-center text-muted-foreground">
@@ -578,7 +589,7 @@ export const Appointments = () => {
               <p className="text-sm">No appointments scheduled for today</p>
             </div>
           ) : (
-            todayAppts.map(a => <AppointmentCard key={a.id} a={a} showActions deleteMode={todayDeleteMode} />)
+            todayAppts.map(a => <AppointmentCard key={a.id} a={a} showActions deleteMode={deleteModeTab === 'today'} />)
           )}
         </>
       )}
@@ -586,8 +597,9 @@ export const Appointments = () => {
       {/* UPCOMING */}
       {activeTab === 'upcoming' && (
         <>
-          <div className="px-4 py-3 border-b border-gray-100">
+          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
             <span className="text-sm font-semibold text-foreground">Upcoming Appointments</span>
+            <TabActionsMenu tabKey="upcoming" />
           </div>
           {upcomingAppts.length === 0 ? (
             <div className="py-12 text-center text-muted-foreground">
@@ -602,7 +614,7 @@ export const Appointments = () => {
                   <div className="text-xs text-muted-foreground">{new Date(a.date + 'T00:00:00').toLocaleString('default', { month: 'short' })}</div>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <AppointmentCard a={a} showActions />
+                  <AppointmentCard a={a} showActions deleteMode={deleteModeTab === 'upcoming'} />
                 </div>
               </div>
             ))
@@ -613,14 +625,14 @@ export const Appointments = () => {
       {/* COMPLETED */}
       {activeTab === 'completed' && (
         <>
-          {historyScopeBar('Completed Appointments')}
+          {historyScopeBar('Completed Appointments', 'completed')}
           {completedAppts.length === 0 ? (
             <div className="py-12 text-center text-muted-foreground">
               <CalendarIcon className="w-8 h-8 mx-auto mb-2 opacity-30" />
               <p className="text-sm">No completed appointments</p>
             </div>
           ) : (
-            completedAppts.map(a => <AppointmentCard key={a.id} a={a} showActions />)
+            completedAppts.map(a => <AppointmentCard key={a.id} a={a} showActions deleteMode={deleteModeTab === 'completed'} />)
           )}
         </>
       )}
@@ -628,14 +640,14 @@ export const Appointments = () => {
       {/* MISSED */}
       {activeTab === 'missed' && (
         <>
-          {historyScopeBar('Missed Appointments')}
+          {historyScopeBar('Missed Appointments', 'missed')}
           {missedAppts.length === 0 ? (
             <div className="py-12 text-center text-muted-foreground">
               <CalendarIcon className="w-8 h-8 mx-auto mb-2 opacity-30" />
               <p className="text-sm">No missed appointments</p>
             </div>
           ) : (
-            missedAppts.map(a => <AppointmentCard key={a.id} a={a} showActions />)
+            missedAppts.map(a => <AppointmentCard key={a.id} a={a} showActions deleteMode={deleteModeTab === 'missed'} />)
           )}
         </>
       )}
@@ -643,8 +655,9 @@ export const Appointments = () => {
       {/* ALL */}
       {activeTab === 'all' && (
         <>
-          <div className="px-4 py-3 border-b border-gray-100">
+          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
             <span className="text-sm font-semibold text-foreground">All Appointments</span>
+            <TabActionsMenu tabKey="all" />
           </div>
           {allAppts.length === 0 ? (
             <div className="py-12 text-center text-muted-foreground">
@@ -652,7 +665,7 @@ export const Appointments = () => {
               <p className="text-sm">No appointments loaded for this window</p>
             </div>
           ) : (
-            allAppts.map(a => <AppointmentCard key={a.id} a={a} showActions />)
+            allAppts.map(a => <AppointmentCard key={a.id} a={a} showActions deleteMode={deleteModeTab === 'all'} />)
           )}
         </>
       )}
