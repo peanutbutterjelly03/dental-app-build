@@ -3,8 +3,8 @@ import { useAuth, ALL_SCHOOLS } from '../context/AuthContext';
 import {
   LayoutDashboard, Users, Calendar, Brain,
   ClipboardList, LogOut, Stethoscope, Shield,
-  Clipboard, FileBarChart, UserCog, KeyRound,
-  ChevronLeft, ChevronRight, Menu, X, School, Archive, Bell
+  Clipboard, FileBarChart, UserCog,
+  ChevronLeft, ChevronRight, Menu, X, School, Archive, Bell, Settings
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { getSchoolColor, getSchoolShortName } from '../utils/schoolColors';
@@ -27,7 +27,6 @@ export const Root = () => {
   // Desktop-only manual collapse. Not persisted per-breakpoint: below md the
   // sidebar is an off-canvas drawer and `collapsed` is ignored entirely.
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebarCollapsed') === 'true');
-  const [showNotifications, setShowNotifications] = useState(false);
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
       localStorage.setItem('sidebarCollapsed', String(!prev));
@@ -94,10 +93,7 @@ export const Root = () => {
   // Sidebar bell (Sprint 97). One server aggregate, same pattern as the badge
   // above — the sidebar renders on every screen, so it must not mount the
   // six-collection hooks these counts come from.
-  const {
-    counts: notifCounts,
-    error: notifError,
-  } = useNotifications(NOTIFIED_ROLES.includes(user?.role ?? ''), selectedSchool);
+  const { counts: notifCounts } = useNotifications(NOTIFIED_ROLES.includes(user?.role ?? ''), selectedSchool);
 
   // ⚠ THE BADGE COUNTS ONLY THE ROWS THIS ROLE CAN SEE. Risk validation is
   // dentist-only (nav tab 5), so for an aide or admin that row is hidden — and
@@ -394,17 +390,41 @@ export const Root = () => {
           ))}
         </nav>
 
-        {/* Notifications — ABOVE Logout, as the P2 doc asked ("notifications
-            above ng log out"). Hidden entirely for School Admin and BHO staff:
-            they view reports, never clinical records, so every count would be
-            both zero and none of their business. */}
-        {NOTIFIED_ROLES.includes(user.role) && (
-          <div className="border-t border-border px-4 pt-3">
+        {/* User info + settings + notifications + logout */}
+        <div className="border-t border-border p-4">
+          <div className={`flex items-center justify-between gap-2 mb-3 ${collapsed ? 'md:justify-center' : ''}`}>
+            <div className={`min-w-0 ${labelCls}`}>
+              <div className="text-sm font-medium text-foreground truncate">{user.name}</div>
+              <div className="mt-1">
+                <span className="inline-block px-2 py-0.5 text-xs bg-primary-surface text-primary rounded capitalize">
+                  {user.role.replace('_', ' ')}
+                </span>
+              </div>
+            </div>
+            {/* Profile settings — currently just Change Password, the one
+                self-service profile action that exists. Not a menu of
+                invented options (CLAUDE.md: nothing cosmetic). */}
             <button
-              onClick={() => setShowNotifications((v) => !v)}
-              aria-expanded={showNotifications}
+              onClick={openChangePassword}
+              title="Profile settings"
+              aria-label="Profile settings"
+              className="flex-shrink-0 p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Notifications — ABOVE Logout, as the P2 doc asked ("notifications
+              above ng log out"). Hidden entirely for School Admin and BHO
+              staff: they view reports, never clinical records, so every count
+              would be both zero and none of their business. Links straight to
+              the full notifications page rather than an inline dropdown. */}
+          {NOTIFIED_ROLES.includes(user.role) && (
+            <Link
+              to="/notifications"
+              onClick={() => setDrawerOpen(false)}
               title={collapsed ? `Notifications${notifTotal ? ` (${notifTotal})` : ''}` : undefined}
-              className={`w-full flex items-center gap-3 px-3 py-2 text-muted-foreground hover:bg-muted rounded-lg transition-colors justify-start ${collapsed ? 'md:justify-center' : 'md:justify-start'}`}
+              className={`w-full flex items-center gap-3 px-3 py-2 text-muted-foreground hover:bg-muted rounded-lg transition-colors mb-1 justify-start ${collapsed ? 'md:justify-center' : 'md:justify-start'}`}
             >
               <span className="relative flex-shrink-0">
                 <Bell className="w-5 h-5" />
@@ -415,60 +435,8 @@ export const Root = () => {
                 )}
               </span>
               <span className={`${labelCls} text-sm font-medium`}>Notifications</span>
-            </button>
-
-            {/* ⚠ COUNTS ONLY, EACH LINKING TO THE SCREEN THAT HOLDS THE DETAIL.
-                There is no NOTIFICATION model and no read/unread state — those
-                need a schema change and a decision about persistence. Anything
-                else here would be paraphrased or invented. */}
-            {showNotifications && !collapsed && (
-              <div className="mt-1 mb-2 rounded-lg bg-muted/60 p-2 space-y-1">
-                {notifTotal === 0 && (
-                  <p className="text-xs text-muted-foreground px-1 py-1">
-                    {notifError ? 'Counts unavailable right now.' : 'Nothing needs attention.'}
-                  </p>
-                )}
-                {notifCounts.overdueRpc > 0 && (
-                  <Link to="/rpc" onClick={() => setShowNotifications(false)}
-                    className="block text-xs px-2 py-1.5 rounded hover:bg-card text-foreground">
-                    <span className="font-semibold text-destructive">{notifCounts.overdueRpc}</span> overdue RPC visit{notifCounts.overdueRpc === 1 ? '' : 's'}
-                  </Link>
-                )}
-                {notifCounts.appointmentsToday > 0 && (
-                  <Link to="/appointments" onClick={() => setShowNotifications(false)}
-                    className="block text-xs px-2 py-1.5 rounded hover:bg-card text-foreground">
-                    <span className="font-semibold text-primary">{notifCounts.appointmentsToday}</span> appointment{notifCounts.appointmentsToday === 1 ? '' : 's'} today
-                  </Link>
-                )}
-                {notifCounts.awaitingValidation > 0 && canValidateRisk && (
-                  <Link to="/ai-analytics" onClick={() => setShowNotifications(false)}
-                    className="block text-xs px-2 py-1.5 rounded hover:bg-card text-foreground">
-                    <span className="font-semibold text-warning">{notifCounts.awaitingValidation}</span> risk assessment{notifCounts.awaitingValidation === 1 ? '' : 's'} awaiting validation
-                  </Link>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* User info + logout */}
-        <div className="border-t border-border p-4">
-          <div className={`mb-3 ${labelCls}`}>
-            <div className="text-sm font-medium text-foreground truncate">{user.name}</div>
-            <div className="mt-1">
-              <span className="inline-block px-2 py-0.5 text-xs bg-primary-surface text-primary rounded capitalize">
-                {user.role.replace('_', ' ')}
-              </span>
-            </div>
-          </div>
-          <button
-            onClick={openChangePassword}
-            title={collapsed ? 'Change Password' : undefined}
-            className={`w-full flex items-center gap-3 px-3 py-2 text-muted-foreground hover:bg-muted rounded-lg transition-colors mb-1 justify-start ${collapsed ? 'md:justify-center' : 'md:justify-start'}`}
-          >
-            <KeyRound className="w-5 h-5 flex-shrink-0" />
-            <span className={`${labelCls} text-sm font-medium`}>Change Password</span>
-          </button>
+            </Link>
+          )}
           <button
             onClick={handleLogout}
             title={collapsed ? 'Logout' : undefined}
