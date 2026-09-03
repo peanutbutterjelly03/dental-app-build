@@ -33,6 +33,17 @@ const studentIptrSchema = new mongoose.Schema(
     // recorded either, so no migration accompanies this.
     height_cm: { type: Number, default: null, min: 0, max: 300 },
     weight_kg: { type: Number, default: null, min: 0, max: 500 },
+    // Consent must be renewed every school year, not given once for life —
+    // a guardian's 2023 signature does not authorize treatment in 2026. It
+    // used to live on STUDENT as a single lifetime flag; that's the same
+    // "one grade for a multi-year student" bug Sprint 57a fixed, so it
+    // moves to the same place by the same reasoning.
+    //
+    // Defaults to "pending" for every new year, including a freshly-added
+    // one for a returning student — last year's "complete" never carries
+    // forward. See migrateIptrConsent.ts for the one-time backfill of the
+    // latest IPTR from the old STUDENT.consent_status value.
+    consent_status: { type: String, enum: ["pending", "complete"], default: "pending" },
     ...softDeleteFields,
   },
   { timestamps: { createdAt: "created_at", updatedAt: false } },

@@ -294,7 +294,6 @@ export const PatientList = () => {
           contact_number: r.contactNumber,
           grade_level: r.grade,
           section: r.section,
-          consent_status: 'pending',
         });
         imported++;
       } catch (err) {
@@ -460,7 +459,6 @@ export const PatientList = () => {
         philhealth_status: newPatient.philhealthStatus,
         is_4ps: newPatient.is4Ps,
         fourps_id: newPatient.fourPsId,
-        consent_status: newPatient.consentStatus,
         ...(confirmDuplicate ? { confirm_duplicate: true } : {}),
       });
       // Open this school year's record straight away (Sprint 69). Adding a
@@ -470,8 +468,10 @@ export const PatientList = () => {
       // charting or an RPC visit, and did not appear in any year-scoped report.
       //
       // Grade and section are stamped from the form, which is what 57a made
-      // the IPTR carry. Best-effort: if this fails the student still exists and
-      // "Add Year" still works, so it warns rather than failing the whole save.
+      // the IPTR carry; consent_status the same way now that consent is
+      // per-year rather than a lifetime flag on the student. Best-effort: if
+      // this fails the student still exists and "Add Year" still works, so
+      // it warns rather than failing the whole save.
       let yearOpened = true;
       try {
         await apiClient.post('/student-iptrs', {
@@ -479,6 +479,7 @@ export const PatientList = () => {
           school_year: schoolYearLabel(),
           grade_level: newPatient.grade,
           section: newPatient.section,
+          consent_status: newPatient.consentStatus,
         });
       } catch {
         yearOpened = false;

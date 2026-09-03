@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
-import { ArrowLeft, Save, ChevronLeft, ChevronRight, Shield, Users, TrendingUp, FileText, Plus, Pencil, Trash2, Brain, Download } from 'lucide-react';
+import { ArrowLeft, Save, ChevronLeft, ChevronRight, Shield, ShieldCheck, ShieldAlert, Users, TrendingUp, FileText, Plus, Pencil, Trash2, Brain, Download } from 'lucide-react';
 import { exportDohReportToPdf } from '../utils/exportPdf';
 import { getGradeColor } from '../utils/gradeColors';
 import { computeBmi, BMI_NOTE } from '../utils/bmi';
@@ -186,9 +186,9 @@ export const DentalChart = () => {
   const initialTab = (searchParams.get('tab') as TabKey) || 'history';
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
   const allTabs: { key: TabKey; label: string }[] = [
+    { key: 'appointments', label: 'Consent' },
     { key: 'history', label: 'History & Oral' },
     { key: 'chart', label: 'Dental Chart' },
-    { key: 'appointments', label: 'Consent' },
     { key: 'treatments', label: 'Treatment History' },
     { key: 'records', label: 'DMFT History' },
     { key: 'referrals', label: 'Referrals' },
@@ -550,9 +550,13 @@ export const DentalChart = () => {
   }, [activeTab, visibleTabs]);
 
   const handleToggleConsent = async (checked: boolean) => {
-    if (!id || !canEdit) return;
+    // Saved to the SELECTED YEAR's IPTR, not the student — consent is
+    // renewed every school year (see StudentIptr.ts), so toggling it while
+    // viewing an old year updates that old year's record, never today's.
+    const iptrId = years[selectedYear]?.iptr._id;
+    if (!iptrId || !canEdit) return;
     try {
-      await apiClient.put(`/students/${id}`, { consent_status: checked ? 'complete' : 'pending' });
+      await apiClient.put(`/student-iptrs/${iptrId}`, { consent_status: checked ? 'complete' : 'pending' });
       await reload();
       toast.success(checked ? 'Consent marked complete.' : 'Consent marked pending.');
     } catch (err) {
@@ -761,6 +765,9 @@ export const DentalChart = () => {
   const yearSection = yearIptr?.section ?? null;
   const NOT_RECORDED = 'Grade not recorded';
   const yearGradeLabel = yearGrade ? `${yearGrade}${yearSection ? ` ${yearSection}` : ''}` : NOT_RECORDED;
+  // Same per-year rule as grade above: consent is obtained for this school
+  // year's IPTR, never inherited from another year.
+  const consentComplete = yearIptr?.consent_status === 'complete';
 
   // The patient's own record as a PDF — Sprint 52 named this "the one export a
   // clinic actually needs (a patient's own record for their file)" and left it
@@ -1022,11 +1029,22 @@ export const DentalChart = () => {
                   </div>
                 </div>
               </div>
-              {canEditInfo && (
-                <button onClick={openEditInfo} className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-lg text-muted-foreground hover:bg-gray-50">
-                  <Pencil className="w-3 h-3" /> Edit
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {/* Read-only here on purpose — consent has its own tab and its
+                    own toggle. Editing student info must never touch it. */}
+                <span
+                  title={`${consentComplete ? 'Consent obtained' : 'Consent pending'} for ${yearIptr?.school_year ?? 'this year'}`}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${consentComplete ? 'bg-success-surface text-success' : 'bg-warning-surface text-warning'}`}
+                >
+                  {consentComplete ? <ShieldCheck className="w-3.5 h-3.5" /> : <ShieldAlert className="w-3.5 h-3.5" />}
+                  {consentComplete ? 'Consent Complete' : 'Consent Pending'}
+                </span>
+                {canEditInfo && (
+                  <button onClick={openEditInfo} className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-lg text-muted-foreground hover:bg-gray-50">
+                    <Pencil className="w-3 h-3" /> Edit
+                  </button>
+                )}
+              </div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
               {[
@@ -1417,37 +1435,34 @@ export const DentalChart = () => {
           </div>
         )}
 
-        {/* ── TAB 3: Consent & Appointments ── */}
+        {/* ── TAB: Consent & Appointments ── */}
         {activeTab === 'appointments' && (
           <div className="p-4 space-y-4">
-            <div className="bg-gray-50 rounded-xl p-4 w-48">
-              <div className="text-xs text-muted-foreground mb-1">Consent Status</div>
-              <div className={`text-sm font-bold ${student.consent_status === 'complete' ? 'text-success' : 'text-muted-foreground'}`}>
-                {student.consent_status === 'complete' ? 'Completed' : 'Pending'}
+            <div className={`rounded-xl border p-5 ${consentComplete ? 'bg-success-surface border-green-200' : 'bg-warning-surface border-amber-200'}`}>
+              <div className="flex items-start gap-3">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${consentComplete ? 'bg-white text-success' : 'bg-white text-warning'}`}>
+                  {consentComplete ? <ShieldCheck className="w-5 h-5" /> : <ShieldAlert className="w-5 h-5" />}
+                </div>
+                <div>
+                  <div className={`text-sm font-bold ${consentComplete ? 'text-success' : 'text-warning'}`}>
+                    {consentComplete ? 'Consent Obtained' : 'Consent Pending'}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    For school year {yearIptr?.school_year ?? '—'}. Consent is renewed every school year and does not carry over from a previous one.
+                  </p>
+                </div>
               </div>
+              <label className={`flex items-center gap-2 mt-4 pt-4 border-t ${consentComplete ? 'border-green-200' : 'border-amber-200'} ${canEdit ? 'cursor-pointer' : 'cursor-default'}`}>
+                <input type="checkbox" checked={consentComplete} onChange={(e) => canEdit && handleToggleConsent(e.target.checked)} disabled={!canEdit} className="w-4 h-4 rounded accent-primary disabled:opacity-60 disabled:cursor-not-allowed" />
+                <span className="text-xs font-medium text-foreground">Nakumpleto na ang pahintulot / Consent has been obtained</span>
+              </label>
             </div>
 
-            <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
-              <div className="text-xs font-bold text-slate-700 mb-2">Pahintulot ng Pasyente / Magulang o Guardian</div>
-              <p className="text-xs text-slate-600 leading-relaxed mb-4">
+            <div className="bg-card rounded-xl border border-border p-4">
+              <div className="text-xs font-bold text-foreground mb-2">Pahintulot ng Pasyente / Magulang o Guardian</div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
                 Pinahihintulutan ko ang Dentista na gawin ang mga kinakailangang Dental Procedure/Treatment sa aking ngipin at bibig o ngipin ng aking anak/kapatid/apo/pamangkin gaya ng ipinaliwanag sa akin at ng aking pagpayag dito. Nauunawaan ko rin na ang anumang impormasyong nakolekta ay gagamitin para sa mga layuning pangkalusugan lamang.
               </p>
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <div className="text-xs text-muted-foreground mb-2">Lagda ng Pasyente</div>
-                  <div className="border-b-2 border-gray-400 h-10 mb-1" />
-                  <div className="text-xs text-muted-foreground">Pirma sa itaas ng pangalan</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground mb-2">Lagda ng Magulang o Guardian</div>
-                  <div className="border-b-2 border-gray-400 h-10 mb-1" />
-                  <div className="text-xs text-muted-foreground">Pirma sa itaas ng pangalan</div>
-                </div>
-              </div>
-              <label className={`flex items-center gap-2 mt-4 ${canEdit ? 'cursor-pointer' : 'cursor-default'}`}>
-                <input type="checkbox" checked={student.consent_status === 'complete'} onChange={(e) => canEdit && handleToggleConsent(e.target.checked)} disabled={!canEdit} className="w-4 h-4 rounded accent-primary disabled:opacity-60 disabled:cursor-not-allowed" />
-                <span className="text-xs text-foreground">Nakumpleto na ang pahintulot / Consent has been obtained</span>
-              </label>
             </div>
 
             <div className="bg-blue-50 rounded-xl border border-blue-200 p-4">

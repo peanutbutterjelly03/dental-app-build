@@ -48,7 +48,6 @@ export interface ApiStudent {
   philhealth_status?: 'None' | 'Principal' | 'Dependent';
   is_4ps?: boolean;
   fourps_id?: string;
-  consent_status: "pending" | "complete";
   isArchived: boolean;
 }
 
@@ -67,6 +66,10 @@ export interface ApiStudentIptr {
   /** Measured for THIS school year. BMI is derived from them, never stored. */
   height_cm: number | null;
   weight_kg: number | null;
+  /** Consent for THIS school year — renewed annually, not a lifetime flag.
+   *  Moved off STUDENT for the same reason grade_level did (see above): one
+   *  signature does not authorize every year that follows it. */
+  consent_status: "pending" | "complete";
   isArchived: boolean;
 }
 

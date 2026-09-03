@@ -31,7 +31,8 @@ const studentSchema = new mongoose.Schema(
     philhealth_status: { type: String, enum: ["None", "Principal", "Dependent"], default: "None" },
     is_4ps: { type: Boolean, default: false },
     fourps_id: { type: String, default: "" },
-    consent_status: { type: String, enum: ["pending", "complete"], default: "pending" },
+    // consent_status moved to STUDENT_IPTR — consent is per school year, not
+    // a lifetime flag. See StudentIptr.ts and migrateIptrConsent.ts.
     ...softDeleteFields,
   },
   { timestamps: { createdAt: "created_at", updatedAt: false } },

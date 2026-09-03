@@ -215,7 +215,7 @@ router.get("/stats/student-rows", requireAuth, asyncHandler(async (_req, res) =>
   const [students, schools, iptrs, charts, preventives, risks] = await Promise.all([
     Student.find({ isArchived: false }),
     School.find({ isArchived: false }).select("_id school_name").lean(),
-    StudentIptr.find({ isArchived: false }).select("_id student_id").lean(),
+    StudentIptr.find({ isArchived: false }).select("_id student_id school_year consent_status").lean(),
     DentalChart.find({ isArchived: false }).select("iptr_id date_charted").lean(),
     PreventiveCareRecord.find({ isArchived: false }).select("_id iptr_id").lean(),
     RiskStratification.find({ isArchived: false }).select("preventive_id risk_level").lean(),
@@ -223,10 +223,21 @@ router.get("/stats/student-rows", requireAuth, asyncHandler(async (_req, res) =>
 
   const schoolNameById = new Map(schools.map((s: any) => [String(s._id), String(s.school_name)]));
   const iptrsByStudent = new Map<string, string[]>();
+  // Consent is per school year now (STUDENT_IPTR, not STUDENT — see
+  // StudentIptr.ts), so the list/report row shows the LATEST year's value,
+  // same "current" convention as grade_level on Student. null means the
+  // student has no IPTR at all yet, not "pending" — those are different
+  // facts and the NOTHING COSMETIC rule says not to blur them.
+  const latestConsentByStudent = new Map<string, { school_year: string; consent_status: string }>();
   for (const i of iptrs as any[]) {
     const list = iptrsByStudent.get(String(i.student_id)) ?? [];
     list.push(String(i._id));
     iptrsByStudent.set(String(i.student_id), list);
+    const key = String(i.student_id);
+    const current = latestConsentByStudent.get(key);
+    if (!current || String(i.school_year) > current.school_year) {
+      latestConsentByStudent.set(key, { school_year: String(i.school_year), consent_status: String(i.consent_status) });
+    }
   }
   const chartDatesByIptr = new Map<string, Date[]>();
   for (const c of charts as any[]) {
@@ -275,7 +286,7 @@ router.get("/stats/student-rows", requireAuth, asyncHandler(async (_req, res) =>
         : null,
       oralStatus: deriveOralStatus(riskLevel),
       riskLevel,
-      consentStatus: s.consent_status,
+      consentStatus: latestConsentByStudent.get(String(s._id))?.consent_status ?? null,
     };
   });
 
