@@ -187,13 +187,13 @@ export const Appointments = () => {
       setCreateError('Select at least one student.');
       return;
     }
-    // Belt-and-suspenders: the picker already disables a conflicting
-    // student, but a student can end up selected before the date is
-    // changed to one they're already booked on.
-    const duplicates = selectedStudents.filter(id => hasAppointmentOn(id, appointmentDate));
+    // Belt-and-suspenders: the picker already disables a student with an
+    // unresolved appointment, but the underlying data can change (e.g. a
+    // second tab) between opening this search and clicking Create.
+    const duplicates = selectedStudents.filter(id => pendingAppointmentFor(id));
     if (duplicates.length > 0) {
       const names = duplicates.map(id => allStudentsForSearch.find(s => s.id === id)?.name ?? 'A selected student');
-      setCreateError(`Already has an appointment on ${shortenDate(appointmentDate)}: ${names.join(', ')}. Remove or change the date.`);
+      setCreateError(`${names.join(', ')} already ${duplicates.length === 1 ? 'has' : 'have'} an unresolved appointment — mark it Completed or Missed first.`);
       return;
     }
     if (!resolvedType) {
@@ -305,22 +305,19 @@ export const Appointments = () => {
     ? sessions.filter(a => a.school === selectedSchool)
     : sessions;
 
-  // Every date a student already has a live (non-archived) appointment on,
-  // regardless of status — backs the duplicate-booking guard in the create
-  // form below. Archived (deleted) appointments don't count: sessions here
-  // only ever holds active ones.
-  const existingDatesByStudent = useMemo(() => {
-    const map = new Map<string, Set<string>>();
+  // A student with an unresolved appointment (Scheduled or In Progress —
+  // anything but Completed or Missed) can't be booked again on ANY date
+  // until that one is resolved. Not a same-day check: the point is one
+  // open booking per student at a time, not one per day.
+  const pendingSessionByStudent = useMemo(() => {
+    const map = new Map<string, AppointmentSession>();
     for (const s of appointments) {
-      for (const st of s.students) {
-        const set = map.get(st.id) ?? new Set<string>();
-        set.add(s.date);
-        map.set(st.id, set);
-      }
+      if (s.status === 'Completed' || s.status === 'Missed') continue;
+      for (const st of s.students) map.set(st.id, s);
     }
     return map;
   }, [appointments]);
-  const hasAppointmentOn = (studentId: string, date: string) => existingDatesByStudent.get(studentId)?.has(date) ?? false;
+  const pendingAppointmentFor = (studentId: string) => pendingSessionByStudent.get(studentId);
 
   const getStatus = (a: AppointmentSession) => a.status;
 
@@ -829,17 +826,18 @@ export const Appointments = () => {
                         <p className="text-sm text-muted-foreground text-center py-3">No students match "{studentSearch}".</p>
                       ) : studentSearchResults.map(s => {
                         const isSelected = selectedStudents.includes(s.id);
-                        // Already booked that day — blocked rather than left
-                        // for the submit error, so it can't happen at all.
-                        const conflict = !isSelected && appointmentDate && hasAppointmentOn(s.id, appointmentDate);
+                        // Blocked while they have an unresolved appointment,
+                        // on any date — not just this one — rather than
+                        // leaving it for the submit error.
+                        const pending = !isSelected ? pendingAppointmentFor(s.id) : undefined;
                         return (
-                          <label key={s.id} className={`flex items-center gap-3 px-3 py-2 hover:bg-gray-50 ${conflict ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
-                            <input type="checkbox" checked={isSelected} disabled={!!conflict}
+                          <label key={s.id} className={`flex items-center gap-3 px-3 py-2 hover:bg-gray-50 ${pending ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
+                            <input type="checkbox" checked={isSelected} disabled={!!pending}
                               onChange={() => setSelectedStudents(prev => prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id])}
                               className="w-4 h-4 rounded accent-primary" />
                             <span className="text-sm text-foreground">{s.name}</span>
-                            {conflict ? (
-                              <span className="text-xs text-destructive ml-auto">Already booked {shortenDate(appointmentDate)}</span>
+                            {pending ? (
+                              <span className="text-xs text-destructive ml-auto">{pending.status} for {shortenDate(pending.date)}</span>
                             ) : (
                               <span className="text-xs text-muted-foreground ml-auto">{s.grade} · {s.section || '—'}</span>
                             )}
