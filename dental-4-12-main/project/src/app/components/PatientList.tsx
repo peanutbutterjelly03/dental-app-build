@@ -22,7 +22,6 @@ import type { ApiSchool } from '../api/types';
 import { useSchools } from '../hooks/useSchools';
 import { schoolYearLabel } from '../utils/schoolYear';
 import { Notice } from './Notice';
-import { PromoteAssign } from './PromoteAssign';
 
 const GRADES = ['Kinder','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10'];
 
@@ -195,7 +194,6 @@ export const PatientList = () => {
   const [duplicateWarning, setDuplicateWarning] = useState<DuplicateCandidate[] | null>(null);
   const [schools, setSchools] = useState<ApiSchool[]>([]);
   const [showOcrUpload, setShowOcrUpload] = useState(false);
-  const [showPromote, setShowPromote] = useState(false);
   const [ocrProcessing, setOcrProcessing] = useState(false);
   const [ocrProgress, setOcrProgress] = useState(0);
   const [ocrError, setOcrError] = useState<string | null>(null);
@@ -690,11 +688,12 @@ export const PatientList = () => {
                   (backlog 0e). The OCR extraction is still described inside the
                   modal — only the entry point stops over-promising. Rename this
                   back if 0e ever ships. */}
-              {/* Rollover for a whole section — the bulk form of the per-year
-                  grade edit added in Sprint 70. */}
-              <button onClick={() => setShowPromote(true)}
+              {/* Annual rollover — was "Promote / Assign" (a modal, one grade
+                  at a time). Now a full page: school-wide clear + reassign +
+                  archive, see UpdateSchoolYear.tsx. */}
+              <button onClick={() => navigate('/students/update-school-year')}
                 className="flex items-center gap-2 px-4 py-2 border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium">
-                <GraduationCap className="w-4 h-4" /> Promote / Assign
+                <GraduationCap className="w-4 h-4" /> Update School Year
               </button>
               <button onClick={() => { setOcrError(null); setShowOcrUpload(true); }} className="flex items-center gap-2 px-4 py-2 border border-primary text-primary rounded-lg hover:bg-primary-surface text-sm font-medium">
                 <Upload className="w-4 h-4" /> Upload IPTR Form
@@ -835,16 +834,6 @@ export const PatientList = () => {
             )}
           </div>
         </div>
-
-      {showPromote && (
-        <Modal onClose={() => setShowPromote(false)}>
-          <PromoteAssign
-            onClose={() => { setShowPromote(false); void reloadStudents(); }}
-            schoolId={schools.find((s) => s.school_name === selectedSchool)?._id}
-            schoolName={selectedSchool ?? 'All schools'}
-          />
-        </Modal>
-      )}
 
       {/* Upload IPTR Form Modal (upload → OCR; no camera, see backlog 0e) */}
       {showOcrUpload && (

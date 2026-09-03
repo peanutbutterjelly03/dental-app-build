@@ -4,7 +4,7 @@ import { apiClient, ApiError } from '../api/client';
 import type { ApiStudent, ApiStudentIptr } from '../api/types';
 import { Notice } from './Notice';
 import { useToast } from './Toast';
-import { schoolYearLabel } from '../utils/schoolYear';
+import { schoolYearLabel, nextSchoolYear } from '../utils/schoolYear';
 import { surnameFirst } from '../utils/studentName';
 
 // ─── Promote / Assign ────────────────────────────────────────────────────────
@@ -26,18 +26,12 @@ import { surnameFirst } from '../utils/studentName';
 // The user's standing constraint applies: no per-record prompts or badges
 // across thousands of students. One preview, one confirm, one summary.
 
-const GRADES = ['Kinder','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10'];
+export const GRADES = ['Kinder','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10'];
 
 /** The grade after `g`, or null for the exit year (Grade 10 leaves). */
 const nextGrade = (g: string): string | null => {
   const i = GRADES.indexOf(g);
   return i >= 0 && i < GRADES.length - 1 ? GRADES[i + 1] : null;
-};
-
-/** "2026-2027" → "2027-2028". */
-const nextSchoolYear = (sy: string): string => {
-  const [a, b] = sy.split('-').map(Number);
-  return Number.isFinite(a) && Number.isFinite(b) ? `${a + 1}-${b + 1}` : sy;
 };
 
 type Action = 'promote' | 'retain' | 'skip';

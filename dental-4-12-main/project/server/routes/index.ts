@@ -296,8 +296,13 @@ router.get("/stats/student-rows", requireAuth, asyncHandler(async (_req, res) =>
 // narrow slices of this collection — the students an appointment set actually
 // references (by _id), and the roster of one section for the create form — and
 // used to get both by pulling all ~8,000 students into the browser.
+// archiveRoles: default is System Admin only, but Update School Year's
+// "Archive Selected" (bulk transfer) is used by the dentist/dental aide who
+// already reach this whole screen — same widening already done below for
+// student-iptrs, and for the same reason.
 router.use("/students", createCrudRouter(Student, {
   writeRoles: CLINICAL_WRITE_ROLES,
+  archiveRoles: CLINICAL_WRITE_ROLES,
   duplicateCheck: findDuplicateStudents,
   filterable: ["_id", "school_id"],
   filterableText: ["grade_level", "section"],
