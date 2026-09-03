@@ -165,10 +165,10 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName }: {
   const field = 'border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring';
 
   return (
-    <div className="p-6 space-y-4 max-w-4xl">
+    <div className="p-6 space-y-4">
       <div>
         <h2 className="text-base font-bold text-foreground flex items-center gap-2">
-          <GraduationCap className="w-5 h-5" /> Promote / Assign
+          <GraduationCap className="w-5 h-5" /> Assign
         </h2>
         <p className="text-xs text-muted-foreground mt-1">
           Opens next year's record for a whole section at once.
@@ -237,7 +237,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName }: {
                         className="text-xs border border-border rounded-md px-2 py-1 bg-card"
                         aria-label={`Action for ${surnameFirst(r.student)}`}
                       >
-                        {!graduating && <option value="promote">Promote to {target}</option>}
+                        {!graduating && <option value="promote">Assign to {target}</option>}
                         <option value="retain">Retain in {r.student.grade_level}</option>
                         <option value="skip">Skip</option>
                       </select>

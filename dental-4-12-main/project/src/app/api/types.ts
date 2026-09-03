@@ -22,6 +22,9 @@ export interface ApiSchool {
   street_address?: string;
   barangay?: string;
   city?: string;
+  /** System Admin-only override: lets Update School Year's "Start New
+   *  School Year" run outside its normal March-August window. */
+  allow_school_year_override?: boolean;
   isArchived: boolean;
 }
 

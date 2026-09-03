@@ -48,6 +48,14 @@ export const UpdateSchoolYear = () => {
   const fromYear = schoolYearLabel();
   const toYear = nextSchoolYear(fromYear);
 
+  // "Start New School Year" is normally only clickable March-August — the
+  // real rollover window — unless a System Admin has flipped this school's
+  // override on (see SchoolManagement). getMonth() is 0-indexed: 2=March,
+  // 7=August.
+  const inRolloverSeason = (() => { const m = new Date().getMonth(); return m >= 2 && m <= 7; })();
+  const overrideAllowed = school?.allow_school_year_override === true;
+  const canStartSchoolYear = inRolloverSeason || overrideAllowed;
+
   const [tab, setTab] = useState<Tab>('promote');
 
   // Active, non-pending roster for the school in view. Pending (offline,
@@ -107,6 +115,10 @@ export const UpdateSchoolYear = () => {
   const [fromSection, setFromSection] = useState('');
   const [targetGrade, setTargetGrade] = useState('');
   const [targetSection, setTargetSection] = useState('');
+  // "+ Add new section" in the dropdown swaps it for a text field instead of
+  // requiring the section to already exist somewhere in the roster.
+  const [addingNewSection, setAddingNewSection] = useState(false);
+  const NEW_SECTION = '__new__';
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [transferring, setTransferring] = useState(false);
@@ -124,6 +136,14 @@ export const UpdateSchoolYear = () => {
   const fromSections = useMemo(
     () => [...new Set(gradeFiltered.map((s) => s.section).filter(Boolean))].sort(),
     [gradeFiltered],
+  );
+
+  // Every section already in use anywhere at this school — the Target
+  // Section dropdown picks from these rather than free text, so a typo
+  // can't quietly create a near-duplicate ("Sampaguita" vs "Sampagita").
+  const allSections = useMemo(
+    () => [...new Set(roster.map((s) => s.section).filter(Boolean))].sort(),
+    [roster],
   );
 
   const transferCandidates = useMemo(() => {
@@ -239,7 +259,7 @@ export const UpdateSchoolYear = () => {
   }
 
   return (
-    <div className="space-y-4 max-w-5xl">
+    <div className="space-y-4">
       <div>
         <Link to="/patients" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="w-4 h-4" /> Students
@@ -258,14 +278,17 @@ export const UpdateSchoolYear = () => {
           <div>
             <h2 className="text-sm font-bold text-foreground">Start {toYear}</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {stillAssignedCount > 0
-                ? `Clears grade and section for ${stillAssignedCount} student${stillAssignedCount === 1 ? '' : 's'} still carrying their ${fromYear} assignment. Each one's ${fromYear} grade and section is saved to their IPTR first.`
-                : `Every active student here has already been cleared for ${toYear}.`}
+              {!canStartSchoolYear
+                ? `Only available March–August. A System Admin can enable it for this school any time from School Management.`
+                : stillAssignedCount > 0
+                  ? `Clears grade and section for ${stillAssignedCount} student${stillAssignedCount === 1 ? '' : 's'} still carrying their ${fromYear} assignment. Each one's ${fromYear} grade and section is saved to their IPTR first.`
+                  : `Every active student here has already been cleared for ${toYear}.`}
             </p>
           </div>
           <button
             onClick={() => setShowWipeConfirm(true)}
-            disabled={stillAssignedCount === 0 || wiping}
+            disabled={stillAssignedCount === 0 || wiping || !canStartSchoolYear}
+            title={!canStartSchoolYear ? 'Only available March–August, unless a System Admin has enabled it for this school.' : undefined}
             className="flex-shrink-0 px-4 py-2 bg-destructive text-white rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50"
           >
             {wiping ? `Clearing… ${wipeProgress}/${stillAssignedCount}` : `Start New School Year (${stillAssignedCount})`}
@@ -295,13 +318,13 @@ export const UpdateSchoolYear = () => {
           onClick={() => setTab('promote')}
           className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 -mb-px ${tab === 'promote' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
         >
-          <GraduationCap className="w-4 h-4" /> Promote / Assign
+          <GraduationCap className="w-4 h-4" /> Assign
         </button>
         <button
           onClick={() => setTab('transfer')}
           className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 -mb-px ${tab === 'transfer' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
         >
-          <Repeat className="w-4 h-4" /> Bulk Transfer
+          <Repeat className="w-4 h-4" /> Bulk Reassignment
         </button>
       </div>
 
@@ -338,7 +361,38 @@ export const UpdateSchoolYear = () => {
             </div>
             <div>
               <label className="block text-xs font-medium text-foreground mb-1">Target Section</label>
-              <input value={targetSection} onChange={(e) => setTargetSection(e.target.value)} placeholder="e.g. Mabini" className={field} />
+              {addingNewSection ? (
+                <div className="flex items-center gap-1">
+                  <input
+                    value={targetSection}
+                    onChange={(e) => setTargetSection(e.target.value)}
+                    placeholder="New section name"
+                    autoFocus
+                    className={field}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => { setAddingNewSection(false); setTargetSection(''); }}
+                    title="Cancel — pick from the list instead"
+                    className="flex-shrink-0 text-xs text-muted-foreground hover:text-foreground px-2 py-2"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <select
+                  value={targetSection}
+                  onChange={(e) => {
+                    if (e.target.value === NEW_SECTION) { setAddingNewSection(true); setTargetSection(''); }
+                    else setTargetSection(e.target.value);
+                  }}
+                  className={field}
+                >
+                  <option value="">No section</option>
+                  {allSections.map((s) => <option key={s} value={s}>{s}</option>)}
+                  <option value={NEW_SECTION}>+ Add new section…</option>
+                </select>
+              )}
             </div>
           </div>
 
