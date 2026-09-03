@@ -26,6 +26,11 @@ const OTHER_TYPE = 'Other';
 
 const TODAY = toLocalDateString(new Date());
 
+/** "2026-09-04" -> "Sep 4". Shared by the card meta chips and the
+ *  duplicate-booking warning so both read the same way. */
+const shortenDate = (dateStr: string) =>
+  new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
 export const Appointments = () => {
   const { user, selectedSchool } = useAuth();
   const navigate = useNavigate();
@@ -182,6 +187,15 @@ export const Appointments = () => {
       setCreateError('Select at least one student.');
       return;
     }
+    // Belt-and-suspenders: the picker already disables a conflicting
+    // student, but a student can end up selected before the date is
+    // changed to one they're already booked on.
+    const duplicates = selectedStudents.filter(id => hasAppointmentOn(id, appointmentDate));
+    if (duplicates.length > 0) {
+      const names = duplicates.map(id => allStudentsForSearch.find(s => s.id === id)?.name ?? 'A selected student');
+      setCreateError(`Already has an appointment on ${shortenDate(appointmentDate)}: ${names.join(', ')}. Remove or change the date.`);
+      return;
+    }
     if (!resolvedType) {
       setCreateError(appointmentType === OTHER_TYPE ? 'Type the appointment type.' : 'Select an appointment type.');
       return;
@@ -290,6 +304,23 @@ export const Appointments = () => {
   const appointments: AppointmentSession[] = selectedSchool
     ? sessions.filter(a => a.school === selectedSchool)
     : sessions;
+
+  // Every date a student already has a live (non-archived) appointment on,
+  // regardless of status — backs the duplicate-booking guard in the create
+  // form below. Archived (deleted) appointments don't count: sessions here
+  // only ever holds active ones.
+  const existingDatesByStudent = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const s of appointments) {
+      for (const st of s.students) {
+        const set = map.get(st.id) ?? new Set<string>();
+        set.add(s.date);
+        map.set(st.id, set);
+      }
+    }
+    return map;
+  }, [appointments]);
+  const hasAppointmentOn = (studentId: string, date: string) => existingDatesByStudent.get(studentId)?.has(date) ?? false;
 
   const getStatus = (a: AppointmentSession) => a.status;
 
@@ -442,16 +473,26 @@ export const Appointments = () => {
     // more than one) falls back to the old grouped view, since there is no
     // single chart to link to.
     const soleStudent = a.studentCount === 1 ? a.students[0] : null;
-    const shortDate = new Date(a.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const shortDate = shortenDate(a.date);
     // School and dentist dropped from the card: the page is already scoped
     // to one school at a time via the switcher, and the clinic has exactly
     // one dentist, so both were repeating information on every row. The
     // grade square is a gender icon when there's exactly one student on the
     // booking — a mixed-gender group keeps the grade initial, since no
     // single icon would be honest there.
-    const genderIcon = soleStudent?.gender === 'Male'
+    // Pink for girls, blue for boys — a fixed pair regardless of grade, so
+    // the icon reads as sex at a glance rather than blending into whatever
+    // color that grade happens to be. Grade color is still what identifies
+    // the grade, just not on this badge anymore. A mixed-gender group (no
+    // single student) keeps the grade-colored initial, since no one icon
+    // would be honest there.
+    const isFemale = soleStudent?.gender === 'Female';
+    const isMale = soleStudent?.gender === 'Male';
+    const iconBg = isFemale ? '#FCE7F3' : isMale ? '#DBEAFE' : gc.light;
+    const iconColor = isFemale ? '#DB2777' : isMale ? '#1E40AF' : gc.solid;
+    const genderIcon = isMale
       ? <Mars className="w-5 h-5" />
-      : soleStudent?.gender === 'Female'
+      : isFemale
         ? <Venus className="w-5 h-5" />
         : a.grade.replace('Grade ', 'G');
     // Meta info as a row of small tags instead of "Label: value" text — same
@@ -460,7 +501,7 @@ export const Appointments = () => {
     return (
       <div className="flex items-center justify-between gap-4 px-4 py-2.5 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
         <div className="flex items-center gap-3 min-w-0 flex-1">
-          <div style={{ backgroundColor: gc.light, color: gc.solid }} className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0">
+          <div style={{ backgroundColor: iconBg, color: iconColor }} className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0">
             {genderIcon}
           </div>
           <div className="min-w-0 flex-1">
@@ -786,15 +827,25 @@ export const Appointments = () => {
                     <div className="border border-border rounded-lg max-h-40 overflow-y-auto divide-y divide-gray-100">
                       {studentSearchResults.length === 0 ? (
                         <p className="text-sm text-muted-foreground text-center py-3">No students match "{studentSearch}".</p>
-                      ) : studentSearchResults.map(s => (
-                        <label key={s.id} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer">
-                          <input type="checkbox" checked={selectedStudents.includes(s.id)}
-                            onChange={() => setSelectedStudents(prev => prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id])}
-                            className="w-4 h-4 rounded accent-primary" />
-                          <span className="text-sm text-foreground">{s.name}</span>
-                          <span className="text-xs text-muted-foreground ml-auto">{s.grade} · {s.section || '—'}</span>
-                        </label>
-                      ))}
+                      ) : studentSearchResults.map(s => {
+                        const isSelected = selectedStudents.includes(s.id);
+                        // Already booked that day — blocked rather than left
+                        // for the submit error, so it can't happen at all.
+                        const conflict = !isSelected && appointmentDate && hasAppointmentOn(s.id, appointmentDate);
+                        return (
+                          <label key={s.id} className={`flex items-center gap-3 px-3 py-2 hover:bg-gray-50 ${conflict ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
+                            <input type="checkbox" checked={isSelected} disabled={!!conflict}
+                              onChange={() => setSelectedStudents(prev => prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id])}
+                              className="w-4 h-4 rounded accent-primary" />
+                            <span className="text-sm text-foreground">{s.name}</span>
+                            {conflict ? (
+                              <span className="text-xs text-destructive ml-auto">Already booked {shortenDate(appointmentDate)}</span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground ml-auto">{s.grade} · {s.section || '—'}</span>
+                            )}
+                          </label>
+                        );
+                      })}
                     </div>
                   )}
                   {selectedStudents.length > 0 && (
