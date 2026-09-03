@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link, useSearchParams } from 'react-router';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, X, Check, Clock, Users, RotateCcw, FileText } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, X, Check, Clock, Users, RotateCcw, FileText, Mars, Venus } from 'lucide-react';
 import { getGradeColor } from '../utils/gradeColors';
 import { getSchoolShortName } from '../utils/schoolColors';
-import { GradePill } from './GradePill';
 import { useAppointments, type AppointmentSession } from '../hooks/useAppointments';
 import { useDentistRotations } from '../hooks/useDentistRotations';
 import { useStudents } from '../hooks/useStudents';
@@ -16,7 +15,6 @@ import type { ApiSchool } from '../api/types';
 import { SkeletonPageHeader, SkeletonStatGrid, SkeletonTable } from './Skeleton';
 import { useToast } from './Toast';
 import { Modal } from './Modal';
-import { GRADES } from './PromoteAssign';
 
 /** Fixed options plus a free-text escape hatch — the clinic's actual visit
  *  types are not a closed set, and forcing everything into these six used to
@@ -295,8 +293,6 @@ export const Appointments = () => {
   const appointments: AppointmentSession[] = selectedSchool
     ? sessions.filter(a => a.school === selectedSchool)
     : sessions;
-  const calendarLegendGrades = [...new Set(appointments.map(a => a.grade))]
-    .sort((a, b) => GRADES.indexOf(a) - GRADES.indexOf(b));
 
   const getStatus = (a: AppointmentSession) => a.status;
 
@@ -399,36 +395,42 @@ export const Appointments = () => {
     const shortDate = new Date(a.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     // School and dentist dropped from the card: the page is already scoped
     // to one school at a time via the switcher, and the clinic has exactly
-    // one dentist, so both were repeating information on every row.
+    // one dentist, so both were repeating information on every row. The
+    // grade square is a gender icon when there's exactly one student on the
+    // booking — a mixed-gender group keeps the grade initial, since no
+    // single icon would be honest there.
+    const genderIcon = soleStudent?.gender === 'Male'
+      ? <Mars className="w-5 h-5" />
+      : soleStudent?.gender === 'Female'
+        ? <Venus className="w-5 h-5" />
+        : a.grade.replace('Grade ', 'G');
     return (
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between gap-4 px-4 py-3 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
           <div style={{ backgroundColor: gc.light, color: gc.solid }} className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0">
-            {a.grade.replace('Grade ', 'G')}
+            {genderIcon}
           </div>
-          <div>
-            <div className="text-sm font-medium text-foreground">
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-medium text-foreground truncate">
               {soleStudent ? soleStudent.name : `${a.section} — ${a.grade}`}
             </div>
-            {soleStudent && (
-              <div className="text-xs flex items-center gap-1.5 mt-0.5">
-                <span style={{ backgroundColor: gc.light, color: gc.solid }} className="px-1.5 py-0.5 rounded-full font-semibold">{a.grade}</span>
-                <span className="text-muted-foreground">{a.section}</span>
-              </div>
-            )}
-            <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap mt-0.5">
-              <span className="font-bold text-foreground">{shortDate}</span>
-              <Clock className="w-3 h-3" />
-              <span>{a.time}</span>
+            {/* One line, labeled, using the row's width instead of stacking
+                three mostly-empty lines. */}
+            <div className="text-xs flex flex-wrap items-center gap-x-5 gap-y-1 mt-1">
+              {soleStudent && (
+                <span><span className="text-muted-foreground">Grade Section:</span> <span className="font-medium text-foreground">{a.grade} · {a.section}</span></span>
+              )}
+              <span><span className="text-muted-foreground">Date:</span> <span className="font-bold text-foreground">{shortDate}</span></span>
+              <span className="inline-flex items-center gap-1">
+                <span className="text-muted-foreground">Time:</span> <Clock className="w-3 h-3 text-muted-foreground" /> <span className="font-medium text-foreground">{a.time}</span>
+              </span>
+              <span><span className="text-muted-foreground">Purpose:</span> <span className="font-medium text-foreground">{a.type}</span></span>
               {!soleStudent && (
-                <>
-                  <span>·</span>
-                  <Users className="w-3 h-3" />
-                  <span>{a.studentCount} students</span>
-                </>
+                <span className="inline-flex items-center gap-1">
+                  <Users className="w-3 h-3 text-muted-foreground" /> <span className="font-medium text-foreground">{a.studentCount} students</span>
+                </span>
               )}
             </div>
-            <div className="text-xs text-muted-foreground mt-0.5">{a.type}</div>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -528,7 +530,7 @@ export const Appointments = () => {
         <>
           <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-sm font-semibold text-foreground">Today — {formatDateWithWeekday(TODAY)}</span>
+            <span className="text-sm font-bold text-foreground">Today, {formatDateWithWeekday(TODAY)}</span>
           </div>
           {todayAppts.length === 0 ? (
             <div className="py-12 text-center text-muted-foreground">
@@ -635,14 +637,6 @@ export const Appointments = () => {
               <Notice variant="warning">Pick a specific school from the school switcher to add reminders — appointments and notes are both kept one school at a time.</Notice>
             </div>
           )}
-          <div className="px-4 py-3 border-b border-gray-100 bg-card">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Grade Color Code</span>
-              {calendarLegendGrades.map(grade => (
-                <GradePill key={grade} grade={grade} />
-              ))}
-            </div>
-          </div>
           <div className="grid grid-cols-7 border-b border-border">
             {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
               <div key={d} className="text-center text-xs font-semibold text-muted-foreground py-2 bg-gray-50">{d}</div>
@@ -653,23 +647,18 @@ export const Appointments = () => {
               const dayAppts = getAppointmentsForDay(day);
               const dayNotes = getNotesForDay(day);
               const isToday = day && toLocalDateString(day) === TODAY;
+              const clickable = day && selectedSchool;
               return (
-                <div key={idx} className={`min-h-[80px] p-1.5 border-r border-b border-gray-100 last:border-b-0 ${!day ? 'bg-gray-50/60' : ''} ${isToday ? 'bg-teal-50' : ''}`}>
+                <div
+                  key={idx}
+                  onClick={() => clickable && openNoteModal(toLocalDateString(day!))}
+                  title={clickable ? 'Click to add or edit a reminder for this date' : undefined}
+                  className={`min-h-[80px] p-1.5 border-r border-b border-gray-100 last:border-b-0 ${!day ? 'bg-gray-50/60' : ''} ${isToday ? 'bg-teal-50' : ''} ${clickable ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                >
                   {day && (
                     <>
-                      <div className="flex items-center justify-between mb-1">
-                        <div className={`text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-teal-600 text-white' : 'text-muted-foreground'}`}>
-                          {day.getDate()}
-                        </div>
-                        {selectedSchool && (
-                          <button
-                            onClick={() => openNoteModal(toLocalDateString(day))}
-                            title="Add a reminder for this date"
-                            className="w-4 h-4 flex items-center justify-center rounded text-muted-foreground hover:bg-gray-200 hover:text-foreground"
-                          >
-                            <Plus className="w-3 h-3" />
-                          </button>
-                        )}
+                      <div className={`text-xs font-medium mb-1 w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-teal-600 text-white' : 'text-muted-foreground'}`}>
+                        {day.getDate()}
                       </div>
                       {dayAppts.map(a => {
                         const gc = getGradeColor(a.grade);
@@ -683,7 +672,7 @@ export const Appointments = () => {
                       {dayNotes.map(n => (
                         <button
                           key={n.id}
-                          onClick={() => openNoteModal(toLocalDateString(day))}
+                          onClick={e => { e.stopPropagation(); openNoteModal(toLocalDateString(day)); }}
                           title={n.notes}
                           className="w-full text-left text-[10px] font-medium px-1.5 py-0.5 rounded mb-0.5 truncate bg-amber-100 text-amber-800"
                         >
