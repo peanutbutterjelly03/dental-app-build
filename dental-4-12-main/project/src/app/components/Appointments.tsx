@@ -442,11 +442,11 @@ export const Appointments = () => {
         : a.grade.replace('Grade ', 'G');
     // Meta info as a row of small tags instead of "Label: value" text — same
     // information, read at a glance instead of parsed word by word.
-    const chip = 'inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-gray-100 text-xs font-medium text-foreground';
+    const chip = 'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-gray-100 text-xs font-medium text-foreground';
     return (
-      <div className="flex items-center justify-between gap-4 px-4 py-4 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
-        <div className="flex items-center gap-3.5 min-w-0 flex-1">
-          <div style={{ backgroundColor: gc.light, color: gc.solid }} className="w-11 h-11 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0">
+      <div className="flex items-center justify-between gap-4 px-4 py-2.5 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div style={{ backgroundColor: gc.light, color: gc.solid }} className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0">
             {genderIcon}
           </div>
           <div className="min-w-0 flex-1">
@@ -455,7 +455,7 @@ export const Appointments = () => {
             </div>
             {/* One row of tags, using the row's width instead of stacking
                 three mostly-empty lines or spelling out "Label: value". */}
-            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+            <div className="flex flex-wrap items-center gap-1.5 mt-1">
               {soleStudent && (
                 <span className={chip} style={{ backgroundColor: gc.light, color: gc.solid }}>
                   {a.grade} <span className="opacity-70 font-normal">· {a.section}</span>
@@ -712,18 +712,18 @@ export const Appointments = () => {
                   key={idx}
                   onClick={() => clickable && openNoteModal(toLocalDateString(day!))}
                   title={clickable ? 'Click to add or edit a reminder for this date' : undefined}
-                  className={`min-h-[110px] p-2 border-r border-b border-gray-100 last:border-b-0 space-y-1 ${!day ? 'bg-gray-50/60' : ''} ${isToday ? 'bg-teal-50' : ''} ${clickable ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                  className={`min-h-[82px] p-1.5 border-r border-b border-gray-100 last:border-b-0 space-y-1 ${!day ? 'bg-gray-50/60' : ''} ${isToday ? 'bg-teal-50' : ''} ${clickable ? 'cursor-pointer hover:bg-gray-50' : ''}`}
                 >
                   {day && (
                     <>
-                      <div className={`text-sm font-semibold mb-1.5 w-7 h-7 flex items-center justify-center rounded-full ${isToday ? 'bg-teal-600 text-white' : 'text-foreground'}`}>
+                      <div className={`text-xs font-semibold mb-1 w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-teal-600 text-white' : 'text-foreground'}`}>
                         {day.getDate()}
                       </div>
                       {dayAppts.map(a => {
                         const gc = getGradeColor(a.grade);
                         return (
                           <div key={a.id} style={{ backgroundColor: gc.light, color: gc.solid }}
-                            className="text-xs font-medium px-2 py-1 rounded-md truncate">
+                            className="text-xs font-medium px-1.5 py-0.5 rounded-md leading-snug line-clamp-2 break-words">
                             {a.time} {a.section}
                           </div>
                         );
@@ -733,10 +733,10 @@ export const Appointments = () => {
                           key={n.id}
                           onClick={e => { e.stopPropagation(); openNoteModal(toLocalDateString(day)); }}
                           title={n.notes}
-                          className="w-full flex items-center gap-1.5 text-left text-xs font-medium px-2 py-1 rounded-md truncate bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100"
+                          className="w-full flex items-start gap-1 text-left text-xs font-medium px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100"
                         >
-                          <StickyNote className="w-3 h-3 flex-shrink-0" />
-                          <span className="truncate">{n.notes}</span>
+                          <StickyNote className="w-3 h-3 flex-shrink-0 mt-0.5" />
+                          <span className="leading-snug line-clamp-2 break-words">{n.notes}</span>
                         </button>
                       ))}
                     </>
