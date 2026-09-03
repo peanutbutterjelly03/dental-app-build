@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link, useSearchParams } from 'react-router';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, X, Check, Clock, Users, Stethoscope, AlertCircle, RotateCcw, FileText } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, X, Check, Clock, Users, Stethoscope, RotateCcw, FileText } from 'lucide-react';
 import { getGradeColor } from '../utils/gradeColors';
 import { getSchoolColor, getSchoolShortName } from '../utils/schoolColors';
 import { GradePill } from './GradePill';
 import { useAppointments, type AppointmentSession } from '../hooks/useAppointments';
-import { useGradeRoster } from '../hooks/useGradeRoster';
 import { useDentistRotations } from '../hooks/useDentistRotations';
+import { useStudents } from '../hooks/useStudents';
 import { apiClient } from '../api/client';
 import { Notice } from './Notice';
 import { toLocalDateString, formatDateWithWeekday } from '../utils/localDate';
@@ -17,6 +17,13 @@ import { SkeletonPageHeader, SkeletonStatGrid, SkeletonTable } from './Skeleton'
 import { useToast } from './Toast';
 import { Modal } from './Modal';
 import { useSchools } from '../hooks/useSchools';
+import { GRADES } from './PromoteAssign';
+
+/** Fixed options plus a free-text escape hatch — the clinic's actual visit
+ *  types are not a closed set, and forcing everything into these six used to
+ *  mean picking the closest lie. */
+const APPOINTMENT_TYPES = ['Regular Checkup', 'Screening', 'Bayanihan Mission', 'Fluoride Application', 'Extraction', 'Follow-up'];
+const OTHER_TYPE = 'Other';
 
 
 const TODAY = toLocalDateString(new Date());
@@ -63,10 +70,15 @@ export const Appointments = () => {
     return () => window.removeEventListener('keydown', onKey);
   }, [showCreateModal, showRotationModal]);
 
-  // Create appointment form
-  const [formSchool, setFormSchool] = useState('');
-  const [selectedGrade, setSelectedGrade] = useState('');
-  const [selectedSection, setSelectedSection] = useState('');
+  // Create appointment form. School and dentist are no longer picked here —
+  // school follows the sidebar's school switcher (this is a one-school-at-a-
+  // time screen everywhere else already) and the clinic has exactly one
+  // dentist, defaulted below. Grade/section are dropped as SELECTION filters
+  // too: the student search below already scopes to the right school, and a
+  // fixed Grade 1-6 picker (the old `grades` list) could not even reach
+  // Kinder or Grades 7-10 — real for Bagong Tanyag Integrated, which enrolls
+  // K-10, not just the other two schools' K-6.
+  const [studentSearch, setStudentSearch] = useState('');
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
   // Sprint 93. Prefilled with today and still fully editable — the user's ask
   // was "automatic dapat yung date na kung ano mang date ngayon pero dapat
@@ -77,6 +89,7 @@ export const Appointments = () => {
   const [appointmentDate, setAppointmentDate] = useState(TODAY);
   const [appointmentTime, setAppointmentTime] = useState('');
   const [appointmentType, setAppointmentType] = useState('');
+  const [appointmentTypeOther, setAppointmentTypeOther] = useState('');
   const [appointmentDentistId, setAppointmentDentistId] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -112,8 +125,9 @@ export const Appointments = () => {
   // School list comes from the DB now, not a hardcoded array (Sprint 60).
   const { schoolNames } = useSchools();
   const [schools, setSchools] = useState<ApiSchool[]>([]);
-  const formSchoolId = schools.find(s => s.school_name === formSchool)?._id;
-  const { roster: gradeRoster, sections: sectionsForGrade } = useGradeRoster(formSchoolId, selectedGrade);
+  // Roster to search when creating an appointment — scoped to the school the
+  // switcher already has selected, same as every other screen.
+  const { students: allStudentsForSearch } = useStudents();
 
   useEffect(() => {
     apiClient.get<ApiSchool[]>('/schools').then(setSchools).catch(() => {});
@@ -129,15 +143,14 @@ export const Appointments = () => {
   }, [user, dentists]);
 
   const resetCreateAppointmentForm = () => {
-    setFormSchool('');
-    setSelectedGrade('');
-    setSelectedSection('');
+    setStudentSearch('');
     setSelectedStudents([]);
     // Back to today, NOT blank: clearing it after a save would undo the
     // prefill for the next appointment, which is when it is most wanted.
     setAppointmentDate(TODAY);
     setAppointmentTime('');
     setAppointmentType('');
+    setAppointmentTypeOther('');
     setCreateError(null);
   };
 
@@ -151,13 +164,32 @@ export const Appointments = () => {
 
   const handleCreateAppointment = async () => {
     setCreateError(null);
-    if (!formSchool || !selectedGrade || !selectedSection || !appointmentDate || !appointmentTime || !appointmentType || !appointmentDentistId || selectedStudents.length === 0) {
-      setCreateError('Please fill in all fields and select at least one student.');
+    // Date is the only field the user must fill in by hand — school and
+    // dentist are automatic, and time defaults below. A student to book it
+    // for and a type to record are still unavoidable: an Appointment row
+    // cannot mean anything without either.
+    const resolvedType = appointmentType === OTHER_TYPE ? appointmentTypeOther.trim() : appointmentType;
+    if (!appointmentDate) {
+      setCreateError('Date is required.');
+      return;
+    }
+    if (selectedStudents.length === 0) {
+      setCreateError('Select at least one student.');
+      return;
+    }
+    if (!resolvedType) {
+      setCreateError(appointmentType === OTHER_TYPE ? 'Type the appointment type.' : 'Select an appointment type.');
+      return;
+    }
+    if (!appointmentDentistId) {
+      setCreateError('No dentist is set up for this clinic yet.');
       return;
     }
     setCreating(true);
     try {
-      const appointment_datetime = new Date(`${appointmentDate}T${appointmentTime}`).toISOString();
+      // Left blank, time defaults to the clinic's usual opening rather than
+      // blocking the save on a field the user asked not to require.
+      const appointment_datetime = new Date(`${appointmentDate}T${appointmentTime || '08:00'}`).toISOString();
       await Promise.all(
         selectedStudents.map(student_id =>
           apiClient.post('/appointments', {
@@ -165,7 +197,7 @@ export const Appointments = () => {
             dentist_id: appointmentDentistId,
             appointment_datetime,
             status: 'Scheduled',
-            appointment_type: appointmentType,
+            appointment_type: resolvedType,
           }),
         ),
       );
@@ -209,18 +241,24 @@ export const Appointments = () => {
     }
   };
 
-  const grades = ['Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6'];
-  // gradeRoster is already scoped to the chosen school and grade by the server,
-  // so only the section still has to be narrowed here.
-  const studentsInSection = selectedSection
-    ? gradeRoster.filter(s => s.section === selectedSection)
-    : [];
+  // Search results for the create-appointment picker: this school's active,
+  // synced roster, name-matched. Kinder and Grades 7-10 are reachable here —
+  // the old grade dropdown was hardcoded to Grade 1-6 and could not book an
+  // appointment for either, which was simply wrong for Bagong Tanyag
+  // Integrated (K-10, not K-6 like the other two schools).
+  const studentSearchResults = useMemo(() => {
+    if (!selectedSchool || !studentSearch.trim()) return [];
+    const q = studentSearch.trim().toLowerCase();
+    return allStudentsForSearch
+      .filter(s => !s.pending && s.school === selectedSchool && s.name.toLowerCase().includes(q))
+      .slice(0, 25);
+  }, [allStudentsForSearch, selectedSchool, studentSearch]);
 
   const appointments: AppointmentSession[] = selectedSchool
     ? sessions.filter(a => a.school === selectedSchool)
     : sessions;
   const calendarLegendGrades = [...new Set(appointments.map(a => a.grade))]
-    .sort((a, b) => grades.indexOf(a) - grades.indexOf(b));
+    .sort((a, b) => GRADES.indexOf(a) - GRADES.indexOf(b));
 
   const getStatus = (a: AppointmentSession) => a.status;
 
@@ -302,6 +340,14 @@ export const Appointments = () => {
     const gc = getGradeColor(a.grade);
     const sc = getSchoolColor(a.school);
     const status = getStatus(a);
+    // The common case now that appointments are booked by searching a
+    // student rather than a whole section: one student per booking. That
+    // student's own name and chart replace the section-level summary; a
+    // multi-student booking (still possible — the picker allows selecting
+    // more than one) falls back to the old grouped view, since there is no
+    // single chart to link to.
+    const soleStudent = a.studentCount === 1 ? a.students[0] : null;
+    const shortDate = new Date(a.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     return (
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
         <div className="flex items-center gap-3">
@@ -309,15 +355,23 @@ export const Appointments = () => {
             {a.grade.replace('Grade ', 'G')}
           </div>
           <div>
-            <div className="text-sm font-medium text-foreground">{a.section} — {a.grade}</div>
-            <div className="text-xs text-muted-foreground flex items-center gap-2">
+            <div className="text-sm font-medium text-foreground">
+              {soleStudent ? soleStudent.name : `${a.section} — ${a.grade}`}
+            </div>
+            {soleStudent && <div className="text-xs text-muted-foreground">{a.grade} · {a.section}</div>}
+            <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
               <span style={{ color: sc.solid }}>{getSchoolShortName(a.school)}</span>
               <span>·</span>
+              <span>{shortDate}</span>
               <Clock className="w-3 h-3" />
               <span>{a.time}</span>
-              <span>·</span>
-              <Users className="w-3 h-3" />
-              <span>{a.studentCount} students</span>
+              {!soleStudent && (
+                <>
+                  <span>·</span>
+                  <Users className="w-3 h-3" />
+                  <span>{a.studentCount} students</span>
+                </>
+              )}
             </div>
             <div className="text-xs text-muted-foreground mt-0.5">{a.type} · {a.dentist}</div>
           </div>
@@ -327,9 +381,9 @@ export const Appointments = () => {
             <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200">Pending sync</span>
           )}
           <Link
-            to="/dental-charts"
+            to={soleStudent ? `/dental-chart/${soleStudent.id}` : '/dental-charts'}
             className="w-7 h-7 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 flex items-center justify-center transition-colors"
-            title="Open Dental Charts"
+            title={soleStudent ? `Open ${soleStudent.name}'s Dental Chart` : 'Open Dental Charts'}
           >
             <FileText className="w-3.5 h-3.5" />
           </Link>
@@ -389,57 +443,6 @@ export const Appointments = () => {
             className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover text-sm font-medium">
             <Plus className="w-4 h-4" /> New Appointment
           </button>
-        </div>
-      </div>
-
-      {/* ── CALENDAR (always visible) ── */}
-      <div className="bg-card rounded-xl border border-border overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-          <span className="text-sm font-semibold text-foreground">Dentist Rotation Schedule</span>
-          <div className="flex items-center gap-2">
-            <button onClick={prevMonth} className="p-1.5 hover:bg-gray-100 rounded-lg"><ChevronLeft className="w-4 h-4 text-muted-foreground"/></button>
-            <span className="text-sm font-semibold text-foreground min-w-[110px] text-center">{monthName}</span>
-            <button onClick={nextMonth} className="p-1.5 hover:bg-gray-100 rounded-lg"><ChevronRight className="w-4 h-4 text-muted-foreground"/></button>
-          </div>
-        </div>
-        <div className="px-4 py-3 border-b border-gray-100 bg-card">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Grade Color Code</span>
-            {calendarLegendGrades.map(grade => (
-              <GradePill key={grade} grade={grade} />
-            ))}
-          </div>
-        </div>
-        <div className="grid grid-cols-7 border-b border-border">
-          {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
-            <div key={d} className="text-center text-xs font-semibold text-muted-foreground py-2 bg-gray-50">{d}</div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7">
-          {days.map((day, idx) => {
-            const dayAppts = getAppointmentsForDay(day);
-            const isToday = day && toLocalDateString(day) === TODAY;
-            return (
-              <div key={idx} className={`min-h-[80px] p-1.5 border-r border-b border-gray-100 last:border-b-0 ${!day ? 'bg-gray-50/60' : ''} ${isToday ? 'bg-teal-50' : ''}`}>
-                {day && (
-                  <>
-                    <div className={`text-xs font-medium mb-1 w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-teal-600 text-white' : 'text-muted-foreground'}`}>
-                      {day.getDate()}
-                    </div>
-                    {dayAppts.map(a => {
-                      const gc = getGradeColor(a.grade);
-                      return (
-                        <div key={a.id} style={{ backgroundColor: gc.light, color: gc.solid }}
-                          className="text-[10px] font-medium px-1.5 py-0.5 rounded mb-0.5 truncate">
-                          {a.time} {a.section}
-                        </div>
-                      );
-                    })}
-                  </>
-                )}
-              </div>
-            );
-          })}
         </div>
       </div>
 
@@ -583,6 +586,57 @@ export const Appointments = () => {
 
       </div>{/* end tab content box */}
 
+      {/* ── CALENDAR ── */}
+      <div className="bg-card rounded-xl border border-border overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+          <span className="text-sm font-semibold text-foreground">Dentist Rotation Schedule</span>
+          <div className="flex items-center gap-2">
+            <button onClick={prevMonth} className="p-1.5 hover:bg-gray-100 rounded-lg"><ChevronLeft className="w-4 h-4 text-muted-foreground"/></button>
+            <span className="text-sm font-semibold text-foreground min-w-[110px] text-center">{monthName}</span>
+            <button onClick={nextMonth} className="p-1.5 hover:bg-gray-100 rounded-lg"><ChevronRight className="w-4 h-4 text-muted-foreground"/></button>
+          </div>
+        </div>
+        <div className="px-4 py-3 border-b border-gray-100 bg-card">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Grade Color Code</span>
+            {calendarLegendGrades.map(grade => (
+              <GradePill key={grade} grade={grade} />
+            ))}
+          </div>
+        </div>
+        <div className="grid grid-cols-7 border-b border-border">
+          {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
+            <div key={d} className="text-center text-xs font-semibold text-muted-foreground py-2 bg-gray-50">{d}</div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7">
+          {days.map((day, idx) => {
+            const dayAppts = getAppointmentsForDay(day);
+            const isToday = day && toLocalDateString(day) === TODAY;
+            return (
+              <div key={idx} className={`min-h-[80px] p-1.5 border-r border-b border-gray-100 last:border-b-0 ${!day ? 'bg-gray-50/60' : ''} ${isToday ? 'bg-teal-50' : ''}`}>
+                {day && (
+                  <>
+                    <div className={`text-xs font-medium mb-1 w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-teal-600 text-white' : 'text-muted-foreground'}`}>
+                      {day.getDate()}
+                    </div>
+                    {dayAppts.map(a => {
+                      const gc = getGradeColor(a.grade);
+                      return (
+                        <div key={a.id} style={{ backgroundColor: gc.light, color: gc.solid }}
+                          className="text-[10px] font-medium px-1.5 py-0.5 rounded mb-0.5 truncate">
+                          {a.time} {a.section}
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {/* ── CREATE APPOINTMENT MODAL ── */}
       {showCreateModal && (
         <Modal onClose={() => { resetCreateAppointmentForm(); setShowCreateModal(false); }} maxWidth="max-w-lg" closeDisabled={creating}>
@@ -591,77 +645,74 @@ export const Appointments = () => {
               <button onClick={() => { resetCreateAppointmentForm(); setShowCreateModal(false); }} className="p-2 hover:bg-gray-100 rounded-lg"><X className="w-4 h-4"/></button>
             </div>
             <div className="p-5 space-y-4">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
-                <AlertCircle className="w-3.5 h-3.5 inline mr-1" />
-                Select a school, grade, and section. Students in that section will be listed for selection.
-              </div>
+              {!selectedSchool ? (
+                <Notice variant="warning">Pick a specific school from the school switcher first — appointments are booked one school at a time.</Notice>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">
+                      Search Students at {getSchoolShortName(selectedSchool)}
+                    </label>
+                    <input
+                      type="text"
+                      value={studentSearch}
+                      onChange={e => setStudentSearch(e.target.value)}
+                      placeholder="Type a student's name…"
+                      className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                  </div>
+                  {studentSearch.trim() && (
+                    <div className="border border-border rounded-lg max-h-40 overflow-y-auto divide-y divide-gray-100">
+                      {studentSearchResults.length === 0 ? (
+                        <p className="text-sm text-muted-foreground text-center py-3">No students match "{studentSearch}".</p>
+                      ) : studentSearchResults.map(s => (
+                        <label key={s.id} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                          <input type="checkbox" checked={selectedStudents.includes(s.id)}
+                            onChange={() => setSelectedStudents(prev => prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id])}
+                            className="w-4 h-4 rounded accent-primary" />
+                          <span className="text-sm text-foreground">{s.name}</span>
+                          <span className="text-xs text-muted-foreground ml-auto">{s.grade} · {s.section || '—'}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  {selectedStudents.length > 0 && (
+                    <p className="text-xs text-muted-foreground">{selectedStudents.length} student{selectedStudents.length === 1 ? '' : 's'} selected.</p>
+                  )}
+                </>
+              )}
               <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2">
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">School</label>
-                  <select value={formSchool} onChange={e => { setFormSchool(e.target.value); setSelectedGrade(''); setSelectedSection(''); }}
-                    className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring">
-                    <option value="">Select school</option>
-                    {schoolNames.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">Grade</label>
-                  <select value={selectedGrade} onChange={e => { setSelectedGrade(e.target.value); setSelectedSection(''); }}
-                    className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring">
-                    <option value="">Grade</option>
-                    {grades.map(g => <option key={g} value={g}>{g}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">Section</label>
-                  <select value={selectedSection} onChange={e => setSelectedSection(e.target.value)}
-                    className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring">
-                    <option value="">Section</option>
-                    {sectionsForGrade.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">Date</label>
+                  <label className="block text-xs font-medium text-foreground mb-1">Date *</label>
                   <input type="date" value={appointmentDate} onChange={e => setAppointmentDate(e.target.value)}
                     className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-muted-foreground mb-1">Time</label>
                   <input type="time" value={appointmentTime} onChange={e => setAppointmentTime(e.target.value)}
+                    placeholder="Defaults to 8:00 AM"
                     className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring" />
+                  <p className="text-[11px] text-muted-foreground mt-1">Defaults to 8:00 AM if left blank.</p>
                 </div>
                 <div className="col-span-2">
                   <label className="block text-xs font-medium text-muted-foreground mb-1">Appointment Type</label>
                   <select value={appointmentType} onChange={e => setAppointmentType(e.target.value)}
                     className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring">
                     <option value="">Select type</option>
-                    {['Regular Checkup','Screening','Bayanihan Mission','Fluoride Application','Extraction','Follow-up'].map(t => <option key={t} value={t}>{t}</option>)}
+                    {APPOINTMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                    <option value={OTHER_TYPE}>Other…</option>
                   </select>
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">{staffNameLabel}</label>
-                  <select value={appointmentDentistId} onChange={e => setAppointmentDentistId(e.target.value)}
-                    className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring">
-                    {dentists.map(d => <option key={d._id} value={d._id}>Dr. {d.first_name} {d.last_name}</option>)}
-                  </select>
+                  {appointmentType === OTHER_TYPE && (
+                    <input
+                      type="text"
+                      value={appointmentTypeOther}
+                      onChange={e => setAppointmentTypeOther(e.target.value)}
+                      placeholder="Type the appointment type"
+                      className="w-full mt-2 text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                  )}
                 </div>
               </div>
-              {studentsInSection.length > 0 && (
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-2">Select Students ({selectedStudents.length} selected)</label>
-                  <div className="border border-border rounded-lg max-h-40 overflow-y-auto divide-y divide-gray-100">
-                    {studentsInSection.map(s => (
-                      <label key={s.id} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer">
-                        <input type="checkbox" checked={selectedStudents.includes(s.id)}
-                          onChange={() => setSelectedStudents(prev => prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id])}
-                          className="w-4 h-4 rounded accent-primary" />
-                        <span className="text-sm text-foreground">{s.name}</span>
-                        <span className="text-xs text-muted-foreground ml-auto">{s.gender} · {new Date().getFullYear() - new Date(s.birthdate).getFullYear()}y</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
               {createError && <p className="text-sm text-destructive">{createError}</p>}
               <div className="flex gap-3 pt-2">
                 <button onClick={() => { resetCreateAppointmentForm(); setShowCreateModal(false); }}
