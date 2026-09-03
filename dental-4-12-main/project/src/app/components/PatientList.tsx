@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Eye, FileText, X, School as SchoolIcon, List, ChevronLeft, ChevronRight, Users, Upload, CheckCircle, AlertCircle, ScanLine, GraduationCap } from 'lucide-react';
+import { Plus, Eye, FileText, X, School as SchoolIcon, List, ChevronLeft, ChevronRight, Users, Upload, CheckCircle, AlertCircle, ScanLine, GraduationCap, MoreVertical, ListChecks, Archive as ArchiveIcon } from 'lucide-react';
+import { ConfirmDialog } from './ConfirmDialog';
 import { formatDate } from '../utils/localDate';
 import { OCR_CONFIDENCE_THRESHOLD, type IptrOcrFieldKey, type IptrCheckboxFinding } from '../utils/iptrOcrShared';
 import { getGradeColor } from '../utils/gradeColors';
@@ -24,6 +25,11 @@ import { schoolYearLabel } from '../utils/schoolYear';
 import { Notice } from './Notice';
 
 const GRADES = ['Kinder','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10'];
+
+/** Male before Female in the default sort; anything else (data the intake
+ *  form doesn't otherwise produce) sorts after both rather than being lost
+ *  at the front or crashing the comparator. */
+const GENDER_SORT_ORDER: Record<string, number> = { Male: 0, Female: 1 };
 
 /** The add-form's default input styling — the baseline `ocrFieldClass` falls
  *  back to, and what fields that can never be scanned use outright. */
@@ -315,8 +321,41 @@ export const PatientList = () => {
     if (failures.length > 0) toast.error(`${failures.length} row${failures.length !== 1 ? 's' : ''} failed to import.`);
   };
   const [queuedStudentIds, setQueuedStudentIds] = useState<string[]>(() => getQueuedStudentIds());
-  // tick-box selection for queueing several students at once
+  // tick-box selection for queueing (and now archiving) several students at
+  // once. Hidden behind "Select" from the three-dot menu rather than always
+  // on — a checkbox column nobody is using is just noise on a list this
+  // dense, and it leaves the toolbar room for whatever gets added next.
+  const [selectMode, setSelectMode] = useState(false);
+  const [showListMenu, setShowListMenu] = useState(false);
   const [tickedIds, setTickedIds] = useState<Set<string>>(new Set());
+  const [confirmArchiveTicked, setConfirmArchiveTicked] = useState(false);
+  const [archivingTicked, setArchivingTicked] = useState(false);
+
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setTickedIds(new Set());
+  };
+
+  const archiveTicked = async () => {
+    setArchivingTicked(true);
+    let archived = 0;
+    const failed: string[] = [];
+    for (const id of tickedIds) {
+      const student = schoolStudents.find(s => s.id === id);
+      try {
+        await apiClient.patch(`/students/${id}/archive`);
+        archived += 1;
+      } catch (err) {
+        failed.push(`${student?.name ?? id} — ${err instanceof ApiError ? err.message : 'failed'}`);
+      }
+    }
+    setArchivingTicked(false);
+    setConfirmArchiveTicked(false);
+    exitSelectMode();
+    await reloadStudents();
+    if (archived > 0) toast.success(`${archived} student${archived === 1 ? '' : 's'} archived.`);
+    if (failed.length > 0) toast.error(`${failed.length} could not be archived — see console.`);
+  };
 
   const toggleTicked = (id: string) => {
     setTickedIds(prev => {
@@ -579,7 +618,18 @@ export const PatientList = () => {
   // changed for any reason (new pending offline write merged in, a reload
   // after sync, even switching schools) unless a filter dropdown was also
   // touched, since that was the only thing that could trigger a recompute.
-  }), [schoolStudents, gradeFilter, sectionFilter, genderFilter, ageGroupFilter, searchTerm]);
+  // Default order: grade, then section, then sex (male before female), then
+  // surname, then first name — a roster reads this way on paper, and it is
+  // what the DOH forms already group by. Client-side only: /stats/student-
+  // rows itself stays surname-only, since other consumers of that same
+  // endpoint (Reports, the dashboard) rely on that order.
+  }).sort((a, b) =>
+    (GRADES.indexOf(a.grade) - GRADES.indexOf(b.grade)) ||
+    a.section.localeCompare(b.section) ||
+    ((GENDER_SORT_ORDER[a.gender] ?? 2) - (GENDER_SORT_ORDER[b.gender] ?? 2)) ||
+    a.lastName.localeCompare(b.lastName) ||
+    a.firstName.localeCompare(b.firstName)
+  ), [schoolStudents, gradeFilter, sectionFilter, genderFilter, ageGroupFilter, searchTerm]);
 
   // ── Pagination (client-side, Sprint 53) ──────────────────────────────────
   // Deliberately paginates the ALREADY-LOADED rows rather than the fetch. The
@@ -726,14 +776,53 @@ export const PatientList = () => {
                   <X className="w-3 h-3" /> Clear All
                 </button>
               )}
-              {tickedIds.size > 0 && (
-                <button
-                  onClick={allTickedQueued ? unqueueTicked : queueTicked}
-                  className={`flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-lg ml-auto ${allTickedQueued ? 'text-primary border border-primary hover:bg-primary-surface' : 'text-white bg-primary hover:bg-primary-hover'}`}
-                >
-                  {allTickedQueued ? 'Unqueue' : 'Queue'} Selected ({tickedIds.size})
-                </button>
-              )}
+              <div className="ml-auto flex items-center gap-2">
+                {selectMode && tickedIds.size > 0 && (
+                  <>
+                    <button
+                      onClick={allTickedQueued ? unqueueTicked : queueTicked}
+                      className={`flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-lg ${allTickedQueued ? 'text-primary border border-primary hover:bg-primary-surface' : 'text-white bg-primary hover:bg-primary-hover'}`}
+                    >
+                      {allTickedQueued ? 'Unqueue' : 'Queue'} Selected ({tickedIds.size})
+                    </button>
+                    <button
+                      onClick={() => setConfirmArchiveTicked(true)}
+                      className="flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-lg border border-destructive text-destructive hover:bg-danger-surface"
+                    >
+                      <ArchiveIcon className="w-3.5 h-3.5" /> Archive Selected ({tickedIds.size})
+                    </button>
+                  </>
+                )}
+                {selectMode ? (
+                  <button onClick={exitSelectMode}
+                    className="text-sm font-medium text-foreground border border-border rounded-lg px-3 py-2 hover:bg-gray-50">
+                    Done
+                  </button>
+                ) : (
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowListMenu(v => !v)}
+                      className="p-2 rounded-lg text-muted-foreground hover:bg-gray-100 hover:text-foreground"
+                      title="More options"
+                    >
+                      <MoreVertical className="w-4 h-4" />
+                    </button>
+                    {showListMenu && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setShowListMenu(false)} />
+                        <div className="absolute right-0 top-full mt-1 z-20 bg-card border border-border rounded-lg shadow-md py-1 w-44">
+                          <button
+                            onClick={() => { setSelectMode(true); setShowListMenu(false); }}
+                            className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-gray-50 flex items-center gap-2"
+                          >
+                            <ListChecks className="w-3.5 h-3.5" /> Select students…
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -746,17 +835,20 @@ export const PatientList = () => {
                     <th className={studentListTableStyles.headerCell}>
                       {/* Scoped to the current page, matching its own label: now
                           that the table paginates, "select all" across the whole
-                          filtered set would tick rows the user cannot see. */}
-                      <input
-                        type="checkbox"
-                        aria-label="Select all students on this page for queueing"
-                        checked={paged.length > 0 && paged.every(s => s.pending || tickedIds.has(s.id))}
-                        onChange={(e) => {
-                          if (e.target.checked) setTickedIds(new Set(paged.filter(s => !s.pending).map(s => s.id)));
-                          else setTickedIds(new Set());
-                        }}
-                        className="w-4 h-4 accent-primary align-middle"
-                      />
+                          filtered set would tick rows the user cannot see. Hidden
+                          entirely outside select mode — see the three-dot menu. */}
+                      {selectMode && (
+                        <input
+                          type="checkbox"
+                          aria-label="Select all students on this page"
+                          checked={paged.length > 0 && paged.every(s => s.pending || tickedIds.has(s.id))}
+                          onChange={(e) => {
+                            if (e.target.checked) setTickedIds(new Set(paged.filter(s => !s.pending).map(s => s.id)));
+                            else setTickedIds(new Set());
+                          }}
+                          className="w-4 h-4 accent-primary align-middle"
+                        />
+                      )}
                     </th>
                     <th className={studentListTableStyles.headerCell}>Student</th>
                     <th className={studentListTableStyles.headerCell}>Grade</th>
@@ -775,10 +867,10 @@ export const PatientList = () => {
                     return (
                       <tr key={student.id} {...activatable(() => { if (!student.pending) navigate(`/dental-chart/${student.id}?tab=history`); })} className={`${studentListTableStyles.row} ${student.pending ? 'opacity-70' : ''}`}>
                         <td className={studentListTableStyles.secondaryCell} onClick={(e) => e.stopPropagation()}>
-                          {!student.pending && (
+                          {selectMode && !student.pending && (
                             <input
                               type="checkbox"
-                              aria-label={`Select ${student.name} for queueing`}
+                              aria-label={`Select ${student.name}`}
                               checked={tickedIds.has(student.id)}
                               onChange={() => toggleTicked(student.id)}
                               className="w-4 h-4 accent-primary align-middle"
@@ -1130,6 +1222,17 @@ export const PatientList = () => {
             </div>
         </Modal>
       )}
+
+      <ConfirmDialog
+        open={confirmArchiveTicked}
+        title={`Archive ${tickedIds.size} student${tickedIds.size === 1 ? '' : 's'}?`}
+        message="Archived students are removed from active rosters and reports. A System Admin can restore them later from Archived Records."
+        confirmLabel="Archive"
+        tone="danger"
+        busy={archivingTicked}
+        onConfirm={archiveTicked}
+        onCancel={() => setConfirmArchiveTicked(false)}
+      />
     </div>
   );
 };
