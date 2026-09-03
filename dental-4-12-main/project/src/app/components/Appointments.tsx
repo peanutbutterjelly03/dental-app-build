@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link, useSearchParams } from 'react-router';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, X, Check, Clock, Users, RotateCcw, FileText, Mars, Venus, MoreVertical, Trash2 } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, X, Check, Clock, Users, RotateCcw, FileText, Mars, Venus, MoreVertical, Trash2, ClipboardList, StickyNote } from 'lucide-react';
 import { getGradeColor } from '../utils/gradeColors';
 import { getSchoolShortName } from '../utils/schoolColors';
 import { useAppointments, type AppointmentSession } from '../hooks/useAppointments';
@@ -440,33 +440,39 @@ export const Appointments = () => {
       : soleStudent?.gender === 'Female'
         ? <Venus className="w-5 h-5" />
         : a.grade.replace('Grade ', 'G');
+    // Meta info as a row of small tags instead of "Label: value" text — same
+    // information, read at a glance instead of parsed word by word.
+    const chip = 'inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-gray-100 text-xs font-medium text-foreground';
     return (
-      <div className="flex items-center justify-between gap-4 px-4 py-3 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <div style={{ backgroundColor: gc.light, color: gc.solid }} className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0">
+      <div className="flex items-center justify-between gap-4 px-4 py-4 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
+        <div className="flex items-center gap-3.5 min-w-0 flex-1">
+          <div style={{ backgroundColor: gc.light, color: gc.solid }} className="w-11 h-11 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0">
             {genderIcon}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium text-foreground truncate">
+            <div className="text-sm font-semibold text-foreground truncate">
               {soleStudent ? soleStudent.name : `${a.section} — ${a.grade}`}
             </div>
-            {/* One line, labeled, using the row's width instead of stacking
-                three mostly-empty lines. */}
-            <div className="text-xs flex flex-wrap items-center gap-x-5 gap-y-1 mt-1">
+            {/* One row of tags, using the row's width instead of stacking
+                three mostly-empty lines or spelling out "Label: value". */}
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
               {soleStudent && (
-                <span className="inline-flex items-center gap-1.5">
-                  <span style={{ backgroundColor: gc.light, color: gc.solid }} className="px-1.5 py-0.5 rounded-full font-semibold">{a.grade}</span>
-                  <span className="text-muted-foreground">· {a.section}</span>
+                <span className={chip} style={{ backgroundColor: gc.light, color: gc.solid }}>
+                  {a.grade} <span className="opacity-70 font-normal">· {a.section}</span>
                 </span>
               )}
-              <span><span className="text-muted-foreground">Date:</span> <span className="font-bold text-foreground">{shortDate}</span></span>
-              <span className="inline-flex items-center gap-1">
-                <span className="text-muted-foreground">Time:</span> <Clock className="w-3 h-3 text-muted-foreground" /> <span className="font-medium text-foreground">{a.time}</span>
+              <span className={chip}>
+                <CalendarIcon className="w-3 h-3 text-muted-foreground" /> {shortDate}
               </span>
-              <span><span className="text-muted-foreground">Purpose:</span> <span className="font-medium text-foreground">{a.type}</span></span>
+              <span className={chip}>
+                <Clock className="w-3 h-3 text-muted-foreground" /> {a.time}
+              </span>
+              <span className={chip}>
+                <ClipboardList className="w-3 h-3 text-muted-foreground" /> {a.type}
+              </span>
               {!soleStudent && (
-                <span className="inline-flex items-center gap-1">
-                  <Users className="w-3 h-3 text-muted-foreground" /> <span className="font-medium text-foreground">{a.studentCount} students</span>
+                <span className={chip}>
+                  <Users className="w-3 h-3 text-muted-foreground" /> {a.studentCount} students
                 </span>
               )}
             </div>
@@ -706,18 +712,18 @@ export const Appointments = () => {
                   key={idx}
                   onClick={() => clickable && openNoteModal(toLocalDateString(day!))}
                   title={clickable ? 'Click to add or edit a reminder for this date' : undefined}
-                  className={`min-h-[80px] p-1.5 border-r border-b border-gray-100 last:border-b-0 ${!day ? 'bg-gray-50/60' : ''} ${isToday ? 'bg-teal-50' : ''} ${clickable ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                  className={`min-h-[110px] p-2 border-r border-b border-gray-100 last:border-b-0 space-y-1 ${!day ? 'bg-gray-50/60' : ''} ${isToday ? 'bg-teal-50' : ''} ${clickable ? 'cursor-pointer hover:bg-gray-50' : ''}`}
                 >
                   {day && (
                     <>
-                      <div className={`text-xs font-medium mb-1 w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-teal-600 text-white' : 'text-muted-foreground'}`}>
+                      <div className={`text-sm font-semibold mb-1.5 w-7 h-7 flex items-center justify-center rounded-full ${isToday ? 'bg-teal-600 text-white' : 'text-foreground'}`}>
                         {day.getDate()}
                       </div>
                       {dayAppts.map(a => {
                         const gc = getGradeColor(a.grade);
                         return (
                           <div key={a.id} style={{ backgroundColor: gc.light, color: gc.solid }}
-                            className="text-[10px] font-medium px-1.5 py-0.5 rounded mb-0.5 truncate">
+                            className="text-xs font-medium px-2 py-1 rounded-md truncate">
                             {a.time} {a.section}
                           </div>
                         );
@@ -727,9 +733,10 @@ export const Appointments = () => {
                           key={n.id}
                           onClick={e => { e.stopPropagation(); openNoteModal(toLocalDateString(day)); }}
                           title={n.notes}
-                          className="w-full text-left text-[10px] font-medium px-1.5 py-0.5 rounded mb-0.5 truncate bg-amber-100 text-amber-800"
+                          className="w-full flex items-center gap-1.5 text-left text-xs font-medium px-2 py-1 rounded-md truncate bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100"
                         >
-                          📝 {n.notes}
+                          <StickyNote className="w-3 h-3 flex-shrink-0" />
+                          <span className="truncate">{n.notes}</span>
                         </button>
                       ))}
                     </>
