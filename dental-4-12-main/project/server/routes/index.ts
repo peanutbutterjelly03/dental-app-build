@@ -347,7 +347,10 @@ router.use("/risk-stratifications", createCrudRouter(RiskStratification, {
 }));
 // dateField (Sprint 56): the Completed and Missed tabs have no self-limiting
 // date the way Today and Upcoming do, so without a bound they grow forever.
-router.use("/appointments", createCrudRouter(Appointment, { writeRoles: CLINICAL_WRITE_ROLES, dateField: "appointment_datetime" }));
+// archiveRoles widened (default is System Admin only): the Today tab's
+// per-row delete is used by the dentist/dental aide who book these
+// appointments in the first place.
+router.use("/appointments", createCrudRouter(Appointment, { writeRoles: CLINICAL_WRITE_ROLES, archiveRoles: CLINICAL_WRITE_ROLES, dateField: "appointment_datetime" }));
 // archiveRoles widened (default is System Admin only): DentistRotation now
 // doubles as the calendar's per-day note, created and deleted by the same
 // dentist/dental_aide who use the calendar tab.

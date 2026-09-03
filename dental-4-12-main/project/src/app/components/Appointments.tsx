@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link, useSearchParams } from 'react-router';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, X, Check, Clock, Users, RotateCcw, FileText, Mars, Venus } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, X, Check, Clock, Users, RotateCcw, FileText, Mars, Venus, MoreVertical, Trash2 } from 'lucide-react';
 import { getGradeColor } from '../utils/gradeColors';
 import { getSchoolShortName } from '../utils/schoolColors';
 import { useAppointments, type AppointmentSession } from '../hooks/useAppointments';
@@ -32,10 +32,6 @@ export const Appointments = () => {
 
   // Tabs
   const [activeTab, setActiveTab] = useState<'today' | 'upcoming' | 'completed' | 'missed' | 'all' | 'calendar'>('today');
-  // Opt-in to loading appointments from before this school year — see
-  // appointmentWindow below. Off by default so the history tabs stay bounded.
-  const [showEarlier, setShowEarlier] = useState(false);
-
   // Filters
   const [gradeFilter, setGradeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -108,19 +104,19 @@ export const Appointments = () => {
   // is ever hard deleted, so they used to accumulate every appointment ever
   // created. The window is the current school year, widened to whatever month
   // the calendar is showing so navigating to an older month still finds its
-  // appointments, and dropped entirely when the user asks to see earlier.
+  // appointments.
   const appointmentWindow = useMemo(() => {
     const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
     const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59, 999);
     const syStart = schoolYearStart(new Date());
     const syEnd = schoolYearEnd(new Date());
     return {
-      from: showEarlier ? undefined : new Date(Math.min(syStart.getTime(), monthStart.getTime())),
+      from: new Date(Math.min(syStart.getTime(), monthStart.getTime())),
       to: new Date(Math.max(syEnd.getTime(), monthEnd.getTime())),
     };
-  }, [currentDate, showEarlier]);
+  }, [currentDate]);
 
-  const { sessions, dentists, loading: appointmentsLoading, error: appointmentsError, updateSessionStatus, reload: reloadAppointments } = useAppointments(appointmentWindow);
+  const { sessions, dentists, loading: appointmentsLoading, error: appointmentsError, updateSessionStatus, deleteSession, reload: reloadAppointments } = useAppointments(appointmentWindow);
   const { rotations, loading: rotationsLoading, reload: reloadRotations } = useDentistRotations();
   const [schools, setSchools] = useState<ApiSchool[]>([]);
   // Roster to search when creating an appointment — scoped to the school the
@@ -306,19 +302,9 @@ export const Appointments = () => {
   // chronological so it reads like a full schedule rather than a log.
   const allAppts = [...appointments].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
 
-  // Completed and Missed are the two tabs with no self-limiting date, so they
-  // say which span they are showing rather than implying it is everything.
   const historyScopeBar = (label: string) => (
-    <div className="px-4 py-3 border-b border-gray-100 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+    <div className="px-4 py-3 border-b border-gray-100">
       <span className="text-sm font-semibold text-foreground">{label}</span>
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <span>{showEarlier ? 'Showing all years' : 'Showing this school year'}</span>
-        <button
-          onClick={() => setShowEarlier(v => !v)}
-          className="px-2 py-1 rounded-md border border-border text-foreground hover:bg-gray-50 font-medium">
-          {showEarlier ? 'This school year only' : 'Show earlier'}
-        </button>
-      </div>
     </div>
   );
 
@@ -371,6 +357,20 @@ export const Appointments = () => {
     }
   };
 
+  const removeAppointment = async (session: AppointmentSession) => {
+    try {
+      await deleteSession(session);
+      toast.success('Appointment deleted.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete appointment');
+    }
+  };
+
+  // Today's three-dot menu → Delete: toggles a per-row delete icon rather
+  // than deleting on the spot, so a stray click can't remove an appointment.
+  const [todayDeleteMenuOpen, setTodayDeleteMenuOpen] = useState(false);
+  const [todayDeleteMode, setTodayDeleteMode] = useState(false);
+
   const statusBadge = (status: string) => {
     const map: Record<string, string> = {
       'Scheduled': 'bg-blue-100 text-blue-700',
@@ -382,7 +382,7 @@ export const Appointments = () => {
     return map[status] || 'bg-gray-100 text-muted-foreground';
   };
 
-  const AppointmentCard = ({ a, showActions = false }: { a: AppointmentSession; showActions?: boolean }) => {
+  const AppointmentCard = ({ a, showActions = false, deleteMode = false }: { a: AppointmentSession; showActions?: boolean; deleteMode?: boolean }) => {
     const gc = getGradeColor(a.grade);
     const status = getStatus(a);
     // The common case now that appointments are booked by searching a
@@ -418,7 +418,10 @@ export const Appointments = () => {
                 three mostly-empty lines. */}
             <div className="text-xs flex flex-wrap items-center gap-x-5 gap-y-1 mt-1">
               {soleStudent && (
-                <span><span className="text-muted-foreground">Grade Section:</span> <span className="font-medium text-foreground">{a.grade} · {a.section}</span></span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span style={{ backgroundColor: gc.light, color: gc.solid }} className="px-1.5 py-0.5 rounded-full font-semibold">{a.grade}</span>
+                  <span className="text-muted-foreground">· {a.section}</span>
+                </span>
               )}
               <span><span className="text-muted-foreground">Date:</span> <span className="font-bold text-foreground">{shortDate}</span></span>
               <span className="inline-flex items-center gap-1">
@@ -445,29 +448,40 @@ export const Appointments = () => {
             <FileText className="w-3.5 h-3.5" />
           </Link>
           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusBadge(status)}`}>{status}</span>
-          {showActions && !a.pending && status === 'Scheduled' && (
+          {/* Delete mode replaces the status actions with one clear choice,
+              so a stray click can't both change status and delete. */}
+          {deleteMode && !a.pending ? (
+            <button onClick={() => removeAppointment(a)}
+              className="w-7 h-7 rounded-full bg-red-100 hover:bg-red-200 text-red-700 flex items-center justify-center transition-colors" title="Delete this appointment">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          ) : (
             <>
-              <button onClick={() => markStatus(a, 'Completed')}
-                className="w-7 h-7 rounded-full bg-green-100 hover:bg-green-200 text-green-700 flex items-center justify-center transition-colors" title="Mark Attended">
-                <Check className="w-3.5 h-3.5" />
-              </button>
-              <button onClick={() => markStatus(a, 'Missed')}
-                className="w-7 h-7 rounded-full bg-red-100 hover:bg-red-200 text-red-700 flex items-center justify-center transition-colors" title="Mark Missed">
-                <X className="w-3.5 h-3.5" />
-              </button>
+              {showActions && !a.pending && status === 'Scheduled' && (
+                <>
+                  <button onClick={() => markStatus(a, 'Completed')}
+                    className="w-7 h-7 rounded-full bg-green-100 hover:bg-green-200 text-green-700 flex items-center justify-center transition-colors" title="Mark Attended">
+                    <Check className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={() => markStatus(a, 'Missed')}
+                    className="w-7 h-7 rounded-full bg-red-100 hover:bg-red-200 text-red-700 flex items-center justify-center transition-colors" title="Mark Missed">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              )}
+              {showActions && !a.pending && status === 'In Progress' && (
+                <button onClick={() => markStatus(a, 'Completed')}
+                  className="w-7 h-7 rounded-full bg-green-100 hover:bg-green-200 text-green-700 flex items-center justify-center transition-colors" title="Mark Completed">
+                  <Check className="w-3.5 h-3.5" />
+                </button>
+              )}
+              {showActions && !a.pending && (status === 'Completed' || status === 'Missed') && (
+                <button onClick={() => markStatus(a, 'Scheduled')}
+                  className="w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 text-muted-foreground flex items-center justify-center transition-colors" title="Reset">
+                  <RotateCcw className="w-3 h-3" />
+                </button>
+              )}
             </>
-          )}
-          {showActions && !a.pending && status === 'In Progress' && (
-            <button onClick={() => markStatus(a, 'Completed')}
-              className="w-7 h-7 rounded-full bg-green-100 hover:bg-green-200 text-green-700 flex items-center justify-center transition-colors" title="Mark Completed">
-              <Check className="w-3.5 h-3.5" />
-            </button>
-          )}
-          {showActions && !a.pending && (status === 'Completed' || status === 'Missed') && (
-            <button onClick={() => markStatus(a, 'Scheduled')}
-              className="w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 text-muted-foreground flex items-center justify-center transition-colors" title="Reset">
-              <RotateCcw className="w-3 h-3" />
-            </button>
           )}
         </div>
       </div>
@@ -530,7 +544,33 @@ export const Appointments = () => {
         <>
           <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-sm font-bold text-foreground">Today, {formatDateWithWeekday(TODAY)}</span>
+            <span className="text-sm font-bold text-foreground flex-1">Today, {formatDateWithWeekday(TODAY)}</span>
+            {todayDeleteMode ? (
+              <button onClick={() => setTodayDeleteMode(false)}
+                className="text-xs font-medium text-foreground border border-border rounded-md px-2 py-1 hover:bg-gray-50">
+                Done
+              </button>
+            ) : (
+              <div className="relative">
+                <button onClick={() => setTodayDeleteMenuOpen(v => !v)}
+                  className="p-1.5 rounded-lg text-muted-foreground hover:bg-gray-100 hover:text-foreground" title="More options">
+                  <MoreVertical className="w-4 h-4" />
+                </button>
+                {todayDeleteMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setTodayDeleteMenuOpen(false)} />
+                    <div className="absolute right-0 top-full mt-1 z-20 bg-card border border-border rounded-lg shadow-md py-1 w-40">
+                      <button
+                        onClick={() => { setTodayDeleteMode(true); setTodayDeleteMenuOpen(false); }}
+                        className="w-full text-left px-3 py-2 text-sm text-destructive hover:bg-danger-surface flex items-center gap-2"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Delete…
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
           {todayAppts.length === 0 ? (
             <div className="py-12 text-center text-muted-foreground">
@@ -538,7 +578,7 @@ export const Appointments = () => {
               <p className="text-sm">No appointments scheduled for today</p>
             </div>
           ) : (
-            todayAppts.map(a => <AppointmentCard key={a.id} a={a} showActions />)
+            todayAppts.map(a => <AppointmentCard key={a.id} a={a} showActions deleteMode={todayDeleteMode} />)
           )}
         </>
       )}
@@ -785,15 +825,19 @@ export const Appointments = () => {
       {showRotationModal && (
         <Modal onClose={() => { resetRotationForm(); setShowRotationModal(false); }} closeDisabled={rotSaving}>
             <div className="flex items-center justify-between p-5 border-b border-gray-100">
-              <h2 className="text-lg font-bold text-foreground">{editingRotationId ? 'Edit Reminder' : 'Add Reminder'}</h2>
+              <div>
+                <h2 className="text-lg font-bold text-foreground">{editingRotationId ? 'Edit Reminder' : 'Add Reminder'}</h2>
+                {/* The date was set by which calendar cell was clicked — no
+                    separate date field to change it from here. */}
+                {noteDate && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {new Date(noteDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                  </p>
+                )}
+              </div>
               <button onClick={() => { resetRotationForm(); setShowRotationModal(false); }} className="p-2 hover:bg-gray-100 rounded-lg"><X className="w-4 h-4"/></button>
             </div>
             <div className="p-5 space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Date</label>
-                <input type="date" value={noteDate} onChange={e => setNoteDate(e.target.value)}
-                  className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring" />
-              </div>
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1">Note</label>
                 <textarea value={rotNotes} onChange={e => setRotNotes(e.target.value)}

@@ -200,5 +200,14 @@ export function useAppointments(window: AppointmentWindow) {
     await reload();
   }, [reload]);
 
-  return { sessions, dentists, loading, error, reload, updateSessionStatus };
+  // Soft-deletes every underlying Appointment record behind one row — a
+  // session can be several records sharing date/time/type/dentist, and all
+  // of them belong to the same booking, so a delete on the row removes all
+  // of them, not just the first.
+  const deleteSession = useCallback(async (session: AppointmentSession) => {
+    await Promise.all(session.appointmentIds.map((id) => apiClient.patch(`/appointments/${id}/archive`)));
+    await reload();
+  }, [reload]);
+
+  return { sessions, dentists, loading, error, reload, updateSessionStatus, deleteSession };
 }
