@@ -115,9 +115,11 @@ router.get("/stats/high-risk-count", requireAuth, asyncHandler(async (req, res) 
 router.get("/stats/notifications", requireAuth, asyncHandler(async (req, res) => {
   const schoolName = typeof req.query.school === "string" ? req.query.school : null;
   let studentFilter: Record<string, unknown> = { isArchived: false };
+  let schoolId: unknown = null;
   if (schoolName) {
     const school = await School.findOne({ school_name: schoolName, isArchived: false }).select("_id").lean<{ _id: unknown } | null>();
-    if (!school) { res.json({ overdueRpc: 0, appointmentsToday: 0, awaitingValidation: 0 }); return; }
+    if (!school) { res.json({ overdueRpc: 0, appointmentsToday: 0, awaitingValidation: 0, remindersToday: 0 }); return; }
+    schoolId = school._id;
     studentFilter = { ...studentFilter, school_id: school._id };
   }
 
@@ -127,7 +129,7 @@ router.get("/stats/notifications", requireAuth, asyncHandler(async (req, res) =>
   const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
   const dayEnd = new Date(dayStart); dayEnd.setDate(dayEnd.getDate() + 1);
 
-  const [students, iptrs, preventives, risks, appointmentsToday] = await Promise.all([
+  const [students, iptrs, preventives, risks, appointmentsToday, remindersToday] = await Promise.all([
     Student.find(studentFilter).select("_id").lean(),
     StudentIptr.find({ isArchived: false }).select("_id student_id").lean(),
     PreventiveCareRecord.find({ isArchived: false }).select("iptr_id visit_number visit_date").lean(),
@@ -135,6 +137,15 @@ router.get("/stats/notifications", requireAuth, asyncHandler(async (req, res) =>
     Appointment.countDocuments({
       isArchived: false,
       appointment_datetime: { $gte: dayStart, $lt: dayEnd },
+    }),
+    // Calendar reminders (stored on DentistRotation, repurposed as a single-
+    // day note — week_start/week_end both set to the note's date) whose
+    // range covers today.
+    DentistRotation.countDocuments({
+      isArchived: false,
+      ...(schoolId ? { school_id: schoolId } : {}),
+      week_start: { $lte: dayEnd },
+      week_end: { $gte: dayStart },
     }),
   ]);
 
@@ -179,7 +190,7 @@ router.get("/stats/notifications", requireAuth, asyncHandler(async (req, res) =>
     if (iptrId && scopedIptrIds.has(iptrId)) awaitingValidation++;
   }
 
-  res.json({ overdueRpc, appointmentsToday, awaitingValidation });
+  res.json({ overdueRpc, appointmentsToday, awaitingValidation, remindersToday });
 }));
 
 // The patient-list row, joined server-side (Sprint 56b). Same join as the
@@ -337,7 +348,10 @@ router.use("/risk-stratifications", createCrudRouter(RiskStratification, {
 // dateField (Sprint 56): the Completed and Missed tabs have no self-limiting
 // date the way Today and Upcoming do, so without a bound they grow forever.
 router.use("/appointments", createCrudRouter(Appointment, { writeRoles: CLINICAL_WRITE_ROLES, dateField: "appointment_datetime" }));
-router.use("/dentist-rotations", createCrudRouter(DentistRotation, { writeRoles: CLINICAL_WRITE_ROLES }));
+// archiveRoles widened (default is System Admin only): DentistRotation now
+// doubles as the calendar's per-day note, created and deleted by the same
+// dentist/dental_aide who use the calendar tab.
+router.use("/dentist-rotations", createCrudRouter(DentistRotation, { writeRoles: CLINICAL_WRITE_ROLES, archiveRoles: CLINICAL_WRITE_ROLES }));
 
 // Audit trail — System Admin only, both to read and (already, since Sprint 6)
 // impossible to write directly; entries are created internally via logAudit().

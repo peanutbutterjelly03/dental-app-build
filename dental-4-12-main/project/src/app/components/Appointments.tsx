@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link, useSearchParams } from 'react-router';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, X, Check, Clock, Users, Stethoscope, RotateCcw, FileText } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, X, Check, Clock, Users, RotateCcw, FileText } from 'lucide-react';
 import { getGradeColor } from '../utils/gradeColors';
-import { getSchoolColor, getSchoolShortName } from '../utils/schoolColors';
+import { getSchoolShortName } from '../utils/schoolColors';
 import { GradePill } from './GradePill';
 import { useAppointments, type AppointmentSession } from '../hooks/useAppointments';
 import { useDentistRotations } from '../hooks/useDentistRotations';
@@ -16,7 +16,6 @@ import type { ApiSchool } from '../api/types';
 import { SkeletonPageHeader, SkeletonStatGrid, SkeletonTable } from './Skeleton';
 import { useToast } from './Toast';
 import { Modal } from './Modal';
-import { useSchools } from '../hooks/useSchools';
 import { GRADES } from './PromoteAssign';
 
 /** Fixed options plus a free-text escape hatch — the clinic's actual visit
@@ -32,10 +31,9 @@ export const Appointments = () => {
   const { user, selectedSchool } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
-  const staffNameLabel = user?.role === 'dental_aide' ? 'Dental Aide' : 'Dentist';
 
   // Tabs
-  const [activeTab, setActiveTab] = useState<'today' | 'upcoming' | 'completed' | 'missed' | 'rotation'>('today');
+  const [activeTab, setActiveTab] = useState<'today' | 'upcoming' | 'completed' | 'missed' | 'all' | 'calendar'>('today');
   // Opt-in to loading appointments from before this school year — see
   // appointmentWindow below. Off by default so the history tabs stay bounded.
   const [showEarlier, setShowEarlier] = useState(false);
@@ -94,12 +92,16 @@ export const Appointments = () => {
   const [createError, setCreateError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
-  // Rotation form
-  const [rotSchool, setRotSchool] = useState('');
+  // Calendar reminder/note form. Backed by the DentistRotation collection —
+  // repurposed rather than adding a new model for this (there is no NOTE/
+  // REMINDER model in the ERD, and one dentist covering three schools by
+  // week never got real use as a staffing schedule). One record = one day's
+  // note: week_start and week_end are both set to that date on save. School
+  // and dentist are automatic, same as the create-appointment form.
   const [rotDentistId, setRotDentistId] = useState('');
-  const [rotWeekStart, setRotWeekStart] = useState('');
-  const [rotWeekEnd, setRotWeekEnd] = useState('');
+  const [noteDate, setNoteDate] = useState('');
   const [rotNotes, setRotNotes] = useState('');
+  const [editingRotationId, setEditingRotationId] = useState<string | null>(null);
   const [rotError, setRotError] = useState<string | null>(null);
   const [rotSaving, setRotSaving] = useState(false);
 
@@ -122,8 +124,6 @@ export const Appointments = () => {
 
   const { sessions, dentists, loading: appointmentsLoading, error: appointmentsError, updateSessionStatus, reload: reloadAppointments } = useAppointments(appointmentWindow);
   const { rotations, loading: rotationsLoading, reload: reloadRotations } = useDentistRotations();
-  // School list comes from the DB now, not a hardcoded array (Sprint 60).
-  const { schoolNames } = useSchools();
   const [schools, setSchools] = useState<ApiSchool[]>([]);
   // Roster to search when creating an appointment — scoped to the school the
   // switcher already has selected, same as every other screen.
@@ -155,11 +155,21 @@ export const Appointments = () => {
   };
 
   const resetRotationForm = () => {
-    setRotSchool('');
-    setRotWeekStart('');
-    setRotWeekEnd('');
+    setNoteDate('');
     setRotNotes('');
+    setEditingRotationId(null);
     setRotError(null);
+  };
+
+  /** Opens the note modal for one calendar day, pre-filled if this school
+   *  already has a note there. */
+  const openNoteModal = (dateStr: string) => {
+    const existing = rotations.find(r => r.school === selectedSchool && r.weekStart === dateStr && r.weekEnd === dateStr);
+    setNoteDate(dateStr);
+    setRotNotes(existing?.notes ?? '');
+    setEditingRotationId(existing?.id ?? null);
+    setRotError(null);
+    setShowRotationModal(true);
   };
 
   const handleCreateAppointment = async () => {
@@ -214,28 +224,56 @@ export const Appointments = () => {
 
   const handleSaveRotation = async () => {
     setRotError(null);
-    if (!rotSchool || !rotDentistId || !rotWeekStart || !rotWeekEnd) {
-      setRotError('School, dentist, and week start/end are required.');
+    if (!selectedSchool) {
+      setRotError('Pick a specific school first.');
+      return;
+    }
+    if (!noteDate || !rotNotes.trim()) {
+      setRotError('Date and note text are required.');
+      return;
+    }
+    if (!rotDentistId) {
+      setRotError('No dentist is set up for this clinic yet.');
       return;
     }
     setRotSaving(true);
     try {
-      const school = schools.find(s => s.school_name === rotSchool);
+      const school = schools.find(s => s.school_name === selectedSchool);
       if (!school) throw new Error('Selected school not found');
-      await apiClient.post('/dentist-rotations', {
+      const body = {
         school_id: school._id,
         dentist_id: rotDentistId,
-        week_start: rotWeekStart,
-        week_end: rotWeekEnd,
-        notes: rotNotes,
-      });
+        week_start: noteDate,
+        week_end: noteDate,
+        notes: rotNotes.trim(),
+      };
+      if (editingRotationId) {
+        await apiClient.put(`/dentist-rotations/${editingRotationId}`, body);
+      } else {
+        await apiClient.post('/dentist-rotations', body);
+      }
       await reloadRotations();
-      toast.success('Rotation saved.');
+      toast.success('Note saved.');
       resetRotationForm();
       setShowRotationModal(false);
-      setActiveTab('rotation');
     } catch (err) {
-      setRotError(err instanceof Error ? err.message : 'Failed to save rotation');
+      setRotError(err instanceof Error ? err.message : 'Failed to save note');
+    } finally {
+      setRotSaving(false);
+    }
+  };
+
+  const handleDeleteRotation = async () => {
+    if (!editingRotationId) return;
+    setRotSaving(true);
+    try {
+      await apiClient.patch(`/dentist-rotations/${editingRotationId}/archive`);
+      await reloadRotations();
+      toast.success('Note deleted.');
+      resetRotationForm();
+      setShowRotationModal(false);
+    } catch (err) {
+      setRotError(err instanceof Error ? err.message : 'Failed to delete note');
     } finally {
       setRotSaving(false);
     }
@@ -268,6 +306,9 @@ export const Appointments = () => {
   const completedAppts = appointments.filter(a => getStatus(a) === 'Completed');
   // Past-dated sessions never marked Completed/Missed would otherwise appear in no tab at all
   const missedAppts = appointments.filter(a => getStatus(a) === 'Missed' || (a.date < TODAY && getStatus(a) === 'Scheduled'));
+  // ALL — every appointment loaded for this school, regardless of status,
+  // chronological so it reads like a full schedule rather than a log.
+  const allAppts = [...appointments].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
 
   // Completed and Missed are the two tabs with no self-limiting date, so they
   // say which span they are showing rather than implying it is everything.
@@ -310,6 +351,15 @@ export const Appointments = () => {
     const ds = toLocalDateString(date);
     return filteredAppointments.filter(a => a.date === ds);
   };
+  // Notes for one day, scoped to the school in view — the range check covers
+  // both the normal single-day note (weekStart === weekEnd) and any older
+  // multi-day rotation rows already in the database from before this screen
+  // was repurposed.
+  const getNotesForDay = (date: Date | null) => {
+    if (!date || !selectedSchool) return [];
+    const ds = toLocalDateString(date);
+    return rotations.filter(r => r.school === selectedSchool && r.weekStart <= ds && r.weekEnd >= ds);
+  };
   const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth()-1, 1));
   const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth()+1, 1));
   const monthName = currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
@@ -338,7 +388,6 @@ export const Appointments = () => {
 
   const AppointmentCard = ({ a, showActions = false }: { a: AppointmentSession; showActions?: boolean }) => {
     const gc = getGradeColor(a.grade);
-    const sc = getSchoolColor(a.school);
     const status = getStatus(a);
     // The common case now that appointments are booked by searching a
     // student rather than a whole section: one student per booking. That
@@ -348,6 +397,9 @@ export const Appointments = () => {
     // single chart to link to.
     const soleStudent = a.studentCount === 1 ? a.students[0] : null;
     const shortDate = new Date(a.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    // School and dentist dropped from the card: the page is already scoped
+    // to one school at a time via the switcher, and the clinic has exactly
+    // one dentist, so both were repeating information on every row.
     return (
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
         <div className="flex items-center gap-3">
@@ -358,11 +410,14 @@ export const Appointments = () => {
             <div className="text-sm font-medium text-foreground">
               {soleStudent ? soleStudent.name : `${a.section} — ${a.grade}`}
             </div>
-            {soleStudent && <div className="text-xs text-muted-foreground">{a.grade} · {a.section}</div>}
-            <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
-              <span style={{ color: sc.solid }}>{getSchoolShortName(a.school)}</span>
-              <span>·</span>
-              <span>{shortDate}</span>
+            {soleStudent && (
+              <div className="text-xs flex items-center gap-1.5 mt-0.5">
+                <span style={{ backgroundColor: gc.light, color: gc.solid }} className="px-1.5 py-0.5 rounded-full font-semibold">{a.grade}</span>
+                <span className="text-muted-foreground">{a.section}</span>
+              </div>
+            )}
+            <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap mt-0.5">
+              <span className="font-bold text-foreground">{shortDate}</span>
               <Clock className="w-3 h-3" />
               <span>{a.time}</span>
               {!soleStudent && (
@@ -373,7 +428,7 @@ export const Appointments = () => {
                 </>
               )}
             </div>
-            <div className="text-xs text-muted-foreground mt-0.5">{a.type} · {a.dentist}</div>
+            <div className="text-xs text-muted-foreground mt-0.5">{a.type}</div>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -455,7 +510,8 @@ export const Appointments = () => {
           { key: 'upcoming',  label: `Upcoming (${upcomingAppts.length})`      },
           { key: 'completed', label: `Completed (${completedAppts.length})`    },
           { key: 'missed',    label: `Missed (${missedAppts.length})`          },
-          { key: 'rotation',  label: 'Rotation'                                },
+          { key: 'all',       label: `All (${appointments.length})`            },
+          { key: 'calendar',  label: 'Calendar'                                },
         ].map(tab => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key as any)}
             className={`flex-shrink-0 whitespace-nowrap px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === tab.key ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
@@ -542,40 +598,99 @@ export const Appointments = () => {
         </>
       )}
 
-      {/* ROTATION */}
-      {activeTab === 'rotation' && (
+      {/* ALL */}
+      {activeTab === 'all' && (
+        <>
+          <div className="px-4 py-3 border-b border-gray-100">
+            <span className="text-sm font-semibold text-foreground">All Appointments</span>
+          </div>
+          {allAppts.length === 0 ? (
+            <div className="py-12 text-center text-muted-foreground">
+              <CalendarIcon className="w-8 h-8 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">No appointments loaded for this window</p>
+            </div>
+          ) : (
+            allAppts.map(a => <AppointmentCard key={a.id} a={a} showActions />)
+          )}
+        </>
+      )}
+
+      {/* CALENDAR — the old "Dentist Rotation Schedule" widget, now doubling
+          as a reminders calendar (see the note above the rotation form
+          state). Rotation-by-school scheduling is gone: with one dentist
+          covering three schools, a per-day note here is more useful than a
+          week-range picker nobody was filling in. */}
+      {activeTab === 'calendar' && (
         <>
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-            <span className="text-sm font-semibold text-foreground">Dentist Rotation by School</span>
-            <button onClick={() => setShowRotationModal(true)}
-              className="flex items-center gap-2 px-3 py-1.5 border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm">
-              <Plus className="w-3.5 h-3.5" /> Add Rotation
-            </button>
+            <span className="text-sm font-semibold text-foreground">Calendar Reminders</span>
+            <div className="flex items-center gap-2">
+              <button onClick={prevMonth} className="p-1.5 hover:bg-gray-100 rounded-lg"><ChevronLeft className="w-4 h-4 text-muted-foreground"/></button>
+              <span className="text-sm font-semibold text-foreground min-w-[110px] text-center">{monthName}</span>
+              <button onClick={nextMonth} className="p-1.5 hover:bg-gray-100 rounded-lg"><ChevronRight className="w-4 h-4 text-muted-foreground"/></button>
+            </div>
           </div>
-          <div className="divide-y divide-gray-100">
-            {schoolNames.filter(s => !selectedSchool || s === selectedSchool).map(school => {
-              const sc = getSchoolColor(school);
-              const schoolRots = rotations.filter(r => r.school === school);
+          {!selectedSchool && (
+            <div className="px-4 py-2">
+              <Notice variant="warning">Pick a specific school from the school switcher to add reminders — appointments and notes are both kept one school at a time.</Notice>
+            </div>
+          )}
+          <div className="px-4 py-3 border-b border-gray-100 bg-card">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Grade Color Code</span>
+              {calendarLegendGrades.map(grade => (
+                <GradePill key={grade} grade={grade} />
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-7 border-b border-border">
+            {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
+              <div key={d} className="text-center text-xs font-semibold text-muted-foreground py-2 bg-gray-50">{d}</div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7">
+            {days.map((day, idx) => {
+              const dayAppts = getAppointmentsForDay(day);
+              const dayNotes = getNotesForDay(day);
+              const isToday = day && toLocalDateString(day) === TODAY;
               return (
-                <div key={school} className="p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Stethoscope style={{ color: sc.solid }} className="w-4 h-4" />
-                    <span style={{ color: sc.text }} className="font-bold text-sm">{getSchoolShortName(school)}</span>
-                  </div>
-                  {schoolRots.length === 0 ? (
-                    <p className="text-xs text-muted-foreground pl-6">No rotation schedule set</p>
-                  ) : (
-                    <div className="pl-6 space-y-1.5">
-                      {schoolRots.map(r => (
-                        <div key={r.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
-                          <div>
-                            <div className="text-sm font-medium text-foreground">{r.dentist}</div>
-                            <div className="text-xs text-muted-foreground">{r.weekStart} → {r.weekEnd}{r.notes && ` · ${r.notes}`}</div>
-                          </div>
-                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">Active</span>
+                <div key={idx} className={`min-h-[80px] p-1.5 border-r border-b border-gray-100 last:border-b-0 ${!day ? 'bg-gray-50/60' : ''} ${isToday ? 'bg-teal-50' : ''}`}>
+                  {day && (
+                    <>
+                      <div className="flex items-center justify-between mb-1">
+                        <div className={`text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-teal-600 text-white' : 'text-muted-foreground'}`}>
+                          {day.getDate()}
                         </div>
+                        {selectedSchool && (
+                          <button
+                            onClick={() => openNoteModal(toLocalDateString(day))}
+                            title="Add a reminder for this date"
+                            className="w-4 h-4 flex items-center justify-center rounded text-muted-foreground hover:bg-gray-200 hover:text-foreground"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                      {dayAppts.map(a => {
+                        const gc = getGradeColor(a.grade);
+                        return (
+                          <div key={a.id} style={{ backgroundColor: gc.light, color: gc.solid }}
+                            className="text-[10px] font-medium px-1.5 py-0.5 rounded mb-0.5 truncate">
+                            {a.time} {a.section}
+                          </div>
+                        );
+                      })}
+                      {dayNotes.map(n => (
+                        <button
+                          key={n.id}
+                          onClick={() => openNoteModal(toLocalDateString(day))}
+                          title={n.notes}
+                          className="w-full text-left text-[10px] font-medium px-1.5 py-0.5 rounded mb-0.5 truncate bg-amber-100 text-amber-800"
+                        >
+                          📝 {n.notes}
+                        </button>
                       ))}
-                    </div>
+                    </>
                   )}
                 </div>
               );
@@ -585,57 +700,6 @@ export const Appointments = () => {
       )}
 
       </div>{/* end tab content box */}
-
-      {/* ── CALENDAR ── */}
-      <div className="bg-card rounded-xl border border-border overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-          <span className="text-sm font-semibold text-foreground">Dentist Rotation Schedule</span>
-          <div className="flex items-center gap-2">
-            <button onClick={prevMonth} className="p-1.5 hover:bg-gray-100 rounded-lg"><ChevronLeft className="w-4 h-4 text-muted-foreground"/></button>
-            <span className="text-sm font-semibold text-foreground min-w-[110px] text-center">{monthName}</span>
-            <button onClick={nextMonth} className="p-1.5 hover:bg-gray-100 rounded-lg"><ChevronRight className="w-4 h-4 text-muted-foreground"/></button>
-          </div>
-        </div>
-        <div className="px-4 py-3 border-b border-gray-100 bg-card">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Grade Color Code</span>
-            {calendarLegendGrades.map(grade => (
-              <GradePill key={grade} grade={grade} />
-            ))}
-          </div>
-        </div>
-        <div className="grid grid-cols-7 border-b border-border">
-          {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
-            <div key={d} className="text-center text-xs font-semibold text-muted-foreground py-2 bg-gray-50">{d}</div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7">
-          {days.map((day, idx) => {
-            const dayAppts = getAppointmentsForDay(day);
-            const isToday = day && toLocalDateString(day) === TODAY;
-            return (
-              <div key={idx} className={`min-h-[80px] p-1.5 border-r border-b border-gray-100 last:border-b-0 ${!day ? 'bg-gray-50/60' : ''} ${isToday ? 'bg-teal-50' : ''}`}>
-                {day && (
-                  <>
-                    <div className={`text-xs font-medium mb-1 w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-teal-600 text-white' : 'text-muted-foreground'}`}>
-                      {day.getDate()}
-                    </div>
-                    {dayAppts.map(a => {
-                      const gc = getGradeColor(a.grade);
-                      return (
-                        <div key={a.id} style={{ backgroundColor: gc.light, color: gc.solid }}
-                          className="text-[10px] font-medium px-1.5 py-0.5 rounded mb-0.5 truncate">
-                          {a.time} {a.section}
-                        </div>
-                      );
-                    })}
-                  </>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
 
       {/* ── CREATE APPOINTMENT MODAL ── */}
       {showCreateModal && (
@@ -728,56 +792,41 @@ export const Appointments = () => {
         </Modal>
       )}
 
-      {/* ── SET ROTATION MODAL ── */}
+      {/* ── ADD/EDIT CALENDAR NOTE MODAL ── */}
       {showRotationModal && (
         <Modal onClose={() => { resetRotationForm(); setShowRotationModal(false); }} closeDisabled={rotSaving}>
             <div className="flex items-center justify-between p-5 border-b border-gray-100">
-              <h2 className="text-lg font-bold text-foreground">Set Rotation Schedule</h2>
+              <h2 className="text-lg font-bold text-foreground">{editingRotationId ? 'Edit Reminder' : 'Add Reminder'}</h2>
               <button onClick={() => { resetRotationForm(); setShowRotationModal(false); }} className="p-2 hover:bg-gray-100 rounded-lg"><X className="w-4 h-4"/></button>
             </div>
             <div className="p-5 space-y-4">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">School</label>
-                <select value={rotSchool} onChange={e => setRotSchool(e.target.value)}
-                  className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring">
-                  <option value="">Select school</option>
-                  {schoolNames.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Date</label>
+                <input type="date" value={noteDate} onChange={e => setNoteDate(e.target.value)}
+                  className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">{staffNameLabel}</label>
-                <select value={rotDentistId} onChange={e => setRotDentistId(e.target.value)}
-                  className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring">
-                  {dentists.map(d => <option key={d._id} value={d._id}>Dr. {d.first_name} {d.last_name}</option>)}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">Week Start</label>
-                  <input type="date" value={rotWeekStart} onChange={e => setRotWeekStart(e.target.value)}
-                    className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">Week End</label>
-                  <input type="date" value={rotWeekEnd} onChange={e => setRotWeekEnd(e.target.value)}
-                    className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Notes (optional)</label>
-                <input type="text" value={rotNotes} onChange={e => setRotNotes(e.target.value)}
-                  placeholder="e.g. Bayanihan week"
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Note</label>
+                <textarea value={rotNotes} onChange={e => setRotNotes(e.target.value)}
+                  placeholder="e.g. Bayanihan Mission at BT Annex A"
+                  rows={3}
                   className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring" />
               </div>
               {rotError && <p className="text-sm text-destructive">{rotError}</p>}
               <div className="flex gap-3 pt-2">
+                {editingRotationId && (
+                  <button onClick={handleDeleteRotation} disabled={rotSaving}
+                    className="px-4 py-2 border border-destructive text-destructive rounded-lg hover:bg-danger-surface text-sm font-medium disabled:opacity-60">
+                    Delete
+                  </button>
+                )}
                 <button onClick={() => { resetRotationForm(); setShowRotationModal(false); }}
                   className="flex-1 px-4 py-2 border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium">
                   Cancel
                 </button>
                 <button onClick={handleSaveRotation} disabled={rotSaving}
                   className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-60 text-sm font-medium">
-                  {rotSaving ? 'Saving…' : 'Save Schedule'}
+                  {rotSaving ? 'Saving…' : 'Save Reminder'}
                 </button>
               </div>
             </div>

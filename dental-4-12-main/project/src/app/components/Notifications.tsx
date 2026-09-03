@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import { Bell, Calendar, Brain, Shield } from 'lucide-react';
+import { Bell, Calendar, Brain, Shield, StickyNote } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications, NOTIFIED_ROLES } from '../hooks/useNotifications';
 
@@ -51,6 +51,15 @@ export const Notifications = () => {
       badge: 'bg-warning-surface text-warning',
       count: counts.awaitingValidation,
       label: `risk assessment${counts.awaitingValidation === 1 ? '' : 's'} awaiting validation`,
+    },
+    counts.remindersToday > 0 && {
+      key: 'reminders',
+      to: '/appointments',
+      icon: StickyNote,
+      color: 'text-warning',
+      badge: 'bg-warning-surface text-warning',
+      count: counts.remindersToday,
+      label: `calendar reminder${counts.remindersToday === 1 ? '' : 's'} for today`,
     },
   ].filter(Boolean) as Array<{
     key: string; to: string; icon: typeof Shield; color: string; badge: string; count: number; label: string;

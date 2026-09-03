@@ -103,6 +103,7 @@ export const Root = () => {
   const notifTotal =
     notifCounts.overdueRpc +
     notifCounts.appointmentsToday +
+    notifCounts.remindersToday +
     (canValidateRisk ? notifCounts.awaitingValidation : 0);
 
   const [showChangePassword, setShowChangePassword] = useState(false);
