@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link, useSearchParams } from 'react-router';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, X, Check, Clock, Users, RotateCcw, FileText, Mars, Venus, MoreVertical, Trash2, ClipboardList, StickyNote } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, X, Check, Clock, Users, FileText, Mars, Venus, MoreVertical, Trash2, ClipboardList, StickyNote } from 'lucide-react';
 import { getGradeColor } from '../utils/gradeColors';
 import { getSchoolShortName } from '../utils/schoolColors';
 import { useAppointments, type AppointmentSession } from '../hooks/useAppointments';
@@ -15,6 +15,7 @@ import type { ApiSchool } from '../api/types';
 import { SkeletonPageHeader, SkeletonStatGrid, SkeletonTable } from './Skeleton';
 import { useToast } from './Toast';
 import { Modal } from './Modal';
+import { ConfirmDialog } from './ConfirmDialog';
 
 /** Fixed options plus a free-text escape hatch — the clinic's actual visit
  *  types are not a closed set, and forcing everything into these six used to
@@ -358,6 +359,19 @@ export const Appointments = () => {
     }
   };
 
+  // Mark Attended / Mark Missed / Mark Completed all go through this
+  // confirmation instead of firing on the first click — a wrong tap here
+  // used to silently flip a student's attendance record.
+  const [confirmStatusAction, setConfirmStatusAction] = useState<{ session: AppointmentSession; status: string } | null>(null);
+  const [confirmingStatus, setConfirmingStatus] = useState(false);
+  const confirmStatusChange = async () => {
+    if (!confirmStatusAction) return;
+    setConfirmingStatus(true);
+    await markStatus(confirmStatusAction.session, confirmStatusAction.status);
+    setConfirmingStatus(false);
+    setConfirmStatusAction(null);
+  };
+
   const removeAppointment = async (session: AppointmentSession) => {
     try {
       await deleteSession(session);
@@ -450,7 +464,7 @@ export const Appointments = () => {
             {genderIcon}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold text-foreground truncate">
+            <div className="text-sm font-bold text-foreground truncate">
               {soleStudent ? soleStudent.name : `${a.section} — ${a.grade}`}
             </div>
             {/* One row of tags, using the row's width instead of stacking
@@ -501,26 +515,20 @@ export const Appointments = () => {
             <>
               {showActions && !a.pending && status === 'Scheduled' && (
                 <>
-                  <button onClick={() => markStatus(a, 'Completed')}
+                  <button onClick={() => setConfirmStatusAction({ session: a, status: 'Completed' })}
                     className="w-7 h-7 rounded-full bg-green-100 hover:bg-green-200 text-green-700 flex items-center justify-center transition-colors" title="Mark Attended">
                     <Check className="w-3.5 h-3.5" />
                   </button>
-                  <button onClick={() => markStatus(a, 'Missed')}
+                  <button onClick={() => setConfirmStatusAction({ session: a, status: 'Missed' })}
                     className="w-7 h-7 rounded-full bg-red-100 hover:bg-red-200 text-red-700 flex items-center justify-center transition-colors" title="Mark Missed">
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </>
               )}
               {showActions && !a.pending && status === 'In Progress' && (
-                <button onClick={() => markStatus(a, 'Completed')}
+                <button onClick={() => setConfirmStatusAction({ session: a, status: 'Completed' })}
                   className="w-7 h-7 rounded-full bg-green-100 hover:bg-green-200 text-green-700 flex items-center justify-center transition-colors" title="Mark Completed">
                   <Check className="w-3.5 h-3.5" />
-                </button>
-              )}
-              {showActions && !a.pending && (status === 'Completed' || status === 'Missed') && (
-                <button onClick={() => markStatus(a, 'Scheduled')}
-                  className="w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 text-muted-foreground flex items-center justify-center transition-colors" title="Reset">
-                  <RotateCcw className="w-3 h-3" />
                 </button>
               )}
             </>
@@ -885,6 +893,21 @@ export const Appointments = () => {
             </div>
         </Modal>
       )}
+
+      <ConfirmDialog
+        open={!!confirmStatusAction}
+        title={confirmStatusAction?.status === 'Missed' ? 'Mark as missed?' : 'Mark as attended?'}
+        message={
+          confirmStatusAction
+            ? `This marks ${confirmStatusAction.session.studentCount === 1 ? confirmStatusAction.session.students[0]?.name ?? 'this student' : `${confirmStatusAction.session.studentCount} students`} as ${confirmStatusAction.status.toLowerCase()} for this appointment.`
+            : ''
+        }
+        confirmLabel={confirmStatusAction?.status === 'Missed' ? 'Mark Missed' : 'Mark Attended'}
+        tone={confirmStatusAction?.status === 'Missed' ? 'danger' : 'default'}
+        busy={confirmingStatus}
+        onConfirm={confirmStatusChange}
+        onCancel={() => setConfirmStatusAction(null)}
+      />
     </div>
   );
 };
