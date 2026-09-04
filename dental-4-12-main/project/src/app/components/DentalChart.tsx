@@ -879,9 +879,6 @@ export const DentalChart = () => {
                   <div className="flex items-center gap-2 mt-1">
                     {yearGrade && <GradePill grade={yearGrade} />}
                     {yearSection && <span style={{ color: gc.solid }} className="text-xs font-medium">{yearSection}</span>}
-                    {/* So Male/Female is distinguishable even while the card
-                        is collapsed and the Sex row below is hidden. */}
-                    {student.sex && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{student.sex}</span>}
                     {student.is_4ps && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">4Ps</span>}
                   </div>
                 </div>
@@ -896,6 +893,14 @@ export const DentalChart = () => {
                   {consentComplete ? <ShieldCheck className="w-3.5 h-3.5" /> : <ShieldAlert className="w-3.5 h-3.5" />}
                   {consentComplete ? 'Consent Complete' : 'Consent Pending'}
                 </span>
+                {/* Moved beside Consent status, on the right — still readable
+                    while the card is collapsed. Blue/pink instead of neutral
+                    gray so it reads at a glance, not just on close reading. */}
+                {student.sex && (
+                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${student.sex === 'Male' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}`}>
+                    {student.sex}
+                  </span>
+                )}
                 {canEditInfo && (
                   <button onClick={() => setConfirmOpenEdit(true)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-lg text-muted-foreground hover:bg-gray-50">
                     <Pencil className="w-3 h-3" /> Edit
@@ -1183,6 +1188,43 @@ export const DentalChart = () => {
         </div>
       </div>
 
+      {/* Current year's consent status — always visible regardless of the
+          active tab, not just inside the Consent tab, so it reads at a
+          glance from History/Dental Chart/etc. too. The Consent tab still
+          shows the full per-year history below; this is just the "right
+          now" summary for whichever year is selected. */}
+      {years.length > 0 && yearIptr && (
+        <div className={`rounded-xl border p-4 ${consentComplete ? 'bg-success-surface border-green-200' : 'bg-warning-surface border-amber-200'}`}>
+          <div className="flex items-start gap-3 min-w-0">
+            <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${consentComplete ? 'bg-white text-success' : 'bg-white text-warning'}`}>
+              {consentComplete ? <ShieldCheck className="w-4 h-4" /> : <ShieldAlert className="w-4 h-4" />}
+            </div>
+            <div className="min-w-0">
+              <div className={`text-sm font-bold ${consentComplete ? 'text-success' : 'text-warning'}`}>
+                {consentComplete ? 'Physical copy of consent obtained' : `Consent Pending — ${yearIptr.school_year}`}
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {yearGrade ? `${yearGrade}${yearSection ? ` · ${yearSection}` : ''}` : 'Grade/section not recorded for this year'}
+              </p>
+            </div>
+          </div>
+          {!consentComplete && (
+            <label className={`flex items-center gap-2 mt-3 pt-3 border-t border-amber-200 ${canEdit ? 'cursor-pointer' : 'cursor-default'}`}>
+              <input
+                type="checkbox"
+                checked={false}
+                onChange={(e) => {
+                  if (canEdit && e.target.checked) setConfirmConsentTarget({ iptrId: yearIptr._id, schoolYear: yearIptr.school_year });
+                }}
+                disabled={!canEdit}
+                className="w-4 h-4 rounded accent-primary disabled:opacity-60 disabled:cursor-not-allowed"
+              />
+              <span className="text-xs font-medium text-foreground">Consent has been obtained (Nakumpleto na ang pahintulot)</span>
+            </label>
+          )}
+        </div>
+      )}
+
       {/* Tab Content */}
       <div className="bg-card rounded-xl border border-border">
 
@@ -1215,10 +1257,23 @@ export const DentalChart = () => {
                     onChange={(e) => setDraftMeasure((p) => ({ ...p, weight_kg: e.target.value }))}
                     placeholder="—" className="w-full text-xs border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
                 </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">BMI</label>
-                  <div className="w-full text-xs border border-border rounded px-2 py-1 bg-muted text-muted-foreground" title={BMI_NOTE}>
-                    {computeBmi(Number(draftMeasure.height_cm) || null, Number(draftMeasure.weight_kg) || null) ?? 'Automatically calculated'}
+                <div className="flex gap-2">
+                  <div className="w-20 flex-shrink-0">
+                    <label className="block text-xs text-muted-foreground mb-1">BMI</label>
+                    <div className="w-full text-xs border border-border rounded px-2 py-1 bg-muted text-muted-foreground" title={BMI_NOTE}>
+                      {computeBmi(Number(draftMeasure.height_cm) || null, Number(draftMeasure.weight_kg) || null) ?? 'Auto'}
+                    </div>
+                  </div>
+                  {/* No category yet, on purpose — see BMI_NOTE: the adult
+                      18.5/25/30 cutoffs are clinically wrong for children,
+                      and a real one needs a WHO/DOH BMI-for-age table this
+                      app doesn't have. Rendering empty rather than a
+                      guessed label. */}
+                  <div className="flex-1">
+                    <label className="block text-xs text-muted-foreground mb-1">Nutritional Status</label>
+                    <div className="w-full text-xs border border-border rounded px-2 py-1 bg-muted text-muted-foreground" title={BMI_NOTE}>
+                      —
+                    </div>
                   </div>
                 </div>
               </div>

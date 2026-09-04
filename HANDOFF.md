@@ -2,6 +2,12 @@
 
 **Compressed 2026-07-11 (hygiene pass).** Completed-sprint history → `docs/BUILD-LOG.md`; full pre-compression narratives → git history (`git show 73bc4e47:HANDOFF.md`). This file keeps only live state: current status, open work, warnings, and durable gotchas.
 
+## Sex pill relocated + colored, consent status made persistent, BMI narrowed for a Nutritional Status slot (2026-09-04)
+- **Sex pill moved** from beside Grade/Section (left side, under the name) to the right side of the header, next to the Consent badge — and recolored from neutral gray to blue (Male) / pink (Female), per explicit request.
+- **Consent status is now a persistent banner**, shown right below the year-tabs strip regardless of which tab is active (History, Dental Chart, etc.) — previously only visible on the Consent tab itself. Reuses the same `confirmConsentTarget`/`handleToggleConsent` flow as the Consent tab's own per-year cards; the Consent tab's full per-year history list is untouched (still there for reviewing past years), this is just an always-visible "current year, right now" summary layered on top.
+- **BMI box narrowed** (`w-20`) with a new **Nutritional Status** field beside it, in the same Physical Measurements row. **Deliberately rendered empty (`—`)**, not a computed category — flagged to the user rather than guessed: Sprint 68 already established that adult BMI thresholds (18.5/25/30) are clinically wrong for a Kinder–Grade 10 population, and a real category needs a WHO/DOH BMI-for-age reference table this app doesn't have. Waiting on the user for how they want this filled in before writing any classification logic.
+- Verified via a static mockup of all three changes against the real compiled CSS, in Playwright. `npx tsc --noEmit` (client + server) and `npm run build` both clean. Frontend-only.
+
 ## History tab restructured: reordered, separated into cards, two new "Others" fields (2026-09-04)
 - **Section order changed** to Physical Measurements → Oral Health Condition → Medical History + Dietary Habits (still paired side by side), per explicit request — was Medical History/Dietary Habits first, Physical Measurements, then Oral Health Condition last.
 - **Each section is now its own bordered white card** (`bg-card rounded-xl border p-4`), matching a reference mockup's visual language — bigger/bolder title (`text-base font-bold`, was `text-xs uppercase`) plus a "Select all applicable conditions." subtitle on the three checkbox sections. Previously everything sat in one flowing tab body with small uppercase labels and no card separation.
