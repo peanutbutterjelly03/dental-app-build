@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
-import { ArrowLeft, Save, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Check, Shield, ShieldCheck, ShieldAlert, Users, TrendingUp, FileText, Plus, Pencil, Trash2, Brain, Download, X, MoreVertical } from 'lucide-react';
+import { ArrowLeft, Save, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Check, Shield, ShieldCheck, ShieldAlert, Users, TrendingUp, FileText, Plus, Pencil, Trash2, Brain, Download, X, MoreVertical, Clock, Smile, Activity } from 'lucide-react';
 import { exportDohReportToPdf } from '../utils/exportPdf';
 import { getGradeColor } from '../utils/gradeColors';
 import { computeBmi, BMI_NOTE, classifyNutritionalStatus } from '../utils/bmi';
@@ -81,6 +81,21 @@ const emptyOral = (): OralDraft => ({
 });
 
 const formatDateStamp = (dateString?: string | null) => formatDate(dateString, 'No date stamp');
+
+// One icon per tab, shown above its label (2026-09-04) — not a step count,
+// since these are independent views a clinician jumps between, not a
+// completable sequence. Dental Chart/Referrals/Risk Classification reuse the
+// exact icons their own empty states already use elsewhere on this page
+// (Smile has no established precedent here, so it's new — closest lucide has
+// to a tooth/mouth icon).
+const TAB_ICONS: Record<'history' | 'chart' | 'treatments' | 'records' | 'referrals' | 'ai', typeof Clock> = {
+  history: Clock,
+  chart: Smile,
+  treatments: Activity,
+  records: TrendingUp,
+  referrals: FileText,
+  ai: Brain,
+};
 
 // ─── DMFT calculation ─────────────────────────────────────────────────────────
 const computeDMFT = (chart: Record<number, ChartEntry>) => {
@@ -168,13 +183,12 @@ export const DentalChart = () => {
   const prevPatient = navIndex > 0 ? navList[navIndex - 1] : null;
   const nextPatient = navIndex >= 0 && navIndex < navList.length - 1 ? navList[navIndex + 1] : null;
 
-  type TabKey = 'history' | 'chart' | 'appointments' | 'records' | 'treatments' | 'referrals' | 'ai';
+  type TabKey = 'history' | 'chart' | 'records' | 'treatments' | 'referrals' | 'ai';
   type IptrContext = 'default' | 'dental-queue' | 'risk' | 'treatment';
   const iptrContext = (searchParams.get('context') as IptrContext) || 'default';
   const initialTab = (searchParams.get('tab') as TabKey) || 'history';
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
   const allTabs: { key: TabKey; label: string }[] = [
-    { key: 'appointments', label: 'Consent' },
     { key: 'history', label: 'History' },
     { key: 'chart', label: 'Dental Chart' },
     { key: 'treatments', label: 'Treatment History' },
@@ -1152,19 +1166,30 @@ export const DentalChart = () => {
         </Modal>
       )}
 
-      {/* Tabs */}
+      {/* Tabs — icon-topped rounded buttons, not an underline strip. The
+          icon is per-view, not a step number: these are independent tabs a
+          clinician jumps between in any order, so nothing here implies a
+          1-2-3 sequence or a "completed" state the way a wizard's numbered
+          circles would. */}
       <div className="sticky z-30 bg-gray-50 space-y-0" style={{ top: stickyOffsets.tabsTop }}>
         <div className="bg-card rounded-xl border border-border">
           <div ref={tabsRowRef} className="rounded-t-xl border-b border-border bg-card">
             <div className="flex items-center">
               <div className="min-w-0 flex-1 overflow-x-auto">
-              <div className="flex min-w-max">
-              {visibleTabs.map((tab) => (
-                <button key={tab.key} onClick={() => setActiveTab(tab.key as TabKey)}
-                  className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition-colors ${activeTab === tab.key ? 'border-b-2 border-blue-700 text-blue-700 bg-blue-50' : 'text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
-                  {tab.label}
-                </button>
-              ))}
+              <div className="flex min-w-max gap-1 p-2">
+              {visibleTabs.map((tab) => {
+                const Icon = TAB_ICONS[tab.key as keyof typeof TAB_ICONS];
+                const isActive = activeTab === tab.key;
+                return (
+                  <button key={tab.key} onClick={() => setActiveTab(tab.key as TabKey)}
+                    className={`flex-shrink-0 flex flex-col items-center gap-1 px-4 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
+                    <span className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${isActive ? 'bg-blue-700 text-white' : 'bg-gray-100 text-muted-foreground'}`}>
+                      <Icon className="w-4 h-4" />
+                    </span>
+                    {tab.label}
+                  </button>
+                );
+              })}
               </div>
               </div>
               {canEditHistory && currentYearData && (editMode || activeTab === 'history' || (canEdit && activeTab === 'chart')) && (
@@ -1260,14 +1285,13 @@ export const DentalChart = () => {
       </div>
 
       {/* Current year's consent status — always visible regardless of the
-          active tab, not just inside the Consent tab, so it reads at a
-          glance from History/Dental Chart/etc. too. The Consent tab still
-          shows the full per-year history below; this is just the "right
-          now" summary for whichever year is selected. */}
+          active tab, not just a dedicated tab (removed 2026-09-04 — this
+          banner plus the year tabs above it, which switch which year it
+          summarizes, already cover what that tab used to). */}
       {years.length > 0 && yearIptr && (
-        <div className={`rounded-xl border p-4 ${consentComplete ? 'bg-success-surface border-green-200' : 'bg-warning-surface border-amber-200'}`}>
+        <div className={`rounded-xl border p-3 ${consentComplete ? 'bg-success-surface border-green-200' : 'bg-warning-surface border-amber-200'}`}>
           <div className="flex items-start gap-3 min-w-0">
-            <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${consentComplete ? 'bg-white text-success' : 'bg-white text-warning'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${consentComplete ? 'bg-white text-success' : 'bg-white text-warning'}`}>
               {consentComplete ? <ShieldCheck className="w-4 h-4" /> : <ShieldAlert className="w-4 h-4" />}
             </div>
             <div className="min-w-0">
@@ -1280,7 +1304,7 @@ export const DentalChart = () => {
             </div>
           </div>
           {!consentComplete && (
-            <label className={`flex items-center gap-2 mt-3 pt-3 border-t border-amber-200 ${canEdit ? 'cursor-pointer' : 'cursor-default'}`}>
+            <label className={`flex items-center gap-2 mt-2 ${canEdit ? 'cursor-pointer' : 'cursor-default'}`}>
               <input
                 type="checkbox"
                 checked={false}
@@ -1319,14 +1343,14 @@ export const DentalChart = () => {
                   <input type="number" min="0" max="300" step="0.1" inputMode="decimal" disabled={!editingHistory}
                     value={draftMeasure.height_cm}
                     onChange={(e) => setDraftMeasure((p) => ({ ...p, height_cm: e.target.value }))}
-                    placeholder="—" className="w-full text-xs border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+                    placeholder="e.g. 120" className="w-full text-xs border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
                 </div>
                 <div>
                   <label className="block text-xs text-muted-foreground mb-1">Weight (kg)</label>
                   <input type="number" min="0" max="500" step="0.1" inputMode="decimal" disabled={!editingHistory}
                     value={draftMeasure.weight_kg}
                     onChange={(e) => setDraftMeasure((p) => ({ ...p, weight_kg: e.target.value }))}
-                    placeholder="—" className="w-full text-xs border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+                    placeholder="e.g. 25" className="w-full text-xs border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
                 </div>
                 {(() => {
                   const bmiValue = computeBmi(Number(draftMeasure.height_cm) || null, Number(draftMeasure.weight_kg) || null);
@@ -1341,6 +1365,14 @@ export const DentalChart = () => {
                     : status === 'Overweight' || status === 'Obese' ? 'bg-warning-surface text-warning'
                     : status === 'Wasted' || status === 'Severely Wasted' ? 'bg-danger-surface text-destructive'
                     : 'bg-muted text-muted-foreground';
+                  // Say WHY it's blank rather than leaving a bare dash — two
+                  // different reasons look identical otherwise (nothing
+                  // entered yet vs. genuinely no reference for this age).
+                  const statusFallback = bmiValue == null
+                    ? 'Enter height & weight'
+                    : (patientAgeMonths ?? 0) < 72
+                    ? 'No reference below age 6'
+                    : 'No reference above age 19';
                   return (
                     <div className="flex gap-2">
                       <div className="w-20 flex-shrink-0">
@@ -1353,7 +1385,7 @@ export const DentalChart = () => {
                         <label className="block text-xs text-muted-foreground mb-1">Nutritional Status</label>
                         <div className={`w-full text-xs border border-border rounded px-2 py-1 font-medium ${statusColor}`}
                           title="DOH/DepEd BMI-for-Age classification, 6–19 years old — blank outside that range.">
-                          {status ?? '—'}
+                          {status ?? statusFallback}
                         </div>
                       </div>
                     </div>
@@ -1651,77 +1683,6 @@ export const DentalChart = () => {
               </div>
             </div>
             </div>
-          </div>
-        )}
-
-        {/* ── TAB: Consent ── */}
-        {activeTab === 'appointments' && (
-          <div className="p-4 space-y-4">
-            {/* Standing policy notice, not tied to any one school year — comes
-                first, ahead of the per-year consent containers below. */}
-            <div className="bg-blue-50 rounded-xl border border-blue-200 p-4">
-              <div className="flex items-start gap-3">
-                <Shield className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                <div className="text-xs font-bold text-blue-900">Republic Act No. 10173, Data Privacy Act of 2012</div>
-              </div>
-            </div>
-
-            {/* One container per school year, newest first — consent is
-                renewed annually (see StudentIptr.ts) and never carries over,
-                so a year a student is reassigned into always starts unticked
-                again, on purpose, with its own checkbox to confirm. */}
-            {years.length === 0 ? (
-              <p className="text-center text-muted-foreground text-sm py-8">No school year records yet.</p>
-            ) : (
-              [...years].reverse().map((y) => {
-                const complete = y.iptr.consent_status === 'complete';
-                const yrGrade = y.iptr.grade_level;
-                const yrSection = y.iptr.section;
-                return (
-                  <div key={y.iptr._id} className={`rounded-xl border p-5 ${complete ? 'bg-success-surface border-green-200' : 'bg-warning-surface border-amber-200'}`}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3 min-w-0">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${complete ? 'bg-white text-success' : 'bg-white text-warning'}`}>
-                          {complete ? <ShieldCheck className="w-5 h-5" /> : <ShieldAlert className="w-5 h-5" />}
-                        </div>
-                        <div className="min-w-0">
-                          <div className={`text-sm font-bold ${complete ? 'text-success' : 'text-warning'}`}>
-                            {complete ? 'Physical copy of consent obtained' : `Consent Pending — ${y.iptr.school_year}`}
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {yrGrade ? `${yrGrade}${yrSection ? ` · ${yrSection}` : ''}` : 'Grade/section not recorded for this year'}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right text-xs text-muted-foreground flex-shrink-0">
-                        {complete && y.iptr.consent_given_at
-                          ? <>Given<br /><span className="font-medium text-foreground">{formatDate(y.iptr.consent_given_at)}</span></>
-                          : '—'}
-                      </div>
-                    </div>
-                    {/* Once complete, the container above already says so
-                        (badge + given-date) — a disabled, permanently-checked
-                        box repeating the same fact underneath is redundant,
-                        so it only renders while there is still an action to
-                        take. */}
-                    {!complete && (
-                      <label className={`flex items-center gap-2 mt-4 pt-4 border-t border-amber-200 ${canEdit ? 'cursor-pointer' : 'cursor-default'}`}>
-                        <input
-                          type="checkbox"
-                          checked={complete}
-                          onChange={(e) => {
-                            if (canEdit && e.target.checked) setConfirmConsentTarget({ iptrId: y.iptr._id, schoolYear: y.iptr.school_year });
-                          }}
-                          disabled={!canEdit}
-                          className="w-4 h-4 rounded accent-primary disabled:opacity-60 disabled:cursor-not-allowed"
-                        />
-                        <span className="text-xs font-medium text-foreground">Consent has been obtained (Nakumpleto na ang pahintulot)</span>
-                      </label>
-                    )}
-                  </div>
-                );
-              })
-            )}
           </div>
         )}
 
