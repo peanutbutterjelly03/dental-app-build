@@ -2,6 +2,13 @@
 
 **Compressed 2026-07-11 (hygiene pass).** Completed-sprint history → `docs/BUILD-LOG.md`; full pre-compression narratives → git history (`git show 73bc4e47:HANDOFF.md`). This file keeps only live state: current status, open work, warnings, and durable gotchas.
 
+## Step strip upgraded to a proper 3-state stepper — completed / current / upcoming (2026-09-04)
+- **Real progress semantics are back, on top of the last few purely-cosmetic rounds**: `completed` (`idx < activeIdx`) shows a filled blue circle with a checkmark; `current` (`idx === activeIdx`) is filled blue too but bumped to `w-10 h-10` with a `ring-4 ring-blue-100` glow + `shadow-sm` so the active step reads at a glance without relying on color alone; `upcoming` (`idx > activeIdx`) is a plain outlined `border-2 border-border` circle showing its number, not a checkmark. Connecting line stays blue up to the active tab, gray after.
+- Per user's explicit ask ("make an aesthetic horizontal stepper / multi-step form stepper") — a step up from the flat/uniform checkmark-only look of the last couple rounds, back toward genuine step-progress styling but with better visual hierarchy than the version from several rounds ago (that one only had 2 states: passed vs not).
+- **New Tailwind utilities compiled for this** (`ring-4`, `ring-blue-100`) — checked they showed up in the post-build CSS before screenshotting, having been bitten twice already this session by classes that don't exist in the compiled output until they're actually referenced in the source and rebuilt.
+- No card/border on the strip (unchanged from last round — still centered, plain), still above the flat tab-strip card, which remains the actual click target and source of truth for the active tab; the stepper is a visual echo.
+- Verified against the real post-build compiled CSS in Playwright. `npx tsc --noEmit` clean, `npm run build` clean. Frontend-only.
+
 ## Step strip: card/border removed, centered, label added back under each circle (2026-09-04)
 - **No more `bg-card`/`rounded-xl`/`border`/`p-4` wrapper** around the checkmark strip — it's now plain content (`flex items-center justify-center`, `py-2` for breathing room only) that sits directly on the page background above the flat-tab-strip card, centered rather than stretched edge-to-edge.
 - **Label restored under every circle**, right after last round removed it — active tab's label is bold blue, the rest muted gray (an echo of the flat strip below, not new state; the circles themselves stay uniformly filled/checked per last round's decision, not tied to active/passed).

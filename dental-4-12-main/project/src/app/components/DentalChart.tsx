@@ -1168,29 +1168,38 @@ export const DentalChart = () => {
         </Modal>
       )}
 
-      {/* Tabs — a plain (no card/border) centered strip of uniformly
-          filled/checked circles with a label under each, above the actual
-          flat text tab strip card below it. Circles are purely decorative
-          (all filled, all lines blue) — the flat strip is the only place
-          the active tab is shown; the label under each circle just echoes
-          it in bold/blue for a quick visual match. */}
+      {/* Tabs — a plain (no card/border) centered horizontal stepper above
+          the actual flat text tab strip card. Three real states, not just
+          "passed": completed (checkmark, filled), current (filled + a ring
+          glow so it reads at a glance), upcoming (outlined, numbered). The
+          flat strip below still owns click-to-switch; the stepper is a
+          visual echo of the same active tab. */}
       <div className="sticky z-30 bg-gray-50 space-y-2" style={{ top: stickyOffsets.tabsTop }}>
-        <div className="flex items-center justify-center overflow-x-auto py-2">
+        <div className="flex items-center justify-center overflow-x-auto py-3">
           <div className="flex items-center min-w-max">
-          {visibleTabs.map((tab, idx) => (
-            <div key={tab.key} className="flex items-center flex-shrink-0">
-              <button type="button" onClick={() => setActiveTab(tab.key as TabKey)}
-                className="flex flex-col items-center gap-1.5 px-4 flex-shrink-0">
-                <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-blue-900 text-white transition-colors hover:bg-blue-800">
-                  <Check className="w-4 h-4" strokeWidth={3} />
-                </span>
-                <span className={`text-sm whitespace-nowrap ${activeTab === tab.key ? 'font-semibold text-blue-700' : 'font-medium text-muted-foreground'}`}>{tab.label}</span>
-              </button>
-              {idx < visibleTabs.length - 1 && (
-                <div className="w-10 h-0.5 flex-shrink-0 bg-blue-900" />
-              )}
-            </div>
-          ))}
+          {visibleTabs.map((tab, idx) => {
+            const activeIdx = visibleTabs.findIndex((t) => t.key === activeTab);
+            const completed = idx < activeIdx;
+            const current = idx === activeIdx;
+            return (
+              <div key={tab.key} className="flex items-center flex-shrink-0">
+                <button type="button" onClick={() => setActiveTab(tab.key as TabKey)}
+                  className="flex flex-col items-center gap-1.5 px-4 flex-shrink-0">
+                  <span className={`rounded-full flex items-center justify-center flex-shrink-0 text-sm font-semibold transition-all ${
+                    completed ? 'w-9 h-9 bg-blue-700 text-white'
+                    : current ? 'w-10 h-10 bg-blue-700 text-white shadow-sm ring-4 ring-blue-100'
+                    : 'w-9 h-9 bg-white border-2 border-border text-muted-foreground hover:bg-gray-50'
+                  }`}>
+                    {completed ? <Check className="w-4 h-4" strokeWidth={3} /> : idx + 1}
+                  </span>
+                  <span className={`text-sm whitespace-nowrap ${current ? 'font-semibold text-blue-700' : completed ? 'font-medium text-blue-700' : 'font-medium text-muted-foreground'}`}>{tab.label}</span>
+                </button>
+                {idx < visibleTabs.length - 1 && (
+                  <div className={`w-12 h-0.5 flex-shrink-0 ${idx < activeIdx ? 'bg-blue-700' : 'bg-border'}`} />
+                )}
+              </div>
+            );
+          })}
           </div>
         </div>
         <div className="bg-card rounded-xl border border-border">
