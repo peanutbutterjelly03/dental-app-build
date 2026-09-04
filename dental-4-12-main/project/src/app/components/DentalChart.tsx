@@ -209,6 +209,11 @@ export const DentalChart = () => {
   const [editMode, setEditMode] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [editingInfo, setEditingInfo] = useState(false);
+  // Extra confirm step before entering edit mode and before the save that
+  // leaves it, at the user's request — separate from infoSaving, which only
+  // covers the request itself.
+  const [confirmOpenEdit, setConfirmOpenEdit] = useState(false);
+  const [confirmSaveInfo, setConfirmSaveInfo] = useState(false);
   // Collapses the Patient Info Card down to just name + grade/section pills
   // — the birthday/contact/address grid is useful but not something every
   // screen visit needs looking at.
@@ -857,6 +862,9 @@ export const DentalChart = () => {
                   <div className="flex items-center gap-2 mt-1">
                     {yearGrade && <GradePill grade={yearGrade} />}
                     {yearSection && <span style={{ color: gc.solid }} className="text-xs font-medium">{yearSection}</span>}
+                    {/* So Male/Female is distinguishable even while the card
+                        is collapsed and the Sex row below is hidden. */}
+                    {student.sex && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{student.sex}</span>}
                     {student.is_4ps && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">4Ps</span>}
                   </div>
                 </div>
@@ -872,7 +880,7 @@ export const DentalChart = () => {
                   {consentComplete ? 'Consent Complete' : 'Consent Pending'}
                 </span>
                 {canEditInfo && (
-                  <button onClick={openEditInfo} className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-lg text-muted-foreground hover:bg-gray-50">
+                  <button onClick={() => setConfirmOpenEdit(true)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-lg text-muted-foreground hover:bg-gray-50">
                     <Pencil className="w-3 h-3" /> Edit
                   </button>
                 )}
@@ -886,25 +894,23 @@ export const DentalChart = () => {
               </div>
             </div>
             {basicInfoExpanded && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3 text-sm border-t border-border pt-4 mt-4">
+              <div className="space-y-3 text-sm border-t border-border pt-4 mt-4">
+                {/* Height/Weight/BMI live on the History tab's Physical
+                    Measurements block, not here — this card stays to
+                    identity/contact facts, not clinical measurements. */}
                 {[
-                  ['Birthday', formatDate(student.birthday)],
-                  ['Age', `${patientAge} years`],
-                  ['Sex', student.sex],
-                  ['Contact', student.contact_number || '—'],
-                  ['Place of Birth', student.place_of_birth || '—'],
-                  ['Address', student.address],
-                  ['PhilHealth', `${student.philhealth_number || '—'} (${student.philhealth_status || 'None'})`],
-                  ['Guardian', student.guardian_name || '—'],
-                  ['Guardian Contact', student.guardian_contact || '—'],
-                  ['Occupation', student.guardian_occupation || '—'],
-                  // Height/Weight/BMI live on the History tab's Physical
-                  // Measurements block now, not here — this card stays to
-                  // identity/contact facts, not clinical measurements.
-                ].map(([label, val]) => (
-                  <div key={label}>
-                    <div className="text-xs text-muted-foreground font-medium mb-0.5">{label}</div>
-                    <div className="text-foreground font-medium">{val}</div>
+                  [['Birthday', formatDate(student.birthday)], ['Age', `${patientAge} years`], ['Place of Birth', student.place_of_birth || '—'], ['Sex', student.sex]],
+                  [['Address', student.address], ['Occupation', student.guardian_occupation || '—'], ['Contact', student.contact_number || '—']],
+                  [['Guardian', student.guardian_name || '—'], ['Guardian Contact', student.guardian_contact || '—']],
+                  [['PhilHealth', `${student.philhealth_number || '—'} (${student.philhealth_status || 'None'})`], ['4Ps / NHTS', student.is_4ps ? 'Yes' : 'No']],
+                ].map((row, i) => (
+                  <div key={i} className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3">
+                    {row.map(([label, val]) => (
+                      <div key={label}>
+                        <div className="text-xs text-muted-foreground font-medium mb-0.5">{label}</div>
+                        <div className="text-foreground font-medium">{val}</div>
+                      </div>
+                    ))}
                   </div>
                 ))}
               </div>
@@ -915,7 +921,10 @@ export const DentalChart = () => {
           field styling (PatientList.tsx) so editing feels like the same form,
           not a cramped second UI. */}
       {editingInfo && (
-        <Modal onClose={() => setEditingInfo(false)} maxWidth="max-w-4xl" closeDisabled={infoSaving}>
+        // closeDisabled is unconditional (not just while saving) — Esc and a
+        // backdrop click must never lose a half-filled edit; only the header
+        // X and the footer Cancel close it.
+        <Modal onClose={() => setEditingInfo(false)} maxWidth="max-w-4xl" closeDisabled>
           <div className="flex items-start justify-between gap-3 p-6 border-b">
             <div>
               <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-primary mb-1">
@@ -1066,7 +1075,7 @@ export const DentalChart = () => {
           </div>
           <div className="flex gap-3 p-6 border-t">
             <button onClick={() => setEditingInfo(false)} className="flex-1 px-4 py-2 border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium">Cancel</button>
-            <button onClick={handleSaveInfo} disabled={infoSaving} className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-60 text-sm font-medium">{infoSaving ? 'Saving…' : 'Save'}</button>
+            <button onClick={() => setConfirmSaveInfo(true)} disabled={infoSaving} className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-60 text-sm font-medium">{infoSaving ? 'Saving…' : 'Save'}</button>
           </div>
         </Modal>
       )}
@@ -1173,40 +1182,40 @@ export const DentalChart = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <div className="text-xs font-bold text-foreground uppercase tracking-wide mb-2">Medical History</div>
-                <div className="space-y-1.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {([
                     ['Hypertension / CVA', 'hypertension'], ['Diabetes Mellitus', 'diabetes'],
                     ['Cardiovascular / Heart Diseases', 'cardiovascular'], ['Thyroid Disorders', 'thyroid'],
                     ['Hepatitis', 'hepatitis'], ['Malignancy', 'malignancy'],
                     ['History of Hospitalization', 'hospitalization'], ['Blood Transfusion', 'bloodTransfusion'], ['Tattoo', 'tattoo'],
                   ] as [string, keyof MedicalHistoryDraft][]).map(([label, field]) => (
-                    <label key={field} className="flex items-center justify-between text-xs text-foreground py-1 border-b border-gray-100 last:border-0">
-                      {label}
+                    <label key={field} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors ${draftMed[field] ? 'border-primary bg-primary-surface text-primary font-medium' : 'border-border text-foreground'} ${editingHistory ? 'cursor-pointer hover:bg-canvas' : 'cursor-not-allowed opacity-70'}`}>
                       <input type="checkbox" disabled={!editingHistory} checked={!!draftMed[field]}
                         onChange={(e) => setDraftMed((p) => ({ ...p, [field]: e.target.checked }))}
-                        className="w-4 h-4 rounded accent-teal-600 disabled:cursor-not-allowed" />
+                        className="w-4 h-4 rounded accent-primary disabled:cursor-not-allowed" />
+                      {label}
                     </label>
                   ))}
-                  <div className="pt-1">
-                    <label className="block text-xs text-muted-foreground mb-1">Allergies</label>
-                    <input type="text" disabled={!editingHistory} value={draftMed.allergies} onChange={(e) => setDraftMed((p) => ({ ...p, allergies: e.target.value }))}
-                      placeholder="—" className="w-full text-xs border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
-                  </div>
+                </div>
+                <div className="pt-2">
+                  <label className="block text-xs text-muted-foreground mb-1">Allergies</label>
+                  <input type="text" disabled={!editingHistory} value={draftMed.allergies} onChange={(e) => setDraftMed((p) => ({ ...p, allergies: e.target.value }))}
+                    placeholder="—" className="w-full text-xs border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
                 </div>
               </div>
               <div>
                 <div className="text-xs font-bold text-foreground uppercase tracking-wide mb-2">Dietary Habits and Social History</div>
-                <div className="space-y-1.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {([
                     ['Sugar Sweetened Beverages/Food', 'sugarSweetened'], ['Alcohol Drinker', 'alcoholDrinker'],
                     ['Tobacco User', 'tobaccoUser'], ['Betel Nut Chewer', 'betelNut'],
                     ['Body Piercing', 'bodyPiercing'], ['Nail Biting', 'nailBiting'], ['Thumbsucking', 'thumbsucking'],
                   ] as [string, keyof DietDraft][]).map(([label, field]) => (
-                    <label key={field} className="flex items-center justify-between text-xs text-foreground py-1 border-b border-gray-100 last:border-0">
-                      {label}
+                    <label key={field} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors ${draftDiet[field] ? 'border-primary bg-primary-surface text-primary font-medium' : 'border-border text-foreground'} ${editingHistory ? 'cursor-pointer hover:bg-canvas' : 'cursor-not-allowed opacity-70'}`}>
                       <input type="checkbox" disabled={!editingHistory} checked={!!draftDiet[field]}
                         onChange={(e) => setDraftDiet((p) => ({ ...p, [field]: e.target.checked }))}
-                        className="w-4 h-4 rounded accent-teal-600 disabled:cursor-not-allowed" />
+                        className="w-4 h-4 rounded accent-primary disabled:cursor-not-allowed" />
+                      {label}
                     </label>
                   ))}
                 </div>
@@ -1245,16 +1254,16 @@ export const DentalChart = () => {
               <div className="text-xs font-bold text-foreground uppercase tracking-wide mb-2">
                 Oral Health Condition
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1.5">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                 {([
                   ['Gingivitis', 'gingivitis'], ['Periodontal Disease', 'periodontal'], ['Debris', 'debris'],
                   ['Calculus', 'calculus'], ['Abnormal Growth', 'abnormalGrowth'], ['Cleft Lip / Palate', 'cleftLipPalate'],
                 ] as [string, keyof OralDraft][]).map(([label, field]) => (
-                  <label key={field} className="flex items-center justify-between text-xs text-foreground py-1 border-b border-gray-100">
-                    {label}
+                  <label key={field} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors ${draftOral[field] ? 'border-primary bg-primary-surface text-primary font-medium' : 'border-border text-foreground'} ${editingHistory ? 'cursor-pointer hover:bg-canvas' : 'cursor-not-allowed opacity-70'}`}>
                     <input type="checkbox" disabled={!editingHistory} checked={!!draftOral[field]}
                       onChange={(e) => setDraftOral((p) => ({ ...p, [field]: e.target.checked }))}
-                      className="w-4 h-4 rounded accent-teal-600 disabled:cursor-not-allowed" />
+                      className="w-4 h-4 rounded accent-primary disabled:cursor-not-allowed" />
+                    {label}
                   </label>
                 ))}
               </div>
@@ -1699,6 +1708,23 @@ export const DentalChart = () => {
         )}
       </div>
       </div>{/* end recordRef — PDF capture region */}
+      <ConfirmDialog
+        open={confirmOpenEdit}
+        title="Edit this student's information?"
+        message="You're about to open Update Student Information for editing."
+        confirmLabel="Proceed"
+        onConfirm={() => { openEditInfo(); setConfirmOpenEdit(false); }}
+        onCancel={() => setConfirmOpenEdit(false)}
+      />
+      <ConfirmDialog
+        open={confirmSaveInfo}
+        title="Save these changes?"
+        message="This updates the student's information with what's currently in the form."
+        confirmLabel="Save"
+        busy={infoSaving}
+        onConfirm={() => { setConfirmSaveInfo(false); handleSaveInfo(); }}
+        onCancel={() => setConfirmSaveInfo(false)}
+      />
       <ConfirmDialog
         open={confirmDeleteYear !== null}
         title={`Remove ${confirmDeleteYear !== null ? years[confirmDeleteYear]?.iptr.school_year ?? 'school year' : 'school year'}?`}
