@@ -59,11 +59,11 @@ type MedicalHistoryDraft = {
 };
 type DietDraft = {
   sugarSweetened: boolean; alcoholDrinker: boolean; tobaccoUser: boolean; betelNut: boolean;
-  bodyPiercing: boolean; nailBiting: boolean; thumbsucking: boolean;
+  bodyPiercing: boolean; nailBiting: boolean; thumbsucking: boolean; others: string;
 };
 type OralDraft = {
-  gingivitis: boolean; periodontal: boolean; debris: boolean; calculus: boolean;
-  abnormalGrowth: boolean; cleftLipPalate: boolean; oralHygiene: string; others: string;
+  orallyFitChild: boolean; gingivitis: boolean; periodontal: boolean; debris: boolean; calculus: boolean;
+  abnormalGrowth: boolean; cleftLipPalate: boolean; others: string;
 };
 
 const emptyMed = (): MedicalHistoryDraft => ({
@@ -73,11 +73,11 @@ const emptyMed = (): MedicalHistoryDraft => ({
 });
 const emptyDiet = (): DietDraft => ({
   sugarSweetened: false, alcoholDrinker: false, tobaccoUser: false, betelNut: false,
-  bodyPiercing: false, nailBiting: false, thumbsucking: false,
+  bodyPiercing: false, nailBiting: false, thumbsucking: false, others: '',
 });
 const emptyOral = (): OralDraft => ({
-  gingivitis: false, periodontal: false, debris: false, calculus: false,
-  abnormalGrowth: false, cleftLipPalate: false, oralHygiene: '', others: '',
+  orallyFitChild: false, gingivitis: false, periodontal: false, debris: false, calculus: false,
+  abnormalGrowth: false, cleftLipPalate: false, others: '',
 });
 
 const formatDateStamp = (dateString?: string | null) => formatDate(dateString, 'No date stamp');
@@ -248,6 +248,12 @@ export const DentalChart = () => {
   // not from the student-info modal, which only ever touched name/contact/
   // enrolment fields.
   const [draftMeasure, setDraftMeasure] = useState<{ height_cm: string; weight_kg: string }>({ height_cm: '', weight_kg: '' });
+  // "Others" is a chip that reveals its text field rather than the field
+  // always being visible — open state is separate from the text itself so a
+  // click opens an EMPTY field, and existing saved text opens it on load.
+  const [othersMedOpen, setOthersMedOpen] = useState(false);
+  const [othersDietOpen, setOthersDietOpen] = useState(false);
+  const [othersOralOpen, setOthersOralOpen] = useState(false);
 
   useEffect(() => {
     if (!currentYearData) {
@@ -256,6 +262,9 @@ export const DentalChart = () => {
       setDraftDiet(emptyDiet());
       setDraftOral(emptyOral());
       setDraftMeasure({ height_cm: '', weight_kg: '' });
+      setOthersMedOpen(false);
+      setOthersDietOpen(false);
+      setOthersOralOpen(false);
       setEditMode(false);
       return;
     }
@@ -277,13 +286,17 @@ export const DentalChart = () => {
     setDraftDiet(dh ? {
       sugarSweetened: dh.sugar_beverages, alcoholDrinker: dh.alcohol_drinker, tobaccoUser: dh.tobacco_user,
       betelNut: dh.betel_nut_chewer, bodyPiercing: dh.body_piercing, nailBiting: dh.nail_biting, thumbsucking: dh.thumb_sucking,
+      others: dh.others ?? '',
     } : emptyDiet());
 
     const oc = currentYearData.oralCondition;
     setDraftOral(oc ? {
-      gingivitis: oc.gingivitis, periodontal: oc.periodontal_disease, debris: oc.debris, calculus: oc.calculus,
-      abnormalGrowth: oc.abnormal_growth, cleftLipPalate: oc.cleft_lip_palate, oralHygiene: oc.oral_hygiene, others: oc.others,
+      orallyFitChild: oc.orally_fit_child ?? false, gingivitis: oc.gingivitis, periodontal: oc.periodontal_disease, debris: oc.debris, calculus: oc.calculus,
+      abnormalGrowth: oc.abnormal_growth, cleftLipPalate: oc.cleft_lip_palate, others: oc.others,
     } : emptyOral());
+    setOthersMedOpen(!!mh?.others);
+    setOthersDietOpen(!!dh?.others);
+    setOthersOralOpen(!!oc?.others);
 
     setDraftMeasure({
       height_cm: currentYearData.iptr.height_cm != null ? String(currentYearData.iptr.height_cm) : '',
@@ -515,14 +528,18 @@ export const DentalChart = () => {
       const dietBody = {
         iptr_id: currentYearData.iptr._id, sugar_beverages: draftDiet.sugarSweetened, alcohol_drinker: draftDiet.alcoholDrinker,
         tobacco_user: draftDiet.tobaccoUser, betel_nut_chewer: draftDiet.betelNut, body_piercing: draftDiet.bodyPiercing,
-        nail_biting: draftDiet.nailBiting, thumb_sucking: draftDiet.thumbsucking,
+        nail_biting: draftDiet.nailBiting, thumb_sucking: draftDiet.thumbsucking, others: draftDiet.others,
       };
       const dietWrite = currentYearData.dietaryHabits
         ? apiClient.put(`/dietary-social-habits/${currentYearData.dietaryHabits._id}`, dietBody)
         : apiClient.post('/dietary-social-habits', dietBody);
 
       const oralBody = {
-        iptr_id: currentYearData.iptr._id, oral_hygiene: draftOral.oralHygiene || 'Not assessed', gingivitis: draftOral.gingivitis,
+        // oral_hygiene has no input on this screen anymore (2026-09-04) — the
+        // model still requires a non-empty value, so a fixed placeholder is
+        // sent rather than leaving the field to silently rot at whatever it
+        // last held.
+        iptr_id: currentYearData.iptr._id, oral_hygiene: 'Not assessed', orally_fit_child: draftOral.orallyFitChild, gingivitis: draftOral.gingivitis,
         periodontal_disease: draftOral.periodontal, debris: draftOral.debris, calculus: draftOral.calculus,
         abnormal_growth: draftOral.abnormalGrowth, cleft_lip_palate: draftOral.cleftLipPalate, others: draftOral.others,
       };
@@ -1179,53 +1196,10 @@ export const DentalChart = () => {
         {/* ── TAB 1: History ── */}
         {activeTab === 'history' && (
           <div className="p-4 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <div className="text-xs font-bold text-foreground uppercase tracking-wide mb-2">Medical History</div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {([
-                    ['Hypertension / CVA', 'hypertension'], ['Diabetes Mellitus', 'diabetes'],
-                    ['Cardiovascular / Heart Diseases', 'cardiovascular'], ['Thyroid Disorders', 'thyroid'],
-                    ['Hepatitis', 'hepatitis'], ['Malignancy', 'malignancy'],
-                    ['History of Hospitalization', 'hospitalization'], ['Blood Transfusion', 'bloodTransfusion'], ['Tattoo', 'tattoo'],
-                  ] as [string, keyof MedicalHistoryDraft][]).map(([label, field]) => (
-                    <label key={field} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors ${draftMed[field] ? 'border-primary bg-primary-surface text-primary font-medium' : 'border-border text-foreground'} ${editingHistory ? 'cursor-pointer hover:bg-canvas' : 'cursor-not-allowed opacity-70'}`}>
-                      <input type="checkbox" disabled={!editingHistory} checked={!!draftMed[field]}
-                        onChange={(e) => setDraftMed((p) => ({ ...p, [field]: e.target.checked }))}
-                        className="w-4 h-4 rounded accent-primary disabled:cursor-not-allowed" />
-                      {label}
-                    </label>
-                  ))}
-                </div>
-                <div className="pt-2">
-                  <label className="block text-xs text-muted-foreground mb-1">Allergies</label>
-                  <input type="text" disabled={!editingHistory} value={draftMed.allergies} onChange={(e) => setDraftMed((p) => ({ ...p, allergies: e.target.value }))}
-                    placeholder="—" className="w-full text-xs border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
-                </div>
-              </div>
-              <div>
-                <div className="text-xs font-bold text-foreground uppercase tracking-wide mb-2">Dietary Habits and Social History</div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {([
-                    ['Sugar Sweetened Beverages/Food', 'sugarSweetened'], ['Alcohol Drinker', 'alcoholDrinker'],
-                    ['Tobacco User', 'tobaccoUser'], ['Betel Nut Chewer', 'betelNut'],
-                    ['Body Piercing', 'bodyPiercing'], ['Nail Biting', 'nailBiting'], ['Thumbsucking', 'thumbsucking'],
-                  ] as [string, keyof DietDraft][]).map(([label, field]) => (
-                    <label key={field} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors ${draftDiet[field] ? 'border-primary bg-primary-surface text-primary font-medium' : 'border-border text-foreground'} ${editingHistory ? 'cursor-pointer hover:bg-canvas' : 'cursor-not-allowed opacity-70'}`}>
-                      <input type="checkbox" disabled={!editingHistory} checked={!!draftDiet[field]}
-                        onChange={(e) => setDraftDiet((p) => ({ ...p, [field]: e.target.checked }))}
-                        className="w-4 h-4 rounded accent-primary disabled:cursor-not-allowed" />
-                      {label}
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <div className="text-xs font-bold text-foreground uppercase tracking-wide mb-2">
-                Physical Measurements <span className="font-normal normal-case text-muted-foreground">· {years[selectedYear]?.iptr.school_year}</span>
-              </div>
+            {/* Physical Measurements — first, per request */}
+            <div className="bg-card rounded-xl border border-border p-4">
+              <div className="text-base font-bold text-foreground">Physical Measurements</div>
+              <p className="text-xs text-muted-foreground mb-3">{years[selectedYear]?.iptr.school_year}</p>
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs text-muted-foreground mb-1">Height (cm)</label>
@@ -1244,18 +1218,19 @@ export const DentalChart = () => {
                 <div>
                   <label className="block text-xs text-muted-foreground mb-1">BMI</label>
                   <div className="w-full text-xs border border-border rounded px-2 py-1 bg-muted text-muted-foreground" title={BMI_NOTE}>
-                    {computeBmi(Number(draftMeasure.height_cm) || null, Number(draftMeasure.weight_kg) || null) ?? 'not measured'}
+                    {computeBmi(Number(draftMeasure.height_cm) || null, Number(draftMeasure.weight_kg) || null) ?? 'Automatically calculated'}
                   </div>
                 </div>
               </div>
             </div>
 
-            <div>
-              <div className="text-xs font-bold text-foreground uppercase tracking-wide mb-2">
-                Oral Health Condition
-              </div>
+            {/* Oral Health Condition — second, per request */}
+            <div className="bg-card rounded-xl border border-border p-4">
+              <div className="text-base font-bold text-foreground">Oral Health Condition</div>
+              <p className="text-xs text-muted-foreground mb-3">Select all applicable conditions.</p>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                 {([
+                  ['Orally Fit Child', 'orallyFitChild'],
                   ['Gingivitis', 'gingivitis'], ['Periodontal Disease', 'periodontal'], ['Debris', 'debris'],
                   ['Calculus', 'calculus'], ['Abnormal Growth', 'abnormalGrowth'], ['Cleft Lip / Palate', 'cleftLipPalate'],
                 ] as [string, keyof OralDraft][]).map(([label, field]) => (
@@ -1266,18 +1241,88 @@ export const DentalChart = () => {
                     {label}
                   </label>
                 ))}
+                <button type="button" disabled={!editingHistory} onClick={() => setOthersOralOpen((v) => !v)}
+                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs text-left transition-colors ${othersOralOpen ? 'border-primary bg-primary-surface text-primary font-medium' : 'border-border text-foreground'} ${editingHistory ? 'cursor-pointer hover:bg-canvas' : 'cursor-not-allowed opacity-70'}`}>
+                  <span className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${othersOralOpen ? 'bg-primary border-primary' : 'border-border'}`}>{othersOralOpen && <Check className="w-3 h-3 text-white" />}</span>
+                  Others
+                </button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Oral Hygiene</label>
-                  <input type="text" disabled={!editingHistory} value={draftOral.oralHygiene} onChange={(e) => setDraftOral((p) => ({ ...p, oralHygiene: e.target.value }))}
-                    placeholder="e.g. Good, Fair, Poor" className="w-full text-xs border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
-                </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Others</label>
+              {othersOralOpen && (
+                <div className="mt-3 rounded-lg bg-canvas p-3">
+                  <label className="block text-xs font-bold text-foreground mb-1">Specify Other</label>
                   <input type="text" disabled={!editingHistory} value={draftOral.others} onChange={(e) => setDraftOral((p) => ({ ...p, others: e.target.value }))}
-                    placeholder="—" className="w-full text-xs border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+                    placeholder="Specify other oral condition..." className="w-full text-xs border border-border rounded px-2 py-1.5 bg-card focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
                 </div>
+              )}
+            </div>
+
+            {/* Medical History + Dietary Habits — last, side by side */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-card rounded-xl border border-border p-4">
+                <div className="text-base font-bold text-foreground">Medical History</div>
+                <p className="text-xs text-muted-foreground mb-3">Select all applicable conditions.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {([
+                    ['Hypertension / CVA', 'hypertension'], ['Diabetes Mellitus', 'diabetes'],
+                    ['Cardiovascular / Heart Diseases', 'cardiovascular'], ['Thyroid Disorders', 'thyroid'],
+                    ['Hepatitis', 'hepatitis'], ['Malignancy', 'malignancy'],
+                    ['History of Hospitalization', 'hospitalization'], ['Blood Transfusion', 'bloodTransfusion'], ['Tattoo', 'tattoo'],
+                  ] as [string, keyof MedicalHistoryDraft][]).map(([label, field]) => (
+                    <label key={field} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors ${draftMed[field] ? 'border-primary bg-primary-surface text-primary font-medium' : 'border-border text-foreground'} ${editingHistory ? 'cursor-pointer hover:bg-canvas' : 'cursor-not-allowed opacity-70'}`}>
+                      <input type="checkbox" disabled={!editingHistory} checked={!!draftMed[field]}
+                        onChange={(e) => setDraftMed((p) => ({ ...p, [field]: e.target.checked }))}
+                        className="w-4 h-4 rounded accent-primary disabled:cursor-not-allowed" />
+                      {label}
+                    </label>
+                  ))}
+                  <button type="button" disabled={!editingHistory} onClick={() => setOthersMedOpen((v) => !v)}
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs text-left transition-colors ${othersMedOpen ? 'border-primary bg-primary-surface text-primary font-medium' : 'border-border text-foreground'} ${editingHistory ? 'cursor-pointer hover:bg-canvas' : 'cursor-not-allowed opacity-70'}`}>
+                    <span className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${othersMedOpen ? 'bg-primary border-primary' : 'border-border'}`}>{othersMedOpen && <Check className="w-3 h-3 text-white" />}</span>
+                    Others
+                  </button>
+                </div>
+                {othersMedOpen && (
+                  <div className="mt-3 rounded-lg bg-canvas p-3">
+                    <label className="block text-xs font-bold text-foreground mb-1">Specify Other</label>
+                    <input type="text" disabled={!editingHistory} value={draftMed.others} onChange={(e) => setDraftMed((p) => ({ ...p, others: e.target.value }))}
+                      placeholder="Specify other medical history..." className="w-full text-xs border border-border rounded px-2 py-1.5 bg-card focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+                  </div>
+                )}
+                <div className="pt-3">
+                  <label className="block text-xs text-muted-foreground mb-1">Allergies</label>
+                  <input type="text" disabled={!editingHistory} value={draftMed.allergies} onChange={(e) => setDraftMed((p) => ({ ...p, allergies: e.target.value }))}
+                    placeholder="Specify allergy" className="w-full text-xs border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+                </div>
+              </div>
+              <div className="bg-card rounded-xl border border-border p-4">
+                <div className="text-base font-bold text-foreground">Dietary Habits and Social History</div>
+                <p className="text-xs text-muted-foreground mb-3">Select all applicable conditions.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {([
+                    ['Sugar Sweetened Beverages/Food', 'sugarSweetened'], ['Alcohol Drinker', 'alcoholDrinker'],
+                    ['Tobacco User', 'tobaccoUser'], ['Betel Nut Chewer', 'betelNut'],
+                    ['Body Piercing', 'bodyPiercing'], ['Nail Biting', 'nailBiting'], ['Thumbsucking', 'thumbsucking'],
+                  ] as [string, keyof DietDraft][]).map(([label, field]) => (
+                    <label key={field} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors ${draftDiet[field] ? 'border-primary bg-primary-surface text-primary font-medium' : 'border-border text-foreground'} ${editingHistory ? 'cursor-pointer hover:bg-canvas' : 'cursor-not-allowed opacity-70'}`}>
+                      <input type="checkbox" disabled={!editingHistory} checked={!!draftDiet[field]}
+                        onChange={(e) => setDraftDiet((p) => ({ ...p, [field]: e.target.checked }))}
+                        className="w-4 h-4 rounded accent-primary disabled:cursor-not-allowed" />
+                      {label}
+                    </label>
+                  ))}
+                  <button type="button" disabled={!editingHistory} onClick={() => setOthersDietOpen((v) => !v)}
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs text-left transition-colors ${othersDietOpen ? 'border-primary bg-primary-surface text-primary font-medium' : 'border-border text-foreground'} ${editingHistory ? 'cursor-pointer hover:bg-canvas' : 'cursor-not-allowed opacity-70'}`}>
+                    <span className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${othersDietOpen ? 'bg-primary border-primary' : 'border-border'}`}>{othersDietOpen && <Check className="w-3 h-3 text-white" />}</span>
+                    Others
+                  </button>
+                </div>
+                {othersDietOpen && (
+                  <div className="mt-3 rounded-lg bg-canvas p-3">
+                    <label className="block text-xs font-bold text-foreground mb-1">Specify Other</label>
+                    <input type="text" disabled={!editingHistory} value={draftDiet.others} onChange={(e) => setDraftDiet((p) => ({ ...p, others: e.target.value }))}
+                      placeholder="Specify other dietary habit..." className="w-full text-xs border border-border rounded px-2 py-1.5 bg-card focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+                  </div>
+                )}
               </div>
             </div>
           </div>

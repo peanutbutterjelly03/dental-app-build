@@ -144,12 +144,14 @@ export interface ApiDietarySocialHabits {
   body_piercing: boolean;
   nail_biting: boolean;
   thumb_sucking: boolean;
+  others?: string;
 }
 
 export interface ApiOralHealthCondition {
   _id: string;
   iptr_id: string;
   oral_hygiene: string;
+  orally_fit_child?: boolean;
   gingivitis: boolean;
   periodontal_disease: boolean;
   debris: boolean;
