@@ -9,7 +9,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { getSchoolColor, getSchoolShortName } from '../utils/schoolColors';
 import { TOPBAR_H } from '../utils/layout';
-import { useOfflineQueue } from '../hooks/useOfflineQueue';
+import { SyncStatus } from './SyncStatus';
 import { useNotifications, NOTIFIED_ROLES } from '../hooks/useNotifications';
 import { apiClient, ApiError } from '../api/client';
 import { useToast } from './Toast';
@@ -21,7 +21,6 @@ export const Root = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
-  const { isOnline } = useOfflineQueue();
 
   useEffect(() => {
     if (!user) navigate('/login');
@@ -262,37 +261,36 @@ export const Root = () => {
 
   return (
     // flex-col below md so the mobile top bar stacks ABOVE the content as a
-    // normal flow item. The old constraint here — "must not be `fixed`,
-    // OfflineBanner renders in flow beneath it" — no longer applies: the
-    // banner was replaced by SyncStatus, a fixed top-right icon that sits
-    // ABOVE this bar (z-40 vs z-30) rather than in flow behind it. `sticky` is
-    // kept anyway; it pins the bar on scroll and nothing needs it changed.
+    // normal flow item. It is `sticky` under the fixed status strip.
     <div className="min-h-screen bg-canvas flex flex-col md:flex-row" style={{ paddingTop: TOPBAR_H }}>
-      {/* STATUS STRIP -- pinned to the very top of the viewport on every screen
-          and every width, above the sidebar (z-[60] vs z-50). Two facts staff
-          in the field must be able to glance at without scrolling: whether the
+      {/* STATUS STRIP -- pinned to the very top of the viewport, above the
+          sidebar in stacking order (z-[60] vs z-50) but NOT across it: it
+          starts where the rail ends, so the rail keeps its own full-height
+          top corner instead of being covered. Full width below md, where the
+          rail is off-canvas. Contents are right-aligned. Two facts staff in
+          the field must be able to glance at without scrolling: whether the
           device is online, and which school's records they are looking at.
           `fixed` (not sticky) because it must survive any scroll container on
           the page; the wrapper's paddingTop above is what keeps it from
           covering the first row of content. */}
       <div
         style={{ height: TOPBAR_H }}
-        className="fixed top-0 inset-x-0 z-[60] flex items-center gap-2 px-3 bg-card border-b border-border text-[11px] leading-none"
+        className={`fixed top-0 right-0 left-0 ${collapsed ? 'md:left-[60px]' : 'md:left-[220px]'} z-[60] flex items-center justify-end gap-2 px-3 bg-card border-b border-border text-[11px] leading-none transition-[left] duration-200`}
       >
-        <span className={`inline-flex items-center gap-1.5 font-semibold ${isOnline ? 'text-success' : 'text-warning'}`}>
-          <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-success' : 'bg-warning'}`} aria-hidden="true" />
-          {isOnline ? 'Online' : 'Offline'}
-        </span>
+        {/* The pill IS the sync affordance — clicking it opens the same panel
+            the floating cloud icon used to, which is why that icon suppresses
+            itself inside the shell rather than sitting here twice. */}
+        <SyncStatus variant="inline" />
         <span className="w-px h-3 bg-border" aria-hidden="true" />
         <span className="font-medium text-foreground truncate">
           {selectedSchool ? getSchoolShortName(selectedSchool) : 'All Schools'}
         </span>
       </div>
 
-      {/* MOBILE TOP BAR -- below md only; the drawer's only entry point */}
-      {/* pr-14 reserves the top-right corner for the fixed SyncStatus icon,
-          which would otherwise sit on top of the school name. */}
-      <header style={{ top: TOPBAR_H }} className="md:hidden sticky h-14 z-30 flex items-center gap-3 pl-4 pr-14 bg-card border-b border-border">
+      {/* MOBILE TOP BAR -- below md only; the drawer's only entry point. The
+          old `pr-14` reserved the corner for the floating SyncStatus icon,
+          which no longer renders inside the shell. */}
+      <header style={{ top: TOPBAR_H }} className="md:hidden sticky h-14 z-30 flex items-center gap-3 px-4 bg-card border-b border-border">
         <button
           ref={menuButtonRef}
           onClick={() => setDrawerOpen(true)}
@@ -325,8 +323,7 @@ export const Root = () => {
       <aside
         ref={drawerRef}
         id="main-nav"
-        style={{ top: TOPBAR_H, height: `calc(100vh - ${TOPBAR_H}px)` }}
-        className={`bg-card border-r border-border flex flex-col fixed left-0 z-50
+        className={`bg-card border-r border-border flex flex-col fixed left-0 top-0 h-screen z-50
           w-[280px] transition-transform duration-200
           ${drawerOpen ? 'translate-x-0 visible' : '-translate-x-full invisible'}
           md:visible md:translate-x-0 md:transition-[width]

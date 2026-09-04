@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { WifiOff, RefreshCw, AlertTriangle, Check, Cloud } from 'lucide-react';
 import { useOfflineQueue } from '../hooks/useOfflineQueue';
+import { useAuth } from '../context/AuthContext';
 import { TOPBAR_H } from '../utils/layout';
 import { retryQueue, discardFailedWrite, keepMyChange, discardMyChange } from '../offline/queueProcessor';
 import type { QueuedWrite } from '../offline/db';
@@ -45,8 +46,15 @@ type Tone = 'offline' | 'syncing' | 'auth' | 'failed' | 'conflict' | 'idle';
 // deliberately ALWAYS mounted: connection state is something staff in the
 // field need to be able to glance at, not something that only appears once
 // there's a problem.
-export const SyncStatus = () => {
+//
+// Two shapes, ONE popover. `floating` is the round icon that hangs in the
+// top-right corner; `inline` is the coloured Online/Offline pill that lives in
+// Root's status strip. They differ only in the trigger — the panel underneath
+// is identical, which is the point: clicking the pill has to give the same
+// thing the icon always gave.
+export const SyncStatus = ({ variant = 'floating' }: { variant?: 'floating' | 'inline' }) => {
   const { isOnline, pendingCount, failed, authBlocked, conflicts } = useOfflineQueue();
+  const { user, schoolChoiceMade } = useAuth();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -113,32 +121,55 @@ export const SyncStatus = () => {
     },
     idle: {
       icon: <Cloud className="w-4 h-4" />,
-      ring: 'bg-card text-muted-foreground border-border',
+      ring: 'bg-emerald-50 text-emerald-700 border-emerald-300',
       label: 'Online — everything synced',
     },
   };
 
   const { icon, ring, label } = chrome[tone];
 
-  // Offset below the fixed status strip (Root.tsx) — at top-2 this rendered
-  // underneath it and got clipped.
+  // Inside the app shell the strip already carries this, so the floating icon
+  // would be the same state twice on one screen. It stays on Login and the
+  // school picker, which have no strip and where being offline still explains
+  // why signing in fails.
+  if (variant === 'floating' && user && schoolChoiceMade) return null;
+
+  const inline = variant === 'inline';
+
   return (
-    <div ref={containerRef} style={{ top: TOPBAR_H + 8 }} className="fixed right-2 md:right-4 z-40">
+    <div
+      ref={containerRef}
+      // Floating: offset below the status strip — at top-2 it rendered
+      // underneath it and got clipped. Inline: a normal child of the strip.
+      style={inline ? undefined : { top: TOPBAR_H + 8 }}
+      className={inline ? 'relative' : 'fixed right-2 md:right-4 z-40'}
+    >
       <button
         onClick={() => setOpen((v) => !v)}
         aria-label={label}
         title={label}
         aria-expanded={open}
-        className={`flex items-center justify-center w-9 h-9 rounded-full border shadow-sm transition-colors ${ring}`}
+        className={
+          inline
+            ? `inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-semibold leading-none transition-colors ${ring}`
+            : `flex items-center justify-center w-9 h-9 rounded-full border shadow-sm transition-colors ${ring}`
+        }
       >
-        {icon}
+        {inline ? (
+          <>
+            <span className="w-1.5 h-1.5 rounded-full bg-current" aria-hidden="true" />
+            {isOnline ? 'Online' : 'Offline'}
+          </>
+        ) : (
+          icon
+        )}
       </button>
 
       {open && (
         <div
           role="dialog"
           aria-label="Sync status"
-          className="absolute right-0 mt-2 w-[min(22rem,calc(100vw-1rem))] max-h-[70vh] overflow-y-auto bg-card border border-border rounded-xl shadow-xl p-3 text-sm"
+          className="absolute right-0 mt-2 w-[min(22rem,calc(100vw-1rem))] max-h-[70vh] overflow-y-auto bg-card border border-border rounded-xl shadow-xl p-3 text-sm text-left font-normal normal-case leading-normal z-50"
         >
           <p className="font-semibold text-foreground mb-2">{label}</p>
 

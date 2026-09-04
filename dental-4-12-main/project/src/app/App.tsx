@@ -15,6 +15,9 @@ export default function App() {
   return (
     <AuthProvider>
       <ToastProvider>
+        {/* Floating icon only outside the app shell (Login, school picker).
+            Inside it, Root's status strip renders the inline pill instead and
+            this one suppresses itself — same component, same panel. */}
         <SyncStatus />
         <UpdateToast />
         <RouterProvider router={router} />

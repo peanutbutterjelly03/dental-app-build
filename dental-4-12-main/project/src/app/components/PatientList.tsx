@@ -916,19 +916,6 @@ export const PatientList = () => {
               (backlog 0e). The OCR extraction is still described inside the
               modal — only the entry point stops over-promising. Rename this
               back if 0e ever ships. */}
-          {/* Annual rollover — was "Promote / Assign" (a modal, one grade
-              at a time). Now a full page: school-wide clear + reassign +
-              archive, see UpdateSchoolYear.tsx. */}
-          <button
-            onClick={() => navigate('/students/update-school-year')}
-            title="Update School Year Information"
-            aria-label="Update School Year Information"
-            className={`p-2 rounded-full text-white shadow-sm transition-colors hover:brightness-110 ${
-              schoolYearNeedsUpdate ? 'bg-gray-400' : 'bg-primary'
-            }`}
-          >
-            <GraduationCap className="w-6 h-6 text-white/90" strokeWidth={1.25} />
-          </button>
           <button onClick={() => { setOcrError(null); setShowOcrUpload(true); }} className="flex items-center gap-2 px-4 py-2 border border-primary text-primary rounded-full hover:bg-primary-surface text-sm font-medium">
             <Upload className="w-4 h-4" /> OCR
           </button>
@@ -942,8 +929,8 @@ export const PatientList = () => {
           pagination, in place of the previous stack of separate boxes. */}
       <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
         <div className="p-5 sm:p-6 space-y-4 border-b border-border">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div>
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
               <div className="inline-flex items-center gap-2 mb-2">
                 <span style={{ backgroundColor: kickerColor.light }} className="w-6 h-6 rounded-md grid place-items-center">
                   <SchoolIcon style={{ color: kickerColor.solid }} className="w-3.5 h-3.5" />
@@ -953,6 +940,22 @@ export const PatientList = () => {
               <h1 className="text-2xl font-bold text-foreground">Student Records</h1>
               <p className="text-sm text-muted-foreground mt-0.5">{schoolStudents.length} students{selectedSchool ? '' : ' across 3 schools'}</p>
             </div>
+            {/* Annual rollover — was "Promote / Assign" (a modal, one grade
+                at a time). Now a full page: school-wide clear + reassign +
+                archive, see UpdateSchoolYear.tsx. Sits top-right of this card,
+                level with the school kicker, because it acts on THIS roster. */}
+            {canAddStudent && (
+              <button
+                onClick={() => navigate('/students/update-school-year')}
+                title="Update School Year Information"
+                aria-label="Update School Year Information"
+                className={`shrink-0 p-2 rounded-full text-white shadow-sm transition-colors hover:brightness-110 ${
+                  schoolYearNeedsUpdate ? 'bg-gray-400' : 'bg-primary'
+                }`}
+              >
+                <GraduationCap className="w-6 h-6 text-white/90" strokeWidth={1.25} />
+              </button>
+            )}
           </div>
 
           {/* Filters */}

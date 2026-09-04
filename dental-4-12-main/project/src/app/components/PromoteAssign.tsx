@@ -220,7 +220,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, allSections }: {
 
       {rows.length > 0 && (
         <>
-          <div className="border border-border rounded-xl overflow-hidden max-h-80 overflow-y-auto">
+          <div className="border border-border rounded-xl overflow-hidden h-96 overflow-y-auto">
             <table className="w-full border-collapse text-sm">
               <thead className="bg-gray-50 sticky top-0">
                 <tr>
@@ -306,7 +306,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, allSections }: {
 
           <p className="text-xs text-muted-foreground">
             <span className="font-medium text-foreground">{toApply.length}</span> of {rows.length} will get a {toYear} record.
-            Each also has their current grade and section updated — that is what promotion means. Existing years are left untouched.
+            Each also has their current grade and section updated. Existing years are remained.
           </p>
         </>
       )}
