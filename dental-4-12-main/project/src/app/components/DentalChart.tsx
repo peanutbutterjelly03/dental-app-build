@@ -1191,20 +1191,23 @@ export const DentalChart = () => {
           once its tab has been passed through (index <= the active tab's),
           not just while it's the active one. */}
       <div className="sticky z-30 bg-gray-50 space-y-2" style={{ top: stickyOffsets.tabsTop }}>
-        <div className="bg-card rounded-xl border border-border p-4 overflow-x-auto">
+        <div className="bg-card rounded-xl border border-border px-2 pt-3 pb-1 overflow-x-auto">
           <div className="min-w-max flex items-center">
           {visibleTabs.map((tab, idx) => {
             const Icon = TAB_ICONS[tab.key as keyof typeof TAB_ICONS];
             const activeIdx = visibleTabs.findIndex((t) => t.key === activeTab);
             const passed = idx <= activeIdx;
             return (
-              <div key={tab.key} className="flex items-center flex-1 min-w-[92px]">
+              <div key={tab.key} className="flex items-center flex-shrink-0">
                 <button type="button" onClick={() => setActiveTab(tab.key as TabKey)}
-                  className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 mx-auto transition-colors ${passed ? 'bg-blue-700 text-white' : 'bg-gray-100 text-muted-foreground hover:bg-gray-200'}`}>
-                  <Icon className="w-4 h-4" />
+                  className="flex flex-col items-center px-4 flex-shrink-0">
+                  <span className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${passed ? 'bg-blue-700 text-white' : 'bg-gray-100 text-muted-foreground hover:bg-gray-200'}`}>
+                    <Icon className="w-3 h-3" />
+                  </span>
+                  <span className="invisible text-sm font-medium leading-none mt-1">{tab.label}</span>
                 </button>
                 {idx < visibleTabs.length - 1 && (
-                  <div className={`flex-1 h-0.5 mx-1 ${idx < activeIdx ? 'bg-blue-700' : 'bg-border'}`} />
+                  <div className={`w-8 h-0.5 flex-shrink-0 ${idx < activeIdx ? 'bg-blue-700' : 'bg-border'}`} />
                 )}
               </div>
             );

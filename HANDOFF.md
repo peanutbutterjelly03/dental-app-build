@@ -2,6 +2,11 @@
 
 **Compressed 2026-07-11 (hygiene pass).** Completed-sprint history → `docs/BUILD-LOG.md`; full pre-compression narratives → git history (`git show 73bc4e47:HANDOFF.md`). This file keeps only live state: current status, open work, warnings, and durable gotchas.
 
+## Step-circle icons shrunk and aligned to the tab text below (2026-09-04)
+- **Icons went from `w-4 h-4` in a `w-9 h-9` circle to `w-3 h-3` in a `w-6 h-6` circle**, per explicit ask.
+- **Alignment fix**: the top (circle) row and bottom (text) row previously used different width logic — top divided tabs into equal `flex-1` columns, bottom sized each tab button to its own text — so a circle rarely sat centered over its matching label. Top row's per-tab buttons now use the same `px-4` horizontal padding as the bottom row's buttons, plus an `invisible` copy of the tab's own label text reserved beneath the circle (same `text-sm font-medium`) purely to force each column to the same width as its real label below — so every circle is now guaranteed centered above its own tab's text regardless of label length. Connecting line between circles changed from `flex-1` (stretched to fill) to a fixed `w-8` segment, since the row is no longer evenly distributed.
+- Verified via a static mockup against the real compiled CSS in Playwright. `npx tsc --noEmit` clean, `npm run build` clean. Frontend-only.
+
 ## Tab bar split into two outlined cards: step-circle strip + flat tab strip (2026-09-04)
 - **Two separate `bg-card rounded-xl border border-border` cards, stacked**, replacing the single tab card — per explicit instruction that "the third pic should be of different container above the second container." Top card holds only the step-circle-and-line strip (icons unchanged from prior rounds, now centered above nothing else in that card); bottom card holds the actual clickable tab strip plus the year-tabs row, Edit/Save controls, and the Next button, all unchanged in behavior.
 - **Outline fix**: both new cards carry `border border-border` (the previous single container's edge was reportedly not reading clearly enough) — this directly addresses "fix the edge of this container, put an outline."
