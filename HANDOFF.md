@@ -2,6 +2,9 @@
 
 **Compressed 2026-07-11 (hygiene pass).** Completed-sprint history → `docs/BUILD-LOG.md`; full pre-compression narratives → git history (`git show 73bc4e47:HANDOFF.md`). This file keeps only live state: current status, open work, warnings, and durable gotchas.
 
+## Modal.tsx regression fixed same day it shipped (2026-09-04)
+The `mx-4` phone-gutter fix from the round above pinned every modal in the app to the LEFT edge instead of centering it — reported immediately via a screenshot. Root cause: a native `<dialog>` shown via `showModal()` is only centered because the browser's own UA stylesheet gives `dialog:modal { margin: auto }`; overriding that with an explicit `mx-4` replaces "centered" with "offset by a fixed amount from the left," since a set value on `margin-left`/`margin-right` is not the same as `auto`. Fixed by capping the WIDTH short of 100% instead (`w-[calc(100%-2rem)]`) and restoring `m-auto` — guarantees the same phone gutter without touching the centering mechanism at all. Verified against a real `<dialog>` + `showModal()` at 1280/768/390px, not just the Tailwind classes in isolation, since this bug was specifically about `<dialog>`'s own centering behavior rather than anything visible in a plain div.
+
 ## Seventh follow-up round on Add Student (2026-09-04)
 - **Modal.tsx** (shared): `m-auto` → `my-auto mx-4`, so no modal in the app can ever sit flush against a phone's screen edges. One-line, applies everywhere, no other behavior change.
 - **Section** is now a single native `<input list>` + `<datalist>` control (replacing last round's toggle between a dropdown and a text field) — pick an existing section for the chosen grade, or just type a new one, in the same box. Simpler code, and a more standard "dropdown you can also type into" pattern than a mode-switching button.
