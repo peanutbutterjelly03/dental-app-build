@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
-import { ArrowLeft, Save, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Shield, ShieldCheck, ShieldAlert, Users, TrendingUp, FileText, Plus, Pencil, Trash2, Brain, Download, X } from 'lucide-react';
+import { ArrowLeft, Save, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Check, Shield, ShieldCheck, ShieldAlert, Users, TrendingUp, FileText, Plus, Pencil, Trash2, Brain, Download, X } from 'lucide-react';
 import { exportDohReportToPdf } from '../utils/exportPdf';
 import { getGradeColor } from '../utils/gradeColors';
 import { computeBmi, BMI_NOTE } from '../utils/bmi';
@@ -892,10 +892,12 @@ export const DentalChart = () => {
                   ['Age', `${patientAge} years`],
                   ['Sex', student.sex],
                   ['Contact', student.contact_number || '—'],
+                  ['Place of Birth', student.place_of_birth || '—'],
                   ['Address', student.address],
                   ['PhilHealth', `${student.philhealth_number || '—'} (${student.philhealth_status || 'None'})`],
                   ['Guardian', student.guardian_name || '—'],
                   ['Guardian Contact', student.guardian_contact || '—'],
+                  ['Occupation', student.guardian_occupation || '—'],
                   // Height/Weight/BMI live on the History tab's Physical
                   // Measurements block now, not here — this card stays to
                   // identity/contact facts, not clinical measurements.
@@ -993,36 +995,15 @@ export const DentalChart = () => {
                   className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
               </div>
             </div>
-            {/* ── This school year's record ──────────────────────────────
-                Everything from here down saves to the SELECTED YEAR's IPTR,
-                not to the student. Two grades exist on purpose: the student
-                carries their CURRENT enrolment (above), and each year carries
-                the grade the pupil was actually in then (Sprint 57a). They
-                differ for a retained pupil, and for every past year once
-                anyone is promoted — which is the whole reason the year keeps
-                its own. Optional here: no truthful value to require for a
-                year created before this existed. */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">
-                  Grade <span className="font-normal">· {years[selectedYear]?.iptr.school_year}</span><span className="text-muted-foreground font-normal"> (Optional)</span>
-                </label>
-                <select value={draftYear.grade_level}
-                  onChange={(e) => setDraftYear((p) => ({ ...p, grade_level: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-card">
-                  <option value="">Not recorded</option>
-                  {GRADES.map((g) => <option key={g}>{g}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">
-                  Section <span className="font-normal">· {years[selectedYear]?.iptr.school_year}</span><span className="text-muted-foreground font-normal"> (Optional)</span>
-                </label>
-                <input type="text" placeholder="Not recorded" value={draftYear.section}
-                  onChange={(e) => setDraftYear((p) => ({ ...p, section: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-              </div>
-            </div>
+            {/* The year-scoped Grade/Section fields that used to sit here
+                (Sprint 57a) were removed from this modal at the user's
+                request (2026-09-04) — draftYear/handleSaveInfo still exist
+                and still round-trip the current values on Save, so nothing
+                downstream (DOH reports reading a past year's own grade)
+                changed; there is just no UI control to edit them here
+                anymore. Grade/section for a year are still set automatically
+                when the year is created (Add Student, Promote/Assign,
+                Update School Year), which is how they're set in practice. */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Place of Birth<span className="text-muted-foreground font-normal"> (Optional)</span></label>
@@ -1489,12 +1470,7 @@ export const DentalChart = () => {
             <div className="bg-blue-50 rounded-xl border border-blue-200 p-4">
               <div className="flex items-start gap-3">
                 <Shield className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                <div>
-                  <div className="text-xs font-bold text-blue-900 mb-1">Republic Act No. 10173 — Data Privacy Act of 2012</div>
-                  <p className="text-xs text-blue-700 leading-relaxed">
-                    Ang impormasyong nakolekta sa form na ito ay gagamitin lamang para sa mga layuning pangkalusugan ng Dental Health Program ng Barangay Tanyag, Lungsod ng Taguig. Ang inyong personal na impormasyon ay protektado ng Batas Republika Blg. 10173 o ang Data Privacy Act ng 2012. Ang inyong datos ay hindi ibabahagi sa anumang partido na walang pahintulot maliban kung kinakailangan ng batas.
-                  </p>
-                </div>
+                <div className="text-xs font-bold text-blue-900">Republic Act No. 10173, Data Privacy Act of 2012</div>
               </div>
             </div>
 
@@ -1518,7 +1494,7 @@ export const DentalChart = () => {
                         </div>
                         <div className="min-w-0">
                           <div className={`text-sm font-bold ${complete ? 'text-success' : 'text-warning'}`}>
-                            {complete ? 'Consent Obtained' : 'Consent Pending'} — {y.iptr.school_year}
+                            {complete ? 'Physical copy of consent obtained' : `Consent Pending — ${y.iptr.school_year}`}
                           </div>
                           <p className="text-xs text-muted-foreground mt-0.5">
                             {yrGrade ? `${yrGrade}${yrSection ? ` · ${yrSection}` : ''}` : 'Grade/section not recorded for this year'}
@@ -1740,18 +1716,73 @@ export const DentalChart = () => {
         onConfirm={() => confirmClear && clearAll(confirmClear)}
         onCancel={() => setConfirmClear(null)}
       />
-      <ConfirmDialog
-        open={confirmConsentTarget !== null}
-        title={`Mark consent as obtained for ${confirmConsentTarget?.schoolYear ?? 'this school year'}?`}
-        message="This cannot be undone — once confirmed, this checkbox can no longer be unchecked. Only confirm once the guardian's consent has actually been given."
-        confirmLabel="Confirm"
-        tone="danger"
-        onConfirm={() => {
-          if (confirmConsentTarget) handleToggleConsent(confirmConsentTarget.iptrId, true);
-          setConfirmConsentTarget(null);
-        }}
-        onCancel={() => setConfirmConsentTarget(null)}
-      />
+      {/* Mirrors the "Patient Consent" reference mockup's layout (icon badge +
+          kicker + title, a scrollable content box, an info note, then
+          Cancel / "I Understand, Continue") but with FLORAL's own content —
+          the actual Parents/Guardian Consent Form's service list and consent
+          line, not the reference's placeholder waiver text. */}
+      {confirmConsentTarget && (
+        <Modal onClose={() => setConfirmConsentTarget(null)} maxWidth="max-w-lg">
+          <div className="flex items-start gap-3 p-6 border-b border-border">
+            <div className="w-11 h-11 rounded-xl bg-primary flex items-center justify-center flex-shrink-0">
+              <ShieldCheck className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-wider text-primary mb-1">Guardian Consent</div>
+              <h2 className="text-lg font-bold text-foreground">Confirm Consent Obtained</h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Confirm a signed physical copy of the form below is on file for {confirmConsentTarget.schoolYear} before continuing.
+              </p>
+            </div>
+          </div>
+          <div className="p-6 space-y-4">
+            <div className="rounded-lg border border-border bg-canvas p-4 max-h-64 overflow-y-auto text-xs text-foreground space-y-3">
+              <p className="font-bold text-sm">Parents/Guardian Consent Form</p>
+              <p className="text-muted-foreground">
+                Ang dentista po ng ating school clinic ay magsasagawa ng serbisyong dental sa mga mag-aaral na may layuning makapagbigay ng preventive at curative treatment sa mga mag-aaral. Ang mga serbisyo dental ay ang mga sumusunod:
+              </p>
+              <ul className="space-y-2">
+                {[
+                  ['Oral Exam o Dental Check-up', 'Ito ay taunang ginagawa sa lahat ng mag-aaral.'],
+                  ['Topical Fluoride Varnish Application (Kinder at Grade 1)', 'Ang fluoride varnish ay tumutulong para patibayin at maiwasan ang pagkasira kaagad ng ngipin.'],
+                  ['Pit and Fissure Sealant (Grade 2 to Grade 3)', 'Ito ay para maprotektahan ang bagong-tubong ngipin.'],
+                  ['Oral Prophylaxis o Linis ng Ngipin (Grade 2 to Grade 6)', ''],
+                  ['Tooth Restoration o Pasta ng Ngipin (Grade 2 to Grade 6)', ''],
+                  ['Tooth Extraction o Bunot (Kinder to Grade 6)', 'Kailangan may kasamang magulang/guardian ang bata sa araw ng bunot.'],
+                ].map(([title, note]) => (
+                  <li key={title}>
+                    <span className="font-semibold">{title}</span>
+                    {note && <span className="block text-muted-foreground">{note}</span>}
+                  </li>
+                ))}
+              </ul>
+              <p className="pt-2 border-t border-border font-medium">
+                Oo, pumapayag ako na bigyan ng serbisyong dental ang aking anak/apo/pamangkin.
+              </p>
+            </div>
+            <div className="flex items-start gap-2.5 rounded-lg bg-canvas p-3">
+              <Shield className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-muted-foreground">
+                This marks {surnameFirstWithInitial(student)}'s consent for {confirmConsentTarget.schoolYear} as obtained. It cannot be undone — once confirmed, this checkbox can no longer be unchecked.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-3 p-6 border-t border-border">
+            <button onClick={() => setConfirmConsentTarget(null)} className="flex-1 px-4 py-2 border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium">
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                handleToggleConsent(confirmConsentTarget.iptrId, true);
+                setConfirmConsentTarget(null);
+              }}
+              className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover text-sm font-medium"
+            >
+              <Check className="w-4 h-4" /> I Understand, Continue
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };
