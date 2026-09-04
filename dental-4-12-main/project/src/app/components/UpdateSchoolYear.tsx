@@ -289,7 +289,7 @@ export const UpdateSchoolYear = () => {
             onClick={() => setShowWipeConfirm(true)}
             disabled={stillAssignedCount === 0 || wiping || !canStartSchoolYear}
             title={!canStartSchoolYear ? 'Only available March–August, unless a System Admin has enabled it for this school.' : undefined}
-            className="flex-shrink-0 px-4 py-2 bg-destructive text-white rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50"
+            className="flex-shrink-0 px-3 py-1.5 bg-destructive text-white rounded-lg text-xs font-medium hover:opacity-90 disabled:opacity-50"
           >
             {wiping ? `Clearing… ${wipeProgress}/${stillAssignedCount}` : `Start New School Year (${stillAssignedCount})`}
           </button>
@@ -324,7 +324,7 @@ export const UpdateSchoolYear = () => {
           onClick={() => setTab('transfer')}
           className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 -mb-px ${tab === 'transfer' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
         >
-          <Repeat className="w-4 h-4" /> Bulk Reassignment
+          <Repeat className="w-4 h-4" /> Bulk Assignment
         </button>
       </div>
 
@@ -419,11 +419,13 @@ export const UpdateSchoolYear = () => {
                   <th className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground">Student Name</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground">Current Grade</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground">Current Section</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-primary">Target Grade</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-primary">Target Section</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {transferCandidates.length === 0 ? (
-                  <tr><td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">No students match.</td></tr>
+                  <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">No students match.</td></tr>
                 ) : transferCandidates.map((s) => (
                   <tr key={s.id}>
                     <td className="px-3 py-2">
@@ -432,6 +434,16 @@ export const UpdateSchoolYear = () => {
                     <td className="px-3 py-2 text-foreground">{s.name}</td>
                     <td className="px-3 py-2 text-muted-foreground">{s.grade || '—'}</td>
                     <td className="px-3 py-2 text-muted-foreground">{s.section || '—'}</td>
+                    <td className="px-3 py-2">
+                      {targetGrade
+                        ? <span className="inline-flex px-2 py-0.5 rounded-full bg-primary-surface text-primary text-xs font-semibold">{targetGrade}</span>
+                        : <span className="text-muted-foreground">—</span>}
+                    </td>
+                    <td className="px-3 py-2">
+                      {targetSection
+                        ? <span className="inline-flex px-2 py-0.5 rounded-full bg-primary-surface text-primary text-xs font-semibold">{targetSection}</span>
+                        : <span className="text-muted-foreground">—</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>

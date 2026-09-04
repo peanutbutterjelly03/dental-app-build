@@ -18,7 +18,9 @@ const studentSchema = new mongoose.Schema(
     middle_name: { type: String, maxlength: 60, default: "" },
     birthday: { type: Date, required: true },
     sex: { type: String, maxlength: 10, required: true },
-    address: { type: String, maxlength: 200, required: true },
+    // Not required (2026-09-04, user decision) — the ERD (DATA-MODEL.md)
+    // never listed it as required either, unlike last_name/first_name.
+    address: { type: String, maxlength: 200, default: "" },
     contact_number: { type: String, maxlength: 15 },
     grade_level: { type: String, required: true },
     section: { type: String, required: true },

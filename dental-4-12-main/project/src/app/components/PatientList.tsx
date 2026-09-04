@@ -143,16 +143,16 @@ const BLANK_NEW_PATIENT: NewPatientForm = {
 
 /** Fields the Add Student form requires, and the label each one shows.
  *
- *  `address` is genuinely `required: true` on the Student model too (server/
- *  models/Student.ts) — it stays required here to match, not by this list's
- *  own choice. Everything else here is enforced ONLY at this layer: those
- *  fields are NOT schema-required, so a schema-level requirement would make
- *  every pre-existing student unsaveable on the next edit.
+ *  Everything here is enforced ONLY at this layer: none of these fields are
+ *  schema-required, so a schema-level requirement would make every
+ *  pre-existing student unsaveable on the next edit.
  *
  *  NOT required, on purpose:
  *  · middleName — some children genuinely have none, and full_name is DERIVED
  *    from the name parts, so forcing "N/A" would propagate that placeholder
  *    into every list, heading, report and DOH form.
+ *  · address — not schema-required either (2026-09-04, user decision;
+ *    DATA-MODEL.md never listed it as required, unlike last/first name).
  *  · contactNumber — not schema-required either (2026-09-04, user decision).
  *  · philhealthNumber — the user's explicit exception.
  *  · philhealthStatus — always has a value ("None"). */
@@ -167,7 +167,6 @@ const REQUIRED_STUDENT_FIELDS: {
   { key: 'gender', label: 'Gender' },
   { key: 'grade', label: 'Grade' },
   { key: 'section', label: 'Section' },
-  { key: 'address', label: 'Address' },
   // Guardian Name/Contact are NOT required (2026-09-04, user decision) —
   // marked "(Optional)" on their labels instead of an asterisk.
   // Only meaningful for a 4Ps household — required unconditionally it would
@@ -922,7 +921,7 @@ export const PatientList = () => {
             onClick={() => navigate('/students/update-school-year')}
             title="Update School Year Information"
             aria-label="Update School Year Information"
-            className={`p-3.5 rounded-full text-white shadow-sm transition-colors hover:brightness-110 ${
+            className={`p-2 rounded-full text-white shadow-sm transition-colors hover:brightness-110 ${
               schoolYearNeedsUpdate ? 'bg-destructive' : 'bg-success'
             }`}
           >
@@ -1100,15 +1099,14 @@ export const PatientList = () => {
                             if (isQueued) setDequeueTarget({ id: student.id, name: student.name });
                             else setQueuedStudentIds(addQueuedStudentId(student.id));
                           }}
-                          title={isQueued ? 'Remove from charting queue' : 'Add to charting queue'}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                          title="Queue"
+                          className={`inline-flex items-center justify-center rounded-full text-xs font-semibold border transition-colors ${
                             isQueued
-                              ? 'bg-success-surface text-success border-success/20 hover:bg-danger-surface hover:text-destructive hover:border-destructive/20'
-                              : 'bg-primary-surface text-primary border-primary/20 hover:bg-primary/10'
+                              ? 'w-7 h-7 bg-success-surface text-success border-success/20 hover:bg-danger-surface hover:text-destructive hover:border-destructive/20'
+                              : 'px-3 py-1.5 bg-primary-surface text-primary border-primary/20 hover:bg-primary/10'
                           }`}
                         >
-                          {isQueued ? <CheckCircle className="w-3.5 h-3.5" /> : null}
-                          {isQueued ? `Queued #${queuePosition + 1}` : 'Queue'}
+                          {isQueued ? queuePosition + 1 : 'Queue'}
                         </button>
                       )}
                     </td>
@@ -1450,7 +1448,7 @@ export const PatientList = () => {
                 <div><label className="block text-sm font-medium text-foreground mb-1">PhilHealth Number{optionalTag} {ocrHint('philhealthNumber')}</label><input type="text" value={newPatient.philhealthNumber} onChange={e => setNewPatient({...newPatient, philhealthNumber: e.target.value})} placeholder="XX-XXXXXXXXX-X" className={ocrFieldClass('philhealthNumber')} /></div>
                 <div><label className="block text-sm font-medium text-foreground mb-1">PhilHealth Status</label><select value={newPatient.philhealthStatus} onChange={e => setNewPatient({...newPatient, philhealthStatus: e.target.value})} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"><option value="None">None</option><option value="Principal">Principal</option><option value="Dependent">Dependent</option></select></div>
               </div>
-              <div><label className="block text-sm font-medium text-foreground mb-1">Address{req('address')} {ocrHint('address')}</label><input type="text" value={newPatient.address} onChange={e => updateField('address', e.target.value)} className={ocrFieldClass('address')} />{fieldError('address')}</div>
+              <div><label className="block text-sm font-medium text-foreground mb-1">Address{optionalTag} {ocrHint('address')}</label><input type="text" value={newPatient.address} onChange={e => updateField('address', e.target.value)} className={ocrFieldClass('address')} />{fieldError('address')}</div>
               <div className="flex items-center gap-3"><input type="checkbox" id="is4ps" checked={newPatient.is4Ps} onChange={e => setNewPatient({...newPatient, is4Ps: e.target.checked})} className="w-4 h-4 rounded accent-primary" /><label htmlFor="is4ps" className="text-sm font-medium text-foreground">4Ps / NHTS Member</label></div>
               {newPatient.is4Ps && <div><label className="block text-sm font-medium text-foreground mb-1">4Ps ID{req('fourPsId')} {ocrHint('fourPsId')}</label><input type="text" value={newPatient.fourPsId} onChange={e => updateField('fourPsId', e.target.value)} placeholder="4PS-XXXXXXXX" className={ocrFieldClass('fourPsId')} />{fieldError('fourPsId')}</div>}
               {/* Notice, not a bare <p>: it carries role="alert", so a screen
@@ -1546,7 +1544,7 @@ export const PatientList = () => {
                 <>
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
                     <FileText className="w-3.5 h-3.5 inline mr-1" />
-                    Upload a CSV or Excel (.xlsx) file. Required columns: <strong>Last Name, First Name, Sex, Grade Level, Section, Birthday, Address</strong>. Optional: Middle Name, Contact Number.
+                    Upload a CSV or Excel (.xlsx) file. Required columns: <strong>Last Name, First Name, Sex, Grade Level, Section, Birthday</strong>. Optional: Middle Name, Address, Contact Number.
                   </div>
                   <div
                     className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-blue-400 transition-colors cursor-pointer"
