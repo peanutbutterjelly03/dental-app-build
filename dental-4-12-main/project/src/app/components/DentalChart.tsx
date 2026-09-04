@@ -232,6 +232,11 @@ export const DentalChart = () => {
   // — the birthday/contact/address grid is useful but not something every
   // screen visit needs looking at.
   const [basicInfoExpanded, setBasicInfoExpanded] = useState(true);
+  // Resets on every student, not just first mount — Next/Prev patient
+  // navigation reuses this component rather than remounting it, so without
+  // this a collapse/expand made on one student's card was silently still in
+  // effect on the next student's.
+  useEffect(() => setBasicInfoExpanded(true), [id]);
   const [draftInfo, setDraftInfo] = useState<Partial<typeof student>>({});
   // Year-scoped grade/section, drafted separately from STUDENT even though
   // they share the one Edit button — the save below writes to both records.
@@ -1166,30 +1171,45 @@ export const DentalChart = () => {
         </Modal>
       )}
 
-      {/* Tabs — icon-topped rounded buttons, not an underline strip. The
-          icon is per-view, not a step number: these are independent tabs a
-          clinician jumps between in any order, so nothing here implies a
-          1-2-3 sequence or a "completed" state the way a wizard's numbered
-          circles would. */}
+      {/* Tabs — circles connected by a line, like the reference step mockup,
+          but the circle icon is per-view (not a step number/checkmark): these
+          are independent tabs a clinician jumps between in any order, and a
+          checkmark specifically claims "done", which isn't true of a tab
+          nobody has opened yet. The connecting line still shades in up to
+          the active tab, matching the reference's look, without any one
+          circle claiming completion it can't back up. */}
       <div className="sticky z-30 bg-gray-50 space-y-0" style={{ top: stickyOffsets.tabsTop }}>
         <div className="bg-card rounded-xl border border-border">
-          <div ref={tabsRowRef} className="rounded-t-xl border-b border-border bg-card">
+          <div ref={tabsRowRef} className="rounded-t-xl border-b border-border bg-card pt-3">
             <div className="flex items-center">
-              <div className="min-w-0 flex-1 overflow-x-auto">
-              <div className="flex min-w-max gap-1 p-2">
-              {visibleTabs.map((tab) => {
+              <div className="min-w-0 flex-1 overflow-x-auto px-3">
+              <div className="min-w-max">
+              <div className="flex items-center">
+              {visibleTabs.map((tab, idx) => {
                 const Icon = TAB_ICONS[tab.key as keyof typeof TAB_ICONS];
+                const activeIdx = visibleTabs.findIndex((t) => t.key === activeTab);
                 const isActive = activeTab === tab.key;
                 return (
-                  <button key={tab.key} onClick={() => setActiveTab(tab.key as TabKey)}
-                    className={`flex-shrink-0 flex flex-col items-center gap-1 px-4 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
-                    <span className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${isActive ? 'bg-blue-700 text-white' : 'bg-gray-100 text-muted-foreground'}`}>
+                  <div key={tab.key} className="flex items-center flex-1 min-w-[92px]">
+                    <button type="button" onClick={() => setActiveTab(tab.key as TabKey)}
+                      className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${isActive ? 'bg-blue-700 text-white' : 'bg-gray-100 text-muted-foreground hover:bg-gray-200'}`}>
                       <Icon className="w-4 h-4" />
-                    </span>
-                    {tab.label}
-                  </button>
+                    </button>
+                    {idx < visibleTabs.length - 1 && (
+                      <div className={`flex-1 h-0.5 mx-1 ${idx < activeIdx ? 'bg-blue-700' : 'bg-border'}`} />
+                    )}
+                  </div>
                 );
               })}
+              </div>
+              <div className="flex mt-1.5">
+              {visibleTabs.map((tab) => (
+                <button key={tab.key} type="button" onClick={() => setActiveTab(tab.key as TabKey)}
+                  className={`flex-1 min-w-[92px] text-center text-xs font-medium whitespace-nowrap px-1 pb-1 transition-colors ${activeTab === tab.key ? 'text-blue-700' : 'text-muted-foreground hover:text-foreground'}`}>
+                  {tab.label}
+                </button>
+              ))}
+              </div>
               </div>
               </div>
               {canEditHistory && currentYearData && (editMode || activeTab === 'history' || (canEdit && activeTab === 'chart')) && (
@@ -1214,6 +1234,17 @@ export const DentalChart = () => {
               )}
             </div>
             {saveError && <p className="px-4 pb-2 text-xs text-destructive">{saveError}</p>}
+            <div className="flex justify-end px-3 pb-2">
+              <button type="button"
+                onClick={() => {
+                  const idx = visibleTabs.findIndex((t) => t.key === activeTab);
+                  if (idx >= 0 && idx < visibleTabs.length - 1) setActiveTab(visibleTabs[idx + 1].key as TabKey);
+                }}
+                disabled={visibleTabs.findIndex((t) => t.key === activeTab) >= visibleTabs.length - 1}
+                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-border text-foreground hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                Next <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
           {showStickyYearBar && years.length > 0 && (
             <div className="border-t border-gray-100 bg-card px-4 pt-3 flex items-center gap-2">
@@ -1253,7 +1284,7 @@ export const DentalChart = () => {
                   {yearMenuOpen && (
                     <>
                       <div className="fixed inset-0 z-10" onClick={() => setYearMenuOpen(false)} />
-                      <div className="absolute right-0 top-full mt-1 z-20 w-48 rounded-lg border border-border bg-card shadow-md py-1">
+                      <div className="absolute right-0 top-full mt-1 z-20 w-48 rounded-xl border border-border bg-card shadow-md py-1">
                         {!!getNextSchoolYear() && (
                           <button type="button" onClick={() => { setYearMenuOpen(false); setPendingYearAction('add'); }}
                             className="block w-full text-left px-3 py-2 text-xs text-foreground hover:bg-canvas">
@@ -1383,7 +1414,7 @@ export const DentalChart = () => {
                       </div>
                       <div className="flex-1">
                         <label className="block text-xs text-muted-foreground mb-1">Nutritional Status</label>
-                        <div className={`w-full text-xs border border-border rounded px-2 py-1 font-medium ${statusColor}`}
+                        <div className={`w-full text-xs border border-border rounded px-2 py-1 ${statusColor}`}
                           title="DOH/DepEd BMI-for-Age classification, 6–19 years old — blank outside that range.">
                           {status ?? statusFallback}
                         </div>
@@ -1929,11 +1960,11 @@ export const DentalChart = () => {
       />
       {/* Mirrors the "Patient Consent" reference mockup's layout (icon badge +
           kicker + title, a scrollable content box, an info note, then
-          Cancel / "I Understand, Continue") but with FLORAL's own content —
-          the actual Parents/Guardian Consent Form's service list and consent
-          line, not the reference's placeholder waiver text. */}
+          Cancel / Confirm) but with FLORAL's own content — the actual
+          Parents/Guardian Consent Form's service list and consent line,
+          not the reference's placeholder waiver text. */}
       {confirmConsentTarget && (
-        <Modal onClose={() => setConfirmConsentTarget(null)} maxWidth="max-w-lg">
+        <Modal onClose={() => setConfirmConsentTarget(null)} maxWidth="max-w-[666px]">
           <div className="flex items-start gap-3 p-6 border-b border-border">
             <div className="w-11 h-11 rounded-xl bg-primary flex items-center justify-center flex-shrink-0">
               <ShieldCheck className="w-5 h-5 text-white" />
@@ -1971,10 +2002,10 @@ export const DentalChart = () => {
                 Oo, pumapayag ako na bigyan ng serbisyong dental ang aking anak/apo/pamangkin.
               </p>
             </div>
-            <div className="flex items-start gap-2.5 rounded-lg bg-canvas p-3">
-              <Shield className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-muted-foreground">
-                This marks {surnameFirstWithInitial(student)}'s consent for {confirmConsentTarget.schoolYear} as obtained. It cannot be undone — once confirmed, this checkbox can no longer be unchecked.
+            <div className="flex items-start gap-2.5 rounded-lg bg-danger-surface p-3">
+              <Shield className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-destructive">
+                This marks the student's consent for this school year. It cannot be undone. Once confirmed, this checkbox can no longer be unchecked.
               </p>
             </div>
           </div>
@@ -1989,7 +2020,7 @@ export const DentalChart = () => {
               }}
               className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover text-sm font-medium"
             >
-              <Check className="w-4 h-4" /> I Understand, Continue
+              <Check className="w-4 h-4" /> Confirm Consent
             </button>
           </div>
         </Modal>
