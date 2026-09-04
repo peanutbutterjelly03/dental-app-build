@@ -68,7 +68,7 @@ Full field-level specs for all 16 models live in **`/docs/DATA-MODEL.md`** — R
 
 ## DATA ENCRYPTION
 - Encrypt sensitive patient fields before saving to MongoDB. Do NOT encrypt fields needed for querying (isArchived, dates, IDs, role, school_id).
-- Implemented Sprint 8 via `mongoose-field-encryption` (AES-256-CBC), scoped to: STUDENT (full_name, last_name, first_name, middle_name, address, contact_number, guardian_name, guardian_contact, philhealth_number, fourps_id), DENTAL_AIDE (contact_number), MEDICAL_HISTORY (allergies, others — not the boolean flags), TREATMENT (diagnosis, treatment_done). USER.full_name NOT encrypted (staff name, not patient PII). CRUD routes for these models use findById+save (not findByIdAndUpdate) — see HANDOFF Sprint 8 for why.
+- Implemented Sprint 8 via `mongoose-field-encryption` (AES-256-CBC), scoped to: STUDENT (full_name, last_name, first_name, middle_name, address, contact_number, guardian_name, guardian_contact, philhealth_number, fourps_id, place_of_birth, guardian_occupation — last two added 2026-09-04), DENTAL_AIDE (contact_number), MEDICAL_HISTORY (allergies, others — not the boolean flags), TREATMENT (diagnosis, treatment_done). USER.full_name NOT encrypted (staff name, not patient PII). CRUD routes for these models use findById+save (not findByIdAndUpdate) — see HANDOFF Sprint 8 for why.
 - **Random IV per encryption (Sprint 26)** — values stored as `<iv>:<ciphertext>`, decrypt reads the IV from the stored value, so plaintext equality queries on encrypted fields NEVER match (fetch + filter in JS instead; see seedStudents/seedRpcVisit2). NEVER change `FIELD_ENCRYPTION_SECRET` — that is the one action that makes existing records permanently undecryptable.
 
 ## SECURITY
@@ -87,7 +87,7 @@ Full field-level specs for all 16 models live in **`/docs/DATA-MODEL.md`** — R
 7. Dashboard + automated DOH report generation — age-bracket + gender counts, monthly standardized reports, interactive dashboard
 
 ## OCR MODULE
-- Tesseract.js scans DOH IPTR paper forms; extracts only what the form actually prints: name, birthday, age, sex, address, contact number, PhilHealth #, 4Ps/NHTS ID → structured JSON mapped to STUDENT fields. **Grade and section are NOT extracted — the official IPTR has no such field** (verified against the blank form, Sprint 87); they are typed. Occupation is printed but no model stores it, so it is not extracted either.
+- Tesseract.js scans DOH IPTR paper forms; extracts only what the form actually prints: name, birthday, age, sex, address, contact number, PhilHealth #, 4Ps/NHTS ID → structured JSON mapped to STUDENT fields. **Grade and section are NOT extracted — the official IPTR has no such field** (verified against the blank form, Sprint 87); they are typed. Occupation and Place of Birth are now on STUDENT (`guardian_occupation`, `place_of_birth` — added 2026-09-04) but OCR still does not extract either; both are typed only, same as Grade/Section.
 - Ticked checkboxes are read by INK DENSITY per cell, not character recognition (Sprint 86), and findings are shown for review, never auto-applied. Both the grid reader and the field reader decline rather than guess — including on an upside-down page, where row identity would otherwise silently shift.
 
 ## PREDICTIVE ANALYTICS (Phase 3)

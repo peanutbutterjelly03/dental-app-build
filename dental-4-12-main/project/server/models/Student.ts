@@ -29,6 +29,11 @@ const studentSchema = new mongoose.Schema(
     // appointment_type addition).
     guardian_name: { type: String, default: "" },
     guardian_contact: { type: String, default: "" },
+    // Both printed on the DOH IPTR paper form (2026-09-04, user request) —
+    // place_of_birth is the student's own; guardian_occupation sits with the
+    // guardian name/contact fields it's printed beside on the form.
+    place_of_birth: { type: String, default: "" },
+    guardian_occupation: { type: String, default: "" },
     philhealth_number: { type: String, default: "" },
     philhealth_status: { type: String, enum: ["None", "Principal", "Dependent"], default: "None" },
     is_4ps: { type: Boolean, default: false },
@@ -57,7 +62,7 @@ studentSchema.plugin(
   // The name parts are patient PII exactly as full_name is, so they carry the
   // same encryption. Sprint 26 random-IV rule applies: plaintext equality
   // queries on these fields NEVER match — fetch and filter in JS instead.
-  fieldEncryptionOptions(["full_name", "last_name", "first_name", "middle_name", "address", "contact_number", "guardian_name", "guardian_contact", "philhealth_number", "fourps_id"]),
+  fieldEncryptionOptions(["full_name", "last_name", "first_name", "middle_name", "address", "contact_number", "guardian_name", "guardian_contact", "philhealth_number", "fourps_id", "place_of_birth", "guardian_occupation"]),
 );
 
 // Sprint 56. Both indexes lead with isArchived because every GET filters on it.

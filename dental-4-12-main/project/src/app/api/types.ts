@@ -42,8 +42,10 @@ export interface ApiStudent {
   contact_number?: string;
   grade_level: string;
   section: string;
+  place_of_birth?: string;
   guardian_name?: string;
   guardian_contact?: string;
+  guardian_occupation?: string;
   philhealth_number?: string;
   philhealth_status?: 'None' | 'Principal' | 'Dependent';
   is_4ps?: boolean;

@@ -1025,9 +1025,21 @@ export const DentalChart = () => {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Place of Birth<span className="text-muted-foreground font-normal"> (Optional)</span></label>
+                <input type="text" value={draftInfo.place_of_birth ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, place_of_birth: e.target.value }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Contact Number<span className="text-muted-foreground font-normal"> (Optional)</span></label>
                 <input type="text" value={draftInfo.contact_number ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, contact_number: e.target.value }))}
                   placeholder="09XX-XXX-XXXX" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Guardian Name<span className="text-muted-foreground font-normal"> (Optional)</span></label>
+                <input type="text" value={draftInfo.guardian_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, guardian_name: e.target.value }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Guardian Contact<span className="text-muted-foreground font-normal"> (Optional)</span></label>
@@ -1036,8 +1048,8 @@ export const DentalChart = () => {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Guardian Name<span className="text-muted-foreground font-normal"> (Optional)</span></label>
-              <input type="text" value={draftInfo.guardian_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, guardian_name: e.target.value }))}
+              <label className="block text-sm font-medium text-foreground mb-1">Occupation<span className="text-muted-foreground font-normal"> (Optional)</span></label>
+              <input type="text" value={draftInfo.guardian_occupation ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, guardian_occupation: e.target.value }))}
                 className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
             </div>
             <div className="grid grid-cols-2 gap-4">

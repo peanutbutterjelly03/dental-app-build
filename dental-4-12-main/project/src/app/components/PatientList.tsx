@@ -127,8 +127,8 @@ const buildBulkRow = (rec: Record<string, string>): BulkRow => {
 
 type NewPatientForm = {
   firstName: string; lastName: string; middleName: string; birthdate: string; gender: string;
-  grade: string; section: string; school: string; guardianName: string; guardianContact: string;
-  address: string; contactNumber: string; philhealthNumber: string; philhealthStatus: string;
+  grade: string; section: string; school: string; placeOfBirth: string; guardianName: string; guardianContact: string;
+  guardianOccupation: string; address: string; contactNumber: string; philhealthNumber: string; philhealthStatus: string;
   is4Ps: boolean; fourPsId: string; consentStatus: string;
 };
 
@@ -137,7 +137,7 @@ type NewPatientForm = {
  *  header X (closing no longer leaves stale values for next time). */
 const BLANK_NEW_PATIENT: NewPatientForm = {
   firstName:'', lastName:'', middleName:'', birthdate:'', gender:'', grade:'', section:'', school:'',
-  guardianName:'', guardianContact:'', address:'', contactNumber:'', philhealthNumber:'',
+  placeOfBirth:'', guardianName:'', guardianContact:'', guardianOccupation:'', address:'', contactNumber:'', philhealthNumber:'',
   philhealthStatus:'None', is4Ps:false, fourPsId:'', consentStatus:'pending',
 };
 
@@ -572,8 +572,10 @@ export const PatientList = () => {
         contact_number: newPatient.contactNumber,
         grade_level: newPatient.grade,
         section: newPatient.section,
+        place_of_birth: newPatient.placeOfBirth,
         guardian_name: newPatient.guardianName,
         guardian_contact: newPatient.guardianContact,
+        guardian_occupation: newPatient.guardianOccupation,
         philhealth_number: newPatient.philhealthNumber,
         philhealth_status: newPatient.philhealthStatus,
         is_4ps: newPatient.is4Ps,
@@ -1444,10 +1446,14 @@ export const PatientList = () => {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
+                <div><label className="block text-sm font-medium text-foreground mb-1">Place of Birth{optionalTag}</label><input type="text" value={newPatient.placeOfBirth} onChange={e => setNewPatient({...newPatient, placeOfBirth: e.target.value})} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
                 <div><label className="block text-sm font-medium text-foreground mb-1">Contact Number{optionalTag} {ocrHint('contactNumber')}</label><input type="text" value={newPatient.contactNumber} onChange={e => updateField('contactNumber', e.target.value)} placeholder="09XX-XXX-XXXX" className={ocrFieldClass('contactNumber')} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="block text-sm font-medium text-foreground mb-1">Guardian Name{optionalTag}</label><input type="text" value={newPatient.guardianName} onChange={e => setNewPatient({...newPatient, guardianName: e.target.value})} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
                 <div><label className="block text-sm font-medium text-foreground mb-1">Guardian Contact{optionalTag}</label><input type="text" value={newPatient.guardianContact} onChange={e => setNewPatient({...newPatient, guardianContact: e.target.value})} placeholder="09XX-XXX-XXXX" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
               </div>
-              <div><label className="block text-sm font-medium text-foreground mb-1">Guardian Name{optionalTag}</label><input type="text" value={newPatient.guardianName} onChange={e => setNewPatient({...newPatient, guardianName: e.target.value})} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+              <div><label className="block text-sm font-medium text-foreground mb-1">Occupation{optionalTag}</label><input type="text" value={newPatient.guardianOccupation} onChange={e => setNewPatient({...newPatient, guardianOccupation: e.target.value})} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="block text-sm font-medium text-foreground mb-1">PhilHealth Number{optionalTag} {ocrHint('philhealthNumber')}</label><input type="text" value={newPatient.philhealthNumber} onChange={e => setNewPatient({...newPatient, philhealthNumber: e.target.value})} placeholder="XX-XXXXXXXXX-X" className={ocrFieldClass('philhealthNumber')} /></div>
                 <div><label className="block text-sm font-medium text-foreground mb-1">PhilHealth Status</label><select value={newPatient.philhealthStatus} onChange={e => setNewPatient({...newPatient, philhealthStatus: e.target.value})} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"><option value="None">None</option><option value="Principal">Principal</option><option value="Dependent">Dependent</option></select></div>
