@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
-import { ArrowLeft, Save, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Check, Shield, ShieldCheck, ShieldAlert, Users, TrendingUp, FileText, Plus, Pencil, Trash2, Brain, Download, X, MoreVertical, Clock, Smile, Activity } from 'lucide-react';
+import { ArrowLeft, Save, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Check, Shield, ShieldCheck, ShieldAlert, Users, FileText, Plus, Pencil, Trash2, Brain, Download, X, MoreVertical } from 'lucide-react';
 import { exportDohReportToPdf } from '../utils/exportPdf';
 import { getGradeColor } from '../utils/gradeColors';
 import { computeBmi, BMI_NOTE, classifyNutritionalStatus } from '../utils/bmi';
@@ -82,21 +82,6 @@ const emptyOral = (): OralDraft => ({
 });
 
 const formatDateStamp = (dateString?: string | null) => formatDate(dateString, 'No date stamp');
-
-// One icon per tab, shown above its label (2026-09-04) — not a step count,
-// since these are independent views a clinician jumps between, not a
-// completable sequence. Dental Chart/Referrals/Risk Classification reuse the
-// exact icons their own empty states already use elsewhere on this page
-// (Smile has no established precedent here, so it's new — closest lucide has
-// to a tooth/mouth icon).
-const TAB_ICONS: Record<'history' | 'chart' | 'treatments' | 'records' | 'referrals' | 'ai', typeof Clock> = {
-  history: Clock,
-  chart: Smile,
-  treatments: Activity,
-  records: TrendingUp,
-  referrals: FileText,
-  ai: Brain,
-};
 
 // ─── DMFT calculation ─────────────────────────────────────────────────────────
 const computeDMFT = (chart: Record<number, ChartEntry>) => {
@@ -1183,31 +1168,28 @@ export const DentalChart = () => {
         </Modal>
       )}
 
-      {/* Tabs — two separate cards, per request: a step strip on top (icon
-          circles connected by a line — icons stay per-view, not checkmarks/
-          numbers, since these are independent tabs a clinician jumps
-          between in any order, and a checkmark specifically claims "done"),
+      {/* Tabs — two separate cards, per request: a numbered step strip on
+          top (connected by a line, matching a numbered-wizard reference)
           and the actual flat text tab strip below it. A circle fills blue
           once its tab has been passed through (index <= the active tab's),
           not just while it's the active one. */}
       <div className="sticky z-30 bg-gray-50 space-y-2" style={{ top: stickyOffsets.tabsTop }}>
-        <div className="bg-card rounded-xl border border-border px-2 pt-3 pb-1 overflow-x-auto">
+        <div className="bg-card rounded-xl border border-border px-3 pt-4 pb-3 overflow-x-auto">
           <div className="min-w-max flex items-center">
           {visibleTabs.map((tab, idx) => {
-            const Icon = TAB_ICONS[tab.key as keyof typeof TAB_ICONS];
             const activeIdx = visibleTabs.findIndex((t) => t.key === activeTab);
             const passed = idx <= activeIdx;
             return (
               <div key={tab.key} className="flex items-center flex-shrink-0">
                 <button type="button" onClick={() => setActiveTab(tab.key as TabKey)}
-                  className="flex flex-col items-center px-4 flex-shrink-0">
-                  <span className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${passed ? 'bg-blue-700 text-white' : 'bg-gray-100 text-muted-foreground hover:bg-gray-200'}`}>
-                    <Icon className="w-3 h-3" />
+                  className="flex flex-col items-center gap-1.5 px-4 flex-shrink-0">
+                  <span className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-semibold transition-colors ${passed ? 'bg-blue-700 text-white' : 'bg-white border-2 border-border text-muted-foreground hover:bg-gray-50'}`}>
+                    {idx + 1}
                   </span>
-                  <span className="invisible text-sm font-medium leading-none mt-1">{tab.label}</span>
+                  <span className={`text-sm whitespace-nowrap ${passed ? 'font-semibold text-blue-700' : 'font-medium text-muted-foreground'}`}>{tab.label}</span>
                 </button>
                 {idx < visibleTabs.length - 1 && (
-                  <div className={`w-8 h-0.5 flex-shrink-0 ${idx < activeIdx ? 'bg-blue-700' : 'bg-border'}`} />
+                  <div className={`w-10 h-0.5 flex-shrink-0 ${idx < activeIdx ? 'bg-blue-700' : 'bg-border'}`} />
                 )}
               </div>
             );
