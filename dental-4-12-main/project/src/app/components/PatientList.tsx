@@ -345,6 +345,10 @@ export const PatientList = () => {
     if (failures.length > 0) toast.error(`${failures.length} row${failures.length !== 1 ? 's' : ''} failed to import.`);
   };
   const [queuedStudentIds, setQueuedStudentIds] = useState<string[]>(() => getQueuedStudentIds());
+  // Non-null while a per-row "remove from queue" click is waiting on
+  // confirmation — adding to the queue stays a single click, only removing
+  // asks first.
+  const [dequeueTarget, setDequeueTarget] = useState<{ id: string; name: string } | null>(null);
   // tick-box selection for queueing (and now archiving) several students at
   // once. Hidden behind "Select" from the three-dot menu rather than always
   // on — a checkbox column nobody is using is just noise on a list this
@@ -918,13 +922,11 @@ export const PatientList = () => {
             onClick={() => navigate('/students/update-school-year')}
             title="Update School Year Information"
             aria-label="Update School Year Information"
-            className={`p-2.5 rounded-full border transition-colors ${
-              schoolYearNeedsUpdate
-                ? 'border-destructive/20 text-destructive bg-danger-surface hover:bg-danger-surface/70'
-                : 'border-success/20 text-success bg-success-surface hover:bg-success-surface/70'
+            className={`p-3.5 rounded-full text-white shadow-sm transition-colors hover:brightness-110 ${
+              schoolYearNeedsUpdate ? 'bg-destructive' : 'bg-success'
             }`}
           >
-            <GraduationCap className="w-4 h-4" />
+            <GraduationCap className="w-6 h-6" />
           </button>
           <button onClick={() => { setOcrError(null); setShowOcrUpload(true); }} className="flex items-center gap-2 px-4 py-2 border border-primary text-primary rounded-full hover:bg-primary-surface text-sm font-medium">
             <Upload className="w-4 h-4" /> OCR
@@ -1055,7 +1057,8 @@ export const PatientList = () => {
                 <tr><td colSpan={7} className="text-center py-14 text-muted-foreground">{hasActiveFilters ? <>No students match your filters. <button onClick={clearFilters} className="text-primary hover:underline font-medium">Clear filters</button></> : 'No students at this school yet — use Add Student to register one.'}</td></tr>
               ) : paged.map((student, i) => {
                 const age = calculateAge(student.birthdate);
-                const isQueued = queuedStudentIds.includes(student.id);
+                const queuePosition = queuedStudentIds.indexOf(student.id);
+                const isQueued = queuePosition !== -1;
                 const gc = getGradeColor(student.grade);
                 return (
                   <tr key={student.id} {...activatable(() => { if (!student.pending) navigate(`/dental-chart/${student.id}?tab=history`); })} className={`hover:bg-canvas transition-colors cursor-pointer ${student.pending ? 'opacity-70' : ''}`}>
@@ -1094,9 +1097,8 @@ export const PatientList = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setQueuedStudentIds(
-                              isQueued ? removeQueuedStudentId(student.id) : addQueuedStudentId(student.id)
-                            );
+                            if (isQueued) setDequeueTarget({ id: student.id, name: student.name });
+                            else setQueuedStudentIds(addQueuedStudentId(student.id));
                           }}
                           title={isQueued ? 'Remove from charting queue' : 'Add to charting queue'}
                           className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
@@ -1105,8 +1107,8 @@ export const PatientList = () => {
                               : 'bg-primary-surface text-primary border-primary/20 hover:bg-primary/10'
                           }`}
                         >
-                          {isQueued ? <CheckCircle className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-                          {isQueued ? 'Queued' : 'Queue'}
+                          {isQueued ? <CheckCircle className="w-3.5 h-3.5" /> : null}
+                          {isQueued ? `Queued #${queuePosition + 1}` : 'Queue'}
                         </button>
                       )}
                     </td>
@@ -1352,7 +1354,7 @@ export const PatientList = () => {
                 <div><label className="block text-sm font-medium text-foreground mb-1">First Name{req('firstName')} {ocrHint('firstName')}</label><input type="text" value={newPatient.firstName} onChange={e => updateField('firstName', e.target.value.toUpperCase())} className={ocrFieldClass('firstName')} />{fieldError('firstName')}</div>
               </div>
               <div className="grid grid-cols-3 gap-4">
-                <div><label className="block text-sm font-medium text-foreground mb-1">Middle Name{optionalTag} {ocrHint('middleName')}</label><input type="text" value={newPatient.middleName} onChange={e => updateField('middleName', e.target.value.toUpperCase())} className={ocrFieldClass('middleName')} /></div>
+                <div><label className="block text-sm font-medium text-foreground mb-1">Middle Name {ocrHint('middleName')}</label><input type="text" value={newPatient.middleName} onChange={e => updateField('middleName', e.target.value.toUpperCase())} className={ocrFieldClass('middleName')} /></div>
                 <div><label className="block text-sm font-medium text-foreground mb-1">Birthdate{req('birthdate')} {ocrHint('birthdate')}</label><input type="date" value={newPatient.birthdate} onChange={e => updateField('birthdate', e.target.value)} className={ocrFieldClass('birthdate')} />{fieldError('birthdate')}</div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Age</label>
@@ -1673,6 +1675,19 @@ export const PatientList = () => {
             </div>
         </Modal>
       )}
+
+      <ConfirmDialog
+        open={dequeueTarget !== null}
+        title={`Remove ${dequeueTarget?.name ?? 'this student'} from the charting queue?`}
+        message="They'll need to be queued again to come back to this list."
+        confirmLabel="Remove"
+        tone="danger"
+        onConfirm={() => {
+          if (dequeueTarget) setQueuedStudentIds(removeQueuedStudentId(dequeueTarget.id));
+          setDequeueTarget(null);
+        }}
+        onCancel={() => setDequeueTarget(null)}
+      />
 
       <ConfirmDialog
         open={confirmArchiveTicked}

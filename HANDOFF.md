@@ -2,6 +2,12 @@
 
 **Compressed 2026-07-11 (hygiene pass).** Completed-sprint history → `docs/BUILD-LOG.md`; full pre-compression narratives → git history (`git show 73bc4e47:HANDOFF.md`). This file keeps only live state: current status, open work, warnings, and durable gotchas.
 
+## Middle Name "(Optional)" tag removed, Update S.Y. button solid-filled, per-row Queue shows position + confirms dequeue (2026-09-04)
+- **Middle Name**: dropped the `(Optional)` label tag. Still not in `REQUIRED_STUDENT_FIELDS`, so behavior is unchanged — only the visible tag is gone, per the request to not call it out even though it stays optional.
+- **Update School Year icon**: was a pale tint (`bg-success-surface`/`bg-danger-surface` with a border and small `w-4 h-4` icon); now a solid fill (`bg-success`/`bg-destructive`, white icon) at `w-6 h-6` in more padding (`p-3.5`), with `shadow-sm hover:brightness-110` replacing the border. Same green-when-current/red-when-needs-update logic (`schoolYearNeedsUpdate`), just a bolder rendering per "make it aesthetic."
+- **Per-row Queue action**: removed the `+` icon on the unqueued "Queue" state (label-only now). Queued rows now read `Queued #N` where N is the student's 1-based position in `queuedStudentIds`, instead of a plain "Queued" with no position. Queuing (unqueued → queued) is still one click. Dequeuing (queued → unqueued) now opens a confirmation dialog first — "Remove [name] from the charting queue?" / "They'll need to be queued again to come back to this list." — via a new `dequeueTarget` state and `ConfirmDialog`, matching the ask that adding stays fast but removing asks first.
+- Verified via static mockup (`preview15.html` + compiled CSS) in Playwright: solid green/red circular buttons, icon-less Queue button, `Queued #1`/`Queued #2` labels, and the dequeue confirmation dialog all render correctly. `npx tsc --noEmit` (client + server) and `npm run build` both clean. Frontend-only change — no server files touched, so only `npm run dev` needs restarting, not `npm run dev:server`.
+
 ## Add Student: 4Ps checkbox moved after Address (2026-09-04)
 Was paired with Guardian Name (its own row above PhilHealth Number/Status); moved to its own full-width row directly after Address, with the conditional 4Ps ID field still immediately following it. Guardian Name is now a full-width row on its own, matching Address's style, since 4Ps no longer shares its row.
 
