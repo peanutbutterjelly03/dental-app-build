@@ -49,6 +49,14 @@ const studentIptrSchema = new mongoose.Schema(
     // given". Cleared back to null the moment a "complete" is reverted to
     // "pending", since a pending record has no valid given date any more.
     consent_given_at: { type: Date, default: null },
+    // The day this school year's record was opened for this student —
+    // defaults to today at creation, and is editable afterward (2026-09-04)
+    // via the year menu's password-gated Edit action, e.g. to correct a
+    // year added late/backdated. Distinct from `created_at` (immutable
+    // Mongoose timestamp) and from DENTAL_CHART's own `date_charted`
+    // (when teeth were actually examined, not when the year record itself
+    // was opened).
+    date_opened: { type: Date, default: Date.now },
     ...softDeleteFields,
   },
   { timestamps: { createdAt: "created_at", updatedAt: false } },

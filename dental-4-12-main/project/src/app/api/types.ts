@@ -75,6 +75,10 @@ export interface ApiStudentIptr {
   /** Set server-side the moment consent_status becomes "complete"; null again
    *  the moment it reverts to "pending". Never client-supplied. */
   consent_given_at: string | null;
+  /** Day this year's record was opened — defaults to today at creation,
+   *  editable afterward via the year menu's Edit action. */
+  date_opened?: string | null;
+  created_at?: string;
   isArchived: boolean;
 }
 

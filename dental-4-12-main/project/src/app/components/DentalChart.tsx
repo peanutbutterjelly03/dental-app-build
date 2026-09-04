@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
-import { ArrowLeft, Save, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Check, Shield, ShieldCheck, ShieldAlert, Users, TrendingUp, FileText, Plus, Pencil, Trash2, Brain, Download, X } from 'lucide-react';
+import { ArrowLeft, Save, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Check, Shield, ShieldCheck, ShieldAlert, Users, TrendingUp, FileText, Plus, Pencil, Trash2, Brain, Download, X, MoreVertical } from 'lucide-react';
 import { exportDohReportToPdf } from '../utils/exportPdf';
 import { getGradeColor } from '../utils/gradeColors';
 import { computeBmi, BMI_NOTE } from '../utils/bmi';
@@ -224,7 +224,17 @@ export const DentalChart = () => {
   const [draftYear, setDraftYear] = useState<{ grade_level: string; section: string }>({ grade_level: '', section: '' });
   const [infoSaving, setInfoSaving] = useState(false);
   const [infoError, setInfoError] = useState<string | null>(null);
-  const [isManagingYears, setIsManagingYears] = useState(false);
+  // Year menu (3-dot, replacing the old "Edit Years" toggle + per-row trash
+  // icon, 2026-09-04): Add/Edit/Delete all operate on the SELECTED year tab
+  // and all three go through the same password re-confirmation as the
+  // bulk-archive flow elsewhere in the app, so this can't be idly repeated.
+  const [yearMenuOpen, setYearMenuOpen] = useState(false);
+  const [pendingYearAction, setPendingYearAction] = useState<'add' | 'edit' | 'delete' | null>(null);
+  const [editYearDateValue, setEditYearDateValue] = useState('');
+  const [yearActionPassword, setYearActionPassword] = useState('');
+  const [yearActionPasswordError, setYearActionPasswordError] = useState<string | null>(null);
+  const [yearActionBusy, setYearActionBusy] = useState(false);
+  const yearActionPasswordFieldName = useRef(`confirm-${Math.random().toString(36).slice(2)}`).current;
   const headerRowRef = useRef<HTMLDivElement | null>(null);
   // Wraps the record body for the PDF export, excluding the sticky toolbar —
   // a downloaded patient record should not carry Edit/Save buttons.
@@ -440,35 +450,62 @@ export const DentalChart = () => {
     }
   };
 
-  const [confirmDeleteYear, setConfirmDeleteYear] = useState<number | null>(null);
-  const [deletingYear, setDeletingYear] = useState(false);
-
   const handleDeleteYear = async (yearIndex: number) => {
     if (!canEdit || years.length <= 1) return;
     const iptrId = years[yearIndex]?.iptr._id;
     if (!iptrId) return;
-    try {
-      await apiClient.patch(`/student-iptrs/${iptrId}/archive`);
-      setSelectedYear((prev) => (prev === yearIndex ? Math.max(0, yearIndex - 1) : prev > yearIndex ? prev - 1 : prev));
-      await reload();
-      toast.success('School year removed.');
-    } catch (err) {
-      setSaveError(err instanceof ApiError ? err.message : 'Failed to remove school year');
-    }
+    await apiClient.patch(`/student-iptrs/${iptrId}/archive`);
+    setSelectedYear((prev) => (prev === yearIndex ? Math.max(0, yearIndex - 1) : prev > yearIndex ? prev - 1 : prev));
+    await reload();
+    toast.success('School year removed.');
   };
-  const confirmDeleteYearNow = async () => {
-    if (confirmDeleteYear === null) return;
-    setDeletingYear(true);
+
+  const closeYearAction = () => {
+    setPendingYearAction(null);
+    setYearActionPassword('');
+    setYearActionPasswordError(null);
+  };
+
+  // All three (Add/Edit/Delete) re-verify the signed-in user's own password
+  // first — same step-up check the bulk-archive flow uses (PatientList.tsx)
+  // — before the actual write runs, so this is never a single unguarded click.
+  const runYearAction = async () => {
+    if (!pendingYearAction) return;
+    if (!yearActionPassword) {
+      setYearActionPasswordError('Enter your password to confirm.');
+      return;
+    }
+    setYearActionBusy(true);
     try {
-      await handleDeleteYear(confirmDeleteYear);
-      setConfirmDeleteYear(null);
+      await apiClient.post('/auth/verify-password', { password: yearActionPassword });
+    } catch (err) {
+      setYearActionBusy(false);
+      setYearActionPasswordError(err instanceof ApiError ? err.message : 'Could not verify password.');
+      return;
+    }
+    try {
+      if (pendingYearAction === 'add') {
+        await handleAddYear();
+      } else if (pendingYearAction === 'edit') {
+        const iptrId = years[selectedYear]?.iptr._id;
+        if (iptrId) {
+          await apiClient.put(`/student-iptrs/${iptrId}`, { date_opened: editYearDateValue || null });
+          await reload();
+          toast.success('School year date updated.');
+        }
+      } else if (pendingYearAction === 'delete') {
+        await handleDeleteYear(selectedYear);
+      }
+      closeYearAction();
+    } catch (err) {
+      setYearActionPasswordError(err instanceof ApiError ? err.message : 'Action failed.');
     } finally {
-      setDeletingYear(false);
+      setYearActionBusy(false);
     }
   };
 
   useEffect(() => {
-    if (!canEdit) setIsManagingYears(false);
+    if (!canEdit) { setYearMenuOpen(false); setPendingYearAction(null); }
   }, [canEdit]);
 
   // Persists the current year's chart + medical/diet/oral history for real.
@@ -1141,8 +1178,8 @@ export const DentalChart = () => {
             {saveError && <p className="px-4 pb-2 text-xs text-destructive">{saveError}</p>}
           </div>
           {showStickyYearBar && years.length > 0 && (
-            <div className="border-t border-gray-100 bg-card px-4 pt-3">
-              <div className="overflow-x-auto">
+            <div className="border-t border-gray-100 bg-card px-4 pt-3 flex items-center gap-2">
+              <div className="overflow-x-auto flex-1 min-w-0">
               <div className="flex items-center gap-0 min-w-max">
               {years.map((y, idx) => {
                 const yrChart: Record<number, ChartEntry> = {};
@@ -1150,39 +1187,60 @@ export const DentalChart = () => {
                 const yrDmft = computeDMFT(yrChart);
                 const isActive = selectedYear === idx;
                 return (
-                  <div key={y.iptr._id} className={`mr-1 flex flex-shrink-0 items-stretch border-b-2 ${isActive ? 'border-blue-700 bg-blue-50 text-blue-700' : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
-                    <button type="button" onClick={() => setSelectedYear(idx)} className="px-4 py-2.5 text-left text-xs font-medium transition-all">
-                      <div>{y.iptr.school_year}</div>
-                      {activeTab === 'chart' && (
-                        <div style={{ fontSize: '10px', marginTop: '2px' }} className={isActive ? 'text-blue-600' : 'text-muted-foreground'}>DMFT: {yrDmft.T + yrDmft.t}</div>
-                      )}
-                      <div style={{ fontSize: '10px', marginTop: '2px' }} className={isActive ? 'text-blue-600' : 'text-muted-foreground'}>
-                        {formatDateStamp(y.dentalChart?.date_charted)}
-                      </div>
-                    </button>
-                    {canEdit && isManagingYears && years.length > 1 && (
-                      <button type="button" onClick={(e) => { e.stopPropagation(); setConfirmDeleteYear(idx); }} className="border-l border-border px-2 text-muted-foreground transition-colors hover:bg-card hover:text-destructive" title={`Remove ${y.iptr.school_year}`}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                  <button key={y.iptr._id} type="button" onClick={() => setSelectedYear(idx)}
+                    className={`mr-1 flex-shrink-0 px-4 py-2.5 text-left text-xs font-medium border-b-2 transition-all ${isActive ? 'border-blue-700 bg-blue-50 text-blue-700' : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
+                    <div>{y.iptr.school_year}</div>
+                    {activeTab === 'chart' && (
+                      <div style={{ fontSize: '10px', marginTop: '2px' }} className={isActive ? 'text-blue-600' : 'text-muted-foreground'}>DMFT: {yrDmft.T + yrDmft.t}</div>
                     )}
-                  </div>
+                    <div style={{ fontSize: '10px', marginTop: '2px' }} className={isActive ? 'text-blue-600' : 'text-muted-foreground'}>
+                      {formatDateStamp(y.iptr.date_opened ?? y.iptr.created_at)}
+                    </div>
+                  </button>
                 );
               })}
+              </div>
+              </div>
+              {/* 3-dot year menu — replaces the old "Edit Years" toggle +
+                  per-row trash icon. Add/Edit/Delete all act on the
+                  currently SELECTED year tab and are all password-gated
+                  (see runYearAction). Pinned outside the scrollable tab
+                  strip so it always sits at the container's right edge. */}
               {canEdit && (
-                <div className="ml-2 flex flex-shrink-0 items-center gap-2 py-2">
-                  <button type="button" onClick={() => setIsManagingYears((prev) => !prev)}
-                    className={`rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors ${isManagingYears ? 'bg-blue-100 text-blue-800 hover:bg-blue-200' : 'border border-border bg-card text-muted-foreground hover:bg-gray-50'}`}>
-                    {isManagingYears ? 'Done' : 'Edit Years'}
+                <div className="relative flex-shrink-0 mb-1">
+                  <button type="button" onClick={() => setYearMenuOpen((v) => !v)} title="Manage school years"
+                    className="p-2 rounded-lg border border-border text-muted-foreground hover:bg-gray-50">
+                    <MoreVertical className="w-4 h-4" />
                   </button>
-                  {isManagingYears && !!getNextSchoolYear() && (
-                    <button type="button" onClick={handleAddYear} disabled={addingYear} className="flex-shrink-0 px-3 py-2 text-xs text-muted-foreground hover:text-blue-600 border-b-2 border-transparent hover:border-blue-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                      + Add Year
-                    </button>
+                  {yearMenuOpen && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setYearMenuOpen(false)} />
+                      <div className="absolute right-0 top-full mt-1 z-20 w-48 rounded-lg border border-border bg-card shadow-md py-1">
+                        {!!getNextSchoolYear() && (
+                          <button type="button" onClick={() => { setYearMenuOpen(false); setPendingYearAction('add'); }}
+                            className="block w-full text-left px-3 py-2 text-xs text-foreground hover:bg-canvas">
+                            Add {getNextSchoolYear()}
+                          </button>
+                        )}
+                        <button type="button" onClick={() => {
+                            setYearMenuOpen(false);
+                            const iptr = years[selectedYear]?.iptr;
+                            setEditYearDateValue((iptr?.date_opened ?? iptr?.created_at ?? new Date().toISOString()).slice(0, 10));
+                            setPendingYearAction('edit');
+                          }} className="block w-full text-left px-3 py-2 text-xs text-foreground hover:bg-canvas">
+                          Edit {years[selectedYear]?.iptr.school_year}&rsquo;s date
+                        </button>
+                        {years.length > 1 && (
+                          <button type="button" onClick={() => { setYearMenuOpen(false); setPendingYearAction('delete'); }}
+                            className="block w-full text-left px-3 py-2 text-xs text-destructive hover:bg-danger-surface">
+                            Delete {years[selectedYear]?.iptr.school_year}
+                          </button>
+                        )}
+                      </div>
+                    </>
                   )}
                 </div>
               )}
-              </div>
-              </div>
             </div>
           )}
         </div>
@@ -1826,13 +1884,54 @@ export const DentalChart = () => {
         onCancel={() => setConfirmSaveInfo(false)}
       />
       <ConfirmDialog
-        open={confirmDeleteYear !== null}
-        title={`Remove ${confirmDeleteYear !== null ? years[confirmDeleteYear]?.iptr.school_year ?? 'school year' : 'school year'}?`}
-        message="This archives the entire school year — its dental chart and medical, dietary, and oral-health records. A System Admin can restore it from the archive."
-        confirmLabel="Remove year"
-        busy={deletingYear}
-        onConfirm={confirmDeleteYearNow}
-        onCancel={() => setConfirmDeleteYear(null)}
+        open={pendingYearAction !== null}
+        title={
+          pendingYearAction === 'add' ? `Add ${getNextSchoolYear()}?`
+          : pendingYearAction === 'edit' ? `Edit ${years[selectedYear]?.iptr.school_year}’s date?`
+          : `Remove ${years[selectedYear]?.iptr.school_year}?`
+        }
+        tone={pendingYearAction === 'delete' ? 'danger' : 'default'}
+        message={
+          <div className="space-y-3">
+            {pendingYearAction === 'add' && <p>This opens a new school year record for this student.</p>}
+            {pendingYearAction === 'edit' && (
+              <div>
+                <label className="block text-xs font-medium text-foreground mb-1">Date opened</label>
+                <input type="date" value={editYearDateValue} onChange={(e) => setEditYearDateValue(e.target.value)}
+                  disabled={yearActionBusy}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60" />
+              </div>
+            )}
+            {pendingYearAction === 'delete' && <p>This archives the entire school year — its dental chart and medical, dietary, and oral-health records. A System Admin can restore it from the archive.</p>}
+            {/* Isolated <form> + non-standard autofill fields, same reasoning
+                as PatientList's bulk-archive password field — see there for
+                why plain autoComplete="current-password"/"new-password"
+                don't fit a re-type-to-confirm field. */}
+            <form autoComplete="off" onSubmit={(e) => e.preventDefault()}>
+              <label htmlFor={yearActionPasswordFieldName} className="block text-xs font-medium text-foreground mb-1">Enter your password to confirm</label>
+              <input
+                id={yearActionPasswordFieldName}
+                name={yearActionPasswordFieldName}
+                type="password"
+                required
+                autoComplete="one-time-code"
+                data-lpignore="true"
+                data-1p-ignore="true"
+                data-bwignore="true"
+                autoFocus={pendingYearAction !== 'edit'}
+                value={yearActionPassword}
+                onChange={(e) => { setYearActionPassword(e.target.value); setYearActionPasswordError(null); }}
+                disabled={yearActionBusy}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
+              />
+              {yearActionPasswordError && <p className="mt-1 text-xs text-destructive">{yearActionPasswordError}</p>}
+            </form>
+          </div>
+        }
+        confirmLabel={pendingYearAction === 'delete' ? 'Remove year' : pendingYearAction === 'add' ? 'Add year' : 'Save date'}
+        busy={yearActionBusy}
+        onConfirm={runYearAction}
+        onCancel={closeYearAction}
       />
       <ConfirmDialog
         open={confirmClear !== null}
