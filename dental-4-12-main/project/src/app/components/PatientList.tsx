@@ -12,12 +12,10 @@ import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
 import { useToast } from './Toast';
 import { Modal } from './Modal';
 import { activatable } from '../utils/a11y';
-import { GradeTableCell } from './GradeTableCell';
 import { ListSearchInput } from './ListSearchInput';
-import { studentListTableStyles } from './StudentListTableStyles';
 import { addQueuedStudentId, getQueuedStudentIds, removeQueuedStudentId, setQueuedStudentIds as persistQueuedStudentIds } from '../utils/queueStorage';
 import { useStudents } from '../hooks/useStudents';
-import { Pagination, usePagination } from './Pagination';
+import { usePagination, PAGE_SIZE_OPTIONS } from './Pagination';
 import { apiClient, ApiError } from '../api/client';
 import type { ApiSchool } from '../api/types';
 import { useSchools } from '../hooks/useSchools';
@@ -667,7 +665,7 @@ export const PatientList = () => {
   };
 
   const FilterSelect = ({ value, onChange, options, label }: { value: string; onChange: (v:string) => void; options: {value:string;label:string}[]; label: string }) => (
-    <select value={value} onChange={e => onChange(e.target.value)} className="text-sm border border-border rounded-lg px-3 py-2 bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
+    <select value={value} onChange={e => onChange(e.target.value)} className="text-sm border border-transparent rounded-full px-4 py-2 bg-canvas text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
       <option value="all">{label}</option>
       {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
@@ -717,216 +715,271 @@ export const PatientList = () => {
     );
   }
 
+  // Decorative kicker above the page title — reuses the same school color
+  // tokens as SchoolCard/GradePill rather than inventing a new palette. Shows
+  // the school's full registered name, not the abbreviated short form.
+  const kickerColor = selectedSchool
+    ? getSchoolColor(selectedSchool)
+    : { name: 'All Schools', solid: '#1E40AF', light: '#EFF6FF', text: '#1E40AF', border: '#93C5FD' };
+  const kickerLabel = selectedSchool ?? 'All Schools';
+
+  // Two-letter initials for the row avatar — same derivation already used for
+  // the Dashboard's follow-up list, so a name reads the same way everywhere.
+  const initials = (name: string) =>
+    name.split(/[\s,]+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Student Records</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{schoolStudents.length} students{selectedSchool ? '' : ' across 3 schools'}</p>
+      {/* No export here by design (2026-09-02): this list is raw patient
+          PII — names, birthdays, addresses, guardians — and a CSV of it
+          would leave the encrypted database as plaintext on someone's
+          device, defeating the field encryption. Official OUTPUT is the
+          DOH report on Reports, which is aggregate counts and carries no
+          names. */}
+      {canAddStudent && (
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          {/* "Upload", not "Scan": this opens a file picker, and a scan icon
+              + the verb "scan" both promised a camera the app does not have
+              (backlog 0e). The OCR extraction is still described inside the
+              modal — only the entry point stops over-promising. Rename this
+              back if 0e ever ships. */}
+          {/* Annual rollover — was "Promote / Assign" (a modal, one grade
+              at a time). Now a full page: school-wide clear + reassign +
+              archive, see UpdateSchoolYear.tsx. */}
+          <button onClick={() => navigate('/students/update-school-year')}
+            className="flex items-center gap-2 px-4 py-2 border border-border text-foreground rounded-full hover:bg-canvas text-sm font-medium">
+            <GraduationCap className="w-4 h-4" /> Update School Year
+          </button>
+          <button onClick={() => { setOcrError(null); setShowOcrUpload(true); }} className="flex items-center gap-2 px-4 py-2 border border-primary text-primary rounded-full hover:bg-primary-surface text-sm font-medium">
+            <Upload className="w-4 h-4" /> Upload IPTR Form
+          </button>
+          <button onClick={() => { setOcrConfidences({}); setOcrFindings([]); setOcrFindingsNote(null); setShowAddForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-full hover:bg-primary-hover text-sm font-medium">
+            <Plus className="w-4 h-4" /> Add Student
+          </button>
         </div>
-        <div className="flex items-center gap-3">
-          {/* No export here by design (2026-09-02): this list is raw patient
-              PII — names, birthdays, addresses, guardians — and a CSV of it
-              would leave the encrypted database as plaintext on someone's
-              device, defeating the field encryption. Official OUTPUT is the
-              DOH report on Reports, which is aggregate counts and carries no
-              names. */}
-{canAddStudent && (
-            <>
-              {/* "Upload", not "Scan": this opens a file picker, and a scan icon
-                  + the verb "scan" both promised a camera the app does not have
-                  (backlog 0e). The OCR extraction is still described inside the
-                  modal — only the entry point stops over-promising. Rename this
-                  back if 0e ever ships. */}
-              {/* Annual rollover — was "Promote / Assign" (a modal, one grade
-                  at a time). Now a full page: school-wide clear + reassign +
-                  archive, see UpdateSchoolYear.tsx. */}
-              <button onClick={() => navigate('/students/update-school-year')}
-                className="flex items-center gap-2 px-4 py-2 border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium">
-                <GraduationCap className="w-4 h-4" /> Update School Year
-              </button>
-              <button onClick={() => { setOcrError(null); setShowOcrUpload(true); }} className="flex items-center gap-2 px-4 py-2 border border-primary text-primary rounded-lg hover:bg-primary-surface text-sm font-medium">
-                <Upload className="w-4 h-4" /> Upload IPTR Form
-              </button>
-              <button onClick={() => { setOcrConfidences({}); setOcrFindings([]); setOcrFindingsNote(null); setShowAddForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover text-sm font-medium">
-                <Plus className="w-4 h-4" /> Add Student
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+      )}
 
-
-      {/* LIST VIEW */}
-        <div className="space-y-4">
-          {/* Filters */}
-          <div className="bg-card rounded-xl border border-border p-4 space-y-3">
-            <div className="flex flex-wrap gap-2">
-              <ListSearchInput value={searchTerm} onChange={setSearchTerm} />
-              <FilterSelect value={gradeFilter} onChange={v => { setGradeFilter(v); setSectionFilter('all'); }} label="All Grades"
-                options={GRADES.map(g => ({ value: g, label: g }))} />
-              <FilterSelect value={sectionFilter} onChange={setSectionFilter} label="All Sections"
-                options={allSections.map(s => ({ value: s, label: s }))} />
-              <FilterSelect value={genderFilter} onChange={setGenderFilter} label="All Genders"
-                options={[{ value:'Male', label:'Male' }, { value:'Female', label:'Female' }]} />
-              <FilterSelect value={ageGroupFilter} onChange={setAgeGroupFilter} label="All Age Groups"
-                options={[{ value:'4 & below', label:'4 & below' }, { value:'5-9', label:'5-9' }, { value:'10-14', label:'10-14' }, { value:'15-19', label:'15-19' }, { value:'20 & above', label:'20 & above' }]} />
-              {hasActiveFilters && (
-                <button onClick={clearFilters} className="flex items-center gap-1 px-3 py-2 text-sm text-destructive border border-red-200 rounded-lg hover:bg-red-50">
-                  <X className="w-3 h-3" /> Clear All
-                </button>
-              )}
-              <div className="ml-auto flex items-center gap-2">
-                {selectMode && tickedIds.size > 0 && (
-                  <>
-                    <button
-                      onClick={allTickedQueued ? unqueueTicked : queueTicked}
-                      className={`flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-lg ${allTickedQueued ? 'text-primary border border-primary hover:bg-primary-surface' : 'text-white bg-primary hover:bg-primary-hover'}`}
-                    >
-                      {allTickedQueued ? 'Unqueue' : 'Queue'} Selected ({tickedIds.size})
-                    </button>
-                    <button
-                      onClick={() => setConfirmArchiveTicked(true)}
-                      className="flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-lg border border-destructive text-destructive hover:bg-danger-surface"
-                    >
-                      <ArchiveIcon className="w-3.5 h-3.5" /> Archive Selected ({tickedIds.size})
-                    </button>
-                  </>
-                )}
-                {selectMode ? (
-                  <button onClick={exitSelectMode}
-                    className="text-sm font-medium text-foreground border border-border rounded-lg px-3 py-2 hover:bg-gray-50">
-                    Done
-                  </button>
-                ) : (
-                  <div className="relative">
-                    <button
-                      onClick={() => setShowListMenu(v => !v)}
-                      className="p-2 rounded-lg text-muted-foreground hover:bg-gray-100 hover:text-foreground"
-                      title="More options"
-                    >
-                      <MoreVertical className="w-4 h-4" />
-                    </button>
-                    {showListMenu && (
-                      <>
-                        <div className="fixed inset-0 z-10" onClick={() => setShowListMenu(false)} />
-                        <div className="absolute right-0 top-full mt-1 z-20 bg-card border border-border rounded-lg shadow-md py-1 w-44">
-                          <button
-                            onClick={() => { setSelectMode(true); setShowListMenu(false); }}
-                            className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-gray-50 flex items-center gap-2"
-                          >
-                            <ListChecks className="w-3.5 h-3.5" /> Select students…
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )}
+      {/* LIST VIEW — one elevated card housing header, filters, table and
+          pagination, in place of the previous stack of separate boxes. */}
+      <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+        <div className="p-5 sm:p-6 space-y-4 border-b border-border">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="inline-flex items-center gap-2 mb-2">
+                <span style={{ backgroundColor: kickerColor.light }} className="w-6 h-6 rounded-md grid place-items-center">
+                  <SchoolIcon style={{ color: kickerColor.solid }} className="w-3.5 h-3.5" />
+                </span>
+                <span style={{ color: kickerColor.solid }} className="text-xs font-bold uppercase tracking-wider">{kickerLabel}</span>
               </div>
+              <h1 className="text-2xl font-bold text-foreground">Student Records</h1>
+              <p className="text-sm text-muted-foreground mt-0.5">{schoolStudents.length} students{selectedSchool ? '' : ' across 3 schools'}</p>
             </div>
           </div>
 
-          {/* Table */}
-          <div className={studentListTableStyles.wrapper}>
-            <div className={studentListTableStyles.scroller}>
-              <table className={studentListTableStyles.table}>
-                <thead className={studentListTableStyles.head}>
-                  <tr>
-                    <th className={studentListTableStyles.headerCell}>
-                      {/* Scoped to the current page, matching its own label: now
-                          that the table paginates, "select all" across the whole
-                          filtered set would tick rows the user cannot see. Hidden
-                          entirely outside select mode — see the three-dot menu. */}
-                      {selectMode && (
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-2">
+            <ListSearchInput value={searchTerm} onChange={setSearchTerm} />
+            <FilterSelect value={gradeFilter} onChange={v => { setGradeFilter(v); setSectionFilter('all'); }} label="All Grades"
+              options={GRADES.map(g => ({ value: g, label: g }))} />
+            <FilterSelect value={sectionFilter} onChange={setSectionFilter} label="All Sections"
+              options={allSections.map(s => ({ value: s, label: s }))} />
+            <FilterSelect value={genderFilter} onChange={setGenderFilter} label="All Genders"
+              options={[{ value:'Male', label:'Male' }, { value:'Female', label:'Female' }]} />
+            <FilterSelect value={ageGroupFilter} onChange={setAgeGroupFilter} label="All Age Groups"
+              options={[{ value:'4 & below', label:'4 & below' }, { value:'5-9', label:'5-9' }, { value:'10-14', label:'10-14' }, { value:'15-19', label:'15-19' }, { value:'20 & above', label:'20 & above' }]} />
+            {hasActiveFilters && (
+              <button onClick={clearFilters} className="flex items-center gap-1 px-3 py-2 text-sm text-destructive border border-destructive/20 rounded-full hover:bg-danger-surface">
+                <X className="w-3 h-3" /> Clear All
+              </button>
+            )}
+            <div className="ml-auto flex items-center gap-2">
+              {selectMode && tickedIds.size > 0 && (
+                <>
+                  <button
+                    onClick={allTickedQueued ? unqueueTicked : queueTicked}
+                    className={`flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-full ${allTickedQueued ? 'text-primary border border-primary hover:bg-primary-surface' : 'text-white bg-primary hover:bg-primary-hover'}`}
+                  >
+                    {allTickedQueued ? 'Unqueue' : 'Queue'} Selected ({tickedIds.size})
+                  </button>
+                  <button
+                    onClick={() => setConfirmArchiveTicked(true)}
+                    className="flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-full border border-destructive text-destructive hover:bg-danger-surface"
+                  >
+                    <ArchiveIcon className="w-3.5 h-3.5" /> Archive Selected ({tickedIds.size})
+                  </button>
+                </>
+              )}
+              {selectMode ? (
+                <button onClick={exitSelectMode}
+                  className="text-sm font-medium text-foreground border border-border rounded-full px-3 py-2 hover:bg-canvas">
+                  Done
+                </button>
+              ) : (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowListMenu(v => !v)}
+                    className="p-2 rounded-full text-muted-foreground hover:bg-canvas hover:text-foreground"
+                    title="More options"
+                  >
+                    <MoreVertical className="w-4 h-4" />
+                  </button>
+                  {showListMenu && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setShowListMenu(false)} />
+                      <div className="absolute right-0 top-full mt-1 z-20 bg-card border border-border rounded-xl shadow-md py-1 w-44">
+                        <button
+                          onClick={() => { setSelectMode(true); setShowListMenu(false); }}
+                          className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-canvas flex items-center gap-2"
+                        >
+                          <ListChecks className="w-3.5 h-3.5" /> Select students…
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="px-4 py-3 sm:pl-6">
+                  {/* Scoped to the current page, matching its own label: now
+                      that the table paginates, "select all" across the whole
+                      filtered set would tick rows the user cannot see. Hidden
+                      entirely outside select mode — see the three-dot menu. */}
+                  {selectMode && (
+                    <input
+                      type="checkbox"
+                      aria-label="Select all students on this page"
+                      checked={paged.length > 0 && paged.every(s => s.pending || tickedIds.has(s.id))}
+                      onChange={(e) => {
+                        if (e.target.checked) setTickedIds(new Set(paged.filter(s => !s.pending).map(s => s.id)));
+                        else setTickedIds(new Set());
+                      }}
+                      className="w-4 h-4 accent-primary align-middle"
+                    />
+                  )}
+                </th>
+                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Student</th>
+                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Grade</th>
+                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Section</th>
+                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Gender</th>
+                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Age</th>
+                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground sm:pr-6">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/60">
+              {filtered.length === 0 ? (
+                <tr><td colSpan={7} className="text-center py-14 text-muted-foreground">{hasActiveFilters ? <>No students match your filters. <button onClick={clearFilters} className="text-primary hover:underline font-medium">Clear filters</button></> : 'No students at this school yet — use Add Student to register one.'}</td></tr>
+              ) : paged.map(student => {
+                const age = calculateAge(student.birthdate);
+                const isQueued = queuedStudentIds.includes(student.id);
+                const gc = getGradeColor(student.grade);
+                return (
+                  <tr key={student.id} {...activatable(() => { if (!student.pending) navigate(`/dental-chart/${student.id}?tab=history`); })} className={`hover:bg-canvas transition-colors cursor-pointer ${student.pending ? 'opacity-70' : ''}`}>
+                    <td className="px-4 py-3.5 sm:pl-6" onClick={(e) => e.stopPropagation()}>
+                      {selectMode && !student.pending && (
                         <input
                           type="checkbox"
-                          aria-label="Select all students on this page"
-                          checked={paged.length > 0 && paged.every(s => s.pending || tickedIds.has(s.id))}
-                          onChange={(e) => {
-                            if (e.target.checked) setTickedIds(new Set(paged.filter(s => !s.pending).map(s => s.id)));
-                            else setTickedIds(new Set());
-                          }}
+                          aria-label={`Select ${student.name}`}
+                          checked={tickedIds.has(student.id)}
+                          onChange={() => toggleTicked(student.id)}
                           className="w-4 h-4 accent-primary align-middle"
                         />
                       )}
-                    </th>
-                    <th className={studentListTableStyles.headerCell}>Student</th>
-                    <th className={studentListTableStyles.headerCell}>Grade</th>
-                    <th className={studentListTableStyles.headerCell}>Section</th>
-                    <th className={studentListTableStyles.headerCell}>Gender</th>
-                    <th className={studentListTableStyles.headerCell}>Age</th>
-                    <th className={studentListTableStyles.headerCell}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody className={studentListTableStyles.body}>
-                  {filtered.length === 0 ? (
-                    <tr><td colSpan={7} className={studentListTableStyles.emptyCell}>{hasActiveFilters ? <>No students match your filters. <button onClick={clearFilters} className="text-primary hover:underline font-medium">Clear filters</button></> : 'No students at this school yet — use Add Student to register one.'}</td></tr>
-                  ) : paged.map(student => {
-                    const age = calculateAge(student.birthdate);
-                    const isQueued = queuedStudentIds.includes(student.id);
-                    return (
-                      <tr key={student.id} {...activatable(() => { if (!student.pending) navigate(`/dental-chart/${student.id}?tab=history`); })} className={`${studentListTableStyles.row} ${student.pending ? 'opacity-70' : ''}`}>
-                        <td className={studentListTableStyles.secondaryCell} onClick={(e) => e.stopPropagation()}>
-                          {selectMode && !student.pending && (
-                            <input
-                              type="checkbox"
-                              aria-label={`Select ${student.name}`}
-                              checked={tickedIds.has(student.id)}
-                              onChange={() => toggleTicked(student.id)}
-                              className="w-4 h-4 accent-primary align-middle"
-                            />
-                          )}
-                        </td>
-                        <td className={studentListTableStyles.primaryCell}>
-                          {student.name}
+                    </td>
+                    <td className="px-4 py-3.5 font-medium text-foreground">
+                      <div className="flex items-center gap-3">
+                        <span style={{ backgroundColor: gc.light, color: gc.solid }} className="w-9 h-9 shrink-0 rounded-full grid place-items-center text-xs font-bold">
+                          {initials(student.name)}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate">{student.name}</p>
                           {student.pending && (
-                            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200">Pending sync</span>
+                            <span className="inline-flex items-center mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-warning-surface text-warning border border-warning/20">Pending Sync</span>
                           )}
-                        </td>
-                        <GradeTableCell grade={student.grade} />
-                        <td className={studentListTableStyles.secondaryCell}>{student.section}</td>
-                        <td className={studentListTableStyles.secondaryCell}>{student.gender}</td>
-                        <td className={studentListTableStyles.secondaryCell}>{age ?? '—'}</td>
-                        <td className={studentListTableStyles.secondaryCell}>
-                          {!student.pending && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setQueuedStudentIds(
-                                  isQueued ? removeQueuedStudentId(student.id) : addQueuedStudentId(student.id)
-                                );
-                              }}
-                              title={isQueued ? 'Remove from charting queue' : 'Add to charting queue'}
-                              className={`px-2.5 py-1 rounded text-xs font-semibold border transition-colors ${
-                                isQueued
-                                  ? 'bg-green-100 text-green-700 border-green-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200'
-                                  : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
-                              }`}
-                            >
-                              {isQueued ? 'Queued ✓' : 'Queue for Charting'}
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3.5 text-muted-foreground"><GradePill grade={student.grade} /></td>
+                    <td className="px-4 py-3.5 text-muted-foreground">{student.section}</td>
+                    <td className="px-4 py-3.5 text-muted-foreground">{student.gender}</td>
+                    <td className="px-4 py-3.5 text-muted-foreground">{age ?? '—'}</td>
+                    <td className="px-4 py-3.5 sm:pr-6">
+                      {!student.pending && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setQueuedStudentIds(
+                              isQueued ? removeQueuedStudentId(student.id) : addQueuedStudentId(student.id)
+                            );
+                          }}
+                          title={isQueued ? 'Remove from charting queue' : 'Add to charting queue'}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                            isQueued
+                              ? 'bg-success-surface text-success border-success/20 hover:bg-danger-surface hover:text-destructive hover:border-destructive/20'
+                              : 'bg-primary-surface text-primary border-primary/20 hover:bg-primary/10'
+                          }`}
+                        >
+                          {isQueued ? <CheckCircle className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                          {isQueued ? 'Queued' : 'Queue'}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Footer / pagination */}
+        {filtered.length > 0 && (
+          <div className="flex flex-col gap-3 border-t border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              <span>
+                Showing <span className="font-semibold text-foreground">{pager.from}</span> to{' '}
+                <span className="font-semibold text-foreground">{pager.to}</span> of{' '}
+                <span className="font-semibold text-foreground">{pager.total}</span> students
+                {filtered.length !== schoolStudents.length ? ` (filtered from ${schoolStudents.length})` : ''}
+                {selectedSchool ? ` at ${getSchoolShortName(selectedSchool)}` : ''}
+              </span>
+              <select
+                aria-label="Items per page"
+                value={pager.pageSize}
+                onChange={(e) => pager.changePageSize(Number(e.target.value))}
+                className="rounded-full border border-border bg-canvas px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}/page</option>)}
+              </select>
             </div>
-            {filtered.length > 0 && (
-              <div className={studentListTableStyles.footer}>
-                <Pagination
-                  {...pager}
-                  onPage={pager.setPage}
-                  onPageSize={pager.changePageSize}
-                  noun="students"
-                  detail={`${filtered.length !== schoolStudents.length ? `(filtered from ${schoolStudents.length}) ` : ''}${selectedSchool ? `at ${getSchoolShortName(selectedSchool)}` : ''}`.trim()}
-                />
+            {pager.pageCount > 1 && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => pager.setPage(Math.max(1, pager.page - 1))}
+                  disabled={pager.page === 1}
+                  className="flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-canvas disabled:opacity-40 disabled:hover:bg-transparent"
+                >
+                  <ChevronLeft className="w-4 h-4" /> Previous
+                </button>
+                <span className="rounded-full bg-primary-surface px-3 py-1.5 text-sm font-semibold text-primary tabular-nums">{pager.page} / {pager.pageCount}</span>
+                <button
+                  onClick={() => pager.setPage(Math.min(pager.pageCount, pager.page + 1))}
+                  disabled={pager.page === pager.pageCount}
+                  className="flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-canvas disabled:opacity-40 disabled:hover:bg-transparent"
+                >
+                  Next <ChevronRight className="w-4 h-4" />
+                </button>
               </div>
             )}
           </div>
-        </div>
+        )}
+      </div>
 
       {/* Upload IPTR Form Modal (upload → OCR; no camera, see backlog 0e) */}
       {showOcrUpload && (
