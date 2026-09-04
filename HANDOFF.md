@@ -2,6 +2,9 @@
 
 **Compressed 2026-07-11 (hygiene pass).** Completed-sprint history → `docs/BUILD-LOG.md`; full pre-compression narratives → git history (`git show 73bc4e47:HANDOFF.md`). This file keeps only live state: current status, open work, warnings, and durable gotchas.
 
+## Correction: "reduce to 50%" meant HEIGHT, not width (2026-09-04)
+Misread the previous round's "reduce the size of that container to 50 percent" as width — user corrected it forcefully: they meant the card's HEIGHT. Fixed: dropped `lg:max-w-[50%]` (card is full width again, matching the record wrapper), and put the field grid back to `grid-cols-2 md:grid-cols-4` (was `grid-cols-2` from the round below) — 2 rows of 4 instead of 4 rows of 2, which is the actual ~50% height cut, at full width. tsc + build clean, re-verified via mockup.
+
 ## Follow-up round 3: Patient Info Card capped to 50%, subtitle line removed again, collapsible (2026-09-04)
 - **The subtitle line restored two rounds ago is removed again**, at the user's explicit follow-up call that it's redundant with the grade/section pills right below it — back to the same conclusion the original decluttering round reached, just arrived at twice. Not restoring it a third time without being asked.
 - **Name font**: `text-lg font-bold` → `text-base font-semibold` — "too big… make it small and narrow."

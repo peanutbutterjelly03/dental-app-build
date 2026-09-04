@@ -846,7 +846,7 @@ export const DentalChart = () => {
           the PDF captures. */}
       <div ref={recordRef} className="space-y-4">
       {/* Patient Info Card */}
-      <div className="bg-card rounded-xl border border-border p-5 w-full lg:max-w-[50%]">
+      <div className="bg-card rounded-xl border border-border p-5 w-full">
           <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div style={{ backgroundColor: gc.light, color: gc.solid }} className="w-14 h-14 rounded-2xl flex items-center justify-center font-bold text-xl flex-shrink-0">
@@ -886,7 +886,7 @@ export const DentalChart = () => {
               </div>
             </div>
             {basicInfoExpanded && (
-              <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm border-t border-border pt-4 mt-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3 text-sm border-t border-border pt-4 mt-4">
                 {[
                   ['Birthday', formatDate(student.birthday)],
                   ['Age', `${patientAge} years`],
