@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
 import { ArrowLeft, Save, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Check, Shield, ShieldCheck, ShieldAlert, Users, TrendingUp, FileText, Plus, Pencil, Trash2, Brain, Download, X, MoreVertical } from 'lucide-react';
 import { exportDohReportToPdf } from '../utils/exportPdf';
 import { getGradeColor } from '../utils/gradeColors';
-import { computeBmi, BMI_NOTE } from '../utils/bmi';
+import { computeBmi, BMI_NOTE, classifyNutritionalStatus } from '../utils/bmi';
 import { useAuth } from '../context/AuthContext';
 import { GradePill } from './GradePill';
 import { useToast } from './Toast';
@@ -353,6 +353,18 @@ export const DentalChart = () => {
     const m = on.getMonth() - birth.getMonth();
     if (m < 0 || (m === 0 && on.getDate() < birth.getDate())) age--;
     return age;
+  };
+
+  // Same anchor as computeAge, but to the month — Nutritional Status is
+  // classified by exact age in months against the DOH/DepEd BMI-for-Age
+  // table, not the rounded-down year computeAge gives.
+  const computeAgeMonths = (birthday: string, on: Date) => {
+    if (!birthday) return null;
+    const birth = new Date(birthday);
+    if (Number.isNaN(birth.getTime())) return null;
+    let months = (on.getFullYear() - birth.getFullYear()) * 12 + (on.getMonth() - birth.getMonth());
+    if (on.getDate() < birth.getDate()) months--;
+    return Math.max(0, months);
   };
 
   /** June 1 of a "YYYY-YYYY" school year. */
@@ -809,6 +821,7 @@ export const DentalChart = () => {
     ?? schoolYearAnchor(years[selectedYear]?.iptr.school_year)
     ?? new Date();
   const patientAge = computeAge(student.birthday, ageAnchor);
+  const patientAgeMonths = computeAgeMonths(student.birthday, ageAnchor);
 
   // Grade and section AS OF THE SELECTED SCHOOL YEAR (Sprint 57a). These used
   // to read `student.grade_level`, which is a single current value — so opening
@@ -1315,25 +1328,37 @@ export const DentalChart = () => {
                     onChange={(e) => setDraftMeasure((p) => ({ ...p, weight_kg: e.target.value }))}
                     placeholder="—" className="w-full text-xs border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
                 </div>
-                <div className="flex gap-2">
-                  <div className="w-20 flex-shrink-0">
-                    <label className="block text-xs text-muted-foreground mb-1">BMI</label>
-                    <div className="w-full text-xs border border-border rounded px-2 py-1 bg-muted text-muted-foreground" title={BMI_NOTE}>
-                      {computeBmi(Number(draftMeasure.height_cm) || null, Number(draftMeasure.weight_kg) || null) ?? 'Auto'}
+                {(() => {
+                  const bmiValue = computeBmi(Number(draftMeasure.height_cm) || null, Number(draftMeasure.weight_kg) || null);
+                  // Classified against the DOH/DepEd BMI-for-Age table by
+                  // the student's exact age (in months) as of this year's
+                  // measurement anchor — same reasoning as patientAge
+                  // itself (Sprint 57b): not today's age, the age AT the
+                  // measurement.
+                  const status = classifyNutritionalStatus(bmiValue, patientAgeMonths, student.sex);
+                  const statusColor =
+                    status === 'Normal' ? 'bg-success-surface text-success'
+                    : status === 'Overweight' || status === 'Obese' ? 'bg-warning-surface text-warning'
+                    : status === 'Wasted' || status === 'Severely Wasted' ? 'bg-danger-surface text-destructive'
+                    : 'bg-muted text-muted-foreground';
+                  return (
+                    <div className="flex gap-2">
+                      <div className="w-20 flex-shrink-0">
+                        <label className="block text-xs text-muted-foreground mb-1">BMI</label>
+                        <div className="w-full text-xs border border-border rounded px-2 py-1 bg-muted text-muted-foreground" title={BMI_NOTE}>
+                          {bmiValue ?? 'Auto'}
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-xs text-muted-foreground mb-1">Nutritional Status</label>
+                        <div className={`w-full text-xs border border-border rounded px-2 py-1 font-medium ${statusColor}`}
+                          title="DOH/DepEd BMI-for-Age classification, 6–19 years old — blank outside that range.">
+                          {status ?? '—'}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  {/* No category yet, on purpose — see BMI_NOTE: the adult
-                      18.5/25/30 cutoffs are clinically wrong for children,
-                      and a real one needs a WHO/DOH BMI-for-age table this
-                      app doesn't have. Rendering empty rather than a
-                      guessed label. */}
-                  <div className="flex-1">
-                    <label className="block text-xs text-muted-foreground mb-1">Nutritional Status</label>
-                    <div className="w-full text-xs border border-border rounded px-2 py-1 bg-muted text-muted-foreground" title={BMI_NOTE}>
-                      —
-                    </div>
-                  </div>
-                </div>
+                  );
+                })()}
               </div>
             </div>
 
