@@ -2,6 +2,12 @@
 
 **Compressed 2026-07-11 (hygiene pass).** Completed-sprint history → `docs/BUILD-LOG.md`; full pre-compression narratives → git history (`git show 73bc4e47:HANDOFF.md`). This file keeps only live state: current status, open work, warnings, and durable gotchas.
 
+## Step strip: card/border removed, centered, label added back under each circle (2026-09-04)
+- **No more `bg-card`/`rounded-xl`/`border`/`p-4` wrapper** around the checkmark strip — it's now plain content (`flex items-center justify-center`, `py-2` for breathing room only) that sits directly on the page background above the flat-tab-strip card, centered rather than stretched edge-to-edge.
+- **Label restored under every circle**, right after last round removed it — active tab's label is bold blue, the rest muted gray (an echo of the flat strip below, not new state; the circles themselves stay uniformly filled/checked per last round's decision, not tied to active/passed).
+- Columns went back to content-width (`flex-shrink-0` + fixed `w-10` connecting-line segments) since centering a `flex-1`-stretched row doesn't make sense — the row now hugs its own content and centers as a block.
+- Verified against the real post-build compiled CSS in Playwright. `npx tsc --noEmit` clean, `npm run build` clean. Frontend-only.
+
 ## Step strip: exact match to a reference screenshot — uniform checkmarks, no progress logic (2026-09-04)
 - **User's final word on this, after several rounds of iteration ("this is my last try... please do exactly as that"):** the top card is now a purely decorative row — every circle filled navy (`bg-blue-900`) with a `Check` icon, every connecting line blue, regardless of which tab is active. The earlier "passed" index comparison (`idx <= activeIdx`, added two rounds ago at explicit request) is gone — this reference shows ALL circles checked even though the first tab is the active one, so progress-tracking semantics are no longer part of this design at all. Only the flat text strip below (unchanged) shows which tab is active.
 - Labels removed from the top card again (no text under the circles in the reference) — back to a pure icon-strip + separate label-strip split.
