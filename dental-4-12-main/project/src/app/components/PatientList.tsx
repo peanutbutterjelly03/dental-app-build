@@ -215,6 +215,9 @@ export const PatientList = () => {
   // DIFFERENT existing student, but stays quiet for the one already handled.
   const [acknowledgedDuplicateId, setAcknowledgedDuplicateId] = useState<string | null>(null);
   const [showConfirmDifferentStudent, setShowConfirmDifferentStudent] = useState(false);
+  // Typing a section name that doesn't exist yet for this grade — switches
+  // Section from a real <select> dropdown to a free-text field.
+  const [customSection, setCustomSection] = useState(false);
   // Non-null while the server has answered "this child may already be on file"
   // and the person encoding has to decide (Sprint 47).
   const [duplicateWarning, setDuplicateWarning] = useState<DuplicateCandidate[] | null>(null);
@@ -475,6 +478,7 @@ export const PatientList = () => {
       setNewPatient((p) => ({ ...p, school: selectedSchool ?? '' }));
       setMissingFields(new Set());
       setAcknowledgedDuplicateId(null);
+      setCustomSection(false);
     }
   }, [showAddForm, selectedSchool]);
 
@@ -504,6 +508,7 @@ export const PatientList = () => {
     setMissingFields(new Set());
     setAddPatientError(null);
     setAcknowledgedDuplicateId(null);
+    setCustomSection(false);
     setOcrConfidences({});
     setOcrFindings([]);
     setOcrFindingsNote(null);
@@ -1245,9 +1250,17 @@ export const PatientList = () => {
         </Modal>
       )}
 
-      {/* Add Student Modal */}
+      {/* Add Student Modal. maxWidth is max-w-4xl, not max-w-2xl — the
+          request was "50-60% of the screen on web/tablet, so there's less
+          to scroll." A raw viewport percentage (e.g. 55vw) does that on a
+          laptop but backfires on an iPad-width tablet, where 55vw is
+          narrower than the 2-column layout needs; a bigger FIXED cap
+          already behaves the same way as a percentage on anything narrower
+          than the cap (fills available width, same as before) while
+          landing in roughly that 50-60% range on the common 1440-1920px
+          desktop range specifically. */}
       {showAddForm && (
-        <Modal onClose={closeAddForm} maxWidth="max-w-2xl" closeDisabled>
+        <Modal onClose={closeAddForm} maxWidth="max-w-4xl" closeDisabled>
             <div className="flex items-start justify-between gap-3 p-6 border-b">
               <div>
                 <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-primary mb-1">
@@ -1365,30 +1378,42 @@ export const PatientList = () => {
                     that isn't on the paper. */}
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Grade{req('grade')}</label>
-                  <select value={newPatient.grade} onChange={e => updateField('grade', e.target.value)} className={plainFieldClass}>
+                  <select value={newPatient.grade} onChange={e => { updateField('grade', e.target.value); setCustomSection(false); }} className={plainFieldClass}>
                     <option value="">Select Grade</option>{GRADES.map(g => <option key={g}>{g}</option>)}
                   </select>
                   {fieldError('grade')}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Section{req('section')}</label>
-                  {/* A single dropdown-with-typing control (native <input
-                      list>), not two separate modes to switch between:
-                      section names come from the roster rather than a fixed
-                      list, so picking an existing one OR typing a genuinely
-                      new one (the first student in it, or a grade with none
-                      yet) both just work here. */}
-                  <input
-                    type="text"
-                    list="add-student-section-options"
-                    value={newPatient.section}
-                    onChange={e => updateField('section', e.target.value)}
-                    placeholder="Select or type a section"
-                    className={plainFieldClass}
-                  />
-                  <datalist id="add-student-section-options">
-                    {sectionOptionsForGrade.map(s => <option key={s} value={s} />)}
-                  </datalist>
+                  {/* A real <select>, same as Grade — section names come from
+                      the roster rather than a fixed list, so "+ Add new
+                      section…" swaps to a text field for the first student
+                      in a section (or a grade with none yet). */}
+                  {customSection || sectionOptionsForGrade.length === 0 ? (
+                    <input
+                      type="text"
+                      value={newPatient.section}
+                      onChange={e => updateField('section', e.target.value)}
+                      placeholder="e.g. Sampaguita"
+                      className={plainFieldClass}
+                    />
+                  ) : (
+                    <select
+                      value={newPatient.section}
+                      onChange={e => {
+                        if (e.target.value === '__new__') { setCustomSection(true); updateField('section', ''); }
+                        else updateField('section', e.target.value);
+                      }}
+                      className={plainFieldClass}
+                    >
+                      <option value="">Select Section</option>
+                      {sectionOptionsForGrade.map(s => <option key={s} value={s}>{s}</option>)}
+                      <option value="__new__">+ Add new section…</option>
+                    </select>
+                  )}
+                  {customSection && sectionOptionsForGrade.length > 0 && (
+                    <button type="button" onClick={() => { setCustomSection(false); updateField('section', ''); }} className="mt-1 text-xs text-primary hover:underline">← Choose an existing section</button>
+                  )}
                   {fieldError('section')}
                 </div>
               </div>
