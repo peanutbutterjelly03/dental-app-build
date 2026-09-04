@@ -215,9 +215,11 @@ export const PatientList = () => {
   // DIFFERENT existing student, but stays quiet for the one already handled.
   const [acknowledgedDuplicateId, setAcknowledgedDuplicateId] = useState<string | null>(null);
   const [showConfirmDifferentStudent, setShowConfirmDifferentStudent] = useState(false);
-  // Typing a section name that doesn't exist yet for this grade — switches
-  // Section from a real <select> dropdown to a free-text field.
-  const [customSection, setCustomSection] = useState(false);
+  // Whether Section's suggestion list is showing — a combobox (type to
+  // filter, click to pick, or just keep typing to add a new one), not a
+  // plain <select>, since section names come from the roster rather than a
+  // fixed list.
+  const [sectionMenuOpen, setSectionMenuOpen] = useState(false);
   // Non-null while the server has answered "this child may already be on file"
   // and the person encoding has to decide (Sprint 47).
   const [duplicateWarning, setDuplicateWarning] = useState<DuplicateCandidate[] | null>(null);
@@ -478,7 +480,7 @@ export const PatientList = () => {
       setNewPatient((p) => ({ ...p, school: selectedSchool ?? '' }));
       setMissingFields(new Set());
       setAcknowledgedDuplicateId(null);
-      setCustomSection(false);
+      setSectionMenuOpen(false);
     }
   }, [showAddForm, selectedSchool]);
 
@@ -508,7 +510,7 @@ export const PatientList = () => {
     setMissingFields(new Set());
     setAddPatientError(null);
     setAcknowledgedDuplicateId(null);
-    setCustomSection(false);
+    setSectionMenuOpen(false);
     setOcrConfidences({});
     setOcrFindings([]);
     setOcrFindingsNote(null);
@@ -712,6 +714,14 @@ export const PatientList = () => {
       schoolStudents.filter(s => s.grade === newPatient.grade && s.section).map(s => s.section)
     )].sort();
   }, [schoolStudents, newPatient.grade]);
+
+  // What the Section combobox's suggestion list actually shows — narrowed
+  // by whatever's typed so far, or the full list when the box is empty.
+  const filteredSectionOptions = useMemo(() => {
+    const q = newPatient.section.trim().toLowerCase();
+    if (!q) return sectionOptionsForGrade;
+    return sectionOptionsForGrade.filter((s) => s.toLowerCase().includes(q));
+  }, [sectionOptionsForGrade, newPatient.section]);
 
   // Live, client-side duplicate check for the Add Student form — distinct
   // from both findDuplicateStudents (the server's create-time 409 check,
@@ -1378,41 +1388,55 @@ export const PatientList = () => {
                     that isn't on the paper. */}
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Grade{req('grade')}</label>
-                  <select value={newPatient.grade} onChange={e => { updateField('grade', e.target.value); setCustomSection(false); }} className={plainFieldClass}>
+                  <select value={newPatient.grade} onChange={e => updateField('grade', e.target.value)} className={plainFieldClass}>
                     <option value="">Select Grade</option>{GRADES.map(g => <option key={g}>{g}</option>)}
                   </select>
                   {fieldError('grade')}
                 </div>
-                <div>
+                <div className="relative">
                   <label className="block text-sm font-medium text-foreground mb-1">Section{req('section')}</label>
-                  {/* A real <select>, same as Grade — section names come from
-                      the roster rather than a fixed list, so "+ Add new
-                      section…" swaps to a text field for the first student
-                      in a section (or a grade with none yet). */}
-                  {customSection || sectionOptionsForGrade.length === 0 ? (
-                    <input
-                      type="text"
-                      value={newPatient.section}
-                      onChange={e => updateField('section', e.target.value)}
-                      placeholder="e.g. Sampaguita"
-                      className={plainFieldClass}
-                    />
-                  ) : (
-                    <select
-                      value={newPatient.section}
-                      onChange={e => {
-                        if (e.target.value === '__new__') { setCustomSection(true); updateField('section', ''); }
-                        else updateField('section', e.target.value);
-                      }}
-                      className={plainFieldClass}
-                    >
-                      <option value="">Select Section</option>
-                      {sectionOptionsForGrade.map(s => <option key={s} value={s}>{s}</option>)}
-                      <option value="__new__">+ Add new section…</option>
-                    </select>
-                  )}
-                  {customSection && sectionOptionsForGrade.length > 0 && (
-                    <button type="button" onClick={() => { setCustomSection(false); updateField('section', ''); }} className="mt-1 text-xs text-primary hover:underline">← Choose an existing section</button>
+                  {/* Combobox, not a plain <select> — section names come from
+                      the roster rather than a fixed list, so typing filters
+                      the suggestions AND, if nothing matches, just becomes
+                      the new section name. onMouseDown (not onClick) on the
+                      suggestion buttons fires before the input's onBlur, so
+                      a click actually registers instead of the list closing
+                      first. */}
+                  <input
+                    type="text"
+                    value={newPatient.section}
+                    onChange={e => { updateField('section', e.target.value); setSectionMenuOpen(true); }}
+                    onFocus={() => setSectionMenuOpen(true)}
+                    onBlur={() => setSectionMenuOpen(false)}
+                    placeholder="Search or add a section"
+                    autoComplete="off"
+                    className={plainFieldClass}
+                  />
+                  {sectionMenuOpen && (
+                    <div className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto rounded-lg border border-border bg-card shadow-md">
+                      {filteredSectionOptions.map(s => (
+                        <button
+                          key={s}
+                          type="button"
+                          onMouseDown={() => { updateField('section', s); setSectionMenuOpen(false); }}
+                          className="block w-full text-left px-3 py-2 text-sm text-foreground hover:bg-canvas"
+                        >
+                          {s}
+                        </button>
+                      ))}
+                      {newPatient.section.trim() && !sectionOptionsForGrade.some(s => s.toLowerCase() === newPatient.section.trim().toLowerCase()) && (
+                        <button
+                          type="button"
+                          onMouseDown={() => setSectionMenuOpen(false)}
+                          className={`block w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary-surface ${filteredSectionOptions.length > 0 ? 'border-t border-border' : ''}`}
+                        >
+                          + Add "{newPatient.section.trim()}" as new section
+                        </button>
+                      )}
+                      {filteredSectionOptions.length === 0 && !newPatient.section.trim() && (
+                        <p className="px-3 py-2 text-xs text-muted-foreground">Type to search or add a section</p>
+                      )}
+                    </div>
                   )}
                   {fieldError('section')}
                 </div>

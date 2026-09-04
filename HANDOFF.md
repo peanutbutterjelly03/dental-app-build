@@ -2,6 +2,11 @@
 
 **Compressed 2026-07-11 (hygiene pass).** Completed-sprint history → `docs/BUILD-LOG.md`; full pre-compression narratives → git history (`git show 73bc4e47:HANDOFF.md`). This file keeps only live state: current status, open work, warnings, and durable gotchas.
 
+## Section, fourth attempt — now a real combobox (2026-09-04)
+The `<select>` + toggle from the round before satisfied "must look like a dropdown" but not "type to search" — a `<select>` doesn't filter as you type. Replaced with a small hand-built combobox: the input IS the value (typing directly sets `newPatient.section`), a suggestion panel opens on focus and filters live against `sectionOptionsForGrade` as you type, clicking a suggestion fills it in, and if nothing matches, a "+ Add "X" as new section" row confirms the typed value is being treated as a genuinely new section (functionally it was already going to be used as typed — that row is discoverability, not a separate code path). `customSection` state replaced with `sectionMenuOpen`.
+
+The one real gotcha: suggestion buttons use `onMouseDown`, not `onClick` — the input's `onBlur` (which closes the menu) fires as soon as focus leaves it, which happens on mousedown, BEFORE a click event would ever reach the button. `onClick` there would have made every suggestion silently unclickable (the menu closes itself out from under the click). Verified against a standalone repro of the same event wiring (not the live app) that a suggestion click actually registers before blur closes the list.
+
 ## Section reverted (again) to a real <select>; Add Student widened (2026-09-04)
 Third attempt at Section: the `<input list>` + `<datalist>` from two rounds ago is functionally a dropdown-with-typing, but renders as a plain text box with no visible chevron — nothing about it READS as a dropdown, which is presumably why the user kept asking for one after it already shipped. Reverted to the real `<select>` + "+ Add new section…" → free-text toggle from the round before that (matches Grade's own look exactly now); `customSection` state is back.
 
