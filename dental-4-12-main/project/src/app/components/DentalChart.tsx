@@ -177,10 +177,10 @@ export const DentalChart = () => {
   const allTabs: { key: TabKey; label: string }[] = [
     { key: 'history', label: 'History' },
     { key: 'chart', label: 'Dental Chart' },
+    { key: 'ai', label: 'Caries Risk Assessment' },
     { key: 'treatments', label: 'Treatment History' },
     { key: 'records', label: 'DMFT History' },
     { key: 'referrals', label: 'Referrals' },
-    { key: 'ai', label: 'Risk Classification' },
   ];
   const visibleTabs = (
     iptrContext === 'dental-queue'
@@ -214,6 +214,7 @@ export const DentalChart = () => {
   // covers the request itself.
   const [confirmOpenEdit, setConfirmOpenEdit] = useState(false);
   const [confirmSaveInfo, setConfirmSaveInfo] = useState(false);
+  const [confirmEditChart, setConfirmEditChart] = useState(false);
   // Collapses the Patient Info Card down to just name + grade/section pills
   // — the birthday/contact/address grid is useful but not something every
   // screen visit needs looking at.
@@ -1168,59 +1169,26 @@ export const DentalChart = () => {
         </Modal>
       )}
 
-      {/* Tabs — a plain (no card/border) centered horizontal stepper above
-          the actual flat text tab strip card. Three real states, not just
-          "passed": completed (checkmark, filled), current (filled + a ring
-          glow so it reads at a glance), upcoming (outlined, numbered). The
-          flat strip below still owns click-to-switch; the stepper is a
-          visual echo of the same active tab. */}
-      <div className="sticky z-30 bg-gray-50 space-y-2" style={{ top: stickyOffsets.tabsTop }}>
-        <div className="flex items-center justify-center overflow-x-auto py-3">
-          <div className="flex items-center min-w-max">
-          {visibleTabs.map((tab, idx) => {
-            const activeIdx = visibleTabs.findIndex((t) => t.key === activeTab);
-            const completed = idx < activeIdx;
-            const current = idx === activeIdx;
-            return (
-              <div key={tab.key} className="flex items-center flex-shrink-0">
-                <button type="button" onClick={() => setActiveTab(tab.key as TabKey)}
-                  className="flex flex-col items-center gap-1.5 px-4 flex-shrink-0">
-                  <span className={`rounded-full flex items-center justify-center flex-shrink-0 text-sm font-semibold transition-all ${
-                    completed ? 'w-9 h-9 bg-blue-700 text-white'
-                    : current ? 'w-10 h-10 bg-blue-700 text-white shadow-sm ring-4 ring-blue-100'
-                    : 'w-9 h-9 bg-white border-2 border-border text-muted-foreground hover:bg-gray-50'
-                  }`}>
-                    {completed ? <Check className="w-4 h-4" strokeWidth={3} /> : idx + 1}
-                  </span>
-                  <span className={`text-sm whitespace-nowrap ${current ? 'font-semibold text-blue-700' : completed ? 'font-medium text-blue-700' : 'font-medium text-muted-foreground'}`}>{tab.label}</span>
-                </button>
-                {idx < visibleTabs.length - 1 && (
-                  <div className={`w-12 h-0.5 flex-shrink-0 ${idx < activeIdx ? 'bg-blue-700' : 'bg-border'}`} />
-                )}
-              </div>
-            );
-          })}
-          </div>
-        </div>
+      {/* Tabs — just the flat tab strip, nothing above it. Tabs are
+          equal-width (flex-1) so they fill the row right up to the edit
+          button instead of leaving dead space before it. */}
+      <div className="sticky z-30 bg-gray-50" style={{ top: stickyOffsets.tabsTop }}>
         <div className="bg-card rounded-xl border border-border">
           <div ref={tabsRowRef} className="rounded-t-xl border-b border-border bg-card">
             <div className="flex items-center">
-              <div className="min-w-0 flex-1 overflow-x-auto">
-              <div className="flex min-w-max">
+              <div className="flex flex-1 min-w-0">
               {visibleTabs.map((tab) => (
                 <button key={tab.key} onClick={() => setActiveTab(tab.key as TabKey)}
-                  className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition-colors ${activeTab === tab.key ? 'border-b-2 border-blue-700 text-blue-700 bg-blue-50' : 'text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
+                  className={`flex-1 px-2 py-3 text-sm font-medium text-center transition-colors ${activeTab === tab.key ? 'border-b-2 border-blue-700 text-blue-700 bg-blue-50' : 'text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
                   {tab.label}
                 </button>
               ))}
               </div>
-              </div>
               {canEditHistory && currentYearData && (editMode || activeTab === 'history' || (canEdit && activeTab === 'chart')) && (
                 <div className="flex shrink-0 items-center gap-2 px-3">
                   {!editMode ? (
-                    <button onClick={() => setEditMode(true)} className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted">
-                      <Pencil className="w-3 h-3" />
-                      {canEdit ? 'Edit Chart' : 'Edit History & Oral'}
+                    <button onClick={() => setConfirmEditChart(true)} title={canEdit ? 'Edit Chart' : 'Edit History & Oral'} aria-label={canEdit ? 'Edit Chart' : 'Edit History & Oral'} className="flex items-center justify-center w-8 h-8 rounded-lg border border-border text-foreground transition-colors hover:bg-muted">
+                      <Pencil className="w-3.5 h-3.5" />
                     </button>
                   ) : (
                     <>
@@ -1237,17 +1205,6 @@ export const DentalChart = () => {
               )}
             </div>
             {saveError && <p className="px-4 pb-2 text-xs text-destructive">{saveError}</p>}
-            <div className="flex justify-end px-3 pb-2">
-              <button type="button"
-                onClick={() => {
-                  const idx = visibleTabs.findIndex((t) => t.key === activeTab);
-                  if (idx >= 0 && idx < visibleTabs.length - 1) setActiveTab(visibleTabs[idx + 1].key as TabKey);
-                }}
-                disabled={visibleTabs.findIndex((t) => t.key === activeTab) >= visibleTabs.length - 1}
-                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-border text-foreground hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
-                Next <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
           </div>
           {showStickyYearBar && years.length > 0 && (
             <div className="border-t border-gray-100 bg-card px-4 pt-3 flex items-center gap-2">
@@ -1562,7 +1519,7 @@ export const DentalChart = () => {
             <div className="p-4 space-y-4">
             <div className={`bg-blue-50 rounded-xl p-4 ${!editingChart ? 'opacity-50 pointer-events-none select-none' : ''}`}>
               {!canEdit && <p className="text-xs text-muted-foreground mb-2 italic">View only — editing restricted to Dentist</p>}
-              {canEdit && !editMode && <p className="text-xs text-muted-foreground mb-2 italic">View mode — click "Edit Chart" to record conditions/treatments</p>}
+              {canEdit && !editMode && <p className="text-xs text-muted-foreground mb-2 italic">View mode — click the pencil icon above to record conditions/treatments</p>}
               <div className={`grid grid-cols-1 ${iptrContext === 'default' ? 'lg:grid-cols-2' : ''} gap-4`}>
                 {iptrContext !== 'treatment' && (
                 // Symmetric padding with the treatment column so the two grids
@@ -1917,6 +1874,14 @@ export const DentalChart = () => {
         confirmLabel="Proceed"
         onConfirm={() => { openEditInfo(); setConfirmOpenEdit(false); }}
         onCancel={() => setConfirmOpenEdit(false)}
+      />
+      <ConfirmDialog
+        open={confirmEditChart}
+        title={canEdit ? 'Edit Chart?' : 'Edit History & Oral?'}
+        message="You're about to enter edit mode for this section."
+        confirmLabel="Proceed"
+        onConfirm={() => { setEditMode(true); setConfirmEditChart(false); }}
+        onCancel={() => setConfirmEditChart(false)}
       />
       <ConfirmDialog
         open={confirmSaveInfo}
