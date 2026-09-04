@@ -293,7 +293,7 @@ export const Root = () => {
             color: stripSchool.solid,
             borderColor: stripSchool.border,
           }}
-          className="inline-flex items-center rounded-full border px-2 py-[2px] text-[10px] font-semibold leading-none truncate max-w-[45vw]"
+          className="inline-flex items-center rounded-full border px-2.5 py-[3px] text-[13px] font-semibold leading-none truncate max-w-[45vw]"
         >
           {selectedSchool ? getSchoolShortName(selectedSchool) : 'All Schools'}
         </span>

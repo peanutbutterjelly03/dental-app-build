@@ -125,9 +125,9 @@ export const SyncStatus = () => {
         aria-label={label}
         title={label}
         aria-expanded={open}
-        className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-[2px] text-[10px] font-semibold leading-none transition-colors ${ring}`}
+        className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-[3px] text-[13px] font-semibold leading-none transition-colors ${ring}`}
       >
-        <span className="w-1 h-1 rounded-full bg-current" aria-hidden="true" />
+        <span className="w-[5px] h-[5px] rounded-full bg-current" aria-hidden="true" />
         {isOnline ? 'Online' : 'Offline'}
       </button>
 

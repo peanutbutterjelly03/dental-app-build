@@ -2,6 +2,11 @@
 
 **Compressed 2026-07-11 (hygiene pass).** Completed-sprint history → `docs/BUILD-LOG.md`; full pre-compression narratives → git history (`git show 73bc4e47:HANDOFF.md`). This file keeps only live state: current status, open work, warnings, and durable gotchas.
 
+## Status strip doubled, pills +30% (2026-09-04)
+- `TOPBAR_H` 32 → **64px** (doubled). Everything that offsets off it — the Root wrapper padding, the mobile header's sticky `top`, `DentalChart`'s sticky toolbar and its measured `tabsTop`/`yearTop` — follows from the one constant, so nothing else needed touching.
+- Both pills scaled ~30%: `text-[10px]` → `text-[13px]`, dot `w-1 h-1` → `w-[5px] h-[5px]`, padding `px-1.5/px-2 py-[2px]` → `px-2/px-2.5 py-[3px]`. Measured in Playwright against the built CSS: strip 64px, both pills 21px tall at 13px type.
+- `npx tsc --noEmit` clean, `npm run build` clean; `text-[13px]`, `w-[5px]`, `h-[5px]`, `py-[3px]`, `px-2.5` all confirmed in the built CSS.
+
 ## Floating sync icon deleted; strip pills; actions to top-right; tabs one line (2026-09-04)
 - **The floating round SyncStatus icon is GONE, not suppressed.** Last round it hid itself inside the shell but still rendered on Login/school picker; the user asked for the icon removed, so the `variant` prop, the `floating` branch, the `App.tsx` mount and the per-tone lucide glyphs (`WifiOff`/`RefreshCw`/`AlertTriangle`/`Cloud`) are all deleted. `SyncStatus` is now inline-only — one shape, one popover, mounted once by Root's strip. **Known consequence, accepted:** Login and the school picker no longer show connection state, so an offline sign-in failure explains itself only through the login error. Reinstate a Login-local indicator if that ever bites.
 - **Strip retuned**: `TOPBAR_H` 28 → **32px**; both chips are now `text-[10px]` pills at `px-1.5/px-2 py-[2px]` with a 4px dot; the `w-px` divider is gone (two rings already separate them); strip type scale dropped since each pill carries its own.
