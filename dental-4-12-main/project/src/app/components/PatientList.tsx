@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Eye, FileText, X, School as SchoolIcon, List, ChevronLeft, ChevronRight, Users, Upload, CheckCircle, AlertCircle, ScanLine, GraduationCap, MoreVertical, ListChecks, Trash2, Copy } from 'lucide-react';
+import { Plus, Eye, FileText, X, School as SchoolIcon, List, ChevronLeft, ChevronRight, Users, Upload, CheckCircle, AlertCircle, ScanLine, GraduationCap, MoreVertical, ListChecks, Archive as ArchiveIcon, Copy, Cloud } from 'lucide-react';
 import { ConfirmDialog } from './ConfirmDialog';
 import { formatDate } from '../utils/localDate';
 import { OCR_CONFIDENCE_THRESHOLD, type IptrOcrFieldKey, type IptrCheckboxFinding } from '../utils/iptrOcrShared';
@@ -18,7 +18,6 @@ import { useStudents } from '../hooks/useStudents';
 import { usePagination, PAGE_SIZE_OPTIONS } from './Pagination';
 import { apiClient, ApiError } from '../api/client';
 import type { ApiSchool } from '../api/types';
-import { useSchools } from '../hooks/useSchools';
 import { schoolYearLabel } from '../utils/schoolYear';
 import { Notice } from './Notice';
 
@@ -156,7 +155,6 @@ const REQUIRED_STUDENT_FIELDS: {
   { key: 'firstName', label: 'First Name' },
   { key: 'birthdate', label: 'Birthdate' },
   { key: 'gender', label: 'Gender' },
-  { key: 'school', label: 'School' },
   { key: 'grade', label: 'Grade' },
   { key: 'section', label: 'Section' },
   { key: 'address', label: 'Address' },
@@ -440,12 +438,17 @@ export const PatientList = () => {
   };
 
   const { students: allStudents, loading: studentsLoading, reload: reloadStudents } = useStudents();
-  // School list comes from the DB now, not a hardcoded array (Sprint 60).
-  const { schoolNames } = useSchools();
 
   useEffect(() => {
     apiClient.get<ApiSchool[]>('/schools').then(setSchools).catch(() => {});
   }, []);
+
+  // The Add Student form no longer has its own School field — it always adds
+  // to whichever school is currently in view, set the moment the form opens
+  // rather than left for the encoder to pick (and possibly get wrong).
+  useEffect(() => {
+    if (showAddForm) setNewPatient((p) => ({ ...p, school: selectedSchool ?? '' }));
+  }, [showAddForm, selectedSchool]);
 
   // confirmDuplicate is the answer to a previous 409: the encoder has looked at
   // the matches and says this really is a different child. Re-reads `newPatient`
@@ -613,6 +616,14 @@ export const PatientList = () => {
   const schoolStudents = selectedSchool
     ? allStudents.filter(s => s.school === selectedSchool)
     : allStudents;
+
+  // Same signal UpdateSchoolYear.tsx already computes for its own roster
+  // (unassignedCount/stillAssignedCount): once "Start New School Year" clears
+  // everyone's grade/section, they stay unassigned until Promote/Assign or
+  // Bulk Transfer re-settles them into the new year. So "does anyone still
+  // need a grade/section" doubles as "has this year's rollover been finished
+  // yet" — no separate open/closed flag needed anywhere in the data model.
+  const schoolYearNeedsUpdate = schoolStudents.some(s => !s.pending && (!s.grade || !s.section));
 
   // School view computed data
   const schoolData = [selectedSchool].filter(Boolean).map(school => {
@@ -786,9 +797,16 @@ export const PatientList = () => {
           {/* Annual rollover — was "Promote / Assign" (a modal, one grade
               at a time). Now a full page: school-wide clear + reassign +
               archive, see UpdateSchoolYear.tsx. */}
-          <button onClick={() => navigate('/students/update-school-year')}
-            className="flex items-center gap-2 px-4 py-2 border border-border text-foreground rounded-full hover:bg-canvas text-sm font-medium">
-            <GraduationCap className="w-4 h-4" /> Update S.Y.
+          <button
+            onClick={() => navigate('/students/update-school-year')}
+            title="Update School Year Information"
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
+              schoolYearNeedsUpdate
+                ? 'border-border text-muted-foreground bg-canvas hover:bg-muted'
+                : 'border-success/20 text-success bg-success-surface hover:bg-success-surface/70'
+            }`}
+          >
+            <Cloud className="w-4 h-4" /> Update S.Y.
           </button>
           <button onClick={() => { setOcrError(null); setShowOcrUpload(true); }} className="flex items-center gap-2 px-4 py-2 border border-primary text-primary rounded-full hover:bg-primary-surface text-sm font-medium">
             <Upload className="w-4 h-4" /> OCR
@@ -840,7 +858,7 @@ export const PatientList = () => {
                   aria-label={`Archive ${tickedIds.size} selected`}
                   className="p-2 rounded-full border border-destructive text-destructive hover:bg-danger-surface"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <ArchiveIcon className="w-4 h-4" />
                 </button>
               )}
               {selectMode ? (
@@ -1072,7 +1090,7 @@ export const PatientList = () => {
                               title="Archive"
                               className="p-2 rounded-full border border-destructive text-destructive hover:bg-danger-surface"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <ArchiveIcon className="w-4 h-4" />
                             </button>
                           </div>
                         </div>
@@ -1125,9 +1143,25 @@ export const PatientList = () => {
       {/* Add Student Modal */}
       {showAddForm && (
         <Modal onClose={() => { setShowAddForm(false); setOcrConfidences({}); setOcrFindings([]); setOcrFindingsNote(null); }} maxWidth="max-w-lg" closeDisabled={addingPatient}>
-            <div className="flex items-center justify-between p-6 border-b">
-              <h2 className="text-lg font-bold text-foreground">Add New Student</h2>
-              <button onClick={() => { setShowAddForm(false); setOcrConfidences({}); setOcrFindings([]); setOcrFindingsNote(null); }} className="text-muted-foreground hover:text-muted-foreground"><X className="w-5 h-5" /></button>
+            <div className="flex items-start justify-between gap-3 p-6 border-b">
+              <div>
+                <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-primary mb-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary" /> Student Intake
+                </div>
+                <h2 className="text-lg font-bold text-foreground">Add New Student</h2>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {/* Stands in for the removed School field — the form always
+                    adds to whichever school is in view (see the effect that
+                    syncs newPatient.school on open), so this is what confirms
+                    that rather than a control to change it. */}
+                {selectedSchool && (
+                  <span className="inline-flex items-center rounded-full bg-primary-surface px-3 py-1 text-[11px] font-semibold text-primary whitespace-nowrap max-w-[140px] truncate">
+                    {getSchoolShortName(selectedSchool)}
+                  </span>
+                )}
+                <button onClick={() => { setShowAddForm(false); setOcrConfidences({}); setOcrFindings([]); setOcrFindingsNote(null); }} className="text-muted-foreground hover:text-muted-foreground"><X className="w-5 h-5" /></button>
+              </div>
             </div>
             <div className="p-6 space-y-4">
               {Object.keys(ocrConfidences).length > 0 && (
@@ -1164,15 +1198,36 @@ export const PatientList = () => {
                 <p className="text-xs text-muted-foreground">{ocrFindingsNote}</p>
               )}
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium text-foreground mb-1">Last Name{req('lastName')} {ocrHint('lastName')}</label><input type="text" value={newPatient.lastName} onChange={e => setNewPatient({...newPatient, lastName: e.target.value})} className={ocrFieldClass('lastName')} /></div>
-                <div><label className="block text-sm font-medium text-foreground mb-1">First Name{req('firstName')} {ocrHint('firstName')}</label><input type="text" value={newPatient.firstName} onChange={e => setNewPatient({...newPatient, firstName: e.target.value})} className={ocrFieldClass('firstName')} /></div>
+                <div><label className="block text-sm font-medium text-foreground mb-1">Last Name{req('lastName')} {ocrHint('lastName')}</label><input type="text" value={newPatient.lastName} onChange={e => setNewPatient({...newPatient, lastName: e.target.value.toUpperCase()})} className={ocrFieldClass('lastName')} /></div>
+                <div><label className="block text-sm font-medium text-foreground mb-1">First Name{req('firstName')} {ocrHint('firstName')}</label><input type="text" value={newPatient.firstName} onChange={e => setNewPatient({...newPatient, firstName: e.target.value.toUpperCase()})} className={ocrFieldClass('firstName')} /></div>
               </div>
-              <div><label className="block text-sm font-medium text-foreground mb-1">Middle Name {ocrHint('middleName')}</label><input type="text" value={newPatient.middleName} onChange={e => setNewPatient({...newPatient, middleName: e.target.value})} className={ocrFieldClass('middleName')} /></div>
+              <div><label className="block text-sm font-medium text-foreground mb-1">Middle Name {ocrHint('middleName')}</label><input type="text" value={newPatient.middleName} onChange={e => setNewPatient({...newPatient, middleName: e.target.value.toUpperCase()})} className={ocrFieldClass('middleName')} /></div>
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="block text-sm font-medium text-foreground mb-1">Birthdate{req('birthdate')} {ocrHint('birthdate')}</label><input type="date" value={newPatient.birthdate} onChange={e => setNewPatient({...newPatient, birthdate: e.target.value})} className={ocrFieldClass('birthdate')} /></div>
-                <div><label className="block text-sm font-medium text-foreground mb-1">Gender{req('gender')} {ocrHint('gender')}</label><select value={newPatient.gender} onChange={e => setNewPatient({...newPatient, gender: e.target.value})} className={ocrFieldClass('gender')}><option value="">Select</option><option>Male</option><option>Female</option></select></div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Age</label>
+                  <input type="text" readOnly disabled value={newPatient.birthdate ? (calculateAge(newPatient.birthdate) ?? '—') : ''} placeholder="Automatically calculated" className={`${plainFieldClass} bg-muted text-muted-foreground cursor-not-allowed`} />
+                </div>
               </div>
-              <div><label className="block text-sm font-medium text-foreground mb-1">School{req('school')}</label><select value={newPatient.school} onChange={e => setNewPatient({...newPatient, school: e.target.value})} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"><option value="">Select School</option>{schoolNames.map(s => <option key={s}>{s}</option>)}</select></div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Sex{req('gender')} {ocrHint('gender')}</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['Male', 'Female'] as const).map((g) => (
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => setNewPatient({...newPatient, gender: g})}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                        newPatient.gender === g
+                          ? 'bg-primary text-white border-primary'
+                          : 'border-border text-foreground hover:bg-canvas'
+                      }`}
+                    >
+                      {g}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 {/* No scan hint on Grade/Section: the DOH IPTR does not print
                     either field, so a scan can never fill them. A green "✓
