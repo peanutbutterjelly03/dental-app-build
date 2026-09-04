@@ -132,18 +132,28 @@ type NewPatientForm = {
   is4Ps: boolean; fourPsId: string; consentStatus: string;
 };
 
+/** One source for "what a blank Add Student form looks like" — used on
+ *  mount, after a successful save, and when the form is closed via the
+ *  header X (closing no longer leaves stale values for next time). */
+const BLANK_NEW_PATIENT: NewPatientForm = {
+  firstName:'', lastName:'', middleName:'', birthdate:'', gender:'', grade:'', section:'', school:'',
+  guardianName:'', guardianContact:'', address:'', contactNumber:'', philhealthNumber:'',
+  philhealthStatus:'None', is4Ps:false, fourPsId:'', consentStatus:'pending',
+};
+
 /** Fields the Add Student form requires, and the label each one shows.
  *
- *  Enforced HERE, at entry — deliberately NOT with `required: true` on the
- *  Student model. All 26 existing students predate these fields, and CRUD
- *  updates go through findById + save(), which runs mongoose validation: a
- *  schema-level requirement would make every existing record unsaveable on the
- *  next edit, and there is nothing truthful to backfill a guardian's name with.
+ *  `address` is genuinely `required: true` on the Student model too (server/
+ *  models/Student.ts) — it stays required here to match, not by this list's
+ *  own choice. Everything else here is enforced ONLY at this layer: those
+ *  fields are NOT schema-required, so a schema-level requirement would make
+ *  every pre-existing student unsaveable on the next edit.
  *
  *  NOT required, on purpose:
  *  · middleName — some children genuinely have none, and full_name is DERIVED
  *    from the name parts, so forcing "N/A" would propagate that placeholder
  *    into every list, heading, report and DOH form.
+ *  · contactNumber — not schema-required either (2026-09-04, user decision).
  *  · philhealthNumber — the user's explicit exception.
  *  · philhealthStatus — always has a value ("None"). */
 const REQUIRED_STUDENT_FIELDS: {
@@ -158,7 +168,6 @@ const REQUIRED_STUDENT_FIELDS: {
   { key: 'grade', label: 'Grade' },
   { key: 'section', label: 'Section' },
   { key: 'address', label: 'Address' },
-  { key: 'contactNumber', label: 'Contact Number' },
   // Guardian Name/Contact are NOT required (2026-09-04, user decision) —
   // marked "(Optional)" on their labels instead of an asterisk.
   // Only meaningful for a 4Ps household — required unconditionally it would
@@ -190,7 +199,7 @@ export const PatientList = () => {
   const [ageGroupFilter, setAgeGroupFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newPatient, setNewPatient] = useState({ firstName:'', lastName:'', middleName:'', birthdate:'', gender:'', grade:'', section:'', school:'', guardianName:'', guardianContact:'', address:'', contactNumber:'', philhealthNumber:'', philhealthStatus:'None', is4Ps:false, fourPsId:'', consentStatus:'pending' });
+  const [newPatient, setNewPatient] = useState<NewPatientForm>(BLANK_NEW_PATIENT);
   const [addPatientError, setAddPatientError] = useState<string | null>(null);
   const [addingPatient, setAddingPatient] = useState(false);
   // Which required fields are currently empty, for the per-field "this field
@@ -200,9 +209,12 @@ export const PatientList = () => {
   // A step between "form looks valid" and actually saving — added because a
   // typo'd Add Student click used to save immediately with no way back.
   const [showAddConfirm, setShowAddConfirm] = useState(false);
-  // Typing a section name that doesn't exist yet for this grade — switches
-  // Section from a dropdown of known names to a free-text field.
-  const [customSection, setCustomSection] = useState(false);
+  // The id of the live-duplicate match the encoder has already acknowledged
+  // (via its own X, or "Confirm different student" below) — keyed by id so
+  // the badge reappears on its own if the fields change to match a
+  // DIFFERENT existing student, but stays quiet for the one already handled.
+  const [acknowledgedDuplicateId, setAcknowledgedDuplicateId] = useState<string | null>(null);
+  const [showConfirmDifferentStudent, setShowConfirmDifferentStudent] = useState(false);
   // Non-null while the server has answered "this child may already be on file"
   // and the person encoding has to decide (Sprint 47).
   const [duplicateWarning, setDuplicateWarning] = useState<DuplicateCandidate[] | null>(null);
@@ -462,7 +474,7 @@ export const PatientList = () => {
     if (showAddForm) {
       setNewPatient((p) => ({ ...p, school: selectedSchool ?? '' }));
       setMissingFields(new Set());
-      setCustomSection(false);
+      setAcknowledgedDuplicateId(null);
     }
   }, [showAddForm, selectedSchool]);
 
@@ -481,6 +493,21 @@ export const PatientList = () => {
 
   const fieldError = (key: keyof NewPatientForm) =>
     missingFields.has(key) ? <p className="mt-1 text-xs text-destructive">This field is required.</p> : null;
+
+  // The only way to close this form — Esc and backdrop-click are disabled
+  // (see closeDisabled on the Modal below) so a half-filled form can't be
+  // lost by a stray click. Resets everything, so reopening via Add Student
+  // starts clean rather than picking up stale values.
+  const closeAddForm = () => {
+    setShowAddForm(false);
+    setNewPatient(BLANK_NEW_PATIENT);
+    setMissingFields(new Set());
+    setAddPatientError(null);
+    setAcknowledgedDuplicateId(null);
+    setOcrConfidences({});
+    setOcrFindings([]);
+    setOcrFindingsNote(null);
+  };
 
   // Gate between "form looks valid" and actually saving. birthdate/gender/
   // address/section are all required on the backend (Student model) and
@@ -574,7 +601,7 @@ export const PatientList = () => {
           : `Student added: ${newPatient.lastName}, ${newPatient.firstName} — but the ${schoolYearLabel()} record could not be opened. Add it from the chart.`,
       );
       setShowAddForm(false);
-      setNewPatient({ firstName:'', lastName:'', middleName:'', birthdate:'', gender:'', grade:'', section:'', school:'', guardianName:'', guardianContact:'', address:'', contactNumber:'', philhealthNumber:'', philhealthStatus:'None', is4Ps:false, fourPsId:'', consentStatus:'pending' });
+      setNewPatient(BLANK_NEW_PATIENT);
       setOcrConfidences({}); setOcrFindings([]); setOcrFindingsNote(null);
       // Straight into the new record rather than back to the list — the next
       // thing anyone does after adding a student is open their chart.
@@ -877,13 +904,14 @@ export const PatientList = () => {
           <button
             onClick={() => navigate('/students/update-school-year')}
             title="Update School Year Information"
-            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
+            aria-label="Update School Year Information"
+            className={`p-2.5 rounded-full border transition-colors ${
               schoolYearNeedsUpdate
                 ? 'border-destructive/20 text-destructive bg-danger-surface hover:bg-danger-surface/70'
                 : 'border-success/20 text-success bg-success-surface hover:bg-success-surface/70'
             }`}
           >
-            <GraduationCap className="w-4 h-4" /> Update S.Y.
+            <GraduationCap className="w-4 h-4" />
           </button>
           <button onClick={() => { setOcrError(null); setShowOcrUpload(true); }} className="flex items-center gap-2 px-4 py-2 border border-primary text-primary rounded-full hover:bg-primary-surface text-sm font-medium">
             <Upload className="w-4 h-4" /> OCR
@@ -1219,7 +1247,7 @@ export const PatientList = () => {
 
       {/* Add Student Modal */}
       {showAddForm && (
-        <Modal onClose={() => { setShowAddForm(false); setOcrConfidences({}); setOcrFindings([]); setOcrFindingsNote(null); }} maxWidth="max-w-2xl" closeDisabled={addingPatient}>
+        <Modal onClose={closeAddForm} maxWidth="max-w-2xl" closeDisabled>
             <div className="flex items-start justify-between gap-3 p-6 border-b">
               <div>
                 <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-primary mb-1">
@@ -1228,22 +1256,42 @@ export const PatientList = () => {
                 <h2 className="text-lg font-bold text-foreground">Add New Student</h2>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                {/* Live check against the roster already loaded in the
-                    browser — a heads-up before the form is even finished,
-                    not a replacement for the server's 409 check on submit. */}
-                {liveDuplicateMatches.length > 0 && (
-                  <div className="max-w-[240px] rounded-lg border border-warning/30 bg-warning-surface px-3 py-2 text-warning">
-                    <p className="flex items-center gap-1 text-xs font-semibold">
-                      <AlertCircle className="w-3.5 h-3.5 shrink-0" /> Possible duplicate
-                    </p>
-                    <p className="mt-0.5 text-[11px] leading-snug">
-                      {liveDuplicateMatches[0].name} is already on file, born {formatDate(liveDuplicateMatches[0].birthdate)}. Continue only if this is a different student.
-                    </p>
-                  </div>
-                )}
-                <button onClick={() => { setShowAddForm(false); setOcrConfidences({}); setOcrFindings([]); setOcrFindingsNote(null); }} className="text-muted-foreground hover:text-muted-foreground"><X className="w-5 h-5" /></button>
+                <button onClick={closeAddForm} className="text-muted-foreground hover:text-muted-foreground"><X className="w-5 h-5" /></button>
               </div>
             </div>
+            {/* Live check against the roster already loaded in the browser —
+                a heads-up before the form is even finished, not a
+                replacement for the server's 409 check on submit. Its own
+                dismiss X (or "Confirm different student") remembers THIS
+                match by id, so it stays quiet once handled but reappears on
+                its own if the fields change to match a different student. */}
+            {liveDuplicateMatches.length > 0 && liveDuplicateMatches[0].id !== acknowledgedDuplicateId && (
+              <div className="mx-6 mt-4 flex items-start justify-between gap-3 rounded-lg border border-destructive/20 bg-danger-surface px-3 py-2.5 text-destructive">
+                <div className="min-w-0">
+                  <p className="flex items-center gap-1 text-xs font-semibold">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" /> Possible duplicate
+                  </p>
+                  <p className="mt-0.5 text-xs leading-snug">
+                    {liveDuplicateMatches[0].name} is already on file, born {formatDate(liveDuplicateMatches[0].birthdate)}. Confirm if this is a different student.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmDifferentStudent(true)}
+                    className="mt-1.5 rounded-full border border-destructive/30 bg-card px-2.5 py-1 text-[11px] font-semibold text-destructive hover:bg-danger-surface"
+                  >
+                    Confirm different student
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAcknowledgedDuplicateId(liveDuplicateMatches[0].id)}
+                  title="Dismiss"
+                  className="shrink-0 text-destructive/70 hover:text-destructive"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
             <div className="p-6 space-y-4">
               {Object.keys(ocrConfidences).length > 0 && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700 flex items-start gap-2">
@@ -1282,7 +1330,7 @@ export const PatientList = () => {
                 <div><label className="block text-sm font-medium text-foreground mb-1">Last Name{req('lastName')} {ocrHint('lastName')}</label><input type="text" value={newPatient.lastName} onChange={e => updateField('lastName', e.target.value.toUpperCase())} className={ocrFieldClass('lastName')} />{fieldError('lastName')}</div>
                 <div><label className="block text-sm font-medium text-foreground mb-1">First Name{req('firstName')} {ocrHint('firstName')}</label><input type="text" value={newPatient.firstName} onChange={e => updateField('firstName', e.target.value.toUpperCase())} className={ocrFieldClass('firstName')} />{fieldError('firstName')}</div>
               </div>
-              <div><label className="block text-sm font-medium text-foreground mb-1">Middle Name {ocrHint('middleName')}</label><input type="text" value={newPatient.middleName} onChange={e => updateField('middleName', e.target.value.toUpperCase())} className={ocrFieldClass('middleName')} /></div>
+              <div><label className="block text-sm font-medium text-foreground mb-1">Middle Name{optionalTag} {ocrHint('middleName')}</label><input type="text" value={newPatient.middleName} onChange={e => updateField('middleName', e.target.value.toUpperCase())} className={ocrFieldClass('middleName')} /></div>
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="block text-sm font-medium text-foreground mb-1">Birthdate{req('birthdate')} {ocrHint('birthdate')}</label><input type="date" value={newPatient.birthdate} onChange={e => updateField('birthdate', e.target.value)} className={ocrFieldClass('birthdate')} />{fieldError('birthdate')}</div>
                 <div>
@@ -1317,39 +1365,36 @@ export const PatientList = () => {
                     that isn't on the paper. */}
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Grade{req('grade')}</label>
-                  <select value={newPatient.grade} onChange={e => { updateField('grade', e.target.value); setCustomSection(false); }} className={plainFieldClass}>
+                  <select value={newPatient.grade} onChange={e => updateField('grade', e.target.value)} className={plainFieldClass}>
                     <option value="">Select Grade</option>{GRADES.map(g => <option key={g}>{g}</option>)}
                   </select>
                   {fieldError('grade')}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Section{req('section')}</label>
-                  {/* Sections come from the roster, not a fixed list — a
-                      dropdown of what's already used for this grade, with a
-                      way to type a genuinely new one (the first student in
-                      it, or a grade with none yet). */}
-                  {customSection || sectionOptionsForGrade.length === 0 ? (
-                    <input type="text" value={newPatient.section} onChange={e => updateField('section', e.target.value)} placeholder="e.g. Sampaguita" className={plainFieldClass} />
-                  ) : (
-                    <select
-                      value={newPatient.section}
-                      onChange={e => { if (e.target.value === '__new__') { setCustomSection(true); updateField('section', ''); } else { updateField('section', e.target.value); } }}
-                      className={plainFieldClass}
-                    >
-                      <option value="">Select Section</option>
-                      {sectionOptionsForGrade.map(s => <option key={s} value={s}>{s}</option>)}
-                      <option value="__new__">+ Add new section…</option>
-                    </select>
-                  )}
-                  {customSection && sectionOptionsForGrade.length > 0 && (
-                    <button type="button" onClick={() => { setCustomSection(false); updateField('section', ''); }} className="mt-1 text-xs text-primary hover:underline">← Choose an existing section</button>
-                  )}
+                  {/* A single dropdown-with-typing control (native <input
+                      list>), not two separate modes to switch between:
+                      section names come from the roster rather than a fixed
+                      list, so picking an existing one OR typing a genuinely
+                      new one (the first student in it, or a grade with none
+                      yet) both just work here. */}
+                  <input
+                    type="text"
+                    list="add-student-section-options"
+                    value={newPatient.section}
+                    onChange={e => updateField('section', e.target.value)}
+                    placeholder="Select or type a section"
+                    className={plainFieldClass}
+                  />
+                  <datalist id="add-student-section-options">
+                    {sectionOptionsForGrade.map(s => <option key={s} value={s} />)}
+                  </datalist>
                   {fieldError('section')}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium text-foreground mb-1">Contact Number{req('contactNumber')} {ocrHint('contactNumber')}</label><input type="text" value={newPatient.contactNumber} onChange={e => updateField('contactNumber', e.target.value)} placeholder="09XX-XXX-XXXX" className={ocrFieldClass('contactNumber')} />{fieldError('contactNumber')}</div>
-                <div><label className="block text-sm font-medium text-foreground mb-1">PhilHealth Number {ocrHint('philhealthNumber')}</label><input type="text" value={newPatient.philhealthNumber} onChange={e => setNewPatient({...newPatient, philhealthNumber: e.target.value})} placeholder="XX-XXXXXXXXX-X" className={ocrFieldClass('philhealthNumber')} /></div>
+                <div><label className="block text-sm font-medium text-foreground mb-1">Contact Number{optionalTag} {ocrHint('contactNumber')}</label><input type="text" value={newPatient.contactNumber} onChange={e => updateField('contactNumber', e.target.value)} placeholder="09XX-XXX-XXXX" className={ocrFieldClass('contactNumber')} /></div>
+                <div><label className="block text-sm font-medium text-foreground mb-1">PhilHealth Number{optionalTag} {ocrHint('philhealthNumber')}</label><input type="text" value={newPatient.philhealthNumber} onChange={e => setNewPatient({...newPatient, philhealthNumber: e.target.value})} placeholder="XX-XXXXXXXXX-X" className={ocrFieldClass('philhealthNumber')} /></div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="block text-sm font-medium text-foreground mb-1">Guardian Name{optionalTag}</label><input type="text" value={newPatient.guardianName} onChange={e => setNewPatient({...newPatient, guardianName: e.target.value})} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
@@ -1367,7 +1412,7 @@ export const PatientList = () => {
               {addPatientError && <Notice variant="error">{addPatientError}</Notice>}
             </div>
             <div className="flex gap-3 p-6 border-t">
-              <button onClick={() => { setShowAddForm(false); setOcrConfidences({}); setOcrFindings([]); setOcrFindingsNote(null); }} className="flex-1 px-4 py-2 border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium">Cancel</button>
+              <button onClick={closeAddForm} className="flex-1 px-4 py-2 border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium">Cancel</button>
               <button onClick={handleAddStudentClick} disabled={addingPatient} className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-60 text-sm font-medium">Add Student</button>
             </div>
         </Modal>
@@ -1384,6 +1429,26 @@ export const PatientList = () => {
         busy={addingPatient}
         onConfirm={() => handleAddStudent()}
         onCancel={() => setShowAddConfirm(false)}
+      />
+
+      {/* A deliberate second step before waving off a possible duplicate —
+          matches the weight of the decision (a wrong call here means two
+          records for one child). */}
+      <ConfirmDialog
+        open={showConfirmDifferentStudent}
+        title="Are you sure this is a different student?"
+        message={
+          liveDuplicateMatches[0]
+            ? `${liveDuplicateMatches[0].name} is already on file with the same name, birthday and sex. Only confirm if you're certain this is a separate child, not a duplicate entry.`
+            : ''
+        }
+        confirmLabel="Yes, different student"
+        tone="danger"
+        onConfirm={() => {
+          if (liveDuplicateMatches[0]) setAcknowledgedDuplicateId(liveDuplicateMatches[0].id);
+          setShowConfirmDifferentStudent(false);
+        }}
+        onCancel={() => setShowConfirmDifferentStudent(false)}
       />
 
       {/* ── POSSIBLE DUPLICATE MODAL (Sprint 47) ──

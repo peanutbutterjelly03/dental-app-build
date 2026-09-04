@@ -40,7 +40,7 @@ export const Modal = ({ onClose, children, maxWidth = 'max-w-md', closeDisabled 
       onClick={(e) => {
         if (e.target === ref.current && !closeDisabled) onClose();
       }}
-      className={`w-full ${maxWidth} bg-card rounded-xl shadow-xl p-0 border-0 max-h-[90vh] overflow-y-auto backdrop:bg-black/50 m-auto`}
+      className={`w-full ${maxWidth} bg-card rounded-xl shadow-xl p-0 border-0 max-h-[90vh] overflow-y-auto backdrop:bg-black/50 my-auto mx-4`}
     >
       {children}
     </dialog>
