@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
-import { ArrowLeft, Save, ChevronLeft, ChevronRight, Shield, ShieldCheck, ShieldAlert, Users, TrendingUp, FileText, Plus, Pencil, Trash2, Brain, Download } from 'lucide-react';
+import { ArrowLeft, Save, ChevronLeft, ChevronRight, Shield, ShieldCheck, ShieldAlert, Users, TrendingUp, FileText, Plus, Pencil, Trash2, Brain, Download, X } from 'lucide-react';
 import { exportDohReportToPdf } from '../utils/exportPdf';
 import { getGradeColor } from '../utils/gradeColors';
 import { computeBmi, BMI_NOTE } from '../utils/bmi';
@@ -14,6 +14,7 @@ import { toLocalDateString, formatDate } from '../utils/localDate';
 import { surnameFirst, surnameFirstWithInitial } from '../utils/studentName';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
 import { ConfirmDialog } from './ConfirmDialog';
+import { Modal } from './Modal';
 import { useSchools } from '../hooks/useSchools';
 
 // ─── FDI tooth layout ─────────────────────────────────────────────────────────
@@ -174,7 +175,7 @@ export const DentalChart = () => {
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
   const allTabs: { key: TabKey; label: string }[] = [
     { key: 'appointments', label: 'Consent' },
-    { key: 'history', label: 'History & Oral' },
+    { key: 'history', label: 'History' },
     { key: 'chart', label: 'Dental Chart' },
     { key: 'treatments', label: 'Treatment History' },
     { key: 'records', label: 'DMFT History' },
@@ -536,6 +537,12 @@ export const DentalChart = () => {
     }
   }, [activeTab, visibleTabs]);
 
+  // Marking consent complete is one-way — there is no unchecking it back to
+  // pending once confirmed (see the Consent tab checkbox, which is disabled
+  // the moment it's complete). So this only ever moves pending → complete,
+  // gated behind a confirmation dialog warning exactly that.
+  const [confirmConsentTarget, setConfirmConsentTarget] = useState<{ iptrId: string; schoolYear: string } | null>(null);
+
   // Takes an explicit iptrId rather than reading `years[selectedYear]` — the
   // Consent tab shows every year's own container at once (each renewed
   // separately, see StudentIptr.ts), so a toggle must name which year's
@@ -741,8 +748,6 @@ export const DentalChart = () => {
   const yearIptr = years[selectedYear]?.iptr;
   const yearGrade = yearIptr?.grade_level ?? null;
   const yearSection = yearIptr?.section ?? null;
-  const NOT_RECORDED = 'Grade not recorded';
-  const yearGradeLabel = yearGrade ? `${yearGrade}${yearSection ? ` ${yearSection}` : ''}` : NOT_RECORDED;
   // Same per-year rule as grade above: consent is obtained for this school
   // year's IPTR, never inherited from another year.
   const consentComplete = yearIptr?.consent_status === 'complete';
@@ -761,8 +766,13 @@ export const DentalChart = () => {
     }
   };
 
+  // Capped at 5xl used to leave large idle gutters on laptop/desktop widths
+  // where every other page in the app runs full-width — widened to 80% of
+  // the available content area on large screens; phones/tablets stay full
+  // width since 80% of a narrow viewport would just add dead margins there
+  // instead of removing them.
   return (
-    <div className="space-y-4 max-w-5xl mx-auto">
+    <div className="space-y-4 w-full lg:max-w-[80%] mx-auto">
       {/* Sticky header row */}
       <div ref={headerRowRef} className="sticky top-0 z-40 bg-gray-50 pb-2">
       <div className="flex items-center justify-between gap-2">
@@ -823,179 +833,22 @@ export const DentalChart = () => {
           the PDF captures. */}
       <div ref={recordRef} className="space-y-4">
       {/* Patient Info Card */}
-      <div className="bg-card rounded-xl border border-border p-4">
-        {editingInfo ? (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-foreground">Edit Student Info</span>
-              <div className="flex gap-2">
-                <button onClick={handleSaveInfo} disabled={infoSaving} className="px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-60">{infoSaving ? 'Saving…' : 'Save'}</button>
-                <button onClick={() => setEditingInfo(false)} className="px-3 py-1.5 text-sm border border-border text-foreground rounded-lg hover:bg-gray-50">Cancel</button>
-              </div>
-            </div>
-            {infoError && <p className="text-xs text-destructive">{infoError}</p>}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-              {/* Three boxes, matching the DOH IPTR paper form. full_name is
-                  derived server-side from these, so it is not edited directly. */}
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">Last Name</label>
-                <input type="text" value={draftInfo.last_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, last_name: e.target.value }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs" />
-              </div>
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">First Name</label>
-                <input type="text" value={draftInfo.first_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, first_name: e.target.value }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs" />
-              </div>
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">Middle Name</label>
-                <input type="text" value={draftInfo.middle_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, middle_name: e.target.value }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs" />
-              </div>
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">Contact Number</label>
-                <input type="text" value={draftInfo.contact_number ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, contact_number: e.target.value }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs" />
-              </div>
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">Guardian Name</label>
-                <input type="text" value={draftInfo.guardian_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, guardian_name: e.target.value }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs" />
-              </div>
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">Guardian Contact</label>
-                <input type="text" value={draftInfo.guardian_contact ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, guardian_contact: e.target.value }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs" />
-              </div>
-              {/* ── This school year's record ──────────────────────────────
-                  Everything from here down saves to the SELECTED YEAR's IPTR,
-                  not to the student. Two grades exist on purpose: the student
-                  carries their CURRENT enrolment (what rosters and the
-                  appointment picker read), and each year carries the grade the
-                  pupil was actually in then (Sprint 57a). They differ for a
-                  retained pupil, and for every past year once anyone is
-                  promoted — which is the whole reason the year keeps its own. */}
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">
-                  Grade <span className="font-normal">· {years[selectedYear]?.iptr.school_year}</span>
-                </label>
-                <select value={draftYear.grade_level}
-                  onChange={(e) => setDraftYear((p) => ({ ...p, grade_level: e.target.value }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs bg-card">
-                  <option value="">Not recorded</option>
-                  {GRADES.map((g) => <option key={g}>{g}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">
-                  Section <span className="font-normal">· {years[selectedYear]?.iptr.school_year}</span>
-                </label>
-                <input type="text" placeholder="Not recorded" value={draftYear.section}
-                  onChange={(e) => setDraftYear((p) => ({ ...p, section: e.target.value }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs" />
-              </div>
-              {/* Measured per school year, saved to the IPTR — the label says so,
-                  because everything else in this panel edits the student. */}
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">
-                  Height (cm) <span className="font-normal">· {years[selectedYear]?.iptr.school_year}</span>
-                </label>
-                <input type="number" min="0" max="300" step="0.1" inputMode="decimal"
-                  value={draftYear.height_cm}
-                  onChange={(e) => setDraftYear((p) => ({ ...p, height_cm: e.target.value }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs" />
-              </div>
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">
-                  Weight (kg) <span className="font-normal">· {years[selectedYear]?.iptr.school_year}</span>
-                </label>
-                <input type="number" min="0" max="500" step="0.1" inputMode="decimal"
-                  value={draftYear.weight_kg}
-                  onChange={(e) => setDraftYear((p) => ({ ...p, weight_kg: e.target.value }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs" />
-              </div>
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">BMI</label>
-                <div className="px-2 py-1.5 text-xs tabular-nums text-foreground" title={BMI_NOTE}>
-                  {computeBmi(Number(draftYear.height_cm) || null, Number(draftYear.weight_kg) || null)
-                    ?? <span className="text-muted-foreground">enter both</span>}
-                </div>
-              </div>
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">PhilHealth No.</label>
-                <input type="text" value={draftInfo.philhealth_number ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, philhealth_number: e.target.value }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs" />
-              </div>
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">Birthday</label>
-                <input type="date" value={draftInfo.birthday?.slice(0, 10) ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, birthday: e.target.value }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs" />
-              </div>
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">Sex</label>
-                <select value={draftInfo.sex ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, sex: e.target.value }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs bg-card">
-                  <option>Male</option><option>Female</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">Grade <span className="font-normal">· current</span></label>
-                <select value={draftInfo.grade_level ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, grade_level: e.target.value }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs bg-card">
-                  {GRADES.map((g) => <option key={g}>{g}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">Section <span className="font-normal">· current</span></label>
-                <input type="text" value={draftInfo.section ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, section: e.target.value }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs" />
-              </div>
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">PhilHealth Status</label>
-                <select value={draftInfo.philhealth_status ?? 'None'} onChange={(e) => setDraftInfo((p) => ({ ...p, philhealth_status: e.target.value as 'None' | 'Principal' | 'Dependent' }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs bg-card">
-                  <option>Dependent</option><option>Principal</option><option>None</option>
-                </select>
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-muted-foreground font-medium mb-0.5">School</label>
-                <select value={schoolName} disabled className="w-full px-2 py-1.5 border border-border rounded-lg text-xs bg-gray-50 text-muted-foreground">
-                  {schoolNames.map((s) => <option key={s}>{s}</option>)}
-                </select>
-              </div>
-              <div className="md:col-span-3">
-                <label className="block text-muted-foreground font-medium mb-0.5">Address</label>
-                <input type="text" value={draftInfo.address ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, address: e.target.value }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs" />
-              </div>
-              <div className="flex items-center gap-2">
-                <input type="checkbox" id="4ps" checked={!!draftInfo.is_4ps} onChange={(e) => setDraftInfo((p) => ({ ...p, is_4ps: e.target.checked }))}
-                  className="w-4 h-4 rounded accent-primary" />
-                <label htmlFor="4ps" className="text-foreground font-medium">4Ps Member</label>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="flex items-start justify-between mb-3">
+      <div className="bg-card rounded-xl border border-border p-5">
+          <div className="flex items-start justify-between gap-3 mb-4">
               <div className="flex items-center gap-3">
-                <div style={{ backgroundColor: gc.light, color: gc.solid }} className="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg">
+                <div style={{ backgroundColor: gc.light, color: gc.solid }} className="w-14 h-14 rounded-2xl flex items-center justify-center font-bold text-xl flex-shrink-0">
                   {[student.first_name?.[0], student.last_name?.[0]].filter(Boolean).join('') || student.full_name?.[0]}
                 </div>
                 <div>
-                  <div className="font-bold text-foreground">{surnameFirstWithInitial(student)}</div>
-                  <div className="text-xs text-muted-foreground">{yearGradeLabel} • {student.sex} • Age {patientAge}</div>
+                  <div className="text-lg font-bold text-foreground">{surnameFirstWithInitial(student)}</div>
                   <div className="flex items-center gap-2 mt-1">
-                    {/* Nothing when the year has no recorded grade — the detail
-                        line directly above already says so, and repeating it
-                        here just doubled the same sentence. */}
                     {yearGrade && <GradePill grade={yearGrade} />}
                     {yearSection && <span style={{ color: gc.solid }} className="text-xs font-medium">{yearSection}</span>}
                     {student.is_4ps && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">4Ps</span>}
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-shrink-0">
                 {/* Read-only here on purpose — consent has its own tab and its
                     own toggle. Editing student info must never touch it. */}
                 <span
@@ -1012,9 +865,9 @@ export const DentalChart = () => {
                 )}
               </div>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3 text-sm border-t border-border pt-4">
               {[
-                ['Birthday', student.birthday?.slice(0, 10)],
+                ['Birthday', formatDate(student.birthday)],
                 ['Age', `${patientAge} years`],
                 ['Sex', student.sex],
                 ['Contact', student.contact_number || '—'],
@@ -1029,14 +882,203 @@ export const DentalChart = () => {
                 ['BMI', computeBmi(yearIptr?.height_cm, yearIptr?.weight_kg) ?? 'not measured'],
               ].map(([label, val]) => (
                 <div key={label}>
-                  <div className="text-muted-foreground font-medium">{label}</div>
-                  <div className="text-foreground" title={label === 'BMI' ? BMI_NOTE : undefined}>{val}</div>
+                  <div className="text-xs text-muted-foreground font-medium mb-0.5">{label}</div>
+                  <div className="text-foreground font-medium" title={label === 'BMI' ? BMI_NOTE : undefined}>{val}</div>
                 </div>
               ))}
             </div>
-          </>
-        )}
       </div>
+
+      {/* Edit Student Information — mirrors Add Student's modal chrome and
+          field styling (PatientList.tsx) so editing feels like the same form,
+          not a cramped second UI. */}
+      {editingInfo && (
+        <Modal onClose={() => setEditingInfo(false)} maxWidth="max-w-4xl" closeDisabled={infoSaving}>
+          <div className="flex items-start justify-between gap-3 p-6 border-b">
+            <div>
+              <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-primary mb-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary" /> Basic Information
+              </div>
+              <h2 className="text-lg font-bold text-foreground">Update Student Information</h2>
+            </div>
+            <button onClick={() => setEditingInfo(false)} className="text-muted-foreground hover:text-muted-foreground"><X className="w-5 h-5" /></button>
+          </div>
+          <div className="p-6 space-y-4">
+            {infoError && <p className="text-xs text-destructive">{infoError}</p>}
+            {/* Three boxes, matching the DOH IPTR paper form. full_name is
+                derived server-side from these, so it is not edited directly. */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Last Name<span className="text-destructive"> *</span></label>
+                <input type="text" value={draftInfo.last_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, last_name: e.target.value.toUpperCase() }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">First Name<span className="text-destructive"> *</span></label>
+                <input type="text" value={draftInfo.first_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, first_name: e.target.value.toUpperCase() }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Middle Name</label>
+                <input type="text" value={draftInfo.middle_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, middle_name: e.target.value.toUpperCase() }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Birthday<span className="text-destructive"> *</span></label>
+                <input type="date" value={draftInfo.birthday?.slice(0, 10) ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, birthday: e.target.value }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Sex<span className="text-destructive"> *</span></label>
+              <div className="grid grid-cols-2 gap-2">
+                {(['Male', 'Female'] as const).map((g) => (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => setDraftInfo((p) => ({ ...p, sex: g }))}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                      draftInfo.sex === g ? 'bg-primary text-white border-primary' : 'border-border text-foreground hover:bg-canvas'
+                    }`}
+                  >
+                    {g}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* ── Current enrolment ── read by rosters and the appointment
+                picker; required, same as Add Student's Grade/Section. */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Grade <span className="font-normal">· current</span><span className="text-destructive"> *</span>
+                </label>
+                <select value={draftInfo.grade_level ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, grade_level: e.target.value }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-card">
+                  {GRADES.map((g) => <option key={g}>{g}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Section <span className="font-normal">· current</span><span className="text-destructive"> *</span>
+                </label>
+                <input type="text" value={draftInfo.section ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, section: e.target.value }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              </div>
+            </div>
+            {/* ── This school year's record ──────────────────────────────
+                Everything from here down saves to the SELECTED YEAR's IPTR,
+                not to the student. Two grades exist on purpose: the student
+                carries their CURRENT enrolment (above), and each year carries
+                the grade the pupil was actually in then (Sprint 57a). They
+                differ for a retained pupil, and for every past year once
+                anyone is promoted — which is the whole reason the year keeps
+                its own. Optional here: no truthful value to require for a
+                year created before this existed. */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Grade <span className="font-normal">· {years[selectedYear]?.iptr.school_year}</span><span className="text-muted-foreground font-normal"> (Optional)</span>
+                </label>
+                <select value={draftYear.grade_level}
+                  onChange={(e) => setDraftYear((p) => ({ ...p, grade_level: e.target.value }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-card">
+                  <option value="">Not recorded</option>
+                  {GRADES.map((g) => <option key={g}>{g}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Section <span className="font-normal">· {years[selectedYear]?.iptr.school_year}</span><span className="text-muted-foreground font-normal"> (Optional)</span>
+                </label>
+                <input type="text" placeholder="Not recorded" value={draftYear.section}
+                  onChange={(e) => setDraftYear((p) => ({ ...p, section: e.target.value }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              </div>
+            </div>
+            {/* Measured per school year, saved to the IPTR. */}
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Height (cm) <span className="font-normal">· {years[selectedYear]?.iptr.school_year}</span>
+                </label>
+                <input type="number" min="0" max="300" step="0.1" inputMode="decimal"
+                  value={draftYear.height_cm}
+                  onChange={(e) => setDraftYear((p) => ({ ...p, height_cm: e.target.value }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Weight (kg) <span className="font-normal">· {years[selectedYear]?.iptr.school_year}</span>
+                </label>
+                <input type="number" min="0" max="500" step="0.1" inputMode="decimal"
+                  value={draftYear.weight_kg}
+                  onChange={(e) => setDraftYear((p) => ({ ...p, weight_kg: e.target.value }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">BMI</label>
+                <div className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-muted text-muted-foreground" title={BMI_NOTE}>
+                  {computeBmi(Number(draftYear.height_cm) || null, Number(draftYear.weight_kg) || null) ?? 'enter both'}
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Contact Number<span className="text-muted-foreground font-normal"> (Optional)</span></label>
+                <input type="text" value={draftInfo.contact_number ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, contact_number: e.target.value }))}
+                  placeholder="09XX-XXX-XXXX" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Guardian Contact<span className="text-muted-foreground font-normal"> (Optional)</span></label>
+                <input type="text" value={draftInfo.guardian_contact ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, guardian_contact: e.target.value }))}
+                  placeholder="09XX-XXX-XXXX" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Guardian Name<span className="text-muted-foreground font-normal"> (Optional)</span></label>
+              <input type="text" value={draftInfo.guardian_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, guardian_name: e.target.value }))}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">PhilHealth Number<span className="text-muted-foreground font-normal"> (Optional)</span></label>
+                <input type="text" value={draftInfo.philhealth_number ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, philhealth_number: e.target.value }))}
+                  placeholder="XX-XXXXXXXXX-X" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">PhilHealth Status</label>
+                <select value={draftInfo.philhealth_status ?? 'None'} onChange={(e) => setDraftInfo((p) => ({ ...p, philhealth_status: e.target.value as 'None' | 'Principal' | 'Dependent' }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-card">
+                  <option>Dependent</option><option>Principal</option><option>None</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">School</label>
+              <select value={schoolName} disabled className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-muted text-muted-foreground">
+                {schoolNames.map((s) => <option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Address<span className="text-muted-foreground font-normal"> (Optional)</span></label>
+              <input type="text" value={draftInfo.address ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, address: e.target.value }))}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+            </div>
+            <div className="flex items-center gap-3">
+              <input type="checkbox" id="edit-4ps" checked={!!draftInfo.is_4ps} onChange={(e) => setDraftInfo((p) => ({ ...p, is_4ps: e.target.checked }))}
+                className="w-4 h-4 rounded accent-primary" />
+              <label htmlFor="edit-4ps" className="text-sm font-medium text-foreground">4Ps / NHTS Member</label>
+            </div>
+          </div>
+          <div className="flex gap-3 p-6 border-t">
+            <button onClick={() => setEditingInfo(false)} className="flex-1 px-4 py-2 border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium">Cancel</button>
+            <button onClick={handleSaveInfo} disabled={infoSaving} className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-60 text-sm font-medium">{infoSaving ? 'Saving…' : 'Save'}</button>
+          </div>
+        </Modal>
+      )}
 
       {/* Tabs */}
       <div className="sticky z-30 bg-gray-50 space-y-0" style={{ top: stickyOffsets.tabsTop }}>
@@ -1452,7 +1494,16 @@ export const DentalChart = () => {
                       </div>
                     </div>
                     <label className={`flex items-center gap-2 mt-4 pt-4 border-t ${complete ? 'border-green-200' : 'border-amber-200'} ${canEdit ? 'cursor-pointer' : 'cursor-default'}`}>
-                      <input type="checkbox" checked={complete} onChange={(e) => canEdit && handleToggleConsent(y.iptr._id, e.target.checked)} disabled={!canEdit} className="w-4 h-4 rounded accent-primary disabled:opacity-60 disabled:cursor-not-allowed" />
+                      <input
+                        type="checkbox"
+                        checked={complete}
+                        onChange={(e) => {
+                          if (canEdit && e.target.checked) setConfirmConsentTarget({ iptrId: y.iptr._id, schoolYear: y.iptr.school_year });
+                        }}
+                        disabled={!canEdit || complete}
+                        title={complete ? 'Consent obtained — this cannot be unchecked' : undefined}
+                        className="w-4 h-4 rounded accent-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                      />
                       <span className="text-xs font-medium text-foreground">Consent has been obtained (Nakumpleto na ang pahintulot)</span>
                     </label>
                   </div>
@@ -1644,6 +1695,18 @@ export const DentalChart = () => {
         confirmLabel={confirmClear === 'treatment' ? 'Clear treatments' : 'Clear conditions'}
         onConfirm={() => confirmClear && clearAll(confirmClear)}
         onCancel={() => setConfirmClear(null)}
+      />
+      <ConfirmDialog
+        open={confirmConsentTarget !== null}
+        title={`Mark consent as obtained for ${confirmConsentTarget?.schoolYear ?? 'this school year'}?`}
+        message="This cannot be undone — once confirmed, this checkbox can no longer be unchecked. Only confirm once the guardian's consent has actually been given."
+        confirmLabel="Confirm"
+        tone="danger"
+        onConfirm={() => {
+          if (confirmConsentTarget) handleToggleConsent(confirmConsentTarget.iptrId, true);
+          setConfirmConsentTarget(null);
+        }}
+        onCancel={() => setConfirmConsentTarget(null)}
       />
     </div>
   );
