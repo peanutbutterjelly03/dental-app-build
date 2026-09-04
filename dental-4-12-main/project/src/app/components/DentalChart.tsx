@@ -846,14 +846,14 @@ export const DentalChart = () => {
           the PDF captures. */}
       <div ref={recordRef} className="space-y-4">
       {/* Patient Info Card */}
-      <div className="bg-card rounded-xl border border-border p-5 w-full">
+      <div className="bg-card rounded-xl border border-border p-4 w-full">
           <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div style={{ backgroundColor: gc.light, color: gc.solid }} className="w-14 h-14 rounded-2xl flex items-center justify-center font-bold text-xl flex-shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div style={{ backgroundColor: gc.light, color: gc.solid }} className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0">
                   {[student.first_name?.[0], student.last_name?.[0]].filter(Boolean).join('') || student.full_name?.[0]}
                 </div>
                 <div>
-                  <div className="text-base font-semibold text-foreground">{surnameFirstWithInitial(student)}</div>
+                  <div className="text-sm font-bold text-foreground">{surnameFirstWithInitial(student)}</div>
                   <div className="flex items-center gap-2 mt-1">
                     {yearGrade && <GradePill grade={yearGrade} />}
                     {yearSection && <span style={{ color: gc.solid }} className="text-xs font-medium">{yearSection}</span>}

@@ -2,6 +2,13 @@
 
 **Compressed 2026-07-11 (hygiene pass).** Completed-sprint history → `docs/BUILD-LOG.md`; full pre-compression narratives → git history (`git show 73bc4e47:HANDOFF.md`). This file keeps only live state: current status, open work, warnings, and durable gotchas.
 
+## Patient Info Card made more compact: smaller avatar, bold+smaller name, tighter padding (2026-09-04)
+- Card padding `p-5` → `p-4`; header row gap `gap-3` → `gap-2.5`.
+- Avatar `w-14 h-14 rounded-2xl text-xl` → `w-10 h-10 rounded-xl text-sm` — "the icon is too big which is unnecessary."
+- Name `text-base font-semibold` → `text-sm font-bold` — bolder, smaller, per request.
+- The expanded grid's own spacing is untouched — this round was about the collapsed header row and the identity block specifically.
+- Verified via mockup at full width in the collapsed state. tsc + build clean.
+
 ## Correction: "reduce to 50%" meant HEIGHT, not width (2026-09-04)
 Misread the previous round's "reduce the size of that container to 50 percent" as width — user corrected it forcefully: they meant the card's HEIGHT. Fixed: dropped `lg:max-w-[50%]` (card is full width again, matching the record wrapper), and put the field grid back to `grid-cols-2 md:grid-cols-4` (was `grid-cols-2` from the round below) — 2 rows of 4 instead of 4 rows of 2, which is the actual ~50% height cut, at full width. tsc + build clean, re-verified via mockup.
 
