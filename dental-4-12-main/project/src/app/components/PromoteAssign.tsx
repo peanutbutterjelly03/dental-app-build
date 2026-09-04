@@ -45,10 +45,14 @@ interface RowState {
   alreadyHasYear: boolean;
 }
 
-export const PromoteAssign = ({ onClose, schoolId, schoolName }: {
+export const PromoteAssign = ({ onClose, schoolId, schoolName, allSections }: {
   onClose: () => void;
   schoolId: string | undefined;
   schoolName: string;
+  /** Every section already in use anywhere at this school, for the
+   *  per-row Section combobox — school-wide, not just the selected grade,
+   *  matching the same scoping fix Add Student's Section field got. */
+  allSections: string[];
 }) => {
   const toast = useToast();
   const fromYear = schoolYearLabel();
@@ -63,6 +67,10 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName }: {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ created: number; skipped: number; failed: string[] } | null>(null);
+  // Which row's Section combobox is showing its suggestion list — one at a
+  // time, tracked by student id (same onMouseDown-before-onBlur pattern as
+  // Add Student's Section field, see PatientList.tsx).
+  const [openSectionRow, setOpenSectionRow] = useState<string | null>(null);
 
   // The roster for one school + grade, server-filtered (Sprint 56's
   // filterable/filterableText) rather than pulling every student.
@@ -242,14 +250,43 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName }: {
                         <option value="skip">Skip</option>
                       </select>
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2 relative">
                       <input
                         value={r.section}
                         onChange={(e) => setRow(r.student._id, { section: e.target.value })}
+                        onFocus={() => setOpenSectionRow(r.student._id)}
+                        onBlur={() => setOpenSectionRow(null)}
                         disabled={r.action === 'skip'}
-                        className="text-xs border border-border rounded-md px-2 py-1 w-32 disabled:opacity-50"
+                        autoComplete="off"
+                        placeholder="Search or add a section"
+                        className="text-xs border border-border rounded-md px-2 py-1 w-36 disabled:opacity-50"
                         aria-label={`Section for ${surnameFirst(r.student)}`}
                       />
+                      {openSectionRow === r.student._id && (
+                        <div className="absolute z-20 mt-1 w-36 max-h-40 overflow-y-auto rounded-lg border border-border bg-card shadow-md">
+                          {allSections
+                            .filter((s) => !r.section.trim() || s.toLowerCase().startsWith(r.section.trim().toLowerCase()))
+                            .map((s) => (
+                              <button
+                                key={s}
+                                type="button"
+                                onMouseDown={() => { setRow(r.student._id, { section: s }); setOpenSectionRow(null); }}
+                                className="block w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-canvas"
+                              >
+                                {s}
+                              </button>
+                            ))}
+                          {r.section.trim() && !allSections.some((s) => s.toLowerCase() === r.section.trim().toLowerCase()) && (
+                            <button
+                              type="button"
+                              onMouseDown={() => setOpenSectionRow(null)}
+                              className="block w-full text-left px-2 py-1.5 text-xs text-primary hover:bg-primary-surface border-t border-border"
+                            >
+                              + Add "{r.section.trim()}" as new section
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -280,7 +317,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName }: {
         </button>
         <button onClick={run} disabled={running || toApply.length === 0}
           className="flex-1 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
-          {running ? 'Working…' : `Open ${toYear} for ${toApply.length}`}
+          {running ? 'Working…' : `Assign ${toApply.length} Student${toApply.length === 1 ? '' : 's'}`}
         </button>
       </div>
     </div>

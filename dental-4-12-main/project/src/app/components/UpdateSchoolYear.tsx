@@ -239,8 +239,8 @@ export const UpdateSchoolYear = () => {
   if (!canUse) {
     return (
       <div className="space-y-4">
-        <Link to="/patients" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="w-4 h-4" /> Students
+        <Link to="/patients" aria-label="Back to Students" title="Back to Students" className="inline-flex items-center justify-center w-9 h-9 rounded-full text-muted-foreground hover:text-foreground hover:bg-gray-100">
+          <ArrowLeft className="w-5 h-5" />
         </Link>
         <Notice variant="error">Updating the school year is limited to the dentist and dental aide.</Notice>
       </div>
@@ -250,8 +250,8 @@ export const UpdateSchoolYear = () => {
   if (!selectedSchool) {
     return (
       <div className="space-y-4">
-        <Link to="/patients" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="w-4 h-4" /> Students
+        <Link to="/patients" aria-label="Back to Students" title="Back to Students" className="inline-flex items-center justify-center w-9 h-9 rounded-full text-muted-foreground hover:text-foreground hover:bg-gray-100">
+          <ArrowLeft className="w-5 h-5" />
         </Link>
         <Notice variant="warning">Pick a specific school from the Students page first — this runs one school at a time.</Notice>
       </div>
@@ -261,10 +261,10 @@ export const UpdateSchoolYear = () => {
   return (
     <div className="space-y-4">
       <div>
-        <Link to="/patients" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="w-4 h-4" /> Students
+        <Link to="/patients" aria-label="Back to Students" title="Back to Students" className="inline-flex items-center justify-center w-9 h-9 rounded-full text-muted-foreground hover:text-foreground hover:bg-gray-100">
+          <ArrowLeft className="w-5 h-5" />
         </Link>
-        <h1 className="text-2xl font-bold text-foreground mt-2">Update School Year</h1>
+        <h1 className="text-2xl font-bold text-primary mt-2">Update School Year</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
           {selectedSchool} · {fromYear} <Repeat className="w-3 h-3 inline mx-1" /> {toYear}
         </p>
@@ -330,7 +330,7 @@ export const UpdateSchoolYear = () => {
 
       {tab === 'promote' && (
         <div className="bg-card rounded-xl border border-border">
-          <PromoteAssign onClose={() => void reloadStudents()} schoolId={schoolId} schoolName={selectedSchool} />
+          <PromoteAssign onClose={() => void reloadStudents()} schoolId={schoolId} schoolName={selectedSchool} allSections={allSections} />
         </div>
       )}
 

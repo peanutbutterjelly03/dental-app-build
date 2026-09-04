@@ -925,7 +925,7 @@ export const PatientList = () => {
               schoolYearNeedsUpdate ? 'bg-destructive' : 'bg-success'
             }`}
           >
-            <GraduationCap className="w-6 h-6" />
+            <GraduationCap className="w-6 h-6 text-white/90" strokeWidth={1.5} />
           </button>
           <button onClick={() => { setOcrError(null); setShowOcrUpload(true); }} className="flex items-center gap-2 px-4 py-2 border border-primary text-primary rounded-full hover:bg-primary-surface text-sm font-medium">
             <Upload className="w-4 h-4" /> OCR
@@ -1096,14 +1096,18 @@ export const PatientList = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (isQueued) setDequeueTarget({ id: student.id, name: student.name });
-                            else setQueuedStudentIds(addQueuedStudentId(student.id));
+                            if (isQueued) {
+                              setDequeueTarget({ id: student.id, name: student.name });
+                            } else {
+                              setQueuedStudentIds(addQueuedStudentId(student.id));
+                              toast.success(`${student.name} queued.`);
+                            }
                           }}
                           title="Queue"
-                          className={`inline-flex items-center justify-center rounded-full text-xs font-semibold border transition-colors ${
+                          className={`inline-flex items-center justify-center w-16 h-8 rounded-full text-xs font-semibold border transition-colors ${
                             isQueued
-                              ? 'w-7 h-7 bg-success-surface text-success border-success/20 hover:bg-danger-surface hover:text-destructive hover:border-destructive/20'
-                              : 'px-3 py-1.5 bg-primary-surface text-primary border-primary/20 hover:bg-primary/10'
+                              ? 'bg-success-surface text-success border-success/20 hover:bg-danger-surface hover:text-destructive hover:border-destructive/20'
+                              : 'bg-primary-surface text-primary border-primary/20 hover:bg-primary/10'
                           }`}
                         >
                           {isQueued ? queuePosition + 1 : 'Queue'}
