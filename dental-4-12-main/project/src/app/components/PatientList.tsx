@@ -327,6 +327,11 @@ export const PatientList = () => {
   const [tickedIds, setTickedIds] = useState<Set<string>>(new Set());
   const [confirmArchiveTicked, setConfirmArchiveTicked] = useState(false);
   const [archivingTicked, setArchivingTicked] = useState(false);
+  // Re-typed password for the archive confirmation — a bulk action pulling
+  // students off every active roster and report gets a step-up check beyond
+  // "are you sure", not just a second click.
+  const [archivePassword, setArchivePassword] = useState('');
+  const [archivePasswordError, setArchivePasswordError] = useState<string | null>(null);
 
   const exitSelectMode = () => {
     setSelectMode(false);
@@ -334,7 +339,18 @@ export const PatientList = () => {
   };
 
   const archiveTicked = async () => {
+    if (!archivePassword) {
+      setArchivePasswordError('Enter your password to confirm.');
+      return;
+    }
     setArchivingTicked(true);
+    try {
+      await apiClient.post('/auth/verify-password', { password: archivePassword });
+    } catch (err) {
+      setArchivingTicked(false);
+      setArchivePasswordError(err instanceof ApiError ? err.message : 'Could not verify password.');
+      return;
+    }
     let archived = 0;
     const failed: string[] = [];
     for (const id of tickedIds) {
@@ -348,6 +364,7 @@ export const PatientList = () => {
     }
     setArchivingTicked(false);
     setConfirmArchiveTicked(false);
+    setArchivePassword('');
     exitSelectMode();
     await reloadStudents();
     if (archived > 0) toast.success(`${archived} student${archived === 1 ? '' : 's'} archived.`);
@@ -641,7 +658,7 @@ export const PatientList = () => {
   // Paging now lives in the shared hook (see Pagination.tsx), which also
   // carries the page-size picker. Reset keys are the FILTER INPUTS, not
   // `filtered` — see the hook for why that distinction matters.
-  const pager = usePagination(filtered, [gradeFilter, sectionFilter, genderFilter, ageGroupFilter, searchTerm, selectedSchool]);
+  const pager = usePagination(filtered, [gradeFilter, sectionFilter, genderFilter, ageGroupFilter, searchTerm, selectedSchool], 10);
   const paged = pager.paged;
 
   const hasActiveFilters = gradeFilter !== 'all' || sectionFilter !== 'all' || genderFilter !== 'all' || ageGroupFilter !== 'all' || searchTerm !== '';
@@ -778,7 +795,7 @@ export const PatientList = () => {
 
           {/* Filters */}
           <div className="flex flex-wrap items-center gap-2">
-            <ListSearchInput value={searchTerm} onChange={setSearchTerm} />
+            <ListSearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search student, grade, or section" />
             <FilterSelect value={gradeFilter} onChange={v => { setGradeFilter(v); setSectionFilter('all'); }} label="All Grades"
               options={GRADES.map(g => ({ value: g, label: g }))} />
             <FilterSelect value={sectionFilter} onChange={setSectionFilter} label="All Sections"
@@ -802,10 +819,12 @@ export const PatientList = () => {
                     {allTickedQueued ? 'Unqueue' : 'Queue'} Selected ({tickedIds.size})
                   </button>
                   <button
-                    onClick={() => setConfirmArchiveTicked(true)}
-                    className="flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-full border border-destructive text-destructive hover:bg-danger-surface"
+                    onClick={() => { setArchivePassword(''); setArchivePasswordError(null); setConfirmArchiveTicked(true); }}
+                    title="Archive"
+                    aria-label={`Archive ${tickedIds.size} selected`}
+                    className="p-2 rounded-full border border-destructive text-destructive hover:bg-danger-surface"
                   >
-                    <ArchiveIcon className="w-3.5 h-3.5" /> Archive Selected ({tickedIds.size})
+                    <ArchiveIcon className="w-4 h-4" />
                   </button>
                 </>
               )}
@@ -847,7 +866,7 @@ export const PatientList = () => {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
-                <th className="px-4 py-3 sm:pl-6">
+                <th className="text-left px-4 py-3 sm:pl-6">
                   {/* Scoped to the current page, matching its own label: now
                       that the table paginates, "select all" across the whole
                       filtered set would tick rows the user cannot see. Hidden
@@ -876,7 +895,7 @@ export const PatientList = () => {
             <tbody className="divide-y divide-border/60">
               {filtered.length === 0 ? (
                 <tr><td colSpan={7} className="text-center py-14 text-muted-foreground">{hasActiveFilters ? <>No students match your filters. <button onClick={clearFilters} className="text-primary hover:underline font-medium">Clear filters</button></> : 'No students at this school yet — use Add Student to register one.'}</td></tr>
-              ) : paged.map(student => {
+              ) : paged.map((student, i) => {
                 const age = calculateAge(student.birthdate);
                 const isQueued = queuedStudentIds.includes(student.id);
                 const gc = getGradeColor(student.grade);
@@ -895,6 +914,7 @@ export const PatientList = () => {
                     </td>
                     <td className="px-4 py-3.5 font-medium text-foreground">
                       <div className="flex items-center gap-3">
+                        <span className="w-5 shrink-0 text-right text-xs text-muted-foreground tabular-nums">{pager.from + i}</span>
                         <span style={{ backgroundColor: gc.light, color: gc.solid }} className="w-9 h-9 shrink-0 rounded-full grid place-items-center text-xs font-bold">
                           {initials(student.name)}
                         </span>
@@ -1280,12 +1300,30 @@ export const PatientList = () => {
       <ConfirmDialog
         open={confirmArchiveTicked}
         title={`Archive ${tickedIds.size} student${tickedIds.size === 1 ? '' : 's'}?`}
-        message="Archived students are removed from active rosters and reports. A System Admin can restore them later from Archived Records."
+        message={
+          <div className="space-y-3">
+            <p>Archived students are removed from active rosters and reports. A System Admin can restore them later from Archived Records.</p>
+            <div>
+              <label htmlFor="archive-password" className="block text-xs font-medium text-foreground mb-1">Enter your password to confirm</label>
+              <input
+                id="archive-password"
+                type="password"
+                autoComplete="current-password"
+                autoFocus
+                value={archivePassword}
+                onChange={(e) => { setArchivePassword(e.target.value); setArchivePasswordError(null); }}
+                disabled={archivingTicked}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
+              />
+              {archivePasswordError && <p className="mt-1 text-xs text-destructive">{archivePasswordError}</p>}
+            </div>
+          </div>
+        }
         confirmLabel="Archive"
         tone="danger"
         busy={archivingTicked}
         onConfirm={archiveTicked}
-        onCancel={() => setConfirmArchiveTicked(false)}
+        onCancel={() => { setConfirmArchiveTicked(false); setArchivePassword(''); setArchivePasswordError(null); }}
       />
     </div>
   );

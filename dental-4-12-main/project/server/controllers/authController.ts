@@ -192,6 +192,32 @@ export async function changePassword(req: Request, res: Response) {
   res.json({ success: true });
 }
 
+// Re-authentication step for a sensitive in-app action (e.g. bulk archive) —
+// proves it's really the signed-in user typing, without changing anything.
+// Same bcrypt check as changePassword's current-password verification.
+export async function verifyPassword(req: Request, res: Response) {
+  const { password } = req.body;
+
+  if (!password) {
+    res.status(400).json({ error: "password is required" });
+    return;
+  }
+
+  const user = await User.findById(req.user!.id).select("+password_hash");
+  if (!user) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  const matches = await comparePassword(password, user.password_hash);
+  if (!matches) {
+    res.status(401).json({ error: "Incorrect password" });
+    return;
+  }
+
+  res.json({ valid: true });
+}
+
 // Completes a 2FA login: checks the emailed code, then issues the same
 // cookie pair a normal login would.
 export async function verifyOtp(req: Request, res: Response) {
