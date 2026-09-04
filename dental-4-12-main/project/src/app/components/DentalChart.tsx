@@ -12,6 +12,7 @@ import { useDentalChartData } from '../hooks/useDentalChartData';
 import { apiClient, ApiError } from '../api/client';
 import { toLocalDateString, formatDate } from '../utils/localDate';
 import { surnameFirst, surnameFirstWithInitial } from '../utils/studentName';
+import { schoolYearLabel } from '../utils/schoolYear';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Modal } from './Modal';
@@ -249,6 +250,9 @@ export const DentalChart = () => {
   // bulk-archive flow elsewhere in the app, so this can't be idly repeated.
   const [yearMenuOpen, setYearMenuOpen] = useState(false);
   const [pendingYearAction, setPendingYearAction] = useState<'add' | 'edit' | 'delete' | null>(null);
+  // Which year "Add" targets — the menu offers today's real school year and
+  // the one after this student's latest record as two separate choices.
+  const [addYearTarget, setAddYearTarget] = useState<string | null>(null);
   const [editYearDateValue, setEditYearDateValue] = useState('');
   const [yearActionPassword, setYearActionPassword] = useState('');
   const [yearActionPasswordError, setYearActionPasswordError] = useState<string | null>(null);
@@ -457,9 +461,16 @@ export const DentalChart = () => {
   // student_id + school_year); this stops the second request being sent at all.
   const [addingYear, setAddingYear] = useState(false);
 
-  const handleAddYear = async () => {
-    const nextYear = getNextSchoolYear();
-    if (!nextYear || !id || addingYear) return;
+  // Takes the target year explicitly now (2026-09-04) — the year menu offers
+  // BOTH today's real school year and "next after this student's latest
+  // record" as separate choices, since those can differ (a student with a
+  // gap in their records — last one 2024-2025 while today is really
+  // 2026-2027 — needs to jump to the real current year, not just the one
+  // immediately after their last). The uniqueBy(student_id, school_year)
+  // constraint server-side still blocks a genuine duplicate; this only adds
+  // a second legitimate choice, not a way around that.
+  const handleAddYear = async (targetYear: string) => {
+    if (!targetYear || !id || addingYear) return;
     setAddingYear(true);
     try {
       // Stamp the grade and section the student is in AS OF THIS YEAR'S
@@ -468,12 +479,12 @@ export const DentalChart = () => {
       // student is promoted.
       await apiClient.post('/student-iptrs', {
         student_id: id,
-        school_year: nextYear,
+        school_year: targetYear,
         grade_level: student?.grade_level ?? null,
         section: student?.section ?? null,
       });
       await reload();
-      toast.success(`School year ${nextYear} added.`);
+      toast.success(`School year ${targetYear} added.`);
     } catch (err) {
       setSaveError(err instanceof ApiError ? err.message : 'Failed to add school year');
     } finally {
@@ -493,6 +504,7 @@ export const DentalChart = () => {
 
   const closeYearAction = () => {
     setPendingYearAction(null);
+    setAddYearTarget(null);
     setYearActionPassword('');
     setYearActionPasswordError(null);
   };
@@ -516,7 +528,7 @@ export const DentalChart = () => {
     }
     try {
       if (pendingYearAction === 'add') {
-        await handleAddYear();
+        if (addYearTarget) await handleAddYear(addYearTarget);
       } else if (pendingYearAction === 'edit') {
         const iptrId = years[selectedYear]?.iptr._id;
         if (iptrId) {
@@ -1285,12 +1297,36 @@ export const DentalChart = () => {
                     <>
                       <div className="fixed inset-0 z-10" onClick={() => setYearMenuOpen(false)} />
                       <div className="absolute right-0 top-full mt-1 z-20 w-48 rounded-xl border border-border bg-card shadow-md py-1">
-                        {!!getNextSchoolYear() && (
-                          <button type="button" onClick={() => { setYearMenuOpen(false); setPendingYearAction('add'); }}
-                            className="block w-full text-left px-3 py-2 text-xs text-foreground hover:bg-canvas">
-                            Add {getNextSchoolYear()}
-                          </button>
-                        )}
+                        {(() => {
+                          // Two separate choices, not just "the next one" —
+                          // a student with a gap in their records (last one
+                          // 2024-2025 while today is really 2026-2027) needs
+                          // to jump to the ACTUAL current year, not just the
+                          // one immediately after their last. Each is hidden
+                          // once it already exists for this student, same
+                          // guard the old single button had.
+                          const nextYear = getNextSchoolYear();
+                          const currentYear = schoolYearLabel();
+                          const existingYears = new Set(years.map((y) => y.iptr.school_year));
+                          const showCurrent = !existingYears.has(currentYear);
+                          const showNext = !!nextYear && nextYear !== currentYear && !existingYears.has(nextYear);
+                          return (
+                            <>
+                              {showCurrent && (
+                                <button type="button" onClick={() => { setYearMenuOpen(false); setAddYearTarget(currentYear); setPendingYearAction('add'); }}
+                                  className="block w-full text-left px-3 py-2 text-xs text-foreground hover:bg-canvas">
+                                  Add {currentYear} <span className="text-muted-foreground">(current)</span>
+                                </button>
+                              )}
+                              {showNext && (
+                                <button type="button" onClick={() => { setYearMenuOpen(false); setAddYearTarget(nextYear); setPendingYearAction('add'); }}
+                                  className="block w-full text-left px-3 py-2 text-xs text-foreground hover:bg-canvas">
+                                  Add {nextYear} <span className="text-muted-foreground">(next)</span>
+                                </button>
+                              )}
+                            </>
+                          );
+                        })()}
                         <button type="button" onClick={() => {
                             setYearMenuOpen(false);
                             const iptr = years[selectedYear]?.iptr;
@@ -1357,7 +1393,7 @@ export const DentalChart = () => {
         {years.length === 0 ? (
           <div className="p-12 text-center text-muted-foreground">
             <p className="text-sm">No IPTR school-year records yet for this student.</p>
-            {canEdit && <button onClick={handleAddYear} disabled={addingYear} className="mt-3 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed">+ Start {getNextSchoolYear()}</button>}
+            {canEdit && <button onClick={() => { const y = getNextSchoolYear(); if (y) handleAddYear(y); }} disabled={addingYear} className="mt-3 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed">+ Start {getNextSchoolYear()}</button>}
           </div>
         ) : (
         <>
@@ -1903,7 +1939,7 @@ export const DentalChart = () => {
       <ConfirmDialog
         open={pendingYearAction !== null}
         title={
-          pendingYearAction === 'add' ? `Add ${getNextSchoolYear()}?`
+          pendingYearAction === 'add' ? `Add ${addYearTarget}?`
           : pendingYearAction === 'edit' ? `Edit ${years[selectedYear]?.iptr.school_year}’s date?`
           : `Remove ${years[selectedYear]?.iptr.school_year}?`
         }
