@@ -222,12 +222,10 @@ export const DentalChart = () => {
   // Collapses the Patient Info Card down to just name + grade/section pills
   // — the birthday/contact/address grid is useful but not something every
   // screen visit needs looking at.
+  // Deliberately NOT reset per student (was, briefly) — collapsing it once
+  // should stay collapsed through Next/Prev navigation until the user
+  // explicitly expands it again, per request.
   const [basicInfoExpanded, setBasicInfoExpanded] = useState(true);
-  // Resets on every student, not just first mount — Next/Prev patient
-  // navigation reuses this component rather than remounting it, so without
-  // this a collapse/expand made on one student's card was silently still in
-  // effect on the next student's.
-  useEffect(() => setBasicInfoExpanded(true), [id]);
   const [draftInfo, setDraftInfo] = useState<Partial<typeof student>>({});
   // Year-scoped grade/section, drafted separately from STUDENT even though
   // they share the one Edit button — the save below writes to both records.
@@ -255,6 +253,10 @@ export const DentalChart = () => {
   const [pdfBusy, setPdfBusy] = useState(false);
   const tabsRowRef = useRef<HTMLDivElement | null>(null);
   const [stickyOffsets, setStickyOffsets] = useState({ tabsTop: 0, yearTop: 0 });
+  // Pristine JSON snapshot of the drafts, captured the moment they're loaded
+  // from the server (see the draft-sync effect below) — compared against the
+  // live drafts to tell a genuine edit from just having entered edit mode.
+  const editBaselineRef = useRef<string>('');
 
   const currentYearData = years[selectedYear];
 
@@ -289,6 +291,7 @@ export const DentalChart = () => {
       setOthersDietOpen(false);
       setOthersOralOpen(false);
       setEditMode(false);
+      editBaselineRef.current = '';
       return;
     }
     const chart: Record<number, ChartEntry> = {};
@@ -298,33 +301,43 @@ export const DentalChart = () => {
     setDraftChart(chart);
 
     const mh = currentYearData.medicalHistory;
-    setDraftMed(mh ? {
+    const medSnapshot = mh ? {
       allergies: mh.allergies, hypertension: mh.hypertension, diabetes: mh.diabetes_mellitus,
       bloodDisorders: false, cardiovascular: mh.cardiovascular_disease, thyroid: mh.thyroid_disorders,
       hepatitis: mh.hepatitis_disorders, malignancy: mh.malignancy, hospitalization: mh.previous_hospitalization,
       bloodTransfusion: mh.blood_transfusion, tattoo: mh.tattoo, others: mh.others,
-    } : emptyMed());
+    } : emptyMed();
+    setDraftMed(medSnapshot);
 
     const dh = currentYearData.dietaryHabits;
-    setDraftDiet(dh ? {
+    const dietSnapshot = dh ? {
       sugarSweetened: dh.sugar_beverages, alcoholDrinker: dh.alcohol_drinker, tobaccoUser: dh.tobacco_user,
       betelNut: dh.betel_nut_chewer, bodyPiercing: dh.body_piercing, nailBiting: dh.nail_biting, thumbsucking: dh.thumb_sucking,
       others: dh.others ?? '',
-    } : emptyDiet());
+    } : emptyDiet();
+    setDraftDiet(dietSnapshot);
 
     const oc = currentYearData.oralCondition;
-    setDraftOral(oc ? {
+    const oralSnapshot = oc ? {
       orallyFitChild: oc.orally_fit_child ?? false, gingivitis: oc.gingivitis, periodontal: oc.periodontal_disease, debris: oc.debris, calculus: oc.calculus,
       abnormalGrowth: oc.abnormal_growth, cleftLipPalate: oc.cleft_lip_palate, others: oc.others,
-    } : emptyOral());
+    } : emptyOral();
+    setDraftOral(oralSnapshot);
     setOthersMedOpen(!!mh?.others);
     setOthersDietOpen(!!dh?.others);
     setOthersOralOpen(!!oc?.others);
 
-    setDraftMeasure({
+    const measureSnapshot = {
       height_cm: currentYearData.iptr.height_cm != null ? String(currentYearData.iptr.height_cm) : '',
       weight_kg: currentYearData.iptr.weight_kg != null ? String(currentYearData.iptr.weight_kg) : '',
-    });
+    };
+    setDraftMeasure(measureSnapshot);
+
+    // Pristine snapshot for the unsaved-edit warning — compared against the
+    // live drafts in isEditDirty() so switching tabs without having changed
+    // anything (or on a still-empty new sheet) never pops the "leave without
+    // saving?" dialog.
+    editBaselineRef.current = JSON.stringify({ chart, med: medSnapshot, diet: dietSnapshot, oral: oralSnapshot, measure: measureSnapshot });
 
     // Empty year (nothing recorded yet) exists to be filled — drop clinical
     // staff straight into edit mode; anything with data opens as a read view.
@@ -346,10 +359,17 @@ export const DentalChart = () => {
     await reload(); // refetch → draft-sync effect resets all drafts
   };
 
-  // Warns before leaving an in-progress edit for another tab, but never
-  // blocks it — confirming discards the edit (via cancelEdit) and switches.
+  // True only once something in the drafts actually differs from the
+  // pristine snapshot taken when they were loaded — entering edit mode (or
+  // a still-blank new sheet) alone is not "dirty".
+  const isEditDirty = () =>
+    JSON.stringify({ chart: draftChart, med: draftMed, diet: draftDiet, oral: draftOral, measure: draftMeasure }) !== editBaselineRef.current;
+
+  // Warns before leaving an actual in-progress edit for another tab, but
+  // never blocks it — confirming discards the edit (via cancelEdit) and
+  // switches. No warning if nothing was actually changed.
   const handleTabSwitch = (key: TabKey) => {
-    if (editMode && key !== activeTab) {
+    if (editMode && key !== activeTab && isEditDirty()) {
       setPendingTabSwitch(key);
     } else {
       setActiveTab(key);
@@ -358,6 +378,10 @@ export const DentalChart = () => {
 
   const currentChart = draftChart;
   const dmft = computeDMFT(currentChart);
+  // Same condition the draft-sync effect uses to auto-enter edit mode for a
+  // never-touched year — reused here to hide Cancel on a brand-new sheet,
+  // since there's nothing saved yet to cancel back to.
+  const isNewYearSheet = !!currentYearData && !currentYearData.medicalHistory && !currentYearData.oralCondition && currentYearData.toothRecords.length === 0;
   // Coloured by the SELECTED YEAR's grade, not the student's current one — a
   // 2025-2026 record tinted with this year's grade colour is the same quiet
   // lie the text labels used to tell. An unrecorded year falls through to
@@ -1185,16 +1209,18 @@ export const DentalChart = () => {
 
       {/* Tabs — just the flat tab strip, nothing above it. Tabs are
           equal-width (flex-1) so they fill the row right up to the edit
-          button instead of leaving dead space before it. Light dividers
-          between tabs + a visibly gray container border, per request. */}
+          button instead of leaving dead space before it. Definition comes
+          from shadow, not a border — a gray outline was tried and undone
+          per request ("just shadows instead of gray outline"); the native
+          click focus ring is also suppressed on each tab button. */}
       <div className="sticky z-30 bg-gray-50" style={{ top: stickyOffsets.tabsTop }}>
-        <div className="bg-card rounded-xl border border-gray-300 shadow-sm">
-          <div ref={tabsRowRef} className="rounded-t-xl border-b border-gray-300 bg-card">
+        <div className="bg-card rounded-xl shadow-md">
+          <div ref={tabsRowRef} className="rounded-t-xl border-b border-gray-100 bg-card">
             <div className="flex items-center">
-              <div className="flex flex-1 min-w-0 divide-x divide-gray-200">
+              <div className="flex flex-1 min-w-0 divide-x divide-gray-100">
               {visibleTabs.map((tab) => (
                 <button key={tab.key} onClick={() => handleTabSwitch(tab.key as TabKey)}
-                  className={`flex-1 px-2 py-3 text-sm font-medium text-center transition-colors ${activeTab === tab.key ? 'border-b-2 border-blue-700 text-blue-700 bg-blue-50' : 'text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
+                  className={`flex-1 px-2 py-3 text-sm font-medium text-center transition-colors focus:outline-none focus-visible:outline-none ${activeTab === tab.key ? 'border-b-2 border-blue-700 text-blue-700 bg-blue-50' : 'text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
                   {tab.label}
                 </button>
               ))}
@@ -1207,9 +1233,11 @@ export const DentalChart = () => {
                     </button>
                   ) : (
                     <>
-                      <button onClick={cancelEdit} disabled={saving} className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-60">
-                        Cancel
-                      </button>
+                      {!isNewYearSheet && (
+                        <button onClick={cancelEdit} disabled={saving} className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-60">
+                          Cancel
+                        </button>
+                      )}
                       <button onClick={handleSave} disabled={saving} className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-60 ${saved ? 'bg-green-600 text-white' : 'bg-primary text-white hover:bg-primary-hover'}`}>
                         <Save className="w-3.5 h-3.5" />
                         {saving ? 'Saving…' : saved ? 'Saved!' : 'Save'}
@@ -1379,7 +1407,7 @@ export const DentalChart = () => {
             <div className="bg-card rounded-xl border border-border p-4">
               <div className="text-base font-bold text-foreground">Physical Measurements</div>
               <p className="text-xs text-muted-foreground mb-3">{years[selectedYear]?.iptr.school_year}</p>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div>
                   <label className="block text-xs text-muted-foreground mb-1">Height (cm)</label>
                   <input type="number" min="0" max="300" step="0.1" inputMode="decimal" disabled={!editingHistory}
@@ -1416,21 +1444,25 @@ export const DentalChart = () => {
                     ? 'No reference below age 6'
                     : 'No reference above age 19';
                   return (
-                    <div className="flex gap-2">
-                      <div className="w-20 flex-shrink-0">
+                    <>
+                      <div>
                         <label className="block text-xs text-muted-foreground mb-1">BMI</label>
                         <div className="w-full text-xs border border-border rounded px-2 py-1 bg-muted text-muted-foreground" title={BMI_NOTE}>
                           {bmiValue ?? 'Auto'}
                         </div>
                       </div>
-                      <div className="flex-1">
+                      {/* Spans both columns on phone widths so it drops to
+                          its own line instead of being squeezed next to BMI
+                          — back to a normal single column alongside the
+                          rest on sm+ screens. */}
+                      <div className="col-span-2 sm:col-span-1">
                         <label className="block text-xs text-muted-foreground mb-1">Nutritional Status</label>
                         <div className={`w-full text-xs border border-border rounded px-2 py-1 ${statusColor}`}
                           title="DOH/DepEd BMI-for-Age classification, 6–19 years old — blank outside that range.">
                           {status ?? statusFallback}
                         </div>
                       </div>
-                    </div>
+                    </>
                   );
                 })()}
               </div>
