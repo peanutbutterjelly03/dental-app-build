@@ -2,6 +2,13 @@
 
 **Compressed 2026-07-11 (hygiene pass).** Completed-sprint history → `docs/BUILD-LOG.md`; full pre-compression narratives → git history (`git show 73bc4e47:HANDOFF.md`). This file keeps only live state: current status, open work, warnings, and durable gotchas.
 
+## Follow-up round 3: Patient Info Card capped to 50%, subtitle line removed again, collapsible (2026-09-04)
+- **The subtitle line restored two rounds ago is removed again**, at the user's explicit follow-up call that it's redundant with the grade/section pills right below it — back to the same conclusion the original decluttering round reached, just arrived at twice. Not restoring it a third time without being asked.
+- **Name font**: `text-lg font-bold` → `text-base font-semibold` — "too big… make it small and narrow."
+- **Card capped at `lg:max-w-[50%]`** (full width below `lg:`, same phone/tablet reasoning as the record wrapper's own width history) — full-width made sense for the record wrapper as a whole, but the card's own content (name + an 8-field grid) was reading as sparse once the wrapper went full width last round, so the card itself now stays at half.
+- **New collapse/expand toggle** beside Edit — a chevron icon button (`basicInfoExpanded` state, defaults to expanded/`true`). Collapsed, only the avatar/name/grade/section header row shows; the Birthday/Age/Sex/Contact/Address/PhilHealth/Guardian/Guardian Contact grid is hidden entirely rather than just visually de-emphasized. Grid also dropped from 4 columns to 2 now that the card is half-width, so fields don't get cramped.
+- Verified via a static mockup (both expanded and collapsed states) against the real compiled CSS, in Playwright. `npx tsc --noEmit` (client + server) and `npm run build` both clean. Frontend-only.
+
 ## Follow-up round 2: IPTR record goes full width, Height/Weight/BMI dropped from the card display (2026-09-04)
 - **Container widened again, this time to full width, no cap at all** — the `lg:max-w-[80%]` from two rounds ago still left visible gutters at laptop widths per the user's screenshot; removed the cap entirely (`w-full`), matching every other page in the app exactly (Students, Dashboard, Appointments never had a max-width here either).
 - **Height/Weight/BMI removed from the Patient Info Card's read-only grid** — they'd already moved to the History tab's Physical Measurements block last round (edit path), but the card itself still separately displayed three "not measured" placeholders; removed now that the History tab is the one place that shows and edits them. Card is down to 8 fields (Birthday, Age, Sex, Contact, Address, PhilHealth, Guardian, Guardian Contact) — pure identity/contact facts, no clinical measurements.

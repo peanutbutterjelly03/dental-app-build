@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
-import { ArrowLeft, Save, ChevronLeft, ChevronRight, Shield, ShieldCheck, ShieldAlert, Users, TrendingUp, FileText, Plus, Pencil, Trash2, Brain, Download, X } from 'lucide-react';
+import { ArrowLeft, Save, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Shield, ShieldCheck, ShieldAlert, Users, TrendingUp, FileText, Plus, Pencil, Trash2, Brain, Download, X } from 'lucide-react';
 import { exportDohReportToPdf } from '../utils/exportPdf';
 import { getGradeColor } from '../utils/gradeColors';
 import { computeBmi, BMI_NOTE } from '../utils/bmi';
@@ -209,6 +209,10 @@ export const DentalChart = () => {
   const [editMode, setEditMode] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [editingInfo, setEditingInfo] = useState(false);
+  // Collapses the Patient Info Card down to just name + grade/section pills
+  // — the birthday/contact/address grid is useful but not something every
+  // screen visit needs looking at.
+  const [basicInfoExpanded, setBasicInfoExpanded] = useState(true);
   const [draftInfo, setDraftInfo] = useState<Partial<typeof student>>({});
   // Year-scoped grade/section, drafted separately from STUDENT even though
   // they share the one Edit button — the save below writes to both records.
@@ -759,7 +763,6 @@ export const DentalChart = () => {
   const yearIptr = years[selectedYear]?.iptr;
   const yearGrade = yearIptr?.grade_level ?? null;
   const yearSection = yearIptr?.section ?? null;
-  const yearGradeLabel = yearGrade ? `${yearGrade}${yearSection ? ` ${yearSection}` : ''}` : 'Grade not recorded';
   // Same per-year rule as grade above: consent is obtained for this school
   // year's IPTR, never inherited from another year.
   const consentComplete = yearIptr?.consent_status === 'complete';
@@ -843,15 +846,14 @@ export const DentalChart = () => {
           the PDF captures. */}
       <div ref={recordRef} className="space-y-4">
       {/* Patient Info Card */}
-      <div className="bg-card rounded-xl border border-border p-5">
-          <div className="flex items-start justify-between gap-3 mb-4">
+      <div className="bg-card rounded-xl border border-border p-5 w-full lg:max-w-[50%]">
+          <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div style={{ backgroundColor: gc.light, color: gc.solid }} className="w-14 h-14 rounded-2xl flex items-center justify-center font-bold text-xl flex-shrink-0">
                   {[student.first_name?.[0], student.last_name?.[0]].filter(Boolean).join('') || student.full_name?.[0]}
                 </div>
                 <div>
-                  <div className="text-lg font-bold text-foreground">{surnameFirstWithInitial(student)}</div>
-                  <div className="text-xs text-muted-foreground">{yearGradeLabel} • {student.sex} • Age {patientAge}</div>
+                  <div className="text-base font-semibold text-foreground">{surnameFirstWithInitial(student)}</div>
                   <div className="flex items-center gap-2 mt-1">
                     {yearGrade && <GradePill grade={yearGrade} />}
                     {yearSection && <span style={{ color: gc.solid }} className="text-xs font-medium">{yearSection}</span>}
@@ -874,28 +876,37 @@ export const DentalChart = () => {
                     <Pencil className="w-3 h-3" /> Edit
                   </button>
                 )}
+                <button
+                  onClick={() => setBasicInfoExpanded((v) => !v)}
+                  title={basicInfoExpanded ? 'Hide basic information' : 'Show basic information'}
+                  className="flex items-center gap-1.5 px-2 py-1.5 text-xs border border-border rounded-lg text-muted-foreground hover:bg-gray-50"
+                >
+                  {basicInfoExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </button>
               </div>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3 text-sm border-t border-border pt-4">
-              {[
-                ['Birthday', formatDate(student.birthday)],
-                ['Age', `${patientAge} years`],
-                ['Sex', student.sex],
-                ['Contact', student.contact_number || '—'],
-                ['Address', student.address],
-                ['PhilHealth', `${student.philhealth_number || '—'} (${student.philhealth_status || 'None'})`],
-                ['Guardian', student.guardian_name || '—'],
-                ['Guardian Contact', student.guardian_contact || '—'],
-                // Height/Weight/BMI live on the History tab's Physical
-                // Measurements block now, not here — this card stays to
-                // identity/contact facts, not clinical measurements.
-              ].map(([label, val]) => (
-                <div key={label}>
-                  <div className="text-xs text-muted-foreground font-medium mb-0.5">{label}</div>
-                  <div className="text-foreground font-medium">{val}</div>
-                </div>
-              ))}
-            </div>
+            {basicInfoExpanded && (
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm border-t border-border pt-4 mt-4">
+                {[
+                  ['Birthday', formatDate(student.birthday)],
+                  ['Age', `${patientAge} years`],
+                  ['Sex', student.sex],
+                  ['Contact', student.contact_number || '—'],
+                  ['Address', student.address],
+                  ['PhilHealth', `${student.philhealth_number || '—'} (${student.philhealth_status || 'None'})`],
+                  ['Guardian', student.guardian_name || '—'],
+                  ['Guardian Contact', student.guardian_contact || '—'],
+                  // Height/Weight/BMI live on the History tab's Physical
+                  // Measurements block now, not here — this card stays to
+                  // identity/contact facts, not clinical measurements.
+                ].map(([label, val]) => (
+                  <div key={label}>
+                    <div className="text-xs text-muted-foreground font-medium mb-0.5">{label}</div>
+                    <div className="text-foreground font-medium">{val}</div>
+                  </div>
+                ))}
+              </div>
+            )}
       </div>
 
       {/* Edit Student Information — mirrors Add Student's modal chrome and
