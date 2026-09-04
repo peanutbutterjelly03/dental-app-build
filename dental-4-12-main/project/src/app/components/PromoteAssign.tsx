@@ -174,17 +174,32 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, allSections }: {
 
   return (
     <div className="p-6 space-y-4">
-      <div>
-        <h2 className="text-base font-bold text-foreground flex items-center gap-2">
-          <GraduationCap className="w-5 h-5" /> Assign
-        </h2>
-        <p className="text-xs text-muted-foreground mt-1">
-          Opens next year's record for a whole section at once.
-          <span className="font-medium text-foreground"> {fromYear} </span>
-          <ArrowRight className="w-3 h-3 inline mx-0.5" />
-          <span className="font-medium text-foreground"> {toYear} </span>
-          · {schoolName}
-        </p>
+      {/* Actions live top-right, level with the heading — they used to be a
+          full-width pair pinned under the roster, which put the primary action
+          a scroll away from the controls that decide what it does. */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-base font-bold text-foreground flex items-center gap-2">
+            <GraduationCap className="w-5 h-5" /> Assign
+          </h2>
+          <p className="text-xs text-muted-foreground mt-1">
+            Opens next year's record for a whole section at once.
+            <span className="font-medium text-foreground"> {fromYear} </span>
+            <ArrowRight className="w-3 h-3 inline mx-0.5" />
+            <span className="font-medium text-foreground"> {toYear} </span>
+            · {schoolName}
+          </p>
+        </div>
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <button onClick={onClose} disabled={running}
+            className="px-4 py-2 border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium disabled:opacity-50">
+            {result ? 'Close' : 'Cancel'}
+          </button>
+          <button onClick={run} disabled={running || toApply.length === 0}
+            className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
+            {running ? 'Working…' : `Assign ${toApply.length} Student${toApply.length === 1 ? '' : 's'}`}
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -320,16 +335,6 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, allSections }: {
         </Notice>
       )}
 
-      <div className="flex gap-3 pt-1">
-        <button onClick={onClose} disabled={running}
-          className="flex-1 px-4 py-2 border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium disabled:opacity-50">
-          {result ? 'Close' : 'Cancel'}
-        </button>
-        <button onClick={run} disabled={running || toApply.length === 0}
-          className="flex-1 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
-          {running ? 'Working…' : `Assign ${toApply.length} Student${toApply.length === 1 ? '' : 's'}`}
-        </button>
-      </div>
     </div>
   );
 };

@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { WifiOff, RefreshCw, AlertTriangle, Check, Cloud } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { useOfflineQueue } from '../hooks/useOfflineQueue';
-import { useAuth } from '../context/AuthContext';
-import { TOPBAR_H } from '../utils/layout';
 import { retryQueue, discardFailedWrite, keepMyChange, discardMyChange } from '../offline/queueProcessor';
 import type { QueuedWrite } from '../offline/db';
 
@@ -47,14 +45,12 @@ type Tone = 'offline' | 'syncing' | 'auth' | 'failed' | 'conflict' | 'idle';
 // field need to be able to glance at, not something that only appears once
 // there's a problem.
 //
-// Two shapes, ONE popover. `floating` is the round icon that hangs in the
-// top-right corner; `inline` is the coloured Online/Offline pill that lives in
-// Root's status strip. They differ only in the trigger — the panel underneath
-// is identical, which is the point: clicking the pill has to give the same
-// thing the icon always gave.
-export const SyncStatus = ({ variant = 'floating' }: { variant?: 'floating' | 'inline' }) => {
+// ONE shape: a small coloured pill in Root's status strip, which opens the
+// full sync panel. The floating round icon that used to hang in the top-right
+// corner was deleted on request — it overlapped page content and duplicated
+// what the strip already says.
+export const SyncStatus = () => {
   const { isOnline, pendingCount, failed, authBlocked, conflicts } = useOfflineQueue();
-  const { user, schoolChoiceMade } = useAuth();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -93,76 +89,46 @@ export const SyncStatus = ({ variant = 'floating' }: { variant?: 'floating' | 'i
     };
   }, [open]);
 
-  const chrome: Record<Tone, { icon: JSX.Element; ring: string; label: string }> = {
+  const chrome: Record<Tone, { ring: string; label: string }> = {
     offline: {
-      icon: <WifiOff className="w-4 h-4" />,
       ring: 'bg-amber-100 text-amber-700 border-amber-300',
       label: `Offline${pendingCount > 0 ? ` — ${pendingCount} change${pendingCount > 1 ? 's' : ''} saved locally` : ''}`,
     },
     syncing: {
-      icon: <RefreshCw className="w-4 h-4 animate-spin" />,
       ring: 'bg-blue-100 text-blue-700 border-blue-300',
       label: `Syncing ${pendingCount} pending change${pendingCount > 1 ? 's' : ''}…`,
     },
     auth: {
-      icon: <AlertTriangle className="w-4 h-4" />,
       ring: 'bg-amber-100 text-amber-700 border-amber-300',
       label: 'Session expired — sign in again to sync',
     },
     failed: {
-      icon: <AlertTriangle className="w-4 h-4" />,
       ring: 'bg-red-100 text-red-700 border-red-300',
       label: "A change couldn't be saved",
     },
     conflict: {
-      icon: <AlertTriangle className="w-4 h-4" />,
       ring: 'bg-orange-100 text-orange-700 border-orange-300',
       label: `${conflicts.length} change${conflicts.length > 1 ? 's' : ''} need review`,
     },
     idle: {
-      icon: <Cloud className="w-4 h-4" />,
       ring: 'bg-emerald-50 text-emerald-700 border-emerald-300',
       label: 'Online — everything synced',
     },
   };
 
-  const { icon, ring, label } = chrome[tone];
-
-  // Inside the app shell the strip already carries this, so the floating icon
-  // would be the same state twice on one screen. It stays on Login and the
-  // school picker, which have no strip and where being offline still explains
-  // why signing in fails.
-  if (variant === 'floating' && user && schoolChoiceMade) return null;
-
-  const inline = variant === 'inline';
+  const { ring, label } = chrome[tone];
 
   return (
-    <div
-      ref={containerRef}
-      // Floating: offset below the status strip — at top-2 it rendered
-      // underneath it and got clipped. Inline: a normal child of the strip.
-      style={inline ? undefined : { top: TOPBAR_H + 8 }}
-      className={inline ? 'relative' : 'fixed right-2 md:right-4 z-40'}
-    >
+    <div ref={containerRef} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
         aria-label={label}
         title={label}
         aria-expanded={open}
-        className={
-          inline
-            ? `inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-semibold leading-none transition-colors ${ring}`
-            : `flex items-center justify-center w-9 h-9 rounded-full border shadow-sm transition-colors ${ring}`
-        }
+        className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-[2px] text-[10px] font-semibold leading-none transition-colors ${ring}`}
       >
-        {inline ? (
-          <>
-            <span className="w-1.5 h-1.5 rounded-full bg-current" aria-hidden="true" />
-            {isOnline ? 'Online' : 'Offline'}
-          </>
-        ) : (
-          icon
-        )}
+        <span className="w-1 h-1 rounded-full bg-current" aria-hidden="true" />
+        {isOnline ? 'Online' : 'Offline'}
       </button>
 
       {open && (

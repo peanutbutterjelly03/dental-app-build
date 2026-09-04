@@ -1235,10 +1235,15 @@ export const DentalChart = () => {
         <div className="bg-card rounded-xl">
           <div ref={tabsRowRef} className="rounded-t-xl border-b border-gray-100 bg-card">
             <div className="flex items-center">
-              <div className="flex flex-1 min-w-0">
+              {/* `overflow-x-auto` + `whitespace-nowrap` below: a two-line
+                  "Caries Risk Assessment" made the whole strip taller and
+                  knocked every other label off the baseline. Labels now stay
+                  on one line and the strip scrolls inside itself once they
+                  stop fitting, which is the house rule for tab strips. */}
+              <div className="flex flex-1 min-w-0 overflow-x-auto">
               {visibleTabs.map((tab) => (
                 <button key={tab.key} onClick={() => handleTabSwitch(tab.key as TabKey)}
-                  className={`flex-1 px-2 py-3 text-sm text-center transition-colors focus:outline-none focus-visible:outline-none ${activeTab === tab.key ? 'font-bold border-b-2 border-blue-700 text-blue-700' : 'font-medium text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
+                  className={`flex-1 whitespace-nowrap px-3 py-3 text-sm text-center transition-colors focus:outline-none focus-visible:outline-none ${activeTab === tab.key ? 'font-bold border-b-2 border-blue-700 text-blue-700' : 'font-medium text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
                   {tab.label}
                 </button>
               ))}

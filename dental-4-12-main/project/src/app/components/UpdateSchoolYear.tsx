@@ -336,6 +336,9 @@ export const UpdateSchoolYear = () => {
 
       {tab === 'transfer' && (
         <div className="bg-card rounded-xl border border-border p-4 space-y-4">
+          {/* Actions sit at the right end of this row rather than under the
+              roster: same reason as the Assign tab, and `items-end` already
+              bottom-aligns everything here so they line up with the selects. */}
           <div className="flex flex-wrap items-end gap-3">
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1">From Grade</label>
@@ -393,6 +396,22 @@ export const UpdateSchoolYear = () => {
                   <option value={NEW_SECTION}>+ Add new section…</option>
                 </select>
               )}
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                onClick={() => setShowArchiveConfirm(true)}
+                disabled={selected.size === 0 || archiving || transferring}
+                className="flex items-center justify-center gap-2 px-4 py-2 border border-destructive text-destructive rounded-lg text-sm font-medium hover:bg-danger-surface disabled:opacity-50"
+              >
+                <ArchiveIcon className="w-4 h-4" /> Archive Selected
+              </button>
+              <button
+                onClick={runTransfer}
+                disabled={selected.size === 0 || !targetGrade || transferring || archiving}
+                className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-hover disabled:opacity-50"
+              >
+                {transferring ? 'Working…' : `Transfer Selected (${selected.size})`}
+              </button>
             </div>
           </div>
 
@@ -467,22 +486,6 @@ export const UpdateSchoolYear = () => {
             </Notice>
           )}
 
-          <div className="flex gap-3">
-            <button
-              onClick={() => setShowArchiveConfirm(true)}
-              disabled={selected.size === 0 || archiving || transferring}
-              className="flex items-center justify-center gap-2 px-4 py-2 border border-destructive text-destructive rounded-lg text-sm font-medium hover:bg-danger-surface disabled:opacity-50"
-            >
-              <ArchiveIcon className="w-4 h-4" /> Archive Selected
-            </button>
-            <button
-              onClick={runTransfer}
-              disabled={selected.size === 0 || !targetGrade || transferring || archiving}
-              className="flex-1 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-hover disabled:opacity-50"
-            >
-              {transferring ? 'Working…' : `Transfer Selected (${selected.size})`}
-            </button>
-          </div>
         </div>
       )}
 

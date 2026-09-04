@@ -259,6 +259,12 @@ export const Root = () => {
     );
   };
 
+  // Same school palette the kicker/GradePill use — the strip must not invent a
+  // second colour language for the same school.
+  const stripSchool = selectedSchool
+    ? getSchoolColor(selectedSchool)
+    : { solid: '#1E40AF', light: '#EFF6FF', border: '#93C5FD' };
+
   return (
     // flex-col below md so the mobile top bar stacks ABOVE the content as a
     // normal flow item. It is `sticky` under the fixed status strip.
@@ -275,14 +281,20 @@ export const Root = () => {
           covering the first row of content. */}
       <div
         style={{ height: TOPBAR_H }}
-        className={`fixed top-0 right-0 left-0 ${collapsed ? 'md:left-[60px]' : 'md:left-[220px]'} z-[60] flex items-center justify-end gap-2 px-3 bg-card border-b border-border text-[11px] leading-none transition-[left] duration-200`}
+        className={`fixed top-0 right-0 left-0 ${collapsed ? 'md:left-[60px]' : 'md:left-[220px]'} z-[60] flex items-center justify-end gap-1.5 px-3 bg-card border-b border-border leading-none transition-[left] duration-200`}
       >
-        {/* The pill IS the sync affordance — clicking it opens the same panel
-            the floating cloud icon used to, which is why that icon suppresses
-            itself inside the shell rather than sitting here twice. */}
-        <SyncStatus variant="inline" />
-        <span className="w-px h-3 bg-border" aria-hidden="true" />
-        <span className="font-medium text-foreground truncate">
+        {/* Two pills, no divider — the rings already separate them. The sync
+            pill IS the affordance: clicking it opens the full panel, which is
+            why the floating cloud icon it replaced is gone entirely. */}
+        <SyncStatus />
+        <span
+          style={{
+            backgroundColor: stripSchool.light,
+            color: stripSchool.solid,
+            borderColor: stripSchool.border,
+          }}
+          className="inline-flex items-center rounded-full border px-2 py-[2px] text-[10px] font-semibold leading-none truncate max-w-[45vw]"
+        >
           {selectedSchool ? getSchoolShortName(selectedSchool) : 'All Schools'}
         </span>
       </div>
