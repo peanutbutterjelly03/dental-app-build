@@ -2,6 +2,9 @@
 
 **Compressed 2026-07-11 (hygiene pass).** Completed-sprint history → `docs/BUILD-LOG.md`; full pre-compression narratives → git history (`git show 73bc4e47:HANDOFF.md`). This file keeps only live state: current status, open work, warnings, and durable gotchas.
 
+## Add Student: 4Ps checkbox moved after Address (2026-09-04)
+Was paired with Guardian Name (its own row above PhilHealth Number/Status); moved to its own full-width row directly after Address, with the conditional 4Ps ID field still immediately following it. Guardian Name is now a full-width row on its own, matching Address's style, since 4Ps no longer shares its row.
+
 ## Add Student layout pass + Section fix #5 (2026-09-04)
 - Middle Name / Birthdate / Age merged into one 3-column row (was Middle Name alone, then Birthdate+Age below it) — Age in particular is a couple of characters, no reason it had its own row's width to itself in a modal that's now wide enough to fit three fields across.
 - PhilHealth Number moved to sit with PhilHealth Status (Number first, per request); Contact Number now pairs with Guardian Contact instead (both phone-shaped fields); Guardian Name pairs with the 4Ps checkbox.
