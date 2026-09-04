@@ -703,25 +703,23 @@ export const PatientList = () => {
   // yet" — no separate open/closed flag needed anywhere in the data model.
   const schoolYearNeedsUpdate = schoolStudents.some(s => !s.pending && (!s.grade || !s.section));
 
-  // Section names already in use for the grade being entered on the Add
-  // Student form — real sections come from the roster, not a fixed list, so
-  // this is what makes Section a dropdown instead of free text. Empty until
-  // a grade is chosen; falls back to typing when there's nothing to offer
-  // yet (a brand new grade, or the very first student in one).
-  const sectionOptionsForGrade = useMemo(() => {
-    if (!newPatient.grade) return [];
-    return [...new Set(
-      schoolStudents.filter(s => s.grade === newPatient.grade && s.section).map(s => s.section)
-    )].sort();
-  }, [schoolStudents, newPatient.grade]);
+  // Every section name already in use anywhere in the school being entered
+  // on the Add Student form — real sections come from the whole roster, not
+  // a fixed list and not narrowed to the chosen grade (the same section name
+  // is often reused across grade levels, and scoping to grade meant nothing
+  // suggested at all until a grade was picked first).
+  const schoolSectionOptions = useMemo(() => {
+    return [...new Set(schoolStudents.filter(s => s.section).map(s => s.section))].sort();
+  }, [schoolStudents]);
 
-  // What the Section combobox's suggestion list actually shows — narrowed
-  // by whatever's typed so far, or the full list when the box is empty.
+  // What the Section combobox's suggestion list actually shows — prefix-
+  // matched against whatever's typed so far ("s" -> sections STARTING with
+  // s, not just containing one), or the full list when the box is empty.
   const filteredSectionOptions = useMemo(() => {
     const q = newPatient.section.trim().toLowerCase();
-    if (!q) return sectionOptionsForGrade;
-    return sectionOptionsForGrade.filter((s) => s.toLowerCase().includes(q));
-  }, [sectionOptionsForGrade, newPatient.section]);
+    if (!q) return schoolSectionOptions;
+    return schoolSectionOptions.filter((s) => s.toLowerCase().startsWith(q));
+  }, [schoolSectionOptions, newPatient.section]);
 
   // Live, client-side duplicate check for the Add Student form — distinct
   // from both findDuplicateStudents (the server's create-time 409 check,
@@ -1353,8 +1351,8 @@ export const PatientList = () => {
                 <div><label className="block text-sm font-medium text-foreground mb-1">Last Name{req('lastName')} {ocrHint('lastName')}</label><input type="text" value={newPatient.lastName} onChange={e => updateField('lastName', e.target.value.toUpperCase())} className={ocrFieldClass('lastName')} />{fieldError('lastName')}</div>
                 <div><label className="block text-sm font-medium text-foreground mb-1">First Name{req('firstName')} {ocrHint('firstName')}</label><input type="text" value={newPatient.firstName} onChange={e => updateField('firstName', e.target.value.toUpperCase())} className={ocrFieldClass('firstName')} />{fieldError('firstName')}</div>
               </div>
-              <div><label className="block text-sm font-medium text-foreground mb-1">Middle Name{optionalTag} {ocrHint('middleName')}</label><input type="text" value={newPatient.middleName} onChange={e => updateField('middleName', e.target.value.toUpperCase())} className={ocrFieldClass('middleName')} /></div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
+                <div><label className="block text-sm font-medium text-foreground mb-1">Middle Name{optionalTag} {ocrHint('middleName')}</label><input type="text" value={newPatient.middleName} onChange={e => updateField('middleName', e.target.value.toUpperCase())} className={ocrFieldClass('middleName')} /></div>
                 <div><label className="block text-sm font-medium text-foreground mb-1">Birthdate{req('birthdate')} {ocrHint('birthdate')}</label><input type="date" value={newPatient.birthdate} onChange={e => updateField('birthdate', e.target.value)} className={ocrFieldClass('birthdate')} />{fieldError('birthdate')}</div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Age</label>
@@ -1424,7 +1422,7 @@ export const PatientList = () => {
                           {s}
                         </button>
                       ))}
-                      {newPatient.section.trim() && !sectionOptionsForGrade.some(s => s.toLowerCase() === newPatient.section.trim().toLowerCase()) && (
+                      {newPatient.section.trim() && !schoolSectionOptions.some(s => s.toLowerCase() === newPatient.section.trim().toLowerCase()) && (
                         <button
                           type="button"
                           onMouseDown={() => setSectionMenuOpen(false)}
@@ -1443,15 +1441,15 @@ export const PatientList = () => {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="block text-sm font-medium text-foreground mb-1">Contact Number{optionalTag} {ocrHint('contactNumber')}</label><input type="text" value={newPatient.contactNumber} onChange={e => updateField('contactNumber', e.target.value)} placeholder="09XX-XXX-XXXX" className={ocrFieldClass('contactNumber')} /></div>
-                <div><label className="block text-sm font-medium text-foreground mb-1">PhilHealth Number{optionalTag} {ocrHint('philhealthNumber')}</label><input type="text" value={newPatient.philhealthNumber} onChange={e => setNewPatient({...newPatient, philhealthNumber: e.target.value})} placeholder="XX-XXXXXXXXX-X" className={ocrFieldClass('philhealthNumber')} /></div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium text-foreground mb-1">Guardian Name{optionalTag}</label><input type="text" value={newPatient.guardianName} onChange={e => setNewPatient({...newPatient, guardianName: e.target.value})} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
                 <div><label className="block text-sm font-medium text-foreground mb-1">Guardian Contact{optionalTag}</label><input type="text" value={newPatient.guardianContact} onChange={e => setNewPatient({...newPatient, guardianContact: e.target.value})} placeholder="09XX-XXX-XXXX" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
               </div>
               <div className="grid grid-cols-2 gap-4 items-end">
-                <div><label className="block text-sm font-medium text-foreground mb-1">PhilHealth Status</label><select value={newPatient.philhealthStatus} onChange={e => setNewPatient({...newPatient, philhealthStatus: e.target.value})} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"><option value="None">None</option><option value="Principal">Principal</option><option value="Dependent">Dependent</option></select></div>
+                <div><label className="block text-sm font-medium text-foreground mb-1">Guardian Name{optionalTag}</label><input type="text" value={newPatient.guardianName} onChange={e => setNewPatient({...newPatient, guardianName: e.target.value})} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
                 <div className="flex items-center gap-3 pb-2"><input type="checkbox" id="is4ps" checked={newPatient.is4Ps} onChange={e => setNewPatient({...newPatient, is4Ps: e.target.checked})} className="w-4 h-4 rounded accent-primary" /><label htmlFor="is4ps" className="text-sm font-medium text-foreground">4Ps / NHTS Member</label></div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="block text-sm font-medium text-foreground mb-1">PhilHealth Number{optionalTag} {ocrHint('philhealthNumber')}</label><input type="text" value={newPatient.philhealthNumber} onChange={e => setNewPatient({...newPatient, philhealthNumber: e.target.value})} placeholder="XX-XXXXXXXXX-X" className={ocrFieldClass('philhealthNumber')} /></div>
+                <div><label className="block text-sm font-medium text-foreground mb-1">PhilHealth Status</label><select value={newPatient.philhealthStatus} onChange={e => setNewPatient({...newPatient, philhealthStatus: e.target.value})} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"><option value="None">None</option><option value="Principal">Principal</option><option value="Dependent">Dependent</option></select></div>
               </div>
               {newPatient.is4Ps && <div><label className="block text-sm font-medium text-foreground mb-1">4Ps ID{req('fourPsId')} {ocrHint('fourPsId')}</label><input type="text" value={newPatient.fourPsId} onChange={e => updateField('fourPsId', e.target.value)} placeholder="4PS-XXXXXXXX" className={ocrFieldClass('fourPsId')} />{fieldError('fourPsId')}</div>}
               <div><label className="block text-sm font-medium text-foreground mb-1">Address{req('address')} {ocrHint('address')}</label><input type="text" value={newPatient.address} onChange={e => updateField('address', e.target.value)} className={ocrFieldClass('address')} />{fieldError('address')}</div>

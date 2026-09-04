@@ -2,6 +2,11 @@
 
 **Compressed 2026-07-11 (hygiene pass).** Completed-sprint history → `docs/BUILD-LOG.md`; full pre-compression narratives → git history (`git show 73bc4e47:HANDOFF.md`). This file keeps only live state: current status, open work, warnings, and durable gotchas.
 
+## Add Student layout pass + Section fix #5 (2026-09-04)
+- Middle Name / Birthdate / Age merged into one 3-column row (was Middle Name alone, then Birthdate+Age below it) — Age in particular is a couple of characters, no reason it had its own row's width to itself in a modal that's now wide enough to fit three fields across.
+- PhilHealth Number moved to sit with PhilHealth Status (Number first, per request); Contact Number now pairs with Guardian Contact instead (both phone-shaped fields); Guardian Name pairs with the 4Ps checkbox.
+- **The actual bug behind "section still doesn't detect existing sections":** `sectionOptionsForGrade` only populated once a Grade was already selected, so typing into Section before picking a grade (or into a grade with zero recorded students) showed nothing to suggest at all — which reads as "not detecting the database" even though the combobox itself was working. Renamed to `schoolSectionOptions` and scoped to the WHOLE school instead of one grade — the same section name is commonly reused across grade levels anyway, so grade-scoping was adding a dependency without buying real precision. Matching also switched from substring (`.includes`) to prefix (`.startsWith`), matching the literal ask ("sections that start with s") and standard autocomplete behavior.
+
 ## Section, fourth attempt — now a real combobox (2026-09-04)
 The `<select>` + toggle from the round before satisfied "must look like a dropdown" but not "type to search" — a `<select>` doesn't filter as you type. Replaced with a small hand-built combobox: the input IS the value (typing directly sets `newPatient.section`), a suggestion panel opens on focus and filters live against `sectionOptionsForGrade` as you type, clicking a suggestion fills it in, and if nothing matches, a "+ Add "X" as new section" row confirms the typed value is being treated as a genuinely new section (functionally it was already going to be used as typed — that row is discoverability, not a separate code path). `customSection` state replaced with `sectionMenuOpen`.
 
