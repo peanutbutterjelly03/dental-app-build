@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Eye, FileText, X, School as SchoolIcon, List, ChevronLeft, ChevronRight, Users, Upload, CheckCircle, AlertCircle, ScanLine, GraduationCap, MoreVertical, ListChecks, Trash2 } from 'lucide-react';
+import { Plus, Eye, FileText, X, School as SchoolIcon, List, ChevronLeft, ChevronRight, Users, Upload, CheckCircle, AlertCircle, ScanLine, GraduationCap, MoreVertical, ListChecks, Trash2, Copy } from 'lucide-react';
 import { ConfirmDialog } from './ConfirmDialog';
 import { formatDate } from '../utils/localDate';
 import { OCR_CONFIDENCE_THRESHOLD, type IptrOcrFieldKey, type IptrCheckboxFinding } from '../utils/iptrOcrShared';
@@ -335,6 +335,40 @@ export const PatientList = () => {
   // name/id is itself a strong signal several autofill engines key off, even
   // with autocomplete overridden.
   const archivePasswordFieldName = useRef(`confirm-${Math.random().toString(36).slice(2)}`).current;
+
+  // Duplicate-records scan (housekeeping, not the create-time 409 check
+  // above) — groups of already-saved students that look like the same child
+  // encoded more than once. Fetched on demand from the three-dot menu, not
+  // on every list load.
+  const [showDuplicates, setShowDuplicates] = useState(false);
+  const [duplicateGroups, setDuplicateGroups] = useState<DuplicateCandidate[][]>([]);
+  const [duplicatesLoading, setDuplicatesLoading] = useState(false);
+  const [duplicatesError, setDuplicatesError] = useState<string | null>(null);
+
+  const loadDuplicates = async () => {
+    setDuplicatesLoading(true);
+    setDuplicatesError(null);
+    try {
+      const school = schools.find((s) => s.school_name === selectedSchool);
+      const query = school ? `?school_id=${school._id}` : '';
+      const groups = await apiClient.get<DuplicateCandidate[][]>(`/students/duplicates${query}`);
+      setDuplicateGroups(groups);
+    } catch (err) {
+      setDuplicatesError(err instanceof ApiError ? err.message : 'Could not load duplicate records.');
+    } finally {
+      setDuplicatesLoading(false);
+    }
+  };
+
+  // Archiving one duplicate reuses the exact same tickedIds + password
+  // confirmation flow as the bulk toolbar action — a duplicate row is just a
+  // one-student selection, not a separate archive path to maintain.
+  const archiveOneDuplicate = (id: string) => {
+    setTickedIds(new Set([id]));
+    setArchivePassword('');
+    setArchivePasswordError(null);
+    setConfirmArchiveTicked(true);
+  };
   const [archivePasswordError, setArchivePasswordError] = useState<string | null>(null);
 
   const exitSelectMode = () => {
@@ -371,6 +405,9 @@ export const PatientList = () => {
     setArchivePassword('');
     exitSelectMode();
     await reloadStudents();
+    // Archived students no longer belong in the duplicates list — refresh it
+    // so an archived-from-there row doesn't linger until the modal reopens.
+    if (showDuplicates) await loadDuplicates();
     if (archived > 0) toast.success(`${archived} student${archived === 1 ? '' : 's'} archived.`);
     if (failed.length > 0) toast.error(`${failed.length} could not be archived — see console.`);
   };
@@ -830,6 +867,12 @@ export const PatientList = () => {
                         >
                           <ListChecks className="w-3.5 h-3.5" /> Select students…
                         </button>
+                        <button
+                          onClick={() => { setShowListMenu(false); setShowDuplicates(true); void loadDuplicates(); }}
+                          className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-canvas flex items-center gap-2"
+                        >
+                          <Copy className="w-3.5 h-3.5" /> Find duplicates…
+                        </button>
                       </div>
                     </>
                   )}
@@ -980,6 +1023,68 @@ export const PatientList = () => {
           </div>
         )}
       </div>
+
+      {/* Find Duplicates — a housekeeping scan over already-saved records,
+          separate from the create-time 409 check above. Grouped by
+          normalized name + birthday + sex; see studentDuplicates.ts. */}
+      {showDuplicates && (
+        <Modal onClose={() => setShowDuplicates(false)} maxWidth="max-w-2xl">
+          <div className="flex items-center justify-between p-6 border-b">
+            <h2 className="text-lg font-bold text-foreground">Possible Duplicate Records</h2>
+            <button onClick={() => setShowDuplicates(false)} className="text-muted-foreground hover:text-muted-foreground"><X className="w-5 h-5" /></button>
+          </div>
+          <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+            <p className="text-xs text-muted-foreground">
+              Matched on name, birthday and sex{selectedSchool ? ` at ${getSchoolShortName(selectedSchool)}` : ' across all schools'}. Review each group before archiving — a false match here just wastes a click, but archiving the wrong record does not.
+            </p>
+            {duplicatesLoading ? (
+              <p className="text-sm text-muted-foreground py-8 text-center">Scanning records…</p>
+            ) : duplicatesError ? (
+              <p className="text-sm text-destructive py-8 text-center">{duplicatesError}</p>
+            ) : duplicateGroups.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-8 text-center">No likely duplicates found.</p>
+            ) : (
+              <div className="space-y-4">
+                {duplicateGroups.map((group) => (
+                  <div key={group.map((s) => s._id).join('-')} className="border border-border rounded-xl overflow-hidden">
+                    <div className="bg-warning-surface text-warning text-xs font-semibold px-3 py-1.5">
+                      {group.length} records look like the same child
+                    </div>
+                    <div className="divide-y divide-border">
+                      {group.map((s) => (
+                        <div key={s._id} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">{s.full_name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {s.grade_level} · {s.section} · {s.sex} · {formatDate(s.birthday)}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              onClick={() => navigate(`/dental-chart/${s._id}?tab=history`)}
+                              title="View chart"
+                              className="p-2 rounded-full border border-border text-muted-foreground hover:bg-canvas hover:text-foreground"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => archiveOneDuplicate(s._id)}
+                              title="Archive"
+                              className="p-2 rounded-full border border-destructive text-destructive hover:bg-danger-surface"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
 
       {/* Upload IPTR Form Modal (upload → OCR; no camera, see backlog 0e) */}
       {showOcrUpload && (

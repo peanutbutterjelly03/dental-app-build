@@ -7,7 +7,7 @@ import predictionRoutes from "./predictionRoutes.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { ADMIN_ONLY, CLINICAL_WRITE_ROLES } from "../middleware/roleGroups.js";
-import { findDuplicateStudents } from "../utils/studentDuplicates.js";
+import { findDuplicateStudents, getDuplicateStudents } from "../utils/studentDuplicates.js";
 import {
   School,
   User,
@@ -322,6 +322,12 @@ router.get("/stats/student-rows", requireAuth, asyncHandler(async (_req, res) =>
 // "Archive Selected" (bulk transfer) is used by the dentist/dental aide who
 // already reach this whole screen — same widening already done below for
 // student-iptrs, and for the same reason.
+// Intercepted before the generic CRUD router, same pattern as /users above —
+// this is a housekeeping scan over ALREADY-SAVED students (findDuplicateGroups
+// in studentDuplicates.ts), not a single-record CRUD read, so it needs its own
+// handler. Same write-capable roles as the rest of student management: staff
+// who can't add/archive students have no reason to see this either.
+router.get("/students/duplicates", requireAuth, requireRole(...CLINICAL_WRITE_ROLES), asyncHandler(getDuplicateStudents));
 router.use("/students", createCrudRouter(Student, {
   writeRoles: CLINICAL_WRITE_ROLES,
   archiveRoles: CLINICAL_WRITE_ROLES,
