@@ -215,6 +215,10 @@ export const DentalChart = () => {
   const [confirmOpenEdit, setConfirmOpenEdit] = useState(false);
   const [confirmSaveInfo, setConfirmSaveInfo] = useState(false);
   const [confirmEditChart, setConfirmEditChart] = useState(false);
+  // Switching tabs mid-edit is allowed — it's a warning, not a lock — but
+  // silently discarding an in-progress edit on a stray click is worse than
+  // asking once. Stores which tab was clicked so onConfirm can still go there.
+  const [pendingTabSwitch, setPendingTabSwitch] = useState<TabKey | null>(null);
   // Collapses the Patient Info Card down to just name + grade/section pills
   // — the birthday/contact/address grid is useful but not something every
   // screen visit needs looking at.
@@ -340,6 +344,16 @@ export const DentalChart = () => {
   const cancelEdit = async () => {
     setEditMode(false);
     await reload(); // refetch → draft-sync effect resets all drafts
+  };
+
+  // Warns before leaving an in-progress edit for another tab, but never
+  // blocks it — confirming discards the edit (via cancelEdit) and switches.
+  const handleTabSwitch = (key: TabKey) => {
+    if (editMode && key !== activeTab) {
+      setPendingTabSwitch(key);
+    } else {
+      setActiveTab(key);
+    }
   };
 
   const currentChart = draftChart;
@@ -1171,14 +1185,15 @@ export const DentalChart = () => {
 
       {/* Tabs — just the flat tab strip, nothing above it. Tabs are
           equal-width (flex-1) so they fill the row right up to the edit
-          button instead of leaving dead space before it. */}
+          button instead of leaving dead space before it. Light dividers
+          between tabs + a visibly gray container border, per request. */}
       <div className="sticky z-30 bg-gray-50" style={{ top: stickyOffsets.tabsTop }}>
-        <div className="bg-card rounded-xl border border-border">
-          <div ref={tabsRowRef} className="rounded-t-xl border-b border-border bg-card">
+        <div className="bg-card rounded-xl border border-gray-300 shadow-sm">
+          <div ref={tabsRowRef} className="rounded-t-xl border-b border-gray-300 bg-card">
             <div className="flex items-center">
-              <div className="flex flex-1 min-w-0">
+              <div className="flex flex-1 min-w-0 divide-x divide-gray-200">
               {visibleTabs.map((tab) => (
-                <button key={tab.key} onClick={() => setActiveTab(tab.key as TabKey)}
+                <button key={tab.key} onClick={() => handleTabSwitch(tab.key as TabKey)}
                   className={`flex-1 px-2 py-3 text-sm font-medium text-center transition-colors ${activeTab === tab.key ? 'border-b-2 border-blue-700 text-blue-700 bg-blue-50' : 'text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
                   {tab.label}
                 </button>
@@ -1299,11 +1314,16 @@ export const DentalChart = () => {
         </div>
       </div>
 
-      {/* Current year's consent status — always visible regardless of the
-          active tab, not just a dedicated tab (removed 2026-09-04 — this
-          banner plus the year tabs above it, which switch which year it
-          summarizes, already cover what that tab used to). */}
-      {years.length > 0 && yearIptr && (
+      {/* Current year's consent status — History tab only now (was every
+          tab; the banner is history/registration data, not something a
+          dentist mid-chart or mid-treatment-entry needs repeated). Grade
+          pill + section reuse the exact colour-by-grade pattern from the
+          Patient Info Card above (same `gc`/`GradePill`) instead of plain
+          gray text. Approval date intentionally NOT shown yet: STUDENT_IPTR
+          only stores the current consent_status, not when it was set —
+          showing a date would mean guessing one, which NOTHING COSMETIC
+          forbids. Needs a real consent_confirmed_at field first. */}
+      {activeTab === 'history' && years.length > 0 && yearIptr && (
         <div className={`rounded-xl border p-3 ${consentComplete ? 'bg-success-surface border-green-200' : 'bg-warning-surface border-amber-200'}`}>
           <div className="flex items-start gap-3 min-w-0">
             <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${consentComplete ? 'bg-white text-success' : 'bg-white text-warning'}`}>
@@ -1311,11 +1331,18 @@ export const DentalChart = () => {
             </div>
             <div className="min-w-0">
               <div className={`text-sm font-bold ${consentComplete ? 'text-success' : 'text-warning'}`}>
-                {consentComplete ? 'Physical copy of consent obtained' : `Consent Pending — ${yearIptr.school_year}`}
+                {consentComplete ? 'Physical copy of consent obtained' : `Consent Pending for year ${yearIptr.school_year}`}
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {yearGrade ? `${yearGrade}${yearSection ? ` · ${yearSection}` : ''}` : 'Grade/section not recorded for this year'}
-              </p>
+              <div className="flex items-center gap-1.5 mt-1">
+                {yearGrade ? (
+                  <>
+                    <GradePill grade={yearGrade} />
+                    {yearSection && <span style={{ color: gc.solid }} className="text-xs font-semibold">{yearSection}</span>}
+                  </>
+                ) : (
+                  <span className="text-xs text-muted-foreground">Grade/section not recorded for this year</span>
+                )}
+              </div>
             </div>
           </div>
           {!consentComplete && (
@@ -1882,6 +1909,19 @@ export const DentalChart = () => {
         confirmLabel="Proceed"
         onConfirm={() => { setEditMode(true); setConfirmEditChart(false); }}
         onCancel={() => setConfirmEditChart(false)}
+      />
+      <ConfirmDialog
+        open={pendingTabSwitch !== null}
+        title="Leave without saving?"
+        message="You have unsaved changes on this tab. Switching now will discard them."
+        confirmLabel="Leave anyway"
+        tone="danger"
+        onConfirm={() => {
+          const target = pendingTabSwitch;
+          setPendingTabSwitch(null);
+          cancelEdit().then(() => { if (target) setActiveTab(target); });
+        }}
+        onCancel={() => setPendingTabSwitch(null)}
       />
       <ConfirmDialog
         open={confirmSaveInfo}
