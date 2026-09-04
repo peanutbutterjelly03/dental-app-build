@@ -70,6 +70,9 @@ export interface ApiStudentIptr {
    *  Moved off STUDENT for the same reason grade_level did (see above): one
    *  signature does not authorize every year that follows it. */
   consent_status: "pending" | "complete";
+  /** Set server-side the moment consent_status becomes "complete"; null again
+   *  the moment it reverts to "pending". Never client-supplied. */
+  consent_given_at: string | null;
   isArchived: boolean;
 }
 

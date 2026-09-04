@@ -44,10 +44,22 @@ const studentIptrSchema = new mongoose.Schema(
     // forward. See migrateIptrConsent.ts for the one-time backfill of the
     // latest IPTR from the old STUDENT.consent_status value.
     consent_status: { type: String, enum: ["pending", "complete"], default: "pending" },
+    // Set server-side by the pre('save') hook below whenever consent_status
+    // changes — never trust a client-supplied timestamp for "when consent was
+    // given". Cleared back to null the moment a "complete" is reverted to
+    // "pending", since a pending record has no valid given date any more.
+    consent_given_at: { type: Date, default: null },
     ...softDeleteFields,
   },
   { timestamps: { createdAt: "created_at", updatedAt: false } },
 );
+
+studentIptrSchema.pre("save", function (next) {
+  if (this.isModified("consent_status")) {
+    this.consent_given_at = this.consent_status === "complete" ? new Date() : null;
+  }
+  next();
+});
 
 // Sprint 91. Leads with isArchived because every GET filters on it.
 // One student's records for the IPTR screen — `filterable: ["student_id"]`

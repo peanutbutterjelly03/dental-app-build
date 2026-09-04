@@ -250,43 +250,53 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, allSections }: {
                         <option value="skip">Skip</option>
                       </select>
                     </td>
-                    <td className="px-3 py-2 relative">
-                      <input
-                        value={r.section}
-                        onChange={(e) => setRow(r.student._id, { section: e.target.value })}
-                        onFocus={() => setOpenSectionRow(r.student._id)}
-                        onBlur={() => setOpenSectionRow(null)}
-                        disabled={r.action === 'skip'}
-                        autoComplete="off"
-                        placeholder="Search or add a section"
-                        className="text-xs border border-border rounded-md px-2 py-1 w-36 disabled:opacity-50"
-                        aria-label={`Section for ${surnameFirst(r.student)}`}
-                      />
-                      {openSectionRow === r.student._id && (
-                        <div className="absolute z-20 mt-1 w-36 max-h-40 overflow-y-auto rounded-lg border border-border bg-card shadow-md">
-                          {allSections
-                            .filter((s) => !r.section.trim() || s.toLowerCase().startsWith(r.section.trim().toLowerCase()))
-                            .map((s) => (
+                    <td className="px-3 py-2">
+                      {/* The dropdown wraps in its own `relative` div rather
+                          than making the <td> itself relative — some browsers
+                          position an absolutely-positioned child of a
+                          relatively-positioned TABLE CELL against the table as
+                          a whole rather than the cell, which is exactly the
+                          "menu floats over the header/other rows" bug this
+                          replaced. A plain div is an unambiguous containing
+                          block. */}
+                      <div className="relative">
+                        <input
+                          value={r.section}
+                          onChange={(e) => setRow(r.student._id, { section: e.target.value })}
+                          onFocus={() => setOpenSectionRow(r.student._id)}
+                          onBlur={() => setOpenSectionRow(null)}
+                          disabled={r.action === 'skip'}
+                          autoComplete="off"
+                          placeholder="Search or add a section"
+                          className="text-xs border border-border rounded-md px-2 py-1 w-36 disabled:opacity-50"
+                          aria-label={`Section for ${surnameFirst(r.student)}`}
+                        />
+                        {openSectionRow === r.student._id && (
+                          <div className="absolute z-20 mt-1 w-36 max-h-40 overflow-y-auto rounded-lg border border-border bg-card shadow-md">
+                            {allSections
+                              .filter((s) => !r.section.trim() || s.toLowerCase().startsWith(r.section.trim().toLowerCase()))
+                              .map((s) => (
+                                <button
+                                  key={s}
+                                  type="button"
+                                  onMouseDown={() => { setRow(r.student._id, { section: s }); setOpenSectionRow(null); }}
+                                  className="block w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-canvas"
+                                >
+                                  {s}
+                                </button>
+                              ))}
+                            {r.section.trim() && !allSections.some((s) => s.toLowerCase() === r.section.trim().toLowerCase()) && (
                               <button
-                                key={s}
                                 type="button"
-                                onMouseDown={() => { setRow(r.student._id, { section: s }); setOpenSectionRow(null); }}
-                                className="block w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-canvas"
+                                onMouseDown={() => setOpenSectionRow(null)}
+                                className="block w-full text-left px-2 py-1.5 text-xs text-primary hover:bg-primary-surface border-t border-border"
                               >
-                                {s}
+                                + Add "{r.section.trim()}" as new section
                               </button>
-                            ))}
-                          {r.section.trim() && !allSections.some((s) => s.toLowerCase() === r.section.trim().toLowerCase()) && (
-                            <button
-                              type="button"
-                              onMouseDown={() => setOpenSectionRow(null)}
-                              className="block w-full text-left px-2 py-1.5 text-xs text-primary hover:bg-primary-surface border-t border-border"
-                            >
-                              + Add "{r.section.trim()}" as new section
-                            </button>
-                          )}
-                        </div>
-                      )}
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

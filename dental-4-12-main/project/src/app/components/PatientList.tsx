@@ -922,10 +922,10 @@ export const PatientList = () => {
             title="Update School Year Information"
             aria-label="Update School Year Information"
             className={`p-2 rounded-full text-white shadow-sm transition-colors hover:brightness-110 ${
-              schoolYearNeedsUpdate ? 'bg-destructive' : 'bg-success'
+              schoolYearNeedsUpdate ? 'bg-gray-400' : 'bg-primary'
             }`}
           >
-            <GraduationCap className="w-6 h-6 text-white/90" strokeWidth={1.5} />
+            <GraduationCap className="w-6 h-6 text-white/90" strokeWidth={1.25} />
           </button>
           <button onClick={() => { setOcrError(null); setShowOcrUpload(true); }} className="flex items-center gap-2 px-4 py-2 border border-primary text-primary rounded-full hover:bg-primary-surface text-sm font-medium">
             <Upload className="w-4 h-4" /> OCR

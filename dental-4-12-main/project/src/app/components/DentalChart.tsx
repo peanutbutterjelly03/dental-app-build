@@ -8,7 +8,6 @@ import { useAuth } from '../context/AuthContext';
 import { GradePill } from './GradePill';
 import { useToast } from './Toast';
 import { useStudents } from '../hooks/useStudents';
-import { useAppointments } from '../hooks/useAppointments';
 import { useDentalChartData } from '../hooks/useDentalChartData';
 import { apiClient, ApiError } from '../api/client';
 import { toLocalDateString, formatDate } from '../utils/localDate';
@@ -156,18 +155,6 @@ export const DentalChart = () => {
   const { students: allStudents } = useStudents();
   // School list comes from the DB now, not a hardcoded array (Sprint 60).
   const { schoolNames } = useSchools();
-  // Only the Consent tab's "upcoming appointments" list reads this, and it
-  // filters to `date >= today`, so nothing before today is worth loading
-  // (Sprint 56). The forward bound is a year out — generous for any real
-  // scheduling horizon, and a bound rather than none.
-  const upcomingWindow = useMemo(() => {
-    const now = new Date();
-    return {
-      from: new Date(now.getFullYear(), now.getMonth(), now.getDate()),
-      to: new Date(now.getFullYear() + 1, now.getMonth(), now.getDate(), 23, 59, 59, 999),
-    };
-  }, []);
-  const { sessions: appointmentSessions } = useAppointments(upcomingWindow);
   const { student, schoolName, years, dentists, loading, error, reload } = useDentalChartData(id);
   const currentDentist = dentists.find((d) => d.user_id === user?.id);
 
@@ -549,12 +536,12 @@ export const DentalChart = () => {
     }
   }, [activeTab, visibleTabs]);
 
-  const handleToggleConsent = async (checked: boolean) => {
-    // Saved to the SELECTED YEAR's IPTR, not the student — consent is
-    // renewed every school year (see StudentIptr.ts), so toggling it while
-    // viewing an old year updates that old year's record, never today's.
-    const iptrId = years[selectedYear]?.iptr._id;
-    if (!iptrId || !canEdit) return;
+  // Takes an explicit iptrId rather than reading `years[selectedYear]` — the
+  // Consent tab shows every year's own container at once (each renewed
+  // separately, see StudentIptr.ts), so a toggle must name which year's
+  // record it is updating instead of assuming "whichever year is selected".
+  const handleToggleConsent = async (iptrId: string, checked: boolean) => {
+    if (!canEdit) return;
     try {
       await apiClient.put(`/student-iptrs/${iptrId}`, { consent_status: checked ? 'complete' : 'pending' });
       await reload();
@@ -716,15 +703,6 @@ export const DentalChart = () => {
     }
   };
 
-  // Real upcoming appointments for this specific student.
-  const today = toLocalDateString(new Date());
-  const studentAppointments = useMemo(
-    () => appointmentSessions
-      .filter((s) => s.students.some((stu) => stu.id === id) && s.date >= today)
-      .sort((a, b) => a.date.localeCompare(b.date)),
-    [appointmentSessions, id, today],
-  );
-
   const showStickyYearBar = activeTab === 'history' || activeTab === 'chart';
   const backPath = iptrContext === 'risk' ? '/ai-analytics' : iptrContext === 'treatment' ? '/treatment-records' : '/dental-charts';
 
@@ -793,8 +771,7 @@ export const DentalChart = () => {
             <ArrowLeft className="w-4 h-4 text-muted-foreground" />
           </Link>
           <div className="min-w-0">
-            <h1 className="text-lg font-bold text-foreground">Individual Patient Treatment Record</h1>
-            <p className="text-xs text-muted-foreground">{surnameFirst(student)} · {yearGradeLabel} · {student.sex} · {patientAge} yrs</p>
+            <h1 className="text-lg font-bold text-primary">Individual Patient Treatment Record</h1>
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -838,17 +815,6 @@ export const DentalChart = () => {
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
-          {years.length > 0 && (
-            <>
-              <button onClick={() => setSelectedYear(Math.max(0, selectedYear - 1))} disabled={selectedYear === 0} className="p-2 hover:bg-gray-100 rounded-lg disabled:opacity-30">
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <span className="text-sm font-medium px-3 py-1.5 bg-blue-50 text-blue-800 rounded-lg">{years[selectedYear]?.iptr.school_year}</span>
-              <button onClick={() => setSelectedYear(Math.min(years.length - 1, selectedYear + 1))} disabled={selectedYear === years.length - 1} className="p-2 hover:bg-gray-100 rounded-lg disabled:opacity-30">
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </>
-          )}
         </div>
       </div>
       </div>
@@ -1435,36 +1401,11 @@ export const DentalChart = () => {
           </div>
         )}
 
-        {/* ── TAB: Consent & Appointments ── */}
+        {/* ── TAB: Consent ── */}
         {activeTab === 'appointments' && (
           <div className="p-4 space-y-4">
-            <div className={`rounded-xl border p-5 ${consentComplete ? 'bg-success-surface border-green-200' : 'bg-warning-surface border-amber-200'}`}>
-              <div className="flex items-start gap-3">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${consentComplete ? 'bg-white text-success' : 'bg-white text-warning'}`}>
-                  {consentComplete ? <ShieldCheck className="w-5 h-5" /> : <ShieldAlert className="w-5 h-5" />}
-                </div>
-                <div>
-                  <div className={`text-sm font-bold ${consentComplete ? 'text-success' : 'text-warning'}`}>
-                    {consentComplete ? 'Consent Obtained' : 'Consent Pending'}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    For school year {yearIptr?.school_year ?? '—'}. Consent is renewed every school year and does not carry over from a previous one.
-                  </p>
-                </div>
-              </div>
-              <label className={`flex items-center gap-2 mt-4 pt-4 border-t ${consentComplete ? 'border-green-200' : 'border-amber-200'} ${canEdit ? 'cursor-pointer' : 'cursor-default'}`}>
-                <input type="checkbox" checked={consentComplete} onChange={(e) => canEdit && handleToggleConsent(e.target.checked)} disabled={!canEdit} className="w-4 h-4 rounded accent-primary disabled:opacity-60 disabled:cursor-not-allowed" />
-                <span className="text-xs font-medium text-foreground">Nakumpleto na ang pahintulot / Consent has been obtained</span>
-              </label>
-            </div>
-
-            <div className="bg-card rounded-xl border border-border p-4">
-              <div className="text-xs font-bold text-foreground mb-2">Pahintulot ng Pasyente / Magulang o Guardian</div>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Pinahihintulutan ko ang Dentista na gawin ang mga kinakailangang Dental Procedure/Treatment sa aking ngipin at bibig o ngipin ng aking anak/kapatid/apo/pamangkin gaya ng ipinaliwanag sa akin at ng aking pagpayag dito. Nauunawaan ko rin na ang anumang impormasyong nakolekta ay gagamitin para sa mga layuning pangkalusugan lamang.
-              </p>
-            </div>
-
+            {/* Standing policy notice, not tied to any one school year — comes
+                first, ahead of the per-year consent containers below. */}
             <div className="bg-blue-50 rounded-xl border border-blue-200 p-4">
               <div className="flex items-start gap-3">
                 <Shield className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
@@ -1477,27 +1418,47 @@ export const DentalChart = () => {
               </div>
             </div>
 
-            <div className="bg-card rounded-xl border border-border p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="text-sm font-semibold text-foreground">Upcoming Appointments</div>
-                <Link to="/appointments" className="text-xs text-blue-600 hover:underline">View all →</Link>
-              </div>
-              {studentAppointments.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-4">No upcoming appointments scheduled.</p>
-              ) : (
-                <div className="space-y-2">
-                  {studentAppointments.map((apt) => (
-                    <div key={apt.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                      <div>
-                        <div className="text-xs font-medium text-foreground">{apt.type}</div>
-                        <div className="text-xs text-muted-foreground">{apt.date} at {apt.time}</div>
+            {/* One container per school year, newest first — consent is
+                renewed annually (see StudentIptr.ts) and never carries over,
+                so a year a student is reassigned into always starts unticked
+                again, on purpose, with its own checkbox to confirm. */}
+            {years.length === 0 ? (
+              <p className="text-center text-muted-foreground text-sm py-8">No school year records yet.</p>
+            ) : (
+              [...years].reverse().map((y) => {
+                const complete = y.iptr.consent_status === 'complete';
+                const yrGrade = y.iptr.grade_level;
+                const yrSection = y.iptr.section;
+                return (
+                  <div key={y.iptr._id} className={`rounded-xl border p-5 ${complete ? 'bg-success-surface border-green-200' : 'bg-warning-surface border-amber-200'}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${complete ? 'bg-white text-success' : 'bg-white text-warning'}`}>
+                          {complete ? <ShieldCheck className="w-5 h-5" /> : <ShieldAlert className="w-5 h-5" />}
+                        </div>
+                        <div className="min-w-0">
+                          <div className={`text-sm font-bold ${complete ? 'text-success' : 'text-warning'}`}>
+                            {complete ? 'Consent Obtained' : 'Consent Pending'} — {y.iptr.school_year}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {yrGrade ? `${yrGrade}${yrSection ? ` · ${yrSection}` : ''}` : 'Grade/section not recorded for this year'}
+                          </p>
+                        </div>
                       </div>
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">{apt.status}</span>
+                      <div className="text-right text-xs text-muted-foreground flex-shrink-0">
+                        {complete && y.iptr.consent_given_at
+                          ? <>Given<br /><span className="font-medium text-foreground">{formatDate(y.iptr.consent_given_at)}</span></>
+                          : '—'}
+                      </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                    <label className={`flex items-center gap-2 mt-4 pt-4 border-t ${complete ? 'border-green-200' : 'border-amber-200'} ${canEdit ? 'cursor-pointer' : 'cursor-default'}`}>
+                      <input type="checkbox" checked={complete} onChange={(e) => canEdit && handleToggleConsent(y.iptr._id, e.target.checked)} disabled={!canEdit} className="w-4 h-4 rounded accent-primary disabled:opacity-60 disabled:cursor-not-allowed" />
+                      <span className="text-xs font-medium text-foreground">Consent has been obtained (Nakumpleto na ang pahintulot)</span>
+                    </label>
+                  </div>
+                );
+              })
+            )}
           </div>
         )}
 
