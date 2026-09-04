@@ -1183,45 +1183,45 @@ export const DentalChart = () => {
         </Modal>
       )}
 
-      {/* Tabs — circles connected by a line, like the reference step mockup,
-          but the circle icon is per-view (not a step number/checkmark): these
-          are independent tabs a clinician jumps between in any order, and a
-          checkmark specifically claims "done", which isn't true of a tab
-          nobody has opened yet. The connecting line still shades in up to
-          the active tab, matching the reference's look, without any one
-          circle claiming completion it can't back up. */}
-      <div className="sticky z-30 bg-gray-50 space-y-0" style={{ top: stickyOffsets.tabsTop }}>
-        <div className="bg-card rounded-xl border border-border">
-          <div ref={tabsRowRef} className="rounded-t-xl border-b border-border bg-card pt-3">
-            <div className="flex items-center">
-              <div className="min-w-0 flex-1 overflow-x-auto px-3">
-              <div className="min-w-max">
-              <div className="flex items-center">
-              {visibleTabs.map((tab, idx) => {
-                const Icon = TAB_ICONS[tab.key as keyof typeof TAB_ICONS];
-                const activeIdx = visibleTabs.findIndex((t) => t.key === activeTab);
-                const isActive = activeTab === tab.key;
-                return (
-                  <div key={tab.key} className="flex items-center flex-1 min-w-[92px]">
-                    <button type="button" onClick={() => setActiveTab(tab.key as TabKey)}
-                      className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${isActive ? 'bg-blue-700 text-white' : 'bg-gray-100 text-muted-foreground hover:bg-gray-200'}`}>
-                      <Icon className="w-4 h-4" />
-                    </button>
-                    {idx < visibleTabs.length - 1 && (
-                      <div className={`flex-1 h-0.5 mx-1 ${idx < activeIdx ? 'bg-blue-700' : 'bg-border'}`} />
-                    )}
-                  </div>
-                );
-              })}
+      {/* Tabs — two separate cards, per request: a step strip on top (icon
+          circles connected by a line — icons stay per-view, not checkmarks/
+          numbers, since these are independent tabs a clinician jumps
+          between in any order, and a checkmark specifically claims "done"),
+          and the actual flat text tab strip below it. A circle fills blue
+          once its tab has been passed through (index <= the active tab's),
+          not just while it's the active one. */}
+      <div className="sticky z-30 bg-gray-50 space-y-2" style={{ top: stickyOffsets.tabsTop }}>
+        <div className="bg-card rounded-xl border border-border p-4 overflow-x-auto">
+          <div className="min-w-max flex items-center">
+          {visibleTabs.map((tab, idx) => {
+            const Icon = TAB_ICONS[tab.key as keyof typeof TAB_ICONS];
+            const activeIdx = visibleTabs.findIndex((t) => t.key === activeTab);
+            const passed = idx <= activeIdx;
+            return (
+              <div key={tab.key} className="flex items-center flex-1 min-w-[92px]">
+                <button type="button" onClick={() => setActiveTab(tab.key as TabKey)}
+                  className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 mx-auto transition-colors ${passed ? 'bg-blue-700 text-white' : 'bg-gray-100 text-muted-foreground hover:bg-gray-200'}`}>
+                  <Icon className="w-4 h-4" />
+                </button>
+                {idx < visibleTabs.length - 1 && (
+                  <div className={`flex-1 h-0.5 mx-1 ${idx < activeIdx ? 'bg-blue-700' : 'bg-border'}`} />
+                )}
               </div>
-              <div className="flex mt-1.5">
+            );
+          })}
+          </div>
+        </div>
+        <div className="bg-card rounded-xl border border-border">
+          <div ref={tabsRowRef} className="rounded-t-xl border-b border-border bg-card">
+            <div className="flex items-center">
+              <div className="min-w-0 flex-1 overflow-x-auto">
+              <div className="flex min-w-max">
               {visibleTabs.map((tab) => (
-                <button key={tab.key} type="button" onClick={() => setActiveTab(tab.key as TabKey)}
-                  className={`flex-1 min-w-[92px] text-center text-xs font-medium whitespace-nowrap px-1 pb-1 transition-colors ${activeTab === tab.key ? 'text-blue-700' : 'text-muted-foreground hover:text-foreground'}`}>
+                <button key={tab.key} onClick={() => setActiveTab(tab.key as TabKey)}
+                  className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition-colors ${activeTab === tab.key ? 'border-b-2 border-blue-700 text-blue-700 bg-blue-50' : 'text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
                   {tab.label}
                 </button>
               ))}
-              </div>
               </div>
               </div>
               {canEditHistory && currentYearData && (editMode || activeTab === 'history' || (canEdit && activeTab === 'chart')) && (
