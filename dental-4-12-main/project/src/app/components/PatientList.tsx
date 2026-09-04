@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Eye, FileText, X, School as SchoolIcon, List, ChevronLeft, ChevronRight, Users, Upload, CheckCircle, AlertCircle, ScanLine, GraduationCap, MoreVertical, ListChecks, Archive as ArchiveIcon } from 'lucide-react';
+import { Plus, Eye, FileText, X, School as SchoolIcon, List, ChevronLeft, ChevronRight, Users, Upload, CheckCircle, AlertCircle, ScanLine, GraduationCap, MoreVertical, ListChecks, Trash2 } from 'lucide-react';
 import { ConfirmDialog } from './ConfirmDialog';
 import { formatDate } from '../utils/localDate';
 import { OCR_CONFIDENCE_THRESHOLD, type IptrOcrFieldKey, type IptrCheckboxFinding } from '../utils/iptrOcrShared';
@@ -765,10 +765,10 @@ export const PatientList = () => {
               archive, see UpdateSchoolYear.tsx. */}
           <button onClick={() => navigate('/students/update-school-year')}
             className="flex items-center gap-2 px-4 py-2 border border-border text-foreground rounded-full hover:bg-canvas text-sm font-medium">
-            <GraduationCap className="w-4 h-4" /> Update School Year
+            <GraduationCap className="w-4 h-4" /> Update S.Y.
           </button>
           <button onClick={() => { setOcrError(null); setShowOcrUpload(true); }} className="flex items-center gap-2 px-4 py-2 border border-primary text-primary rounded-full hover:bg-primary-surface text-sm font-medium">
-            <Upload className="w-4 h-4" /> Upload IPTR Form
+            <Upload className="w-4 h-4" /> OCR
           </button>
           <button onClick={() => { setOcrConfidences({}); setOcrFindings([]); setOcrFindingsNote(null); setShowAddForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-full hover:bg-primary-hover text-sm font-medium">
             <Plus className="w-4 h-4" /> Add Student
@@ -824,7 +824,7 @@ export const PatientList = () => {
                     aria-label={`Archive ${tickedIds.size} selected`}
                     className="p-2 rounded-full border border-destructive text-destructive hover:bg-danger-surface"
                   >
-                    <ArchiveIcon className="w-4 h-4" />
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </>
               )}
@@ -942,14 +942,14 @@ export const PatientList = () => {
                             );
                           }}
                           title={isQueued ? 'Remove from charting queue' : 'Add to charting queue'}
-                          aria-label={isQueued ? 'Remove from charting queue' : 'Add to charting queue'}
-                          className={`p-2 rounded-full border transition-colors ${
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
                             isQueued
                               ? 'bg-success-surface text-success border-success/20 hover:bg-danger-surface hover:text-destructive hover:border-destructive/20'
                               : 'bg-primary-surface text-primary border-primary/20 hover:bg-primary/10'
                           }`}
                         >
-                          {isQueued ? <CheckCircle className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                          {isQueued ? <CheckCircle className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                          {isQueued ? 'Queued' : 'Queue'}
                         </button>
                       )}
                     </td>
@@ -1311,11 +1311,18 @@ export const PatientList = () => {
                 id="archive-password"
                 name="archive-confirm-password"
                 type="password"
-                // Deliberately NOT "current-password": that autocomplete value is
-                // exactly what invites the browser to silently fill in a saved
-                // login password, defeating the point of asking someone to type
-                // it. "new-password" is the standard trick to suppress that.
-                autoComplete="new-password"
+                required
+                // Neither "current-password" (invites autofill with the saved
+                // login password) nor "new-password" (invites Chrome's "suggest
+                // a strong password" prompt, since it reads that as account
+                // creation) fits a re-type-to-confirm field — "off" avoids
+                // both. The data-*-ignore attributes are the non-standard but
+                // widely honored way to tell LastPass/1Password/Bitwarden to
+                // leave this field alone too.
+                autoComplete="off"
+                data-lpignore="true"
+                data-1p-ignore="true"
+                data-bwignore="true"
                 autoFocus
                 value={archivePassword}
                 onChange={(e) => { setArchivePassword(e.target.value); setArchivePasswordError(null); }}

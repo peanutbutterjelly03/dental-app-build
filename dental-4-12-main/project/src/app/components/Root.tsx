@@ -346,12 +346,14 @@ export const Root = () => {
         {(user.schools.length > 1) && (
           <button
             onClick={() => navigate('/select-school')}
-            title="Change School View"
-            aria-label="Change School View"
-            className={`flex items-center gap-2 mx-3 my-2 px-3 py-2 rounded-lg bg-primary-surface text-primary hover:bg-primary-surface/70 transition-colors ${collapsed ? 'md:justify-center' : ''} w-[calc(100%-24px)]`}
+            title="Switch School"
+            aria-label="Switch School"
+            className={`group flex items-center gap-2.5 mx-3 my-2 px-3 py-2.5 rounded-xl border border-primary/15 bg-primary-surface text-primary hover:border-primary/30 hover:shadow-sm transition-all ${collapsed ? 'md:justify-center' : ''} w-[calc(100%-24px)]`}
           >
-            <ArrowLeftRight className="w-4 h-4 shrink-0" />
-            <span className={`${labelCls} text-sm font-semibold`}>Change School View</span>
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-card shadow-sm group-hover:scale-105 transition-transform">
+              <ArrowLeftRight className="w-3.5 h-3.5" />
+            </span>
+            <span className={`${labelCls} text-sm font-semibold`}>Switch School</span>
           </button>
         )}
 
