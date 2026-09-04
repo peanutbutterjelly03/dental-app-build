@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { Plus, Eye, FileText, X, School as SchoolIcon, List, ChevronLeft, ChevronRight, Users, Upload, CheckCircle, AlertCircle, ScanLine, GraduationCap, MoreVertical, ListChecks, Trash2 } from 'lucide-react';
@@ -13,7 +13,7 @@ import { useToast } from './Toast';
 import { Modal } from './Modal';
 import { activatable } from '../utils/a11y';
 import { ListSearchInput } from './ListSearchInput';
-import { addQueuedStudentId, getQueuedStudentIds, removeQueuedStudentId, setQueuedStudentIds as persistQueuedStudentIds } from '../utils/queueStorage';
+import { addQueuedStudentId, getQueuedStudentIds, removeQueuedStudentId } from '../utils/queueStorage';
 import { useStudents } from '../hooks/useStudents';
 import { usePagination, PAGE_SIZE_OPTIONS } from './Pagination';
 import { apiClient, ApiError } from '../api/client';
@@ -331,6 +331,10 @@ export const PatientList = () => {
   // students off every active roster and report gets a step-up check beyond
   // "are you sure", not just a second click.
   const [archivePassword, setArchivePassword] = useState('');
+  // A random, non-guessable field name — the literal string "password" in a
+  // name/id is itself a strong signal several autofill engines key off, even
+  // with autocomplete overridden.
+  const archivePasswordFieldName = useRef(`confirm-${Math.random().toString(36).slice(2)}`).current;
   const [archivePasswordError, setArchivePasswordError] = useState<string | null>(null);
 
   const exitSelectMode = () => {
@@ -379,24 +383,6 @@ export const PatientList = () => {
       return next;
     });
   };
-
-  const queueTicked = () => {
-    const merged = [...new Set([...getQueuedStudentIds(), ...tickedIds])];
-    persistQueuedStudentIds(merged);
-    setQueuedStudentIds(merged);
-    setTickedIds(new Set());
-  };
-
-  const unqueueTicked = () => {
-    const next = getQueuedStudentIds().filter(id => !tickedIds.has(id));
-    persistQueuedStudentIds(next);
-    setQueuedStudentIds(next);
-    setTickedIds(new Set());
-  };
-
-  // when every ticked student is already queued the bulk action flips to
-  // unqueue; otherwise (none or mixed) it queues them all
-  const allTickedQueued = tickedIds.size > 0 && [...tickedIds].every(id => queuedStudentIds.includes(id));
 
   const calculateAge = (birthdate: string) => {
     const today = new Date(); const birth = new Date(birthdate);
@@ -811,22 +797,14 @@ export const PatientList = () => {
             )}
             <div className="ml-auto flex items-center gap-2">
               {selectMode && tickedIds.size > 0 && (
-                <>
-                  <button
-                    onClick={allTickedQueued ? unqueueTicked : queueTicked}
-                    className={`flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-full ${allTickedQueued ? 'text-primary border border-primary hover:bg-primary-surface' : 'text-white bg-primary hover:bg-primary-hover'}`}
-                  >
-                    {allTickedQueued ? 'Unqueue' : 'Queue'} Selected ({tickedIds.size})
-                  </button>
-                  <button
-                    onClick={() => { setArchivePassword(''); setArchivePasswordError(null); setConfirmArchiveTicked(true); }}
-                    title="Archive"
-                    aria-label={`Archive ${tickedIds.size} selected`}
-                    className="p-2 rounded-full border border-destructive text-destructive hover:bg-danger-surface"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </>
+                <button
+                  onClick={() => { setArchivePassword(''); setArchivePasswordError(null); setConfirmArchiveTicked(true); }}
+                  title="Archive"
+                  aria-label={`Archive ${tickedIds.size} selected`}
+                  className="p-2 rounded-full border border-destructive text-destructive hover:bg-danger-surface"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               )}
               {selectMode ? (
                 <button onClick={exitSelectMode}
@@ -1305,21 +1283,29 @@ export const PatientList = () => {
         message={
           <div className="space-y-3">
             <p>Archived students are removed from active rosters and reports. A System Admin can restore them later from Archived Records.</p>
-            <div>
-              <label htmlFor="archive-password" className="block text-xs font-medium text-foreground mb-1">Enter your password to confirm</label>
+            {/* Isolated <form> on purpose — this was pairing with the page's
+                Search box as a "username" field once a saved-credential
+                suggestion was picked (browsers/password managers look for the
+                nearest preceding text input to pair with a password field,
+                and outside a form boundary that search for a pairing widened
+                to the whole page). Its own <form>, containing no other
+                input, gives the pairing heuristic nothing else to find. */}
+            <form autoComplete="off" onSubmit={(e) => e.preventDefault()}>
+              <label htmlFor={archivePasswordFieldName} className="block text-xs font-medium text-foreground mb-1">Enter your password to confirm</label>
               <input
-                id="archive-password"
-                name="archive-confirm-password"
+                id={archivePasswordFieldName}
+                name={archivePasswordFieldName}
                 type="password"
                 required
                 // Neither "current-password" (invites autofill with the saved
                 // login password) nor "new-password" (invites Chrome's "suggest
                 // a strong password" prompt, since it reads that as account
-                // creation) fits a re-type-to-confirm field — "off" avoids
-                // both. The data-*-ignore attributes are the non-standard but
-                // widely honored way to tell LastPass/1Password/Bitwarden to
-                // leave this field alone too.
-                autoComplete="off"
+                // creation) fits a re-type-to-confirm field. "one-time-code"
+                // isn't a password-persistence hint at all, so it invites
+                // neither. The data-*-ignore attributes are the non-standard
+                // but widely honored way to tell LastPass/1Password/Bitwarden
+                // to leave this field alone too.
+                autoComplete="one-time-code"
                 data-lpignore="true"
                 data-1p-ignore="true"
                 data-bwignore="true"
@@ -1330,7 +1316,7 @@ export const PatientList = () => {
                 className="w-full border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
               />
               {archivePasswordError && <p className="mt-1 text-xs text-destructive">{archivePasswordError}</p>}
-            </div>
+            </form>
           </div>
         }
         confirmLabel="Archive"
