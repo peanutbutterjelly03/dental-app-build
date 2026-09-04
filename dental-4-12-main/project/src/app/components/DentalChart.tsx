@@ -778,13 +778,11 @@ export const DentalChart = () => {
     }
   };
 
-  // Capped at 5xl used to leave large idle gutters on laptop/desktop widths
-  // where every other page in the app runs full-width — widened to 80% of
-  // the available content area on large screens; phones/tablets stay full
-  // width since 80% of a narrow viewport would just add dead margins there
-  // instead of removing them.
+  // Capped at 5xl, then at 80%, both left idle gutters on laptop/desktop
+  // widths that every other page in the app (Students, Dashboard,
+  // Appointments) doesn't have — full width now, matching them exactly.
   return (
-    <div className="space-y-4 w-full lg:max-w-[80%] mx-auto">
+    <div className="space-y-4 w-full">
       {/* Sticky header row */}
       <div ref={headerRowRef} className="sticky top-0 z-40 bg-gray-50 pb-2">
       <div className="flex items-center justify-between gap-2">
@@ -888,15 +886,13 @@ export const DentalChart = () => {
                 ['PhilHealth', `${student.philhealth_number || '—'} (${student.philhealth_status || 'None'})`],
                 ['Guardian', student.guardian_name || '—'],
                 ['Guardian Contact', student.guardian_contact || '—'],
-                // Year-scoped, like grade and age above — these belong to the
-                // selected school year's record, not to the student.
-                ['Height', yearIptr?.height_cm != null ? `${yearIptr.height_cm} cm` : 'not measured'],
-                ['Weight', yearIptr?.weight_kg != null ? `${yearIptr.weight_kg} kg` : 'not measured'],
-                ['BMI', computeBmi(yearIptr?.height_cm, yearIptr?.weight_kg) ?? 'not measured'],
+                // Height/Weight/BMI live on the History tab's Physical
+                // Measurements block now, not here — this card stays to
+                // identity/contact facts, not clinical measurements.
               ].map(([label, val]) => (
                 <div key={label}>
                   <div className="text-xs text-muted-foreground font-medium mb-0.5">{label}</div>
-                  <div className="text-foreground font-medium" title={label === 'BMI' ? BMI_NOTE : undefined}>{val}</div>
+                  <div className="text-foreground font-medium">{val}</div>
                 </div>
               ))}
             </div>
