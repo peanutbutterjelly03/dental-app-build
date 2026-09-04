@@ -1,10 +1,10 @@
 import { Outlet, Link, useNavigate, useLocation } from 'react-router';
-import { useAuth, ALL_SCHOOLS } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Users, Calendar, Brain,
   ClipboardList, LogOut, Stethoscope, Shield,
   Clipboard, FileBarChart, UserCog,
-  ChevronLeft, ChevronRight, Menu, X, School, Archive, Bell, Settings
+  ChevronLeft, ChevronRight, Menu, X, School, Archive, Bell, Settings, ArrowLeftRight
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { getSchoolColor, getSchoolShortName } from '../utils/schoolColors';
@@ -15,7 +15,7 @@ import { Modal } from './Modal';
 
 
 export const Root = () => {
-  const { user, logout, selectedSchool, setSelectedSchool } = useAuth();
+  const { user, logout, selectedSchool } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
@@ -337,51 +337,22 @@ export const Root = () => {
           </div>
         </div>
 
-        {/* School switcher — a dropdown, not a trip to a separate screen.
-            It used to be a button that cleared the selection and navigated to
-            /select-school, so changing school meant leaving whatever you were
-            looking at. "All schools" is a real option now (Sprint 67); every
-            screen already treats a null selection as "all", so nothing
-            downstream had to change. Hidden for single-school accounts, where
-            a one-option picker is noise. */}
-        {/* ⚠ COLLAPSED SIDEBAR USED TO LOSE THIS CONTROL ENTIRELY (fixed Sprint
-            95, reported by the user as "switching schools now missing").
-            The dropdown below is `hidden md:hidden` when collapsed — sensible,
-            since a <select> is unusable in a 60px rail — but nothing took its
-            place, unlike the footer's Change Password and Logout, which keep
-            their icons and a tooltip. And `sidebarCollapsed` PERSISTS in
-            localStorage, so one collapse hid the switcher for good: it reads as
-            a feature that vanished, not as a layout state.
-            The icon button expands the sidebar rather than hiding a menu behind
-            a 60px rail — one click, and the real control is there. */}
-        {(user.schools.length > 1) && collapsed && (
-          <button
-            onClick={() => setCollapsed(false)}
-            title={`Viewing ${selectedSchool ? getSchoolShortName(selectedSchool) : 'all schools'} — click to change school`}
-            aria-label={`Change school. Currently viewing ${selectedSchool ? getSchoolShortName(selectedSchool) : 'all schools'}`}
-            className="hidden md:flex mx-3 my-2 px-0 py-2 rounded-lg bg-primary-surface w-[calc(100%-24px)] items-center justify-center text-primary hover:bg-primary-surface/70 transition-colors"
-          >
-            <School className="w-5 h-5" />
-          </button>
-        )}
+        {/* School switcher — a button to the dedicated selection screen
+            (reverted 2026-09-04 at the user's explicit request from the
+            Sprint 67 inline dropdown, which traded this navigation away for
+            never leaving the current screen; if that trade-off is missed
+            later, that history is why the dropdown existed). Hidden for
+            single-school accounts, where switching is meaningless. */}
         {(user.schools.length > 1) && (
-          <div className={`mx-3 my-2 px-3 py-2 rounded-lg bg-primary-surface w-[calc(100%-24px)] ${collapsed ? 'hidden md:hidden' : 'block'}`}>
-            <label htmlFor="school-switcher" className="block text-[11px] font-medium text-blue-700 leading-none mb-1">
-              Viewing
-            </label>
-            <select
-              id="school-switcher"
-              aria-label="School"
-              value={selectedSchool ?? ALL_SCHOOLS}
-              onChange={(e) => setSelectedSchool(e.target.value === ALL_SCHOOLS ? ALL_SCHOOLS : e.target.value)}
-              className="w-full text-xs font-semibold text-blue-900 bg-transparent border-0 p-0 focus:outline-none focus:ring-2 focus:ring-ring rounded cursor-pointer"
-            >
-              <option value={ALL_SCHOOLS}>All schools</option>
-              {user.schools.map((s) => (
-                <option key={s} value={s}>{getSchoolShortName(s)}</option>
-              ))}
-            </select>
-          </div>
+          <button
+            onClick={() => navigate('/select-school')}
+            title="Change School View"
+            aria-label="Change School View"
+            className={`flex items-center gap-2 mx-3 my-2 px-3 py-2 rounded-lg bg-primary-surface text-primary hover:bg-primary-surface/70 transition-colors ${collapsed ? 'md:justify-center' : ''} w-[calc(100%-24px)]`}
+          >
+            <ArrowLeftRight className="w-4 h-4 shrink-0" />
+            <span className={`${labelCls} text-sm font-semibold`}>Change School View</span>
+          </button>
         )}
 
         {/* Tabs */}

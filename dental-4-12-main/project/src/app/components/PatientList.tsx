@@ -866,12 +866,13 @@ export const PatientList = () => {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
-                <th className="text-left px-4 py-3 sm:pl-6">
-                  {/* Scoped to the current page, matching its own label: now
-                      that the table paginates, "select all" across the whole
-                      filtered set would tick rows the user cannot see. Hidden
-                      entirely outside select mode — see the three-dot menu. */}
-                  {selectMode && (
+                <th className="text-left px-4 py-3 sm:pl-6 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {/* The row-number column doubles as "select all" once select
+                      mode is on — same swap as each row's own cell, scoped to
+                      the current page: now that the table paginates, ticking
+                      everything in the filtered set would tick rows the user
+                      cannot see. */}
+                  {selectMode ? (
                     <input
                       type="checkbox"
                       aria-label="Select all students on this page"
@@ -882,7 +883,7 @@ export const PatientList = () => {
                       }}
                       className="w-4 h-4 accent-primary align-middle"
                     />
-                  )}
+                  ) : '#'}
                 </th>
                 <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Student</th>
                 <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Grade</th>
@@ -901,21 +902,22 @@ export const PatientList = () => {
                 const gc = getGradeColor(student.grade);
                 return (
                   <tr key={student.id} {...activatable(() => { if (!student.pending) navigate(`/dental-chart/${student.id}?tab=history`); })} className={`hover:bg-canvas transition-colors cursor-pointer ${student.pending ? 'opacity-70' : ''}`}>
-                    <td className="px-4 py-3.5 sm:pl-6" onClick={(e) => e.stopPropagation()}>
-                      {selectMode && !student.pending && (
-                        <input
-                          type="checkbox"
-                          aria-label={`Select ${student.name}`}
-                          checked={tickedIds.has(student.id)}
-                          onChange={() => toggleTicked(student.id)}
-                          className="w-4 h-4 accent-primary align-middle"
-                        />
-                      )}
+                    <td className="px-4 py-2.5 sm:pl-6 text-xs text-muted-foreground tabular-nums" onClick={(e) => e.stopPropagation()}>
+                      {selectMode ? (
+                        !student.pending && (
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${student.name}`}
+                            checked={tickedIds.has(student.id)}
+                            onChange={() => toggleTicked(student.id)}
+                            className="w-4 h-4 accent-primary align-middle"
+                          />
+                        )
+                      ) : pager.from + i}
                     </td>
-                    <td className="px-4 py-3.5 font-medium text-foreground">
+                    <td className="px-4 py-2.5 font-medium text-foreground">
                       <div className="flex items-center gap-3">
-                        <span className="w-5 shrink-0 text-right text-xs text-muted-foreground tabular-nums">{pager.from + i}</span>
-                        <span style={{ backgroundColor: gc.light, color: gc.solid }} className="w-9 h-9 shrink-0 rounded-full grid place-items-center text-xs font-bold">
+                        <span style={{ backgroundColor: gc.light, color: gc.solid }} className="w-8 h-8 shrink-0 rounded-full grid place-items-center text-xs font-bold">
                           {initials(student.name)}
                         </span>
                         <div className="min-w-0">
@@ -926,11 +928,11 @@ export const PatientList = () => {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3.5 text-muted-foreground"><GradePill grade={student.grade} /></td>
-                    <td className="px-4 py-3.5 text-muted-foreground">{student.section}</td>
-                    <td className="px-4 py-3.5 text-muted-foreground">{student.gender}</td>
-                    <td className="px-4 py-3.5 text-muted-foreground">{age ?? '—'}</td>
-                    <td className="px-4 py-3.5 sm:pr-6">
+                    <td className="px-4 py-2.5 text-muted-foreground"><GradePill grade={student.grade} /></td>
+                    <td className="px-4 py-2.5 text-muted-foreground">{student.section}</td>
+                    <td className="px-4 py-2.5 text-muted-foreground">{student.gender}</td>
+                    <td className="px-4 py-2.5 text-muted-foreground">{age ?? '—'}</td>
+                    <td className="px-4 py-2.5 sm:pr-6">
                       {!student.pending && (
                         <button
                           onClick={(e) => {
@@ -940,14 +942,14 @@ export const PatientList = () => {
                             );
                           }}
                           title={isQueued ? 'Remove from charting queue' : 'Add to charting queue'}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                          aria-label={isQueued ? 'Remove from charting queue' : 'Add to charting queue'}
+                          className={`p-2 rounded-full border transition-colors ${
                             isQueued
                               ? 'bg-success-surface text-success border-success/20 hover:bg-danger-surface hover:text-destructive hover:border-destructive/20'
                               : 'bg-primary-surface text-primary border-primary/20 hover:bg-primary/10'
                           }`}
                         >
-                          {isQueued ? <CheckCircle className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-                          {isQueued ? 'Queued' : 'Queue'}
+                          {isQueued ? <CheckCircle className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                         </button>
                       )}
                     </td>
@@ -1307,8 +1309,13 @@ export const PatientList = () => {
               <label htmlFor="archive-password" className="block text-xs font-medium text-foreground mb-1">Enter your password to confirm</label>
               <input
                 id="archive-password"
+                name="archive-confirm-password"
                 type="password"
-                autoComplete="current-password"
+                // Deliberately NOT "current-password": that autocomplete value is
+                // exactly what invites the browser to silently fill in a saved
+                // login password, defeating the point of asking someone to type
+                // it. "new-password" is the standard trick to suppress that.
+                autoComplete="new-password"
                 autoFocus
                 value={archivePassword}
                 onChange={(e) => { setArchivePassword(e.target.value); setArchivePasswordError(null); }}
