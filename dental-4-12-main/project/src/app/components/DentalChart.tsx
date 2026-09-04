@@ -143,6 +143,15 @@ export const treatmentLabel = (t: { label: string; local?: string }) =>
   t.local ? `${t.label} (${t.local})` : t.label;
 
 // ─── Main component ───────────────────────────────────────────────────────────
+// Survives the per-patient REMOUNT. `routes.tsx` renders <DentalChart key={id} />,
+// so stepping to the next patient tears this component down and every useState
+// goes back to its initial value — which is why removing the old "reset on id
+// change" effect did not make the collapse stick. Holding the flag in module
+// scope is the smallest thing that outlives the remount; it is per-tab session
+// state on purpose (a fresh page load starts expanded again), so it is not
+// worth a context or a storage key.
+let basicInfoExpandedMemo = true;
+
 export const DentalChart = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -224,8 +233,10 @@ export const DentalChart = () => {
   // screen visit needs looking at.
   // Deliberately NOT reset per student (was, briefly) — collapsing it once
   // should stay collapsed through Next/Prev navigation until the user
-  // explicitly expands it again, per request.
-  const [basicInfoExpanded, setBasicInfoExpanded] = useState(true);
+  // explicitly expands it again, per request. Seeded from and written back to
+  // the module-scope memo above, because Next/Prev remounts this component.
+  const [basicInfoExpanded, setBasicInfoExpanded] = useState(basicInfoExpandedMemo);
+  useEffect(() => { basicInfoExpandedMemo = basicInfoExpanded; }, [basicInfoExpanded]);
   const [draftInfo, setDraftInfo] = useState<Partial<typeof student>>({});
   // Year-scoped grade/section, drafted separately from STUDENT even though
   // they share the one Edit button — the save below writes to both records.
@@ -1209,18 +1220,21 @@ export const DentalChart = () => {
 
       {/* Tabs — just the flat tab strip, nothing above it. Tabs are
           equal-width (flex-1) so they fill the row right up to the edit
-          button instead of leaving dead space before it. Definition comes
-          from shadow, not a border — a gray outline was tried and undone
-          per request ("just shadows instead of gray outline"); the native
-          click focus ring is also suppressed on each tab button. */}
+          button instead of leaving dead space before it. Deliberately has
+          NO outline of any kind: no card border, no shadow, no divider
+          between tabs, and no fill on the active tab — every one of those
+          was tried and removed on request, because together they drew a
+          box around whichever tab was selected. The active tab is marked
+          by its blue label and blue underline alone. The native focus ring
+          stays suppressed on each button. */}
       <div className="sticky z-30 bg-gray-50" style={{ top: stickyOffsets.tabsTop }}>
-        <div className="bg-card rounded-xl shadow-md">
+        <div className="bg-card rounded-xl">
           <div ref={tabsRowRef} className="rounded-t-xl border-b border-gray-100 bg-card">
             <div className="flex items-center">
-              <div className="flex flex-1 min-w-0 divide-x divide-gray-100">
+              <div className="flex flex-1 min-w-0">
               {visibleTabs.map((tab) => (
                 <button key={tab.key} onClick={() => handleTabSwitch(tab.key as TabKey)}
-                  className={`flex-1 px-2 py-3 text-sm font-medium text-center transition-colors focus:outline-none focus-visible:outline-none ${activeTab === tab.key ? 'border-b-2 border-blue-700 text-blue-700 bg-blue-50' : 'text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
+                  className={`flex-1 px-2 py-3 text-sm font-medium text-center transition-colors focus:outline-none focus-visible:outline-none ${activeTab === tab.key ? 'border-b-2 border-blue-700 text-blue-700' : 'text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
                   {tab.label}
                 </button>
               ))}
