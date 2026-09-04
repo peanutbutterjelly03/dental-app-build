@@ -210,10 +210,9 @@ export const DentalChart = () => {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [editingInfo, setEditingInfo] = useState(false);
   const [draftInfo, setDraftInfo] = useState<Partial<typeof student>>({});
-  // Height and weight live on the SELECTED YEAR's IPTR, not on STUDENT, so they
-  // are drafted separately even though they share the one Edit button — the
-  // save below writes to both records (Sprint 68).
-  const [draftYear, setDraftYear] = useState<{ height_cm: string; weight_kg: string; grade_level: string; section: string }>({ height_cm: '', weight_kg: '', grade_level: '', section: '' });
+  // Year-scoped grade/section, drafted separately from STUDENT even though
+  // they share the one Edit button — the save below writes to both records.
+  const [draftYear, setDraftYear] = useState<{ grade_level: string; section: string }>({ grade_level: '', section: '' });
   const [infoSaving, setInfoSaving] = useState(false);
   const [infoError, setInfoError] = useState<string | null>(null);
   const [isManagingYears, setIsManagingYears] = useState(false);
@@ -235,6 +234,11 @@ export const DentalChart = () => {
   const [draftMed, setDraftMed] = useState<MedicalHistoryDraft>(emptyMed());
   const [draftDiet, setDraftDiet] = useState<DietDraft>(emptyDiet());
   const [draftOral, setDraftOral] = useState<OralDraft>(emptyOral());
+  // Height/weight live on the SELECTED YEAR's IPTR (Sprint 68) and are edited
+  // from the History tab, alongside the rest of that year's clinical record —
+  // not from the student-info modal, which only ever touched name/contact/
+  // enrolment fields.
+  const [draftMeasure, setDraftMeasure] = useState<{ height_cm: string; weight_kg: string }>({ height_cm: '', weight_kg: '' });
 
   useEffect(() => {
     if (!currentYearData) {
@@ -242,6 +246,7 @@ export const DentalChart = () => {
       setDraftMed(emptyMed());
       setDraftDiet(emptyDiet());
       setDraftOral(emptyOral());
+      setDraftMeasure({ height_cm: '', weight_kg: '' });
       setEditMode(false);
       return;
     }
@@ -270,6 +275,11 @@ export const DentalChart = () => {
       gingivitis: oc.gingivitis, periodontal: oc.periodontal_disease, debris: oc.debris, calculus: oc.calculus,
       abnormalGrowth: oc.abnormal_growth, cleftLipPalate: oc.cleft_lip_palate, oralHygiene: oc.oral_hygiene, others: oc.others,
     } : emptyOral());
+
+    setDraftMeasure({
+      height_cm: currentYearData.iptr.height_cm != null ? String(currentYearData.iptr.height_cm) : '',
+      weight_kg: currentYearData.iptr.weight_kg != null ? String(currentYearData.iptr.weight_kg) : '',
+    });
 
     // Empty year (nothing recorded yet) exists to be filled — drop clinical
     // staff straight into edit mode; anything with data opens as a read view.
@@ -511,7 +521,14 @@ export const DentalChart = () => {
         ? apiClient.put(`/oral-health-conditions/${currentYearData.oralCondition._id}`, oralBody)
         : apiClient.post('/oral-health-conditions', oralBody);
 
-      await Promise.all([...toothWrites, medWrite, dietWrite, oralWrite]);
+      // Blank clears the measurement rather than storing 0, which would read
+      // as "measured at zero" and feed a nonsense BMI (Sprint 68).
+      const measureWrite = apiClient.put(`/student-iptrs/${currentYearData.iptr._id}`, {
+        height_cm: draftMeasure.height_cm.trim() === '' ? null : Number(draftMeasure.height_cm),
+        weight_kg: draftMeasure.weight_kg.trim() === '' ? null : Number(draftMeasure.weight_kg),
+      });
+
+      await Promise.all([...toothWrites, medWrite, dietWrite, oralWrite, measureWrite]);
       await reload();
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -563,8 +580,6 @@ export const DentalChart = () => {
     setDraftInfo({ ...student });
     const iptr = years[selectedYear]?.iptr;
     setDraftYear({
-      height_cm: iptr?.height_cm != null ? String(iptr.height_cm) : '',
-      weight_kg: iptr?.weight_kg != null ? String(iptr.weight_kg) : '',
       // Deliberately NOT falling back to the student's current grade. A blank
       // means "never recorded for this year", and pre-filling today's grade
       // would let one careless Save stamp it onto an old year — the exact lie
@@ -582,14 +597,10 @@ export const DentalChart = () => {
     setInfoError(null);
     try {
       await apiClient.put(`/students/${id}`, draftInfo);
-      // Two writes because the panel edits two records. Blank clears the
-      // measurement rather than storing 0, which would read as "measured at
-      // zero" and feed a nonsense BMI.
+      // Two writes because the panel edits two records.
       const iptrId = years[selectedYear]?.iptr._id;
       if (iptrId) {
         await apiClient.put(`/student-iptrs/${iptrId}`, {
-          height_cm: draftYear.height_cm.trim() === '' ? null : Number(draftYear.height_cm),
-          weight_kg: draftYear.weight_kg.trim() === '' ? null : Number(draftYear.weight_kg),
           // Editable so a RETAINED pupil, or a section moved mid-year, can be
           // corrected on the year it belongs to — the dentist's own example.
           // Blank clears back to "not recorded" rather than writing "".
@@ -748,6 +759,7 @@ export const DentalChart = () => {
   const yearIptr = years[selectedYear]?.iptr;
   const yearGrade = yearIptr?.grade_level ?? null;
   const yearSection = yearIptr?.section ?? null;
+  const yearGradeLabel = yearGrade ? `${yearGrade}${yearSection ? ` ${yearSection}` : ''}` : 'Grade not recorded';
   // Same per-year rule as grade above: consent is obtained for this school
   // year's IPTR, never inherited from another year.
   const consentComplete = yearIptr?.consent_status === 'complete';
@@ -841,6 +853,7 @@ export const DentalChart = () => {
                 </div>
                 <div>
                   <div className="text-lg font-bold text-foreground">{surnameFirstWithInitial(student)}</div>
+                  <div className="text-xs text-muted-foreground">{yearGradeLabel} • {student.sex} • Age {patientAge}</div>
                   <div className="flex items-center gap-2 mt-1">
                     {yearGrade && <GradePill grade={yearGrade} />}
                     {yearSection && <span style={{ color: gc.solid }} className="text-xs font-medium">{yearSection}</span>}
@@ -919,7 +932,7 @@ export const DentalChart = () => {
                   className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Middle Name</label>
                 <input type="text" value={draftInfo.middle_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, middle_name: e.target.value.toUpperCase() }))}
@@ -929,6 +942,11 @@ export const DentalChart = () => {
                 <label className="block text-sm font-medium text-foreground mb-1">Birthday<span className="text-destructive"> *</span></label>
                 <input type="date" value={draftInfo.birthday?.slice(0, 10) ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, birthday: e.target.value }))}
                   className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Age</label>
+                <input type="text" readOnly disabled value={draftInfo.birthday ? computeAge(draftInfo.birthday, new Date()) : ''} placeholder="Automatically calculated"
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-muted text-muted-foreground cursor-not-allowed" />
               </div>
             </div>
             <div>
@@ -996,33 +1014,6 @@ export const DentalChart = () => {
                 <input type="text" placeholder="Not recorded" value={draftYear.section}
                   onChange={(e) => setDraftYear((p) => ({ ...p, section: e.target.value }))}
                   className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-              </div>
-            </div>
-            {/* Measured per school year, saved to the IPTR. */}
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">
-                  Height (cm) <span className="font-normal">· {years[selectedYear]?.iptr.school_year}</span>
-                </label>
-                <input type="number" min="0" max="300" step="0.1" inputMode="decimal"
-                  value={draftYear.height_cm}
-                  onChange={(e) => setDraftYear((p) => ({ ...p, height_cm: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">
-                  Weight (kg) <span className="font-normal">· {years[selectedYear]?.iptr.school_year}</span>
-                </label>
-                <input type="number" min="0" max="500" step="0.1" inputMode="decimal"
-                  value={draftYear.weight_kg}
-                  onChange={(e) => setDraftYear((p) => ({ ...p, weight_kg: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">BMI</label>
-                <div className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-muted text-muted-foreground" title={BMI_NOTE}>
-                  {computeBmi(Number(draftYear.height_cm) || null, Number(draftYear.weight_kg) || null) ?? 'enter both'}
-                </div>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -1218,6 +1209,34 @@ export const DentalChart = () => {
                         className="w-4 h-4 rounded accent-teal-600 disabled:cursor-not-allowed" />
                     </label>
                   ))}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div className="text-xs font-bold text-foreground uppercase tracking-wide mb-2">
+                Physical Measurements <span className="font-normal normal-case text-muted-foreground">· {years[selectedYear]?.iptr.school_year}</span>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Height (cm)</label>
+                  <input type="number" min="0" max="300" step="0.1" inputMode="decimal" disabled={!editingHistory}
+                    value={draftMeasure.height_cm}
+                    onChange={(e) => setDraftMeasure((p) => ({ ...p, height_cm: e.target.value }))}
+                    placeholder="—" className="w-full text-xs border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Weight (kg)</label>
+                  <input type="number" min="0" max="500" step="0.1" inputMode="decimal" disabled={!editingHistory}
+                    value={draftMeasure.weight_kg}
+                    onChange={(e) => setDraftMeasure((p) => ({ ...p, weight_kg: e.target.value }))}
+                    placeholder="—" className="w-full text-xs border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">BMI</label>
+                  <div className="w-full text-xs border border-border rounded px-2 py-1 bg-muted text-muted-foreground" title={BMI_NOTE}>
+                    {computeBmi(Number(draftMeasure.height_cm) || null, Number(draftMeasure.weight_kg) || null) ?? 'not measured'}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1493,19 +1512,25 @@ export const DentalChart = () => {
                           : '—'}
                       </div>
                     </div>
-                    <label className={`flex items-center gap-2 mt-4 pt-4 border-t ${complete ? 'border-green-200' : 'border-amber-200'} ${canEdit ? 'cursor-pointer' : 'cursor-default'}`}>
-                      <input
-                        type="checkbox"
-                        checked={complete}
-                        onChange={(e) => {
-                          if (canEdit && e.target.checked) setConfirmConsentTarget({ iptrId: y.iptr._id, schoolYear: y.iptr.school_year });
-                        }}
-                        disabled={!canEdit || complete}
-                        title={complete ? 'Consent obtained — this cannot be unchecked' : undefined}
-                        className="w-4 h-4 rounded accent-primary disabled:opacity-60 disabled:cursor-not-allowed"
-                      />
-                      <span className="text-xs font-medium text-foreground">Consent has been obtained (Nakumpleto na ang pahintulot)</span>
-                    </label>
+                    {/* Once complete, the container above already says so
+                        (badge + given-date) — a disabled, permanently-checked
+                        box repeating the same fact underneath is redundant,
+                        so it only renders while there is still an action to
+                        take. */}
+                    {!complete && (
+                      <label className={`flex items-center gap-2 mt-4 pt-4 border-t border-amber-200 ${canEdit ? 'cursor-pointer' : 'cursor-default'}`}>
+                        <input
+                          type="checkbox"
+                          checked={complete}
+                          onChange={(e) => {
+                            if (canEdit && e.target.checked) setConfirmConsentTarget({ iptrId: y.iptr._id, schoolYear: y.iptr.school_year });
+                          }}
+                          disabled={!canEdit}
+                          className="w-4 h-4 rounded accent-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                        />
+                        <span className="text-xs font-medium text-foreground">Consent has been obtained (Nakumpleto na ang pahintulot)</span>
+                      </label>
+                    )}
                   </div>
                 );
               })
