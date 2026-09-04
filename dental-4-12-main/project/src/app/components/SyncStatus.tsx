@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { WifiOff, RefreshCw, AlertTriangle, Check, Cloud } from 'lucide-react';
 import { useOfflineQueue } from '../hooks/useOfflineQueue';
+import { TOPBAR_H } from '../utils/layout';
 import { retryQueue, discardFailedWrite, keepMyChange, discardMyChange } from '../offline/queueProcessor';
 import type { QueuedWrite } from '../offline/db';
 
@@ -119,8 +120,10 @@ export const SyncStatus = () => {
 
   const { icon, ring, label } = chrome[tone];
 
+  // Offset below the fixed status strip (Root.tsx) — at top-2 this rendered
+  // underneath it and got clipped.
   return (
-    <div ref={containerRef} className="fixed top-2 right-2 md:top-3 md:right-4 z-40">
+    <div ref={containerRef} style={{ top: TOPBAR_H + 8 }} className="fixed right-2 md:right-4 z-40">
       <button
         onClick={() => setOpen((v) => !v)}
         aria-label={label}

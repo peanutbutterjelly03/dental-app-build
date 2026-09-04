@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
 import { ArrowLeft, Save, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Check, Shield, ShieldCheck, ShieldAlert, Users, FileText, Plus, Pencil, Trash2, Brain, Download, X, MoreVertical } from 'lucide-react';
 import { exportDohReportToPdf } from '../utils/exportPdf';
+import { TOPBAR_H } from '../utils/layout';
 import { getGradeColor } from '../utils/gradeColors';
 import { computeBmi, BMI_NOTE, classifyNutritionalStatus } from '../utils/bmi';
 import { useAuth } from '../context/AuthContext';
@@ -468,7 +469,10 @@ export const DentalChart = () => {
     const measureStickyOffsets = () => {
       const headerHeight = headerRowRef.current?.offsetHeight ?? 0;
       const tabsHeight = tabsRowRef.current?.offsetHeight ?? 0;
-      setStickyOffsets({ tabsTop: headerHeight, yearTop: headerHeight + tabsHeight });
+      // Measured from the bottom of the fixed status strip, not from 0 — the
+      // toolbar above already pins at TOPBAR_H, so anything stacking under it
+      // has to carry that offset too or it slides beneath the strip.
+      setStickyOffsets({ tabsTop: TOPBAR_H + headerHeight, yearTop: TOPBAR_H + headerHeight + tabsHeight });
     };
     measureStickyOffsets();
     let resizeObserver: ResizeObserver | null = null;
@@ -925,7 +929,7 @@ export const DentalChart = () => {
   return (
     <div className="space-y-4 w-full">
       {/* Sticky header row */}
-      <div ref={headerRowRef} className="sticky top-0 z-40 bg-gray-50 pb-2">
+      <div ref={headerRowRef} style={{ top: TOPBAR_H }} className="sticky z-40 bg-gray-50 pb-2">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-3 min-w-0">
           <Link to={backPath} className="p-2 hover:bg-gray-100 rounded-lg shrink-0">
@@ -1234,7 +1238,7 @@ export const DentalChart = () => {
               <div className="flex flex-1 min-w-0">
               {visibleTabs.map((tab) => (
                 <button key={tab.key} onClick={() => handleTabSwitch(tab.key as TabKey)}
-                  className={`flex-1 px-2 py-3 text-sm font-medium text-center transition-colors focus:outline-none focus-visible:outline-none ${activeTab === tab.key ? 'border-b-2 border-blue-700 text-blue-700' : 'text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
+                  className={`flex-1 px-2 py-3 text-sm text-center transition-colors focus:outline-none focus-visible:outline-none ${activeTab === tab.key ? 'font-bold border-b-2 border-blue-700 text-blue-700' : 'font-medium text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
                   {tab.label}
                 </button>
               ))}
@@ -1419,8 +1423,7 @@ export const DentalChart = () => {
           <div className="p-4 space-y-4">
             {/* Physical Measurements — first, per request */}
             <div className="bg-card rounded-xl border border-border p-4">
-              <div className="text-base font-bold text-foreground">Physical Measurements</div>
-              <p className="text-xs text-muted-foreground mb-3">{years[selectedYear]?.iptr.school_year}</p>
+              <div className="text-base font-bold text-foreground mb-3">Physical Measurements</div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div>
                   <label className="block text-xs text-muted-foreground mb-1">Height (cm)</label>
