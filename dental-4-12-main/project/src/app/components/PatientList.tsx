@@ -671,7 +671,7 @@ export const PatientList = () => {
   const kickerColor = selectedSchool
     ? getSchoolColor(selectedSchool)
     : { name: 'All Schools', solid: '#1E40AF', light: '#EFF6FF', text: '#1E40AF', border: '#93C5FD' };
-  const kickerLabel = selectedSchool ? getSchoolShortName(selectedSchool) : 'All Schools';
+  const kickerLabel = selectedSchool ?? 'All Schools';
 
   // Two-letter initials for the row avatar — same derivation already used for
   // the Dashboard's follow-up list, so a name reads the same way everywhere.
