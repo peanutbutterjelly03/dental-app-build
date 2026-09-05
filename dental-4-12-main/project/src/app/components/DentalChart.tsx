@@ -947,9 +947,9 @@ export const DentalChart = () => {
       || currentYearData?.dentalChart?.date_charted
       || currentYearData?.iptr.date_opened
       || currentYearData?.iptr.created_at;
-    return raw ? formatDate(raw) : '—';
+    return raw ? formatDate(raw) : '';
   })();
-  const treatmentDate = draftServices.dateTreated ? formatDate(draftServices.dateTreated) : '—';
+  const treatmentDate = draftServices.dateTreated ? formatDate(draftServices.dateTreated) : '';
 
   // Stamps a date the FIRST time something is recorded, and never overwrites
   // one that already exists — the field stays editable, and silently resetting
@@ -1791,7 +1791,7 @@ export const DentalChart = () => {
                   ))}
                   <button type="button" onClick={() => setOthersOralOpen((v) => !v)}
                     className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs text-left transition-colors ${othersOralOpen || draftOral.others ? 'border-primary bg-primary-surface text-primary font-medium' : 'border-blue-200 text-foreground hover:bg-canvas'}`}>
-                    <span className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${othersOralOpen || draftOral.others ? 'bg-primary border-primary' : 'border-blue-200'}`}>
+                    <span className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${othersOralOpen || draftOral.others ? 'bg-primary border-primary' : 'border-gray-600'}`}>
                       {(othersOralOpen || draftOral.others) && <Check className="w-3 h-3 text-white" />}
                     </span>
                     Others
@@ -1829,7 +1829,7 @@ export const DentalChart = () => {
                   ))}
                   <button type="button" onClick={() => setOthersServiceOpen((v) => !v)}
                     className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs text-left transition-colors ${othersServiceOpen || draftServices.others ? 'border-primary bg-primary-surface text-primary font-medium' : 'border-blue-200 text-foreground hover:bg-canvas'}`}>
-                    <span className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${othersServiceOpen || draftServices.others ? 'bg-primary border-primary' : 'border-blue-200'}`}>
+                    <span className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${othersServiceOpen || draftServices.others ? 'bg-primary border-primary' : 'border-gray-600'}`}>
                       {(othersServiceOpen || draftServices.others) && <Check className="w-3 h-3 text-white" />}
                     </span>
                     Others
@@ -1887,6 +1887,21 @@ export const DentalChart = () => {
                       More ({rareConditionCodes.length})
                     </button>
                   </div>
+                  {/* The "what am I applying" banner belongs UNDER THE PALETTE
+                      IT CAME FROM. It used to sit once at the bottom of the
+                      whole blue card, so picking a treatment on the right lit
+                      up a message on the far left. */}
+                  {selectedCondition && (() => {
+                    const c = conditionCodes.find((x) => x.code === selectedCondition);
+                    return (
+                      <div className="mt-3 flex items-center gap-2">
+                        <span className="text-xs font-semibold px-3 py-1 rounded-full bg-teal-100 text-teal-800">
+                          Applying: {c?.perm}/{c?.temp} ({c?.label}). Click teeth to apply.
+                        </span>
+                        <button onClick={() => setSelectedCondition(null)} className="text-xs text-muted-foreground hover:text-foreground underline">Clear</button>
+                      </div>
+                    );
+                  })()}
                   {rareConditionsOpen && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {rareConditionCodes.map((c) => (
@@ -1926,28 +1941,20 @@ export const DentalChart = () => {
                       </button>
                     ))}
                   </div>
+                  {selectedTreatment && (() => {
+                    const t = toothTreatmentCodes.find((x) => x.code === selectedTreatment);
+                    return (
+                      <div className="mt-3 flex items-center gap-2">
+                        <span className="text-xs font-semibold px-3 py-1 rounded-full bg-blue-100 text-blue-800">
+                          Applying: {selectedTreatment} ({t?.label}). Click teeth to apply.
+                        </span>
+                        <button onClick={() => setSelectedTreatment(null)} className="text-xs text-muted-foreground hover:text-foreground underline">Clear</button>
+                      </div>
+                    );
+                  })()}
                 </div>
                 )}
               </div>
-              {(selectedCondition || selectedTreatment) && (
-                <div className="mt-3 flex items-center gap-2">
-                  {selectedCondition && (() => {
-                    const c = conditionCodes.find((x) => x.code === selectedCondition);
-                    return <span className="text-xs font-semibold px-3 py-1 rounded-full bg-teal-100 text-teal-800">Applying: {c?.perm}/{c?.temp} ({c?.label}). Click teeth to apply.</span>;
-                  })()}
-                  {selectedTreatment && (() => {
-                    const t = toothTreatmentCodes.find((x) => x.code === selectedTreatment);
-                    return <span className="text-xs font-semibold px-3 py-1 rounded-full bg-blue-100 text-blue-800">Applying: {selectedTreatment} ({t?.label}). Click teeth to apply.</span>;
-                  })()}
-                  {/* Without this the erase mode is folklore: the palette shows
-                      what you are applying, but nothing said what a bare click
-                      does when nothing is selected. */}
-                  {!selectedCondition && !selectedTreatment && (
-                    <span className="text-xs font-semibold px-3 py-1 rounded-full bg-muted text-foreground">No code selected · Click teeth to clear</span>
-                  )}
-                  <button onClick={() => { setSelectedCondition(null); setSelectedTreatment(null); }} className="text-xs text-muted-foreground hover:text-foreground underline">Clear</button>
-                </div>
-              )}
             </div>
 
             <div className="bg-card rounded-xl border border-border p-4 overflow-x-auto">
@@ -2016,102 +2023,107 @@ export const DentalChart = () => {
                 content-sized columns drifted per table and read as sloppy. The
                 two cards are tinted differently (teal = conditions, blue =
                 treatments) to match the palette colours each one summarises. */}
-            {/* Side by side: each summary is a narrow two-column table, so on
-                its own it left most of the card empty. The shared column
-                geometry below is retuned for HALF width (220/84 rather than
-                260/90) so the value column still lands on the same x in all
-                three tables without any of them overflowing. Measured, not
-                guessed: at 180/70 the date wrapped to two lines and "PFS Pit
-                and Fissure Sealant" broke mid-label. */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+            {/* Side by side, and EQUAL HEIGHT — the grid is left to stretch
+                (no `items-start`) so the two cards match whichever is taller
+                instead of ending at different y.
+
+                Column widths are PERCENTAGES of each card, not fixed pixels:
+                fixed widths left a ragged empty strip on the right of a card
+                whose width varies with the viewport. Conditions is a plain
+                yes/no, so it splits 50/50. Treatments carries a tooth-number
+                list, so it goes 45/18/37 — the middle column only ever holds
+                "Yes" or a date, and everything it does not need goes to the
+                label and the tooth numbers. The whole-mouth table above it
+                declares the SAME three columns (with an empty third cell) so
+                its value column lands under the "Given" column rather than
+                floating on its own axis.
+
+                Blank, not "—", where a finding is absent: per request, and it
+                matches the paper form, where an untouched cell is left empty.
+                The ROWS still always render — that part of the DOH-form rule
+                stands. */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="bg-teal-50/70 rounded-xl border border-teal-200 p-4">
               <div className="text-xs font-semibold text-teal-800 mb-3 uppercase tracking-wide">Summary of Dental Condition</div>
-              <div className="overflow-x-auto">
-                <table className="table-fixed border-collapse text-xs">
-                  <tbody>
-                    <tr className="border-b border-teal-200/70">
-                      <td className="w-[220px] py-1.5 pr-4 text-foreground">Date of Oral Examination</td>
-                      <td className="w-[84px] py-1.5 font-semibold text-foreground">{examinationDate}</td>
+              <table className="w-full table-fixed border-collapse text-xs">
+                <colgroup><col className="w-1/2" /><col className="w-1/2" /></colgroup>
+                <tbody>
+                  <tr className="border-b border-teal-200/70">
+                    <td className="py-1.5 pr-4 text-foreground">Date of Oral Examination</td>
+                    <td className="py-1.5 font-semibold text-foreground">{examinationDate}</td>
+                  </tr>
+                  {/* Highlighted: the single headline answer a DOH screening asks. */}
+                  <tr className={`border-b border-teal-200/70 ${isOrallyFit ? 'bg-success-surface' : ''}`}>
+                    <td className={`py-1.5 pr-4 ${isOrallyFit ? 'font-bold text-success' : 'text-foreground'}`}>Orally Fit Child</td>
+                    <td className="py-1.5 font-bold text-success">{isOrallyFit ? 'Yes' : ''}</td>
+                  </tr>
+                  {presentOralConditions.map(({ label, present }) => (
+                    <tr key={label} className="border-b border-teal-200/70 last:border-b-0">
+                      <td className="py-1.5 pr-4 text-foreground">{label}</td>
+                      <td className="py-1.5 font-semibold text-success">{present ? 'Yes' : ''}</td>
                     </tr>
-                    {/* Highlighted: the single headline answer a DOH screening asks. */}
-                    <tr className={`border-b border-teal-200/70 ${isOrallyFit ? 'bg-success-surface' : ''}`}>
-                      <td className={`w-[220px] py-1.5 pr-4 ${isOrallyFit ? 'font-bold text-success' : 'text-foreground'}`}>Orally Fit Child</td>
-                      <td className={`w-[84px] py-1.5 font-bold ${isOrallyFit ? 'text-success' : 'text-muted-foreground'}`}>{isOrallyFit ? 'Yes' : '—'}</td>
-                    </tr>
-                    {presentOralConditions.map(({ label, present }) => (
-                      <tr key={label} className="border-b border-teal-200/70 last:border-b-0">
-                        <td className="w-[220px] py-1.5 pr-4 text-foreground">{label}</td>
-                        <td className={`w-[84px] py-1.5 font-semibold ${present ? 'text-success' : 'text-muted-foreground'}`}>{present ? 'Yes' : '—'}</td>
-                      </tr>
-                    ))}
-                    <tr>
-                      <td className="w-[220px] py-1.5 pr-4 text-foreground">Others</td>
-                      <td className={`py-1.5 font-semibold ${draftOral.others.trim() ? 'text-success' : 'text-muted-foreground'}`}>
-                        {draftOral.others.trim() || '—'}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                  <tr>
+                    <td className="py-1.5 pr-4 text-foreground">Others</td>
+                    <td className="py-1.5 font-semibold text-success break-words">{draftOral.others.trim()}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
 
             {/* Two tables because there are two kinds of answer. A whole-mouth
                 service is answered "was it given?"; a per-tooth treatment is
                 only meaningful WITH the teeth it was done to, so that table
-                carries a third column. Merging them would force a blank tooth
-                column on every service row and imply the data was missing. */}
+                carries a third column. */}
             <div className="bg-blue-50/70 rounded-xl border border-blue-200 p-4 space-y-4">
               <div>
                 <div className="text-xs font-semibold text-primary mb-3 uppercase tracking-wide">Treatment Summary</div>
-                <div className="overflow-x-auto">
-                  <table className="table-fixed border-collapse text-xs">
-                    <tbody>
-                      <tr className="border-b border-blue-200/70">
-                        <td className="w-[220px] py-1.5 pr-4 text-foreground">Date of Treatment</td>
-                        <td className="w-[84px] py-1.5 font-semibold text-foreground">{treatmentDate}</td>
-                      </tr>
-                      {serviceChips.map(({ label, field }) => (
-                        <tr key={field} className="border-b border-blue-200/70">
-                          <td className="w-[220px] py-1.5 pr-4 text-foreground">{label}</td>
-                          <td className={`w-[84px] py-1.5 font-semibold ${draftServices[field] ? 'text-success' : 'text-muted-foreground'}`}>{draftServices[field] ? 'Yes' : '—'}</td>
-                        </tr>
-                      ))}
-                      <tr>
-                        <td className="w-[220px] py-1.5 pr-4 text-foreground">Others</td>
-                        <td className={`py-1.5 font-semibold ${draftServices.others.trim() ? 'text-success' : 'text-muted-foreground'}`}>
-                          {draftServices.others.trim() || '—'}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="table-fixed border-collapse text-xs">
-                  <thead>
-                    <tr className="border-b border-blue-300 text-left text-muted-foreground">
-                      <th className="w-[220px] py-1.5 pr-4 font-semibold">Treatment</th>
-                      <th className="w-[84px] py-1.5 font-semibold">Given</th>
-                      <th className="py-1.5 font-semibold whitespace-nowrap">Tooth numbers</th>
-                    </tr>
-                  </thead>
+                <table className="w-full table-fixed border-collapse text-xs">
+                  <colgroup><col className="w-[45%]" /><col className="w-[18%]" /><col className="w-[37%]" /></colgroup>
                   <tbody>
-                    {toothTreatmentCodes.map((t) => {
-                      const teeth = teethByTreatment[t.code] ?? [];
-                      return (
-                        <tr key={t.code} className="border-b border-blue-200/70 last:border-b-0">
-                          <td className="w-[220px] py-1.5 pr-4 text-foreground">
-                            <span className="font-mono font-bold mr-2">{t.code}</span>{t.label}
-                          </td>
-                          <td className={`w-[84px] py-1.5 font-semibold ${teeth.length ? 'text-success' : 'text-muted-foreground'}`}>{teeth.length ? 'Yes' : '—'}</td>
-                          <td className="py-1.5 font-mono text-foreground">{teeth.length ? teeth.join(', ') : '—'}</td>
-                        </tr>
-                      );
-                    })}
+                    <tr className="border-b border-blue-200/70">
+                      <td className="py-1.5 pr-4 text-foreground">Date of Treatment</td>
+                      <td className="py-1.5 font-semibold text-foreground whitespace-nowrap" colSpan={2}>{treatmentDate}</td>
+                    </tr>
+                    {serviceChips.map(({ label, field }) => (
+                      <tr key={field} className="border-b border-blue-200/70">
+                        <td className="py-1.5 pr-4 text-foreground">{label}</td>
+                        <td className="py-1.5 font-semibold text-success">{draftServices[field] ? 'Yes' : ''}</td>
+                        <td />
+                      </tr>
+                    ))}
+                    <tr>
+                      <td className="py-1.5 pr-4 text-foreground">Others</td>
+                      <td className="py-1.5 font-semibold text-success break-words" colSpan={2}>{draftServices.others.trim()}</td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
+
+              <table className="w-full table-fixed border-collapse text-xs">
+                <colgroup><col className="w-[45%]" /><col className="w-[18%]" /><col className="w-[37%]" /></colgroup>
+                <thead>
+                  <tr className="border-b border-blue-300 text-left text-muted-foreground">
+                    <th className="py-1.5 pr-4 font-semibold">Treatment</th>
+                    <th className="py-1.5 font-semibold">Given</th>
+                    <th className="py-1.5 font-semibold">Tooth numbers</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {toothTreatmentCodes.map((t) => {
+                    const teeth = teethByTreatment[t.code] ?? [];
+                    return (
+                      <tr key={t.code} className="border-b border-blue-200/70 last:border-b-0">
+                        <td className="py-1.5 pr-4 text-foreground">
+                          <span className="font-mono font-bold mr-2">{t.code}</span>{t.label}
+                        </td>
+                        <td className="py-1.5 font-semibold text-success">{teeth.length ? 'Yes' : ''}</td>
+                        <td className="py-1.5 font-mono text-foreground break-words">{teeth.join(', ')}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
             </div>
             </div>

@@ -2,6 +2,15 @@
 
 **Compressed 2026-07-11 (hygiene pass).** Completed-sprint history → `docs/BUILD-LOG.md`; full pre-compression narratives → git history (`git show 73bc4e47:HANDOFF.md`). This file keeps only live state: current status, open work, warnings, and durable gotchas.
 
+## Summary column distribution + per-column Applying banner (2026-09-05)
+- **The "Applying: …" banner now lives under the palette it came from.** It was one banner at the bottom of the whole blue card, so picking a treatment on the RIGHT lit a message on the far LEFT. Split into two, each with its own Clear. The "No code selected · click teeth to clear" variant is gone with it — it only ever rendered inside a `selectedCondition || selectedTreatment` guard, so it was dead markup that could never display.
+- **Column widths are PERCENTAGES now, not fixed px.** Fixed 220/84 left a ragged empty strip on the right of a card whose width varies with the viewport. Conditions = plain yes/no → `50/50`. Treatments = `45/18/37`; the middle column only ever holds "Yes" or a date, so everything it does not need goes to the label and the tooth numbers. **The whole-mouth table declares the SAME three columns** (empty third cell, `colSpan` on the two date/Others rows) so its value column lands under "Given" instead of on its own axis.
+- **Equal-height cards:** `items-start` dropped from the summary grid so both stretch to the taller one.
+- **Blank, not "—", for every absent value** including both dates — per request, and it matches the paper form where an untouched cell is simply empty. The ROWS still always render; that half of the DOH-form rule stands.
+- **"Others" fake checkbox outlined `border-gray-600`** to match a native unchecked `<input type=checkbox>`; at `border-blue-200` it read as decoration next to the real ones.
+- Verified against the built CSS: both summary cards 424px (equal), and the banner's x sits in the treatment half.
+- `npx tsc --noEmit` clean, `npm run build` clean.
+
 ## Chart tab compacted — three side-by-side pairs (2026-09-05)
 - **Chips back to two columns side by side.** They were stacked last round specifically to fit three per row; stacked, that one card ran most of a screen. The grid keeps `sm:grid-cols-2 2xl:grid-cols-3`, so three-per-row still appears once a column is genuinely wide enough — at laptop width a half column cannot hold three without wrapping "Periodontal Disease", so it settles at two. **These two asks are in direct tension; vertical space won.**
 - **Legend moved into the year-strip row, immediately before the 3-dot menu.** It previously owned a full-width row above the tab card — a whole horizontal band for one button. Chart tab only.
