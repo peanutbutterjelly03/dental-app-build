@@ -6,6 +6,20 @@ const dentalChartSchema = new mongoose.Schema({
   iptr_id: { type: mongoose.Schema.Types.ObjectId, ref: "StudentIptr", required: true },
   dentist_id: { type: mongoose.Schema.Types.ObjectId, ref: "Dentist", required: true },
   date_charted: { type: Date, required: true },
+  // Per-VISIT services (added 2026-09-05). Not in the original Chapter 3 ERD —
+  // same precedent as OralHealthCondition.orally_fit_child and
+  // PreventiveCareRecord.facility_based, and it corrects a real modelling
+  // error: these were previously recorded as TOOTH_RECORD.treatment_code, i.e.
+  // once per tooth, when clinically they happen once per head. A fluoride
+  // varnish application is one service for the whole mouth; storing it 28
+  // times both overstated the service count and made "was varnish given?"
+  // unanswerable without scanning every tooth. Per-TOOTH treatments (PFS, PF,
+  // TF, X, SDF) stay on TOOTH_RECORD, where they belong.
+  oral_examination: { type: Boolean, default: false },
+  fluoride_varnish: { type: Boolean, default: false },
+  oral_prophylaxis: { type: Boolean, default: false },
+  consultation: { type: Boolean, default: false },
+  treatment_others: { type: String, default: "" },
   ...softDeleteFields,
 });
 
