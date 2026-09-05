@@ -64,7 +64,7 @@ type DietDraft = {
   bodyPiercing: boolean; nailBiting: boolean; thumbsucking: boolean; others: string;
 };
 type OralDraft = {
-  orallyFitChild: boolean; gingivitis: boolean; periodontal: boolean; debris: boolean; calculus: boolean;
+  gingivitis: boolean; periodontal: boolean; debris: boolean; calculus: boolean;
   abnormalGrowth: boolean; cleftLipPalate: boolean; others: string;
 };
 
@@ -87,7 +87,7 @@ const emptyDiet = (): DietDraft => ({
   bodyPiercing: false, nailBiting: false, thumbsucking: false, others: '',
 });
 const emptyOral = (): OralDraft => ({
-  orallyFitChild: false, gingivitis: false, periodontal: false, debris: false, calculus: false,
+  gingivitis: false, periodontal: false, debris: false, calculus: false,
   abnormalGrowth: false, cleftLipPalate: false, others: '',
 });
 
@@ -149,10 +149,6 @@ const oralConditionChips: { label: string; field: keyof OralDraft }[] = [
   { label: 'Periodontal Disease', field: 'periodontal' },
   { label: 'Cleft Lip / Palate', field: 'cleftLipPalate' },
   { label: 'Abnormal Growth', field: 'abnormalGrowth' },
-  // Kept although it is not on the user's chip list: the field was added
-  // 2026-09-04 as the real DOH Target Client List term, and dropping its only
-  // editor would orphan it in the database with no way to set it.
-  { label: 'Orally Fit Child', field: 'orallyFitChild' },
 ];
 
 // ─── Per-HEAD-COUNT services ──────────────────────────────────────────────────
@@ -398,7 +394,7 @@ export const DentalChart = () => {
 
     const oc = currentYearData.oralCondition;
     const oralSnapshot = oc ? {
-      orallyFitChild: oc.orally_fit_child ?? false, gingivitis: oc.gingivitis, periodontal: oc.periodontal_disease, debris: oc.debris, calculus: oc.calculus,
+      gingivitis: oc.gingivitis, periodontal: oc.periodontal_disease, debris: oc.debris, calculus: oc.calculus,
       abnormalGrowth: oc.abnormal_growth, cleftLipPalate: oc.cleft_lip_palate, others: oc.others,
     } : emptyOral();
     setDraftOral(oralSnapshot);
@@ -756,9 +752,12 @@ export const DentalChart = () => {
         // model still requires a non-empty value, so a fixed placeholder is
         // sent rather than leaving the field to silently rot at whatever it
         // last held.
-        iptr_id: currentYearData.iptr._id, oral_hygiene: 'Not assessed', orally_fit_child: draftOral.orallyFitChild, gingivitis: draftOral.gingivitis,
+        iptr_id: currentYearData.iptr._id, oral_hygiene: 'Not assessed', gingivitis: draftOral.gingivitis,
         periodontal_disease: draftOral.periodontal, debris: draftOral.debris, calculus: draftOral.calculus,
         abnormal_growth: draftOral.abnormalGrowth, cleft_lip_palate: draftOral.cleftLipPalate, others: draftOral.others,
+        // Written from the DERIVED value, not from a chip — see isOrallyFit.
+        // Keeping the column truthful matters: the Target Client List reads it.
+        orally_fit_child: isOrallyFit,
       };
       const oralWrite = currentYearData.oralCondition
         ? apiClient.put(`/oral-health-conditions/${currentYearData.oralCondition._id}`, oralBody)
@@ -916,6 +915,29 @@ export const DentalChart = () => {
     setConfirmClear(null);
   };
 
+  // "Orally Fit Child" is DERIVED, never ticked by hand: it is true when the
+  // mouth has actually been charted and no tooth carries decay, missing,
+  // filled or indicated-for-extraction. Deriving it is the only way it can be
+  // trusted — a hand-ticked box can contradict the odontogram sitting directly
+  // above it. Un/S/JC/P do not disqualify: they are anatomical findings, not
+  // caries experience. An empty chart is NOT orally fit — nothing was examined.
+  const isOrallyFit = useMemo(() => {
+    const charted = Object.values(currentChart).filter((e) => e.condition !== '');
+    if (charted.length === 0) return false;
+    return !charted.some((e) => ['D', 'd', 'M', 'm', 'F', 'f', 'X', 'x', 'DX', 'dx'].includes(e.condition));
+  }, [currentChart]);
+
+  // The chart record only exists once something has been saved, so before the
+  // first save `date_charted` is missing and the row read "—" on a sheet that
+  // plainly HAD been opened. Falls back to the same value the year chips show
+  // (`date_opened`, else `created_at`), so the two never disagree on screen.
+  const examinationDate = (() => {
+    const raw = currentYearData?.dentalChart?.date_charted
+      ?? currentYearData?.iptr.date_opened
+      ?? currentYearData?.iptr.created_at;
+    return raw ? formatDate(raw) : '—';
+  })();
+
   // Per-tooth treatment summary: which TEETH carry each code, not just how
   // many. A count answered "3 fillings" without ever saying which three, which
   // is the question the dentist and the DOH form both actually ask. Sorted
@@ -936,7 +958,10 @@ export const DentalChart = () => {
   // two sources for one fact, and they would disagree. Everything else comes
   // from the whole-mouth chips.
   const presentOralConditions = useMemo(() => {
-    const hasCaries = Object.values(currentChart).some((e) => e.condition === 'D');
+    // 'D' OR 'd' — a tooth stores codeObj.perm for a permanent tooth and
+    // codeObj.temp for a primary one, so testing only 'D' silently missed
+    // every primary-tooth caries. Same reason computeDMFT counts both cases.
+    const hasCaries = Object.values(currentChart).some((e) => e.condition === 'D' || e.condition === 'd');
     return [
       { label: 'Dental Caries', present: hasCaries },
       { label: 'Gingivitis', present: draftOral.gingivitis },
@@ -1692,17 +1717,17 @@ export const DentalChart = () => {
         {/* ── TAB 2: Dental Chart ── */}
         {activeTab === 'chart' && (
           <div className="p-0 space-y-0">
-            <div className="p-4 space-y-4">
-            {/* Legend lives in a dialog, not on the page. Every code's meaning
-                used to sit under its own button AND again in two cards at the
-                bottom — three copies of one glossary, on a screen where the
-                codes are pressed far more often than they are read. */}
-            <div className="flex justify-end">
+            {/* Legend sits ABOVE the palette card, not inside it — inside, it
+                claimed a whole row of the card's own padding for one button.
+                Filled red on purpose: it is the only way to decode the codes
+                now that the labels are gone from the buttons. */}
+            <div className="flex justify-end px-4 pt-4">
               <button type="button" onClick={() => setLegendOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted">
+                className="inline-flex items-center gap-1.5 rounded-lg bg-destructive px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:opacity-90">
                 <FileText className="w-3.5 h-3.5" /> Legend
               </button>
             </div>
+            <div className="p-4 pt-2 space-y-4">
             <div className={`bg-blue-50 rounded-xl p-4 ${!editingChart ? 'opacity-50 pointer-events-none select-none' : ''}`}>
               {!canEdit && <p className="text-xs text-muted-foreground mb-2 italic">View only — editing restricted to Dentist</p>}
               {canEdit && !editMode && <p className="text-xs text-muted-foreground mb-2 italic">View mode — click the pencil icon above to record conditions/treatments</p>}
@@ -1712,25 +1737,38 @@ export const DentalChart = () => {
                 // get identical width -- the divider's padding on one side only
                 // made its buttons 3px smaller than its neighbour's.
                 <div className={iptrContext === 'default' ? 'lg:pr-4' : undefined}>
-                  <div className="text-sm font-semibold text-foreground mb-2 uppercase tracking-wide">Condition Codes</div>
-                  {/* Code only — the words moved to the Legend. A dentist
-                      charting knows D/d; the label was repeating it on every
-                      button and forcing the type down to 9px to fit. */}
-                  <div className="flex flex-wrap gap-1.5">
+                  {/* Clear sits on the heading row, hidden entirely until
+                      there is something to clear — a permanently-visible
+                      disabled destructive button is noise on a blank chart. */}
+                  <div className="flex items-center justify-between gap-2 mb-2 min-h-[26px]">
+                    <div className="text-sm font-bold text-primary uppercase tracking-wide">Condition Codes</div>
+                    {chartedConditionCount > 0 && (
+                      <button onClick={() => setConfirmClear('condition')}
+                        className="flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1 text-[11px] font-semibold text-foreground transition-all hover:border-red-400 hover:text-destructive">
+                        <Trash2 className="h-3 w-3" />
+                        Clear All ({chartedConditionCount})
+                      </button>
+                    )}
+                  </div>
+                  {/* Code only — the words moved to the Legend. "More
+                      conditions" is the last item IN the same wrap row, so the
+                      rare four read as a continuation of the palette rather
+                      than as a separate control below it. */}
+                  <div className="flex flex-wrap items-center gap-1.5">
                     {commonConditionCodes.map((c) => (
                       <button key={c.code} title={c.label} onClick={() => { setSelectedCondition(selectedCondition === c.code ? null : c.code); setSelectedTreatment(null); }}
                         className={`h-9 w-[60px] shrink-0 rounded-md border text-center transition-all flex items-center justify-center ${selectedCondition === c.code ? 'bg-teal-600 text-white ring-2 ring-teal-300 border-teal-600' : 'bg-card border-border text-foreground hover:border-teal-400'}`}>
                         <span className="text-xs font-bold font-mono leading-none">{c.perm}/{c.temp}</span>
                       </button>
                     ))}
+                    {/* Rare findings, collapsed. Un/S/JC/P are charted a handful
+                        of times a year and were holding four permanent slots. */}
+                    <button type="button" onClick={() => setRareConditionsOpen((v) => !v)}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 hover:underline">
+                      {rareConditionsOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                      More ({rareConditionCodes.length})
+                    </button>
                   </div>
-                  {/* Rare findings, collapsed. Un/S/JC/P are charted a handful
-                      of times a year and were holding four permanent slots. */}
-                  <button type="button" onClick={() => setRareConditionsOpen((v) => !v)}
-                    className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-teal-700 hover:underline">
-                    {rareConditionsOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                    More conditions ({rareConditionCodes.length})
-                  </button>
                   {rareConditionsOpen && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {rareConditionCodes.map((c) => (
@@ -1750,7 +1788,16 @@ export const DentalChart = () => {
                 // two grids read as one long palette. Divider only when both
                 // are on screen: side by side from lg, stacked below it.
                 <div className={iptrContext === 'default' ? 'border-t border-border pt-4 lg:border-t-0 lg:pt-0 lg:border-l lg:pl-4' : undefined}>
-                  <div className="text-sm font-semibold text-foreground mb-2 uppercase tracking-wide">Treatment Codes</div>
+                  <div className="flex items-center justify-between gap-2 mb-2 min-h-[26px]">
+                    <div className="text-sm font-bold text-primary uppercase tracking-wide">Treatment Codes</div>
+                    {chartedTreatmentCount > 0 && (
+                      <button onClick={() => setConfirmClear('treatment')}
+                        className="flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1 text-[11px] font-semibold text-foreground transition-all hover:border-red-400 hover:text-destructive">
+                        <Trash2 className="h-3 w-3" />
+                        Clear All ({chartedTreatmentCount})
+                      </button>
+                    )}
+                  </div>
                   {/* Only the five treatments that happen TO A TOOTH. Code
                       only; the Legend carries the words and the local terms. */}
                   <div className="flex flex-wrap gap-1.5">
@@ -1764,34 +1811,16 @@ export const DentalChart = () => {
                 </div>
                 )}
               </div>
-              {/* Bulk clear: wiping a mis-charted arch one tooth at a time is
-                  32 clicks. Conditions and treatments clear separately so
-                  re-charting one vocabulary does not discard the other. */}
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <button
-                  onClick={() => setConfirmClear('condition')}
-                  disabled={chartedConditionCount === 0}
-                  className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground transition-all hover:border-red-400 hover:text-destructive disabled:opacity-40 disabled:pointer-events-none"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Clear All Conditions ({chartedConditionCount})
-                </button>
-                <button
-                  onClick={() => setConfirmClear('treatment')}
-                  disabled={chartedTreatmentCount === 0}
-                  className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground transition-all hover:border-red-400 hover:text-destructive disabled:opacity-40 disabled:pointer-events-none"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Clear All Treatments ({chartedTreatmentCount})
-                </button>
-              </div>
               {(selectedCondition || selectedTreatment) && (
                 <div className="mt-3 flex items-center gap-2">
                   {selectedCondition && (() => {
                     const c = conditionCodes.find((x) => x.code === selectedCondition);
-                    return <span className="text-xs font-semibold px-3 py-1 rounded-full bg-teal-100 text-teal-800">Applying: {c?.perm}/{c?.temp} — {c?.label} · Click teeth to apply</span>;
+                    return <span className="text-xs font-semibold px-3 py-1 rounded-full bg-teal-100 text-teal-800">Applying: {c?.perm}/{c?.temp} ({c?.label}). Click teeth to apply.</span>;
                   })()}
-                  {selectedTreatment && <span className="text-xs font-semibold px-3 py-1 rounded-full bg-blue-100 text-blue-800">Applying treatment: {selectedTreatment} · Click teeth to apply</span>}
+                  {selectedTreatment && (() => {
+                    const t = toothTreatmentCodes.find((x) => x.code === selectedTreatment);
+                    return <span className="text-xs font-semibold px-3 py-1 rounded-full bg-blue-100 text-blue-800">Applying: {selectedTreatment} ({t?.label}). Click teeth to apply.</span>;
+                  })()}
                   {/* Without this the erase mode is folklore: the palette shows
                       what you are applying, but nothing said what a bare click
                       does when nothing is selected. */}
@@ -1810,46 +1839,69 @@ export const DentalChart = () => {
                 from the dental aide, who has always been able to edit them on
                 History. Conditions follow `editingHistory` (dentist + aide) as
                 they always did; services follow `editingChart`, matching the
-                dentist-only per-tooth codes they replaced. */}
+                dentist-only per-tooth codes they replaced.
+
+                Rendered as the same bordered checkbox rows the Medical History
+                block uses, at explicit request — a pill that toggles looks like
+                a filter, a checkbox looks like a form field, and these are form
+                fields. Reusing that exact pattern rather than inventing a third
+                selected-state style. Group headings dropped: the two columns
+                are already separated by the divider and the chart context. */}
             <div className="bg-card rounded-xl border border-border p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className={editingHistory ? '' : 'opacity-60 pointer-events-none select-none'}>
-                <div className="text-sm font-semibold text-foreground mb-2 uppercase tracking-wide">Whole-mouth conditions</div>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {oralConditionChips.map(({ label, field }) => (
-                    <button key={field} type="button" onClick={() => setDraftOral((prev) => ({ ...prev, [field]: !prev[field] }))}
-                      className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${draftOral[field] ? 'bg-teal-600 border-teal-600 text-white' : 'bg-card border-border text-foreground hover:border-teal-400'}`}>
+                    <label key={field}
+                      className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs cursor-pointer transition-colors ${draftOral[field] ? 'border-primary bg-primary-surface text-primary font-medium' : 'border-border text-foreground hover:bg-canvas'}`}>
+                      <input type="checkbox" checked={!!draftOral[field]}
+                        onChange={(e) => setDraftOral((p) => ({ ...p, [field]: e.target.checked }))}
+                        className="w-4 h-4 rounded accent-primary" />
                       {label}
-                    </button>
+                    </label>
                   ))}
                   <button type="button" onClick={() => setOthersOralOpen((v) => !v)}
-                    className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${othersOralOpen || draftOral.others ? 'bg-teal-600 border-teal-600 text-white' : 'bg-card border-border text-foreground hover:border-teal-400'}`}>
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs text-left transition-colors ${othersOralOpen || draftOral.others ? 'border-primary bg-primary-surface text-primary font-medium' : 'border-border text-foreground hover:bg-canvas'}`}>
+                    <span className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${othersOralOpen || draftOral.others ? 'bg-primary border-primary' : 'border-border'}`}>
+                      {(othersOralOpen || draftOral.others) && <Check className="w-3 h-3 text-white" />}
+                    </span>
                     Others
                   </button>
                 </div>
                 {othersOralOpen && (
-                  <input type="text" value={draftOral.others} onChange={(e) => setDraftOral((p) => ({ ...p, others: e.target.value }))}
-                    placeholder="Specify other oral condition…"
-                    className="mt-2 w-full text-xs border border-border rounded px-2 py-1.5 bg-card focus:outline-none focus:ring-1 focus:ring-ring" />
+                  <div className="mt-3 rounded-lg bg-canvas p-3">
+                    <label className="block text-xs font-bold text-foreground mb-1">Specify Other</label>
+                    <input type="text" value={draftOral.others} onChange={(e) => setDraftOral((p) => ({ ...p, others: e.target.value }))}
+                      placeholder="Specify other oral condition…"
+                      className="w-full text-xs border border-border rounded px-2 py-1.5 bg-card focus:outline-none focus:ring-1 focus:ring-ring" />
+                  </div>
                 )}
               </div>
               <div className={`lg:border-l lg:border-border lg:pl-4 ${editingChart ? '' : 'opacity-60 pointer-events-none select-none'}`}>
-                <div className="text-sm font-semibold text-foreground mb-2 uppercase tracking-wide">Whole-mouth services</div>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {serviceChips.map(({ label, field }) => (
-                    <button key={field} type="button" onClick={() => setDraftServices((prev) => ({ ...prev, [field]: !prev[field] }))}
-                      className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${draftServices[field] ? 'bg-blue-600 border-blue-600 text-white' : 'bg-card border-border text-foreground hover:border-blue-400'}`}>
+                    <label key={field}
+                      className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs cursor-pointer transition-colors ${draftServices[field] ? 'border-primary bg-primary-surface text-primary font-medium' : 'border-border text-foreground hover:bg-canvas'}`}>
+                      <input type="checkbox" checked={!!draftServices[field]}
+                        onChange={(e) => setDraftServices((p) => ({ ...p, [field]: e.target.checked }))}
+                        className="w-4 h-4 rounded accent-primary" />
                       {label}
-                    </button>
+                    </label>
                   ))}
                   <button type="button" onClick={() => setOthersServiceOpen((v) => !v)}
-                    className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${othersServiceOpen || draftServices.others ? 'bg-blue-600 border-blue-600 text-white' : 'bg-card border-border text-foreground hover:border-blue-400'}`}>
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs text-left transition-colors ${othersServiceOpen || draftServices.others ? 'border-primary bg-primary-surface text-primary font-medium' : 'border-border text-foreground hover:bg-canvas'}`}>
+                    <span className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${othersServiceOpen || draftServices.others ? 'bg-primary border-primary' : 'border-border'}`}>
+                      {(othersServiceOpen || draftServices.others) && <Check className="w-3 h-3 text-white" />}
+                    </span>
                     Others
                   </button>
                 </div>
                 {othersServiceOpen && (
-                  <input type="text" value={draftServices.others} onChange={(e) => setDraftServices((p) => ({ ...p, others: e.target.value }))}
-                    placeholder="Specify other service given…"
-                    className="mt-2 w-full text-xs border border-border rounded px-2 py-1.5 bg-card focus:outline-none focus:ring-1 focus:ring-ring" />
+                  <div className="mt-3 rounded-lg bg-canvas p-3">
+                    <label className="block text-xs font-bold text-foreground mb-1">Specify Other</label>
+                    <input type="text" value={draftServices.others} onChange={(e) => setDraftServices((p) => ({ ...p, others: e.target.value }))}
+                      placeholder="Specify other service given…"
+                      className="w-full text-xs border border-border rounded px-2 py-1.5 bg-card focus:outline-none focus:ring-1 focus:ring-ring" />
+                  </div>
                 )}
               </div>
             </div>
@@ -1902,37 +1954,45 @@ export const DentalChart = () => {
               </div>
             </div>
 
-            {/* ── Summary of Present Oral Condition ──────────────────────
+            {/* ── Summary of Dental Condition ────────────────────────────
                 Structure follows the paper DOH sheet the user supplied: one
-                row per finding, one "Yes" column, nothing else. Rows are NOT
+                row per finding, one Yes column, nothing else. Rows are NOT
                 hidden when absent — a blank cell on that form is a positive
                 statement that the finding was looked for and not found, which
-                is exactly the CLAUDE.md rule about official forms keeping all
-                their rows. Dental Caries is the one derived row: it reads the
-                odontogram (any D/d), not a chip, because caries IS the tooth
-                data. Gingivitis and Periodontal Disease are separate rows even
-                though the paper form combines them, since the chips store them
-                as two independent fields. */}
-            <div className="bg-gray-50 rounded-xl border border-border p-4">
-              <div className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Summary of Present Oral Condition</div>
+                is the CLAUDE.md rule about official forms keeping all rows.
+
+                Two rows are DERIVED from the odontogram rather than ticked:
+                Dental Caries (any D/d) and Orally Fit Child. Both are facts the
+                chart already states, and a second hand-ticked source could
+                contradict the teeth drawn directly above it.
+
+                `w-fit` on the label column is what pulls the Yes values in
+                beside the text — a `w-full` table stretched the first column to
+                the container and stranded every value at the far right edge. */}
+            <div className="bg-blue-50/60 rounded-xl border border-blue-100 p-4">
+              <div className="text-xs font-semibold text-primary mb-3 uppercase tracking-wide">Summary of Dental Condition</div>
               <div className="overflow-x-auto">
-                <table className="w-full border-collapse text-xs">
+                <table className="border-collapse text-xs">
                   <tbody>
-                    <tr className="border-b border-border">
-                      <td className="py-1.5 pr-3 text-foreground">Date of Oral Examination</td>
-                      <td className="py-1.5 w-32 font-semibold text-foreground">
-                        {currentYearData?.dentalChart?.date_charted ? formatDate(currentYearData.dentalChart.date_charted) : '—'}
-                      </td>
+                    <tr className="border-b border-blue-100">
+                      <td className="py-1.5 pr-8 text-foreground whitespace-nowrap">Date of Oral Examination</td>
+                      <td className="py-1.5 pr-4 font-semibold text-foreground whitespace-nowrap">{examinationDate}</td>
+                    </tr>
+                    {/* Highlighted row: this is the single headline answer the
+                        DOH programme asks of a screening. */}
+                    <tr className={`border-b border-blue-100 ${isOrallyFit ? 'bg-success-surface' : ''}`}>
+                      <td className={`py-1.5 pr-8 whitespace-nowrap ${isOrallyFit ? 'font-bold text-success' : 'text-foreground'}`}>Orally Fit Child</td>
+                      <td className={`py-1.5 pr-4 font-bold whitespace-nowrap ${isOrallyFit ? 'text-success' : 'text-muted-foreground'}`}>{isOrallyFit ? 'Yes' : '—'}</td>
                     </tr>
                     {presentOralConditions.map(({ label, present }) => (
-                      <tr key={label} className="border-b border-border last:border-b-0">
-                        <td className="py-1.5 pr-3 text-foreground">{label}</td>
-                        <td className={`py-1.5 w-32 font-semibold ${present ? 'text-success' : 'text-muted-foreground'}`}>{present ? 'Yes' : '—'}</td>
+                      <tr key={label} className="border-b border-blue-100 last:border-b-0">
+                        <td className="py-1.5 pr-8 text-foreground whitespace-nowrap">{label}</td>
+                        <td className={`py-1.5 pr-4 font-semibold whitespace-nowrap ${present ? 'text-success' : 'text-muted-foreground'}`}>{present ? 'Yes' : '—'}</td>
                       </tr>
                     ))}
                     <tr>
-                      <td className="py-1.5 pr-3 text-foreground">Others</td>
-                      <td className={`py-1.5 w-32 font-semibold ${draftOral.others.trim() ? 'text-success' : 'text-muted-foreground'}`}>
+                      <td className="py-1.5 pr-8 text-foreground whitespace-nowrap">Others</td>
+                      <td className={`py-1.5 pr-4 font-semibold ${draftOral.others.trim() ? 'text-success' : 'text-muted-foreground'}`}>
                         {draftOral.others.trim() || '—'}
                       </td>
                     </tr>
@@ -1946,22 +2006,24 @@ export const DentalChart = () => {
                 service is answered "was it given?"; a per-tooth treatment is
                 only meaningful WITH the teeth it was done to, so that table
                 carries a third column. Merging them would force a blank tooth
-                column on every service row and imply the data was missing. */}
-            <div className="bg-gray-50 rounded-xl border border-border p-4 space-y-4">
+                column on every service row and imply the data was missing.
+                The second table needs no heading — its own "Tooth numbers"
+                column already says what it is. */}
+            <div className="bg-blue-50/60 rounded-xl border border-blue-100 p-4 space-y-4">
               <div>
-                <div className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Treatment Summary — whole mouth</div>
+                <div className="text-xs font-semibold text-primary mb-2 uppercase tracking-wide">Treatment Summary</div>
                 <div className="overflow-x-auto">
-                  <table className="w-full border-collapse text-xs">
+                  <table className="border-collapse text-xs">
                     <tbody>
                       {serviceChips.map(({ label, field }) => (
-                        <tr key={field} className="border-b border-border">
-                          <td className="py-1.5 pr-3 text-foreground">{label}</td>
-                          <td className={`py-1.5 w-32 font-semibold ${draftServices[field] ? 'text-success' : 'text-muted-foreground'}`}>{draftServices[field] ? 'Yes' : '—'}</td>
+                        <tr key={field} className="border-b border-blue-100">
+                          <td className="py-1.5 pr-8 text-foreground whitespace-nowrap">{label}</td>
+                          <td className={`py-1.5 pr-4 font-semibold whitespace-nowrap ${draftServices[field] ? 'text-success' : 'text-muted-foreground'}`}>{draftServices[field] ? 'Yes' : '—'}</td>
                         </tr>
                       ))}
                       <tr>
-                        <td className="py-1.5 pr-3 text-foreground">Others</td>
-                        <td className={`py-1.5 w-32 font-semibold ${draftServices.others.trim() ? 'text-success' : 'text-muted-foreground'}`}>
+                        <td className="py-1.5 pr-8 text-foreground whitespace-nowrap">Others</td>
+                        <td className={`py-1.5 pr-4 font-semibold ${draftServices.others.trim() ? 'text-success' : 'text-muted-foreground'}`}>
                           {draftServices.others.trim() || '—'}
                         </td>
                       </tr>
@@ -1970,33 +2032,30 @@ export const DentalChart = () => {
                 </div>
               </div>
 
-              <div>
-                <div className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Treatment Summary — per tooth</div>
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse text-xs">
-                    <thead>
-                      <tr className="border-b border-border text-left text-muted-foreground">
-                        <th className="py-1.5 pr-3 font-semibold">Treatment</th>
-                        <th className="py-1.5 w-20 font-semibold">Given</th>
-                        <th className="py-1.5 font-semibold">Tooth numbers</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {toothTreatmentCodes.map((t) => {
-                        const teeth = teethByTreatment[t.code] ?? [];
-                        return (
-                          <tr key={t.code} className="border-b border-border last:border-b-0">
-                            <td className="py-1.5 pr-3 text-foreground">
-                              <span className="font-mono font-bold mr-2">{t.code}</span>{t.label}
-                            </td>
-                            <td className={`py-1.5 font-semibold ${teeth.length ? 'text-success' : 'text-muted-foreground'}`}>{teeth.length ? 'Yes' : '—'}</td>
-                            <td className="py-1.5 font-mono text-foreground">{teeth.length ? teeth.join(', ') : '—'}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+              <div className="overflow-x-auto">
+                <table className="border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-blue-200 text-left text-muted-foreground">
+                      <th className="py-1.5 pr-8 font-semibold whitespace-nowrap">Treatment</th>
+                      <th className="py-1.5 pr-8 font-semibold whitespace-nowrap">Given</th>
+                      <th className="py-1.5 font-semibold whitespace-nowrap">Tooth numbers</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {toothTreatmentCodes.map((t) => {
+                      const teeth = teethByTreatment[t.code] ?? [];
+                      return (
+                        <tr key={t.code} className="border-b border-blue-100 last:border-b-0">
+                          <td className="py-1.5 pr-8 text-foreground whitespace-nowrap">
+                            <span className="font-mono font-bold mr-2">{t.code}</span>{t.label}
+                          </td>
+                          <td className={`py-1.5 pr-8 font-semibold whitespace-nowrap ${teeth.length ? 'text-success' : 'text-muted-foreground'}`}>{teeth.length ? 'Yes' : '—'}</td>
+                          <td className="py-1.5 font-mono text-foreground">{teeth.length ? teeth.join(', ') : '—'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
             </div>
