@@ -1,13 +1,15 @@
 import { Outlet, Link, useNavigate, useLocation } from 'react-router';
-import { useAuth, ALL_SCHOOLS } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Users, Calendar, Brain,
   ClipboardList, LogOut, Stethoscope, Shield,
-  Clipboard, FileBarChart, UserCog, KeyRound,
-  ChevronLeft, ChevronRight, Menu, X, School, Archive, Bell
+  Clipboard, FileBarChart, UserCog,
+  ChevronLeft, ChevronRight, Menu, X, School, Archive, Bell, Settings, ArrowLeftRight
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { getSchoolColor, getSchoolShortName } from '../utils/schoolColors';
+import { TOPBAR_H } from '../utils/layout';
+import { SyncStatus } from './SyncStatus';
 import { useNotifications, NOTIFIED_ROLES } from '../hooks/useNotifications';
 import { apiClient, ApiError } from '../api/client';
 import { useToast } from './Toast';
@@ -15,7 +17,7 @@ import { Modal } from './Modal';
 
 
 export const Root = () => {
-  const { user, logout, selectedSchool, setSelectedSchool } = useAuth();
+  const { user, logout, selectedSchool } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
@@ -27,7 +29,6 @@ export const Root = () => {
   // Desktop-only manual collapse. Not persisted per-breakpoint: below md the
   // sidebar is an off-canvas drawer and `collapsed` is ignored entirely.
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebarCollapsed') === 'true');
-  const [showNotifications, setShowNotifications] = useState(false);
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
       localStorage.setItem('sidebarCollapsed', String(!prev));
@@ -94,10 +95,7 @@ export const Root = () => {
   // Sidebar bell (Sprint 97). One server aggregate, same pattern as the badge
   // above — the sidebar renders on every screen, so it must not mount the
   // six-collection hooks these counts come from.
-  const {
-    counts: notifCounts,
-    error: notifError,
-  } = useNotifications(NOTIFIED_ROLES.includes(user?.role ?? ''), selectedSchool);
+  const { counts: notifCounts } = useNotifications(NOTIFIED_ROLES.includes(user?.role ?? ''), selectedSchool);
 
   // ⚠ THE BADGE COUNTS ONLY THE ROWS THIS ROLE CAN SEE. Risk validation is
   // dentist-only (nav tab 5), so for an aide or admin that row is hidden — and
@@ -107,6 +105,7 @@ export const Root = () => {
   const notifTotal =
     notifCounts.overdueRpc +
     notifCounts.appointmentsToday +
+    notifCounts.remindersToday +
     (canValidateRisk ? notifCounts.awaitingValidation : 0);
 
   const [showChangePassword, setShowChangePassword] = useState(false);
@@ -260,18 +259,50 @@ export const Root = () => {
     );
   };
 
+  // Same school palette the kicker/GradePill use — the strip must not invent a
+  // second colour language for the same school.
+  const stripSchool = selectedSchool
+    ? getSchoolColor(selectedSchool)
+    : { solid: '#1E40AF', light: '#EFF6FF', border: '#93C5FD' };
+
   return (
     // flex-col below md so the mobile top bar stacks ABOVE the content as a
-    // normal flow item. The old constraint here — "must not be `fixed`,
-    // OfflineBanner renders in flow beneath it" — no longer applies: the
-    // banner was replaced by SyncStatus, a fixed top-right icon that sits
-    // ABOVE this bar (z-40 vs z-30) rather than in flow behind it. `sticky` is
-    // kept anyway; it pins the bar on scroll and nothing needs it changed.
-    <div className="min-h-screen bg-canvas flex flex-col md:flex-row">
-      {/* MOBILE TOP BAR -- below md only; the drawer's only entry point */}
-      {/* pr-14 reserves the top-right corner for the fixed SyncStatus icon,
-          which would otherwise sit on top of the school name. */}
-      <header className="md:hidden sticky top-0 h-14 z-30 flex items-center gap-3 pl-4 pr-14 bg-card border-b border-border">
+    // normal flow item. It is `sticky` under the fixed status strip.
+    <div className="min-h-screen bg-canvas flex flex-col md:flex-row" style={{ paddingTop: TOPBAR_H }}>
+      {/* STATUS STRIP -- pinned to the very top of the viewport, above the
+          sidebar in stacking order (z-[60] vs z-50) but NOT across it: it
+          starts where the rail ends, so the rail keeps its own full-height
+          top corner instead of being covered. Full width below md, where the
+          rail is off-canvas. Contents are right-aligned. Two facts staff in
+          the field must be able to glance at without scrolling: whether the
+          device is online, and which school's records they are looking at.
+          `fixed` (not sticky) because it must survive any scroll container on
+          the page; the wrapper's paddingTop above is what keeps it from
+          covering the first row of content. */}
+      <div
+        style={{ height: TOPBAR_H }}
+        className={`fixed top-0 right-0 left-0 ${collapsed ? 'md:left-[60px]' : 'md:left-[220px]'} z-[60] flex items-center justify-end gap-1.5 px-3 bg-card border-b border-border leading-none transition-[left] duration-200`}
+      >
+        {/* Two pills, no divider — the rings already separate them. The sync
+            pill IS the affordance: clicking it opens the full panel, which is
+            why the floating cloud icon it replaced is gone entirely. */}
+        <SyncStatus />
+        <span
+          style={{
+            backgroundColor: stripSchool.light,
+            color: stripSchool.solid,
+            borderColor: stripSchool.border,
+          }}
+          className="inline-flex items-center rounded-full border px-2.5 py-[2px] text-[13px] font-semibold leading-none truncate max-w-[45vw]"
+        >
+          {selectedSchool ? getSchoolShortName(selectedSchool) : 'All Schools'}
+        </span>
+      </div>
+
+      {/* MOBILE TOP BAR -- below md only; the drawer's only entry point. The
+          old `pr-14` reserved the corner for the floating SyncStatus icon,
+          which no longer renders inside the shell. */}
+      <header style={{ top: TOPBAR_H }} className="md:hidden sticky h-14 z-30 flex items-center gap-3 px-4 bg-card border-b border-border">
         <button
           ref={menuButtonRef}
           onClick={() => setDrawerOpen(true)}
@@ -283,11 +314,9 @@ export const Root = () => {
           <Menu className="w-5 h-5" />
         </button>
         <span className="text-base font-bold text-primary">FLORAL</span>
-        {selectedSchool && (
-          <span className="ml-auto text-xs font-medium text-muted-foreground truncate max-w-[45%]">
-            {getSchoolShortName(selectedSchool)}
-          </span>
-        )}
+        {/* The school name used to repeat here. The status strip above now
+            carries it at every width, so this was the same label twice on a
+            phone screen. */}
       </header>
 
       {/* DRAWER BACKDROP -- below md only */}
@@ -306,7 +335,15 @@ export const Root = () => {
       <aside
         ref={drawerRef}
         id="main-nav"
-        className={`bg-card border-r border-border flex flex-col fixed left-0 top-0 h-screen z-50
+        // z-[70], ABOVE the status strip's z-[60]. The collapse toggle inside is
+        // `absolute -right-3 top-5`, so it deliberately pokes 12px past the rail
+        // into the strip's horizontal range and sits at y 20-44px, inside the
+        // 48px strip — at z-50 the strip painted straight over it and the button
+        // could not be clicked. z-index on the button itself cannot fix this:
+        // this aside's own z-index makes it a stacking context, so a child can
+        // never escape it. The rail has to win, and it does not overlap the
+        // strip anywhere else.
+        className={`bg-card border-r border-border flex flex-col fixed left-0 top-0 h-screen z-[70]
           w-[280px] transition-transform duration-200
           ${drawerOpen ? 'translate-x-0 visible' : '-translate-x-full invisible'}
           md:visible md:translate-x-0 md:transition-[width]
@@ -340,51 +377,24 @@ export const Root = () => {
           </div>
         </div>
 
-        {/* School switcher — a dropdown, not a trip to a separate screen.
-            It used to be a button that cleared the selection and navigated to
-            /select-school, so changing school meant leaving whatever you were
-            looking at. "All schools" is a real option now (Sprint 67); every
-            screen already treats a null selection as "all", so nothing
-            downstream had to change. Hidden for single-school accounts, where
-            a one-option picker is noise. */}
-        {/* ⚠ COLLAPSED SIDEBAR USED TO LOSE THIS CONTROL ENTIRELY (fixed Sprint
-            95, reported by the user as "switching schools now missing").
-            The dropdown below is `hidden md:hidden` when collapsed — sensible,
-            since a <select> is unusable in a 60px rail — but nothing took its
-            place, unlike the footer's Change Password and Logout, which keep
-            their icons and a tooltip. And `sidebarCollapsed` PERSISTS in
-            localStorage, so one collapse hid the switcher for good: it reads as
-            a feature that vanished, not as a layout state.
-            The icon button expands the sidebar rather than hiding a menu behind
-            a 60px rail — one click, and the real control is there. */}
-        {(user.schools.length > 1) && collapsed && (
-          <button
-            onClick={() => setCollapsed(false)}
-            title={`Viewing ${selectedSchool ? getSchoolShortName(selectedSchool) : 'all schools'} — click to change school`}
-            aria-label={`Change school. Currently viewing ${selectedSchool ? getSchoolShortName(selectedSchool) : 'all schools'}`}
-            className="hidden md:flex mx-3 my-2 px-0 py-2 rounded-lg bg-primary-surface w-[calc(100%-24px)] items-center justify-center text-primary hover:bg-primary-surface/70 transition-colors"
-          >
-            <School className="w-5 h-5" />
-          </button>
-        )}
+        {/* School switcher — a button to the dedicated selection screen
+            (reverted 2026-09-04 at the user's explicit request from the
+            Sprint 67 inline dropdown, which traded this navigation away for
+            never leaving the current screen; if that trade-off is missed
+            later, that history is why the dropdown existed). Hidden for
+            single-school accounts, where switching is meaningless. */}
         {(user.schools.length > 1) && (
-          <div className={`mx-3 my-2 px-3 py-2 rounded-lg bg-primary-surface w-[calc(100%-24px)] ${collapsed ? 'hidden md:hidden' : 'block'}`}>
-            <label htmlFor="school-switcher" className="block text-[11px] font-medium text-blue-700 leading-none mb-1">
-              Viewing
-            </label>
-            <select
-              id="school-switcher"
-              aria-label="School"
-              value={selectedSchool ?? ALL_SCHOOLS}
-              onChange={(e) => setSelectedSchool(e.target.value === ALL_SCHOOLS ? ALL_SCHOOLS : e.target.value)}
-              className="w-full text-xs font-semibold text-blue-900 bg-transparent border-0 p-0 focus:outline-none focus:ring-2 focus:ring-ring rounded cursor-pointer"
-            >
-              <option value={ALL_SCHOOLS}>All schools</option>
-              {user.schools.map((s) => (
-                <option key={s} value={s}>{getSchoolShortName(s)}</option>
-              ))}
-            </select>
-          </div>
+          <button
+            onClick={() => navigate('/select-school')}
+            title="Switch School"
+            aria-label="Switch School"
+            className={`group flex items-center gap-2.5 mx-3 my-2 px-3 py-2.5 rounded-xl border border-primary/15 bg-primary-surface text-primary hover:border-primary/30 hover:shadow-sm transition-all ${collapsed ? 'md:justify-center' : ''} w-[calc(100%-24px)]`}
+          >
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-card shadow-sm group-hover:scale-105 transition-transform">
+              <ArrowLeftRight className="w-3.5 h-3.5" />
+            </span>
+            <span className={`${labelCls} text-sm font-semibold`}>Switch School</span>
+          </button>
         )}
 
         {/* Tabs */}
@@ -394,17 +404,41 @@ export const Root = () => {
           ))}
         </nav>
 
-        {/* Notifications — ABOVE Logout, as the P2 doc asked ("notifications
-            above ng log out"). Hidden entirely for School Admin and BHO staff:
-            they view reports, never clinical records, so every count would be
-            both zero and none of their business. */}
-        {NOTIFIED_ROLES.includes(user.role) && (
-          <div className="border-t border-border px-4 pt-3">
+        {/* User info + settings + notifications + logout */}
+        <div className="border-t border-border p-4">
+          <div className={`flex items-center justify-between gap-2 mb-3 ${collapsed ? 'md:justify-center' : ''}`}>
+            <div className={`min-w-0 ${labelCls}`}>
+              <div className="text-sm font-medium text-foreground truncate">{user.name}</div>
+              <div className="mt-1">
+                <span className="inline-block px-2 py-0.5 text-xs bg-primary-surface text-primary rounded capitalize">
+                  {user.role.replace('_', ' ')}
+                </span>
+              </div>
+            </div>
+            {/* Profile settings — currently just Change Password, the one
+                self-service profile action that exists. Not a menu of
+                invented options (CLAUDE.md: nothing cosmetic). */}
             <button
-              onClick={() => setShowNotifications((v) => !v)}
-              aria-expanded={showNotifications}
+              onClick={openChangePassword}
+              title="Profile settings"
+              aria-label="Profile settings"
+              className="flex-shrink-0 p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Notifications — ABOVE Logout, as the P2 doc asked ("notifications
+              above ng log out"). Hidden entirely for School Admin and BHO
+              staff: they view reports, never clinical records, so every count
+              would be both zero and none of their business. Links straight to
+              the full notifications page rather than an inline dropdown. */}
+          {NOTIFIED_ROLES.includes(user.role) && (
+            <Link
+              to="/notifications"
+              onClick={() => setDrawerOpen(false)}
               title={collapsed ? `Notifications${notifTotal ? ` (${notifTotal})` : ''}` : undefined}
-              className={`w-full flex items-center gap-3 px-3 py-2 text-muted-foreground hover:bg-muted rounded-lg transition-colors justify-start ${collapsed ? 'md:justify-center' : 'md:justify-start'}`}
+              className={`w-full flex items-center gap-3 px-3 py-2 text-muted-foreground hover:bg-muted rounded-lg transition-colors mb-1 justify-start ${collapsed ? 'md:justify-center' : 'md:justify-start'}`}
             >
               <span className="relative flex-shrink-0">
                 <Bell className="w-5 h-5" />
@@ -415,60 +449,8 @@ export const Root = () => {
                 )}
               </span>
               <span className={`${labelCls} text-sm font-medium`}>Notifications</span>
-            </button>
-
-            {/* ⚠ COUNTS ONLY, EACH LINKING TO THE SCREEN THAT HOLDS THE DETAIL.
-                There is no NOTIFICATION model and no read/unread state — those
-                need a schema change and a decision about persistence. Anything
-                else here would be paraphrased or invented. */}
-            {showNotifications && !collapsed && (
-              <div className="mt-1 mb-2 rounded-lg bg-muted/60 p-2 space-y-1">
-                {notifTotal === 0 && (
-                  <p className="text-xs text-muted-foreground px-1 py-1">
-                    {notifError ? 'Counts unavailable right now.' : 'Nothing needs attention.'}
-                  </p>
-                )}
-                {notifCounts.overdueRpc > 0 && (
-                  <Link to="/rpc" onClick={() => setShowNotifications(false)}
-                    className="block text-xs px-2 py-1.5 rounded hover:bg-card text-foreground">
-                    <span className="font-semibold text-destructive">{notifCounts.overdueRpc}</span> overdue RPC visit{notifCounts.overdueRpc === 1 ? '' : 's'}
-                  </Link>
-                )}
-                {notifCounts.appointmentsToday > 0 && (
-                  <Link to="/appointments" onClick={() => setShowNotifications(false)}
-                    className="block text-xs px-2 py-1.5 rounded hover:bg-card text-foreground">
-                    <span className="font-semibold text-primary">{notifCounts.appointmentsToday}</span> appointment{notifCounts.appointmentsToday === 1 ? '' : 's'} today
-                  </Link>
-                )}
-                {notifCounts.awaitingValidation > 0 && canValidateRisk && (
-                  <Link to="/ai-analytics" onClick={() => setShowNotifications(false)}
-                    className="block text-xs px-2 py-1.5 rounded hover:bg-card text-foreground">
-                    <span className="font-semibold text-warning">{notifCounts.awaitingValidation}</span> risk assessment{notifCounts.awaitingValidation === 1 ? '' : 's'} awaiting validation
-                  </Link>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* User info + logout */}
-        <div className="border-t border-border p-4">
-          <div className={`mb-3 ${labelCls}`}>
-            <div className="text-sm font-medium text-foreground truncate">{user.name}</div>
-            <div className="mt-1">
-              <span className="inline-block px-2 py-0.5 text-xs bg-primary-surface text-primary rounded capitalize">
-                {user.role.replace('_', ' ')}
-              </span>
-            </div>
-          </div>
-          <button
-            onClick={openChangePassword}
-            title={collapsed ? 'Change Password' : undefined}
-            className={`w-full flex items-center gap-3 px-3 py-2 text-muted-foreground hover:bg-muted rounded-lg transition-colors mb-1 justify-start ${collapsed ? 'md:justify-center' : 'md:justify-start'}`}
-          >
-            <KeyRound className="w-5 h-5 flex-shrink-0" />
-            <span className={`${labelCls} text-sm font-medium`}>Change Password</span>
-          </button>
+            </Link>
+          )}
           <button
             onClick={handleLogout}
             title={collapsed ? 'Logout' : undefined}
@@ -484,7 +466,13 @@ export const Root = () => {
       {/* MAIN CONTENT -- full width below md (the drawer is off-canvas), offset
           by the fixed rail at md+. No top padding needed: the mobile bar is a
           flow sibling above, not an overlay. */}
-      <main className={`flex-1 ml-0 ${collapsed ? 'md:ml-[60px]' : 'md:ml-[220px]'} overflow-x-hidden transition-[margin] duration-200`}>
+      {/* `overflow-x-clip`, NOT `overflow-x-hidden`. They look identical here but
+          `hidden` makes this element a scroll container, and a scroll container
+          ancestor is what `position: sticky` pins against -- so every sticky
+          header inside the page (the IPTR toolbar and tab strip) was pinning to
+          a box that never scrolls, i.e. silently not sticking at all. `clip`
+          clips the same overflow without becoming a scroll container. */}
+      <main className={`flex-1 ml-0 ${collapsed ? 'md:ml-[60px]' : 'md:ml-[220px]'} overflow-x-clip transition-[margin] duration-200`}>
         <div className="p-4 md:p-8">
           <Outlet />
         </div>

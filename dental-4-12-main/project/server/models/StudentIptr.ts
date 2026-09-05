@@ -33,10 +33,48 @@ const studentIptrSchema = new mongoose.Schema(
     // recorded either, so no migration accompanies this.
     height_cm: { type: Number, default: null, min: 0, max: 300 },
     weight_kg: { type: Number, default: null, min: 0, max: 500 },
+    // Vitals recorded alongside height/weight at the screening (2026-09-05).
+    // Not in the original Chapter 3 ERD — same precedent as the DENTAL_CHART
+    // service fields. Temperature is CELSIUS; blood pressure stays a string
+    // because it is a pair ("110/70"), not a number, and splitting it into
+    // systolic/diastolic columns buys nothing this app ever queries on.
+    temperature_c: { type: Number, default: null, min: 0, max: 45 },
+    blood_pressure: { type: String, default: "" },
+    // Consent must be renewed every school year, not given once for life —
+    // a guardian's 2023 signature does not authorize treatment in 2026. It
+    // used to live on STUDENT as a single lifetime flag; that's the same
+    // "one grade for a multi-year student" bug Sprint 57a fixed, so it
+    // moves to the same place by the same reasoning.
+    //
+    // Defaults to "pending" for every new year, including a freshly-added
+    // one for a returning student — last year's "complete" never carries
+    // forward. See migrateIptrConsent.ts for the one-time backfill of the
+    // latest IPTR from the old STUDENT.consent_status value.
+    consent_status: { type: String, enum: ["pending", "complete"], default: "pending" },
+    // Set server-side by the pre('save') hook below whenever consent_status
+    // changes — never trust a client-supplied timestamp for "when consent was
+    // given". Cleared back to null the moment a "complete" is reverted to
+    // "pending", since a pending record has no valid given date any more.
+    consent_given_at: { type: Date, default: null },
+    // The day this school year's record was opened for this student —
+    // defaults to today at creation, and is editable afterward (2026-09-04)
+    // via the year menu's password-gated Edit action, e.g. to correct a
+    // year added late/backdated. Distinct from `created_at` (immutable
+    // Mongoose timestamp) and from DENTAL_CHART's own `date_charted`
+    // (when teeth were actually examined, not when the year record itself
+    // was opened).
+    date_opened: { type: Date, default: Date.now },
     ...softDeleteFields,
   },
   { timestamps: { createdAt: "created_at", updatedAt: false } },
 );
+
+studentIptrSchema.pre("save", function (next) {
+  if (this.isModified("consent_status")) {
+    this.consent_given_at = this.consent_status === "complete" ? new Date() : null;
+  }
+  next();
+});
 
 // Sprint 91. Leads with isArchived because every GET filters on it.
 // One student's records for the IPTR screen — `filterable: ["student_id"]`

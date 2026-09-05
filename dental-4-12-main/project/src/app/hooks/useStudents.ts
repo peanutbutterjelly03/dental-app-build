@@ -21,7 +21,9 @@ export interface StudentRow {
   lastVisit: string | null;
   oralStatus: string;
   riskLevel: 'High' | 'Medium' | 'Low' | null;
-  consentStatus: 'pending' | 'complete';
+  /** From the student's LATEST STUDENT_IPTR (consent is per school year).
+   *  null means no IPTR exists yet — a different fact from "pending". */
+  consentStatus: 'pending' | 'complete' | null;
   pending?: boolean;
 }
 

@@ -6,6 +6,11 @@ const oralHealthConditionSchema = new mongoose.Schema(
   {
     iptr_id: { type: mongoose.Schema.Types.ObjectId, ref: "StudentIptr", required: true },
     oral_hygiene: { type: String, maxlength: 50, required: true },
+    // Not in the original ERD — added 2026-09-04, the real DOH term used on
+    // the Target Client List (TCL) report. This is the CLINICIAN'S per-visit
+    // assessment on the chart, distinct from the TCL's own "Orally Fit
+    // Child"/"Caries Free" columns, which are computed from tooth records.
+    orally_fit_child: { type: Boolean, default: false },
     gingivitis: { type: Boolean, default: false },
     periodontal_disease: { type: Boolean, default: false },
     debris: { type: Boolean, default: false },

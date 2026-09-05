@@ -5,12 +5,12 @@ import { School, ChevronRight, LogOut, MapPin } from 'lucide-react';
 
 const SCHOOL_META: Record<string, { shortName: string; address: string; levels: string }> = {
   'Bagong Tanyag Integrated School': {
-    shortName: 'BT Integrated School',
+    shortName: 'Bagong Tanyag Integrated School',
     address: 'Bagong Tanyag, Taguig City',
     levels: 'Kinder – Grade 10',
   },
   'Bagong Tanyag Elementary School Annex A': {
-    shortName: 'BT Elementary Annex A',
+    shortName: 'Bagong Tanyag Elementary Annex A',
     address: 'Bagong Tanyag, Taguig City',
     levels: 'Grade 1 – Grade 6',
   },

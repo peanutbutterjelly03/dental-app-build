@@ -28,3 +28,11 @@ export function schoolYearLabel(d: Date = new Date()): string {
   const y = d.getFullYear();
   return d.getMonth() <= 3 ? `${y - 1}-${y}` : `${y}-${y + 1}`;
 }
+
+/** "2026-2027" -> "2027-2028". Extracted from PromoteAssign (Sprint 70) so
+ *  UpdateSchoolYear can share the exact same year math rather than a second
+ *  copy that could drift. */
+export function nextSchoolYear(sy: string): string {
+  const [a, b] = sy.split('-').map(Number);
+  return Number.isFinite(a) && Number.isFinite(b) ? `${a + 1}-${b + 1}` : sy;
+}

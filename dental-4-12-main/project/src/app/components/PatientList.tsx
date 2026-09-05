@@ -1,7 +1,8 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Eye, FileText, X, School as SchoolIcon, List, ChevronLeft, ChevronRight, Users, Upload, CheckCircle, AlertCircle, ScanLine, GraduationCap } from 'lucide-react';
+import { Plus, Eye, FileText, X, School as SchoolIcon, List, ChevronLeft, ChevronRight, Users, Upload, CheckCircle, AlertCircle, ScanLine, GraduationCap, MoreVertical, ListChecks, Archive as ArchiveIcon, Copy } from 'lucide-react';
+import { ConfirmDialog } from './ConfirmDialog';
 import { formatDate } from '../utils/localDate';
 import { OCR_CONFIDENCE_THRESHOLD, type IptrOcrFieldKey, type IptrCheckboxFinding } from '../utils/iptrOcrShared';
 import { getGradeColor } from '../utils/gradeColors';
@@ -11,20 +12,21 @@ import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
 import { useToast } from './Toast';
 import { Modal } from './Modal';
 import { activatable } from '../utils/a11y';
-import { GradeTableCell } from './GradeTableCell';
 import { ListSearchInput } from './ListSearchInput';
-import { studentListTableStyles } from './StudentListTableStyles';
-import { addQueuedStudentId, getQueuedStudentIds, removeQueuedStudentId, setQueuedStudentIds as persistQueuedStudentIds } from '../utils/queueStorage';
+import { addQueuedStudentId, getQueuedStudentIds, removeQueuedStudentId } from '../utils/queueStorage';
 import { useStudents } from '../hooks/useStudents';
-import { Pagination, usePagination } from './Pagination';
+import { usePagination, PAGE_SIZE_OPTIONS } from './Pagination';
 import { apiClient, ApiError } from '../api/client';
 import type { ApiSchool } from '../api/types';
-import { useSchools } from '../hooks/useSchools';
 import { schoolYearLabel } from '../utils/schoolYear';
 import { Notice } from './Notice';
-import { PromoteAssign } from './PromoteAssign';
 
 const GRADES = ['Kinder','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10'];
+
+/** Male before Female in the default sort; anything else (data the intake
+ *  form doesn't otherwise produce) sorts after both rather than being lost
+ *  at the front or crashing the comparator. */
+const GENDER_SORT_ORDER: Record<string, number> = { Male: 0, Female: 1 };
 
 /** The add-form's default input styling — the baseline `ocrFieldClass` falls
  *  back to, and what fields that can never be scanned use outright. */
@@ -125,23 +127,33 @@ const buildBulkRow = (rec: Record<string, string>): BulkRow => {
 
 type NewPatientForm = {
   firstName: string; lastName: string; middleName: string; birthdate: string; gender: string;
-  grade: string; section: string; school: string; guardianName: string; guardianContact: string;
-  address: string; contactNumber: string; philhealthNumber: string; philhealthStatus: string;
+  grade: string; section: string; school: string; placeOfBirth: string; guardianName: string; guardianContact: string;
+  guardianOccupation: string; address: string; contactNumber: string; philhealthNumber: string; philhealthStatus: string;
   is4Ps: boolean; fourPsId: string; consentStatus: string;
+};
+
+/** One source for "what a blank Add Student form looks like" — used on
+ *  mount, after a successful save, and when the form is closed via the
+ *  header X (closing no longer leaves stale values for next time). */
+const BLANK_NEW_PATIENT: NewPatientForm = {
+  firstName:'', lastName:'', middleName:'', birthdate:'', gender:'', grade:'', section:'', school:'',
+  placeOfBirth:'', guardianName:'', guardianContact:'', guardianOccupation:'', address:'', contactNumber:'', philhealthNumber:'',
+  philhealthStatus:'None', is4Ps:false, fourPsId:'', consentStatus:'pending',
 };
 
 /** Fields the Add Student form requires, and the label each one shows.
  *
- *  Enforced HERE, at entry — deliberately NOT with `required: true` on the
- *  Student model. All 26 existing students predate these fields, and CRUD
- *  updates go through findById + save(), which runs mongoose validation: a
- *  schema-level requirement would make every existing record unsaveable on the
- *  next edit, and there is nothing truthful to backfill a guardian's name with.
+ *  Everything here is enforced ONLY at this layer: none of these fields are
+ *  schema-required, so a schema-level requirement would make every
+ *  pre-existing student unsaveable on the next edit.
  *
  *  NOT required, on purpose:
  *  · middleName — some children genuinely have none, and full_name is DERIVED
  *    from the name parts, so forcing "N/A" would propagate that placeholder
  *    into every list, heading, report and DOH form.
+ *  · address — not schema-required either (2026-09-04, user decision;
+ *    DATA-MODEL.md never listed it as required, unlike last/first name).
+ *  · contactNumber — not schema-required either (2026-09-04, user decision).
  *  · philhealthNumber — the user's explicit exception.
  *  · philhealthStatus — always has a value ("None"). */
 const REQUIRED_STUDENT_FIELDS: {
@@ -153,21 +165,20 @@ const REQUIRED_STUDENT_FIELDS: {
   { key: 'firstName', label: 'First Name' },
   { key: 'birthdate', label: 'Birthdate' },
   { key: 'gender', label: 'Gender' },
-  { key: 'school', label: 'School' },
   { key: 'grade', label: 'Grade' },
   { key: 'section', label: 'Section' },
-  { key: 'address', label: 'Address' },
-  { key: 'contactNumber', label: 'Contact Number' },
-  { key: 'guardianName', label: 'Guardian Name' },
-  { key: 'guardianContact', label: 'Guardian Contact' },
+  // Guardian Name/Contact are NOT required (2026-09-04, user decision) —
+  // marked "(Optional)" on their labels instead of an asterisk.
   // Only meaningful for a 4Ps household — required unconditionally it would
   // block every non-4Ps student, and 0 of the 26 on file are 4Ps.
   { key: 'fourPsId', label: '4Ps ID', onlyIf: (f) => f.is4Ps },
 ];
 
 const REQUIRED_KEYS = new Set(REQUIRED_STUDENT_FIELDS.map((f) => f.key));
-/** " *" when the field is required, so labels read from the same list. */
-const req = (key: keyof NewPatientForm) => (REQUIRED_KEYS.has(key) ? ' *' : '');
+/** Red " *" when the field is required, so labels read from the same list. */
+const req = (key: keyof NewPatientForm) => (REQUIRED_KEYS.has(key) ? <span className="text-destructive"> *</span> : null);
+/** Gray "(Optional)" for the two fields that used to carry a (wrong) asterisk. */
+const optionalTag = <span className="text-muted-foreground font-normal"> (Optional)</span>;
 
 export const PatientList = () => {
   const navigate = useNavigate();
@@ -187,15 +198,32 @@ export const PatientList = () => {
   const [ageGroupFilter, setAgeGroupFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newPatient, setNewPatient] = useState({ firstName:'', lastName:'', middleName:'', birthdate:'', gender:'', grade:'', section:'', school:'', guardianName:'', guardianContact:'', address:'', contactNumber:'', philhealthNumber:'', philhealthStatus:'None', is4Ps:false, fourPsId:'', consentStatus:'pending' });
+  const [newPatient, setNewPatient] = useState<NewPatientForm>(BLANK_NEW_PATIENT);
   const [addPatientError, setAddPatientError] = useState<string | null>(null);
   const [addingPatient, setAddingPatient] = useState(false);
+  // Which required fields are currently empty, for the per-field "this field
+  // is required" line — recomputed on every submit attempt, cleared per-field
+  // as soon as that one is filled in.
+  const [missingFields, setMissingFields] = useState<Set<keyof NewPatientForm>>(new Set());
+  // A step between "form looks valid" and actually saving — added because a
+  // typo'd Add Student click used to save immediately with no way back.
+  const [showAddConfirm, setShowAddConfirm] = useState(false);
+  // The id of the live-duplicate match the encoder has already acknowledged
+  // (via its own X, or "Confirm different student" below) — keyed by id so
+  // the badge reappears on its own if the fields change to match a
+  // DIFFERENT existing student, but stays quiet for the one already handled.
+  const [acknowledgedDuplicateId, setAcknowledgedDuplicateId] = useState<string | null>(null);
+  const [showConfirmDifferentStudent, setShowConfirmDifferentStudent] = useState(false);
+  // Whether Section's suggestion list is showing — a combobox (type to
+  // filter, click to pick, or just keep typing to add a new one), not a
+  // plain <select>, since section names come from the roster rather than a
+  // fixed list.
+  const [sectionMenuOpen, setSectionMenuOpen] = useState(false);
   // Non-null while the server has answered "this child may already be on file"
   // and the person encoding has to decide (Sprint 47).
   const [duplicateWarning, setDuplicateWarning] = useState<DuplicateCandidate[] | null>(null);
   const [schools, setSchools] = useState<ApiSchool[]>([]);
   const [showOcrUpload, setShowOcrUpload] = useState(false);
-  const [showPromote, setShowPromote] = useState(false);
   const [ocrProcessing, setOcrProcessing] = useState(false);
   const [ocrProgress, setOcrProgress] = useState(0);
   const [ocrError, setOcrError] = useState<string | null>(null);
@@ -290,7 +318,6 @@ export const PatientList = () => {
           contact_number: r.contactNumber,
           grade_level: r.grade,
           section: r.section,
-          consent_status: 'pending',
         });
         imported++;
       } catch (err) {
@@ -317,8 +344,103 @@ export const PatientList = () => {
     if (failures.length > 0) toast.error(`${failures.length} row${failures.length !== 1 ? 's' : ''} failed to import.`);
   };
   const [queuedStudentIds, setQueuedStudentIds] = useState<string[]>(() => getQueuedStudentIds());
-  // tick-box selection for queueing several students at once
+  // Non-null while a per-row "remove from queue" click is waiting on
+  // confirmation — adding to the queue stays a single click, only removing
+  // asks first.
+  const [dequeueTarget, setDequeueTarget] = useState<{ id: string; name: string } | null>(null);
+  // tick-box selection for queueing (and now archiving) several students at
+  // once. Hidden behind "Select" from the three-dot menu rather than always
+  // on — a checkbox column nobody is using is just noise on a list this
+  // dense, and it leaves the toolbar room for whatever gets added next.
+  const [selectMode, setSelectMode] = useState(false);
+  const [showListMenu, setShowListMenu] = useState(false);
   const [tickedIds, setTickedIds] = useState<Set<string>>(new Set());
+  const [confirmArchiveTicked, setConfirmArchiveTicked] = useState(false);
+  const [archivingTicked, setArchivingTicked] = useState(false);
+  // Re-typed password for the archive confirmation — a bulk action pulling
+  // students off every active roster and report gets a step-up check beyond
+  // "are you sure", not just a second click.
+  const [archivePassword, setArchivePassword] = useState('');
+  // A random, non-guessable field name — the literal string "password" in a
+  // name/id is itself a strong signal several autofill engines key off, even
+  // with autocomplete overridden.
+  const archivePasswordFieldName = useRef(`confirm-${Math.random().toString(36).slice(2)}`).current;
+
+  // Duplicate-records scan (housekeeping, not the create-time 409 check
+  // above) — groups of already-saved students that look like the same child
+  // encoded more than once. Fetched on demand from the three-dot menu, not
+  // on every list load.
+  const [showDuplicates, setShowDuplicates] = useState(false);
+  const [duplicateGroups, setDuplicateGroups] = useState<DuplicateCandidate[][]>([]);
+  const [duplicatesLoading, setDuplicatesLoading] = useState(false);
+  const [duplicatesError, setDuplicatesError] = useState<string | null>(null);
+
+  const loadDuplicates = async () => {
+    setDuplicatesLoading(true);
+    setDuplicatesError(null);
+    try {
+      const school = schools.find((s) => s.school_name === selectedSchool);
+      const query = school ? `?school_id=${school._id}` : '';
+      const groups = await apiClient.get<DuplicateCandidate[][]>(`/students/duplicates${query}`);
+      setDuplicateGroups(groups);
+    } catch (err) {
+      setDuplicatesError(err instanceof ApiError ? err.message : 'Could not load duplicate records.');
+    } finally {
+      setDuplicatesLoading(false);
+    }
+  };
+
+  // Archiving one duplicate reuses the exact same tickedIds + password
+  // confirmation flow as the bulk toolbar action — a duplicate row is just a
+  // one-student selection, not a separate archive path to maintain.
+  const archiveOneDuplicate = (id: string) => {
+    setTickedIds(new Set([id]));
+    setArchivePassword('');
+    setArchivePasswordError(null);
+    setConfirmArchiveTicked(true);
+  };
+  const [archivePasswordError, setArchivePasswordError] = useState<string | null>(null);
+
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setTickedIds(new Set());
+  };
+
+  const archiveTicked = async () => {
+    if (!archivePassword) {
+      setArchivePasswordError('Enter your password to confirm.');
+      return;
+    }
+    setArchivingTicked(true);
+    try {
+      await apiClient.post('/auth/verify-password', { password: archivePassword });
+    } catch (err) {
+      setArchivingTicked(false);
+      setArchivePasswordError(err instanceof ApiError ? err.message : 'Could not verify password.');
+      return;
+    }
+    let archived = 0;
+    const failed: string[] = [];
+    for (const id of tickedIds) {
+      const student = schoolStudents.find(s => s.id === id);
+      try {
+        await apiClient.patch(`/students/${id}/archive`);
+        archived += 1;
+      } catch (err) {
+        failed.push(`${student?.name ?? id} — ${err instanceof ApiError ? err.message : 'failed'}`);
+      }
+    }
+    setArchivingTicked(false);
+    setConfirmArchiveTicked(false);
+    setArchivePassword('');
+    exitSelectMode();
+    await reloadStudents();
+    // Archived students no longer belong in the duplicates list — refresh it
+    // so an archived-from-there row doesn't linger until the modal reopens.
+    if (showDuplicates) await loadDuplicates();
+    if (archived > 0) toast.success(`${archived} student${archived === 1 ? '' : 's'} archived.`);
+    if (failed.length > 0) toast.error(`${failed.length} could not be archived — see console.`);
+  };
 
   const toggleTicked = (id: string) => {
     setTickedIds(prev => {
@@ -328,24 +450,6 @@ export const PatientList = () => {
       return next;
     });
   };
-
-  const queueTicked = () => {
-    const merged = [...new Set([...getQueuedStudentIds(), ...tickedIds])];
-    persistQueuedStudentIds(merged);
-    setQueuedStudentIds(merged);
-    setTickedIds(new Set());
-  };
-
-  const unqueueTicked = () => {
-    const next = getQueuedStudentIds().filter(id => !tickedIds.has(id));
-    persistQueuedStudentIds(next);
-    setQueuedStudentIds(next);
-    setTickedIds(new Set());
-  };
-
-  // when every ticked student is already queued the bulk action flips to
-  // unqueue; otherwise (none or mixed) it queues them all
-  const allTickedQueued = tickedIds.size > 0 && [...tickedIds].every(id => queuedStudentIds.includes(id));
 
   const calculateAge = (birthdate: string) => {
     const today = new Date(); const birth = new Date(birthdate);
@@ -366,39 +470,90 @@ export const PatientList = () => {
   };
 
   const { students: allStudents, loading: studentsLoading, reload: reloadStudents } = useStudents();
-  // School list comes from the DB now, not a hardcoded array (Sprint 60).
-  const { schoolNames } = useSchools();
 
   useEffect(() => {
     apiClient.get<ApiSchool[]>('/schools').then(setSchools).catch(() => {});
   }, []);
 
+  // The Add Student form no longer has its own School field — it always adds
+  // to whichever school is currently in view, set the moment the form opens
+  // rather than left for the encoder to pick (and possibly get wrong).
+  useEffect(() => {
+    if (showAddForm) {
+      setNewPatient((p) => ({ ...p, school: selectedSchool ?? '' }));
+      setMissingFields(new Set());
+      setAcknowledgedDuplicateId(null);
+      setSectionMenuOpen(false);
+    }
+  }, [showAddForm, selectedSchool]);
+
+  // Updates one field and, if it was flagged as missing, clears that flag —
+  // so the per-field "this field is required" line disappears the moment the
+  // person actually fixes it, not only on the next full submit attempt.
+  const updateField = <K extends keyof typeof newPatient>(key: K, value: (typeof newPatient)[K]) => {
+    setNewPatient((p) => ({ ...p, [key]: value }));
+    setMissingFields((prev) => {
+      if (!prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
+  };
+
+  const fieldError = (key: keyof NewPatientForm) =>
+    missingFields.has(key) ? <p className="mt-1 text-xs text-destructive">This field is required.</p> : null;
+
+  // The only way to close this form — Esc and backdrop-click are disabled
+  // (see closeDisabled on the Modal below) so a half-filled form can't be
+  // lost by a stray click. Resets everything, so reopening via Add Student
+  // starts clean rather than picking up stale values.
+  const closeAddForm = () => {
+    setShowAddForm(false);
+    setNewPatient(BLANK_NEW_PATIENT);
+    setMissingFields(new Set());
+    setAddPatientError(null);
+    setAcknowledgedDuplicateId(null);
+    setSectionMenuOpen(false);
+    setOcrConfidences({});
+    setOcrFindings([]);
+    setOcrFindingsNote(null);
+  };
+
+  // Gate between "form looks valid" and actually saving. birthdate/gender/
+  // address/section are all required on the backend (Student model) and
+  // already marked with a red * in this form's labels, but weren't actually
+  // enforced here -- a student could be submitted without them, either
+  // failing with a raw Mongoose validation error message online, or (worse)
+  // queuing successfully offline and only failing to sync later with a
+  // confusing 400 -- instead of being caught at entry time like the other
+  // required fields already were. ONE source for what is required, shared
+  // with the labels below so the asterisks and the check cannot drift apart.
+  // They had: Address was enforced but carried no asterisk, and Guardian
+  // Name carried an asterisk but was never enforced — exactly inverted.
+  const handleAddStudentClick = () => {
+    setAddPatientError(null);
+    const missing = REQUIRED_STUDENT_FIELDS
+      .filter(({ key, onlyIf }) => (onlyIf ? onlyIf(newPatient) : true))
+      .filter(({ key }) => !String(newPatient[key] ?? '').trim());
+    if (missing.length) {
+      setMissingFields(new Set(missing.map((m) => m.key)));
+      // Names them too. "Please fill in all required fields" leaves the user
+      // hunting, which is what made the missing Address asterisk costly.
+      setAddPatientError(`Please fill in: ${missing.map((m) => m.label).join(', ')}.`);
+      return;
+    }
+    setMissingFields(new Set());
+    setShowAddConfirm(true);
+  };
+
   // confirmDuplicate is the answer to a previous 409: the encoder has looked at
   // the matches and says this really is a different child. Re-reads `newPatient`
   // rather than caching a payload, so "Save anyway" cannot drift from the form.
+  // Validation already happened in handleAddStudentClick (or, for the 409 path,
+  // in the attempt that produced the duplicate warning), so this only saves.
   const handleAddStudent = async (confirmDuplicate = false) => {
     setAddPatientError(null);
-    // birthdate/gender/address/section are all required on the backend
-    // (Student model) and already marked with * in this form's labels, but
-    // weren't actually enforced here -- a student could be submitted
-    // without them, either failing with a raw Mongoose validation error
-    // message online, or (worse) queuing successfully offline and only
-    // failing to sync later with a confusing 400 -- instead of being
-    // caught at entry time like the other required fields already were.
-    // ONE source for what is required, shared with the labels below so the
-    // asterisks and the check cannot drift apart. They had: Address was
-    // enforced but carried no asterisk, and Guardian Name carried an asterisk
-    // but was never enforced — exactly inverted.
-    const missing = REQUIRED_STUDENT_FIELDS
-      .filter(({ key, onlyIf }) => (onlyIf ? onlyIf(newPatient) : true))
-      .filter(({ key }) => !String(newPatient[key] ?? '').trim())
-      .map(({ label }) => label);
-    if (missing.length) {
-      // Names them. "Please fill in all required fields" leaves the user
-      // hunting, which is what made the missing Address asterisk costly.
-      setAddPatientError(`Please fill in: ${missing.join(', ')}.`);
-      return;
-    }
+    setShowAddConfirm(false);
     const school = schools.find((s) => s.school_name === newPatient.school);
     if (!school) {
       setAddPatientError('Selected school not found.');
@@ -417,13 +572,14 @@ export const PatientList = () => {
         contact_number: newPatient.contactNumber,
         grade_level: newPatient.grade,
         section: newPatient.section,
+        place_of_birth: newPatient.placeOfBirth,
         guardian_name: newPatient.guardianName,
         guardian_contact: newPatient.guardianContact,
+        guardian_occupation: newPatient.guardianOccupation,
         philhealth_number: newPatient.philhealthNumber,
         philhealth_status: newPatient.philhealthStatus,
         is_4ps: newPatient.is4Ps,
         fourps_id: newPatient.fourPsId,
-        consent_status: newPatient.consentStatus,
         ...(confirmDuplicate ? { confirm_duplicate: true } : {}),
       });
       // Open this school year's record straight away (Sprint 69). Adding a
@@ -433,8 +589,10 @@ export const PatientList = () => {
       // charting or an RPC visit, and did not appear in any year-scoped report.
       //
       // Grade and section are stamped from the form, which is what 57a made
-      // the IPTR carry. Best-effort: if this fails the student still exists and
-      // "Add Year" still works, so it warns rather than failing the whole save.
+      // the IPTR carry; consent_status the same way now that consent is
+      // per-year rather than a lifetime flag on the student. Best-effort: if
+      // this fails the student still exists and "Add Year" still works, so
+      // it warns rather than failing the whole save.
       let yearOpened = true;
       try {
         await apiClient.post('/student-iptrs', {
@@ -442,6 +600,7 @@ export const PatientList = () => {
           school_year: schoolYearLabel(),
           grade_level: newPatient.grade,
           section: newPatient.section,
+          consent_status: newPatient.consentStatus,
         });
       } catch {
         yearOpened = false;
@@ -454,8 +613,11 @@ export const PatientList = () => {
           : `Student added: ${newPatient.lastName}, ${newPatient.firstName} — but the ${schoolYearLabel()} record could not be opened. Add it from the chart.`,
       );
       setShowAddForm(false);
-      setNewPatient({ firstName:'', lastName:'', middleName:'', birthdate:'', gender:'', grade:'', section:'', school:'', guardianName:'', guardianContact:'', address:'', contactNumber:'', philhealthNumber:'', philhealthStatus:'None', is4Ps:false, fourPsId:'', consentStatus:'pending' });
+      setNewPatient(BLANK_NEW_PATIENT);
       setOcrConfidences({}); setOcrFindings([]); setOcrFindingsNote(null);
+      // Straight into the new record rather than back to the list — the next
+      // thing anyone does after adding a student is open their chart.
+      navigate(`/dental-chart/${created._id}?tab=history`);
     } catch (err) {
       const duplicates = duplicatesFromError(err);
       // A duplicate isn't an error the encoder can fix by editing the form, so
@@ -538,6 +700,53 @@ export const PatientList = () => {
     ? allStudents.filter(s => s.school === selectedSchool)
     : allStudents;
 
+  // Same signal UpdateSchoolYear.tsx already computes for its own roster
+  // (unassignedCount/stillAssignedCount): once "Start New School Year" clears
+  // everyone's grade/section, they stay unassigned until Promote/Assign or
+  // Bulk Transfer re-settles them into the new year. So "does anyone still
+  // need a grade/section" doubles as "has this year's rollover been finished
+  // yet" — no separate open/closed flag needed anywhere in the data model.
+  const schoolYearNeedsUpdate = schoolStudents.some(s => !s.pending && (!s.grade || !s.section));
+
+  // Every section name already in use anywhere in the school being entered
+  // on the Add Student form — real sections come from the whole roster, not
+  // a fixed list and not narrowed to the chosen grade (the same section name
+  // is often reused across grade levels, and scoping to grade meant nothing
+  // suggested at all until a grade was picked first).
+  const schoolSectionOptions = useMemo(() => {
+    return [...new Set(schoolStudents.filter(s => s.section).map(s => s.section))].sort();
+  }, [schoolStudents]);
+
+  // What the Section combobox's suggestion list actually shows — prefix-
+  // matched against whatever's typed so far ("s" -> sections STARTING with
+  // s, not just containing one), or the full list when the box is empty.
+  const filteredSectionOptions = useMemo(() => {
+    const q = newPatient.section.trim().toLowerCase();
+    if (!q) return schoolSectionOptions;
+    return schoolSectionOptions.filter((s) => s.toLowerCase().startsWith(q));
+  }, [schoolSectionOptions, newPatient.section]);
+
+  // Live, client-side duplicate check for the Add Student form — distinct
+  // from both findDuplicateStudents (the server's create-time 409 check,
+  // which excludes middle name and sex) and findDuplicateGroups (the Find
+  // Duplicates housekeeping scan). This one runs against the roster already
+  // loaded in the browser, purely so the person typing sees a heads-up
+  // before filling out the whole form, not just after submitting — the
+  // actual "add anyway" decision still goes through the 409 dialog.
+  const liveDuplicateMatches = useMemo(() => {
+    if (!newPatient.lastName.trim() || !newPatient.firstName.trim() || !newPatient.birthdate || !newPatient.gender) return [];
+    const norm = (s: string) => s.trim().toLowerCase();
+    return schoolStudents.filter((s) => {
+      if (s.pending) return false;
+      if (norm(s.lastName) !== norm(newPatient.lastName)) return false;
+      if (norm(s.firstName) !== norm(newPatient.firstName)) return false;
+      if (norm(s.middleName || '') !== norm(newPatient.middleName || '')) return false;
+      if (norm(s.gender) !== norm(newPatient.gender)) return false;
+      const day = new Date(s.birthdate);
+      return !Number.isNaN(day.getTime()) && day.toISOString().slice(0, 10) === newPatient.birthdate;
+    });
+  }, [schoolStudents, newPatient.lastName, newPatient.firstName, newPatient.middleName, newPatient.birthdate, newPatient.gender]);
+
   // School view computed data
   const schoolData = [selectedSchool].filter(Boolean).map(school => {
     const students = schoolStudents.filter(s => s.school === school);
@@ -581,7 +790,18 @@ export const PatientList = () => {
   // changed for any reason (new pending offline write merged in, a reload
   // after sync, even switching schools) unless a filter dropdown was also
   // touched, since that was the only thing that could trigger a recompute.
-  }), [schoolStudents, gradeFilter, sectionFilter, genderFilter, ageGroupFilter, searchTerm]);
+  // Default order: grade, then section, then sex (male before female), then
+  // surname, then first name — a roster reads this way on paper, and it is
+  // what the DOH forms already group by. Client-side only: /stats/student-
+  // rows itself stays surname-only, since other consumers of that same
+  // endpoint (Reports, the dashboard) rely on that order.
+  }).sort((a, b) =>
+    (GRADES.indexOf(a.grade) - GRADES.indexOf(b.grade)) ||
+    a.section.localeCompare(b.section) ||
+    ((GENDER_SORT_ORDER[a.gender] ?? 2) - (GENDER_SORT_ORDER[b.gender] ?? 2)) ||
+    a.lastName.localeCompare(b.lastName) ||
+    a.firstName.localeCompare(b.firstName)
+  ), [schoolStudents, gradeFilter, sectionFilter, genderFilter, ageGroupFilter, searchTerm]);
 
   // ── Pagination (client-side, Sprint 53) ──────────────────────────────────
   // Deliberately paginates the ALREADY-LOADED rows rather than the fetch. The
@@ -594,7 +814,7 @@ export const PatientList = () => {
   // Paging now lives in the shared hook (see Pagination.tsx), which also
   // carries the page-size picker. Reset keys are the FILTER INPUTS, not
   // `filtered` — see the hook for why that distinction matters.
-  const pager = usePagination(filtered, [gradeFilter, sectionFilter, genderFilter, ageGroupFilter, searchTerm, selectedSchool]);
+  const pager = usePagination(filtered, [gradeFilter, sectionFilter, genderFilter, ageGroupFilter, searchTerm, selectedSchool], 10);
   const paged = pager.paged;
 
   const hasActiveFilters = gradeFilter !== 'all' || sectionFilter !== 'all' || genderFilter !== 'all' || ageGroupFilter !== 'all' || searchTerm !== '';
@@ -618,7 +838,7 @@ export const PatientList = () => {
   };
 
   const FilterSelect = ({ value, onChange, options, label }: { value: string; onChange: (v:string) => void; options: {value:string;label:string}[]; label: string }) => (
-    <select value={value} onChange={e => onChange(e.target.value)} className="text-sm border border-border rounded-lg px-3 py-2 bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
+    <select value={value} onChange={e => onChange(e.target.value)} className="text-sm border border-transparent rounded-full px-4 py-2 bg-canvas text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
       <option value="all">{label}</option>
       {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
@@ -668,181 +888,346 @@ export const PatientList = () => {
     );
   }
 
+  // Decorative kicker above the page title — reuses the same school color
+  // tokens as SchoolCard/GradePill rather than inventing a new palette. Shows
+  // the school's full registered name, not the abbreviated short form.
+  const kickerColor = selectedSchool
+    ? getSchoolColor(selectedSchool)
+    : { name: 'All Schools', solid: '#1E40AF', light: '#EFF6FF', text: '#1E40AF', border: '#93C5FD' };
+  const kickerLabel = selectedSchool ?? 'All Schools';
+
+  // Two-letter initials for the row avatar — same derivation already used for
+  // the Dashboard's follow-up list, so a name reads the same way everywhere.
+  const initials = (name: string) =>
+    name.split(/[\s,]+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Student Records</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{schoolStudents.length} students{selectedSchool ? '' : ' across 3 schools'}</p>
+      {/* No export here by design (2026-09-02): this list is raw patient
+          PII — names, birthdays, addresses, guardians — and a CSV of it
+          would leave the encrypted database as plaintext on someone's
+          device, defeating the field encryption. Official OUTPUT is the
+          DOH report on Reports, which is aggregate counts and carries no
+          names. */}
+      {canAddStudent && (
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          {/* "Upload", not "Scan": this opens a file picker, and a scan icon
+              + the verb "scan" both promised a camera the app does not have
+              (backlog 0e). The OCR extraction is still described inside the
+              modal — only the entry point stops over-promising. Rename this
+              back if 0e ever ships. */}
+          <button onClick={() => { setOcrError(null); setShowOcrUpload(true); }} className="flex items-center gap-2 px-4 py-2 border border-primary text-primary rounded-full hover:bg-primary-surface text-sm font-medium">
+            <Upload className="w-4 h-4" /> OCR
+          </button>
+          <button onClick={() => { setOcrConfidences({}); setOcrFindings([]); setOcrFindingsNote(null); setShowAddForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-full hover:bg-primary-hover text-sm font-medium">
+            <Plus className="w-4 h-4" /> Add Student
+          </button>
         </div>
-        <div className="flex items-center gap-3">
-          {/* No export here by design (2026-09-02): this list is raw patient
-              PII — names, birthdays, addresses, guardians — and a CSV of it
-              would leave the encrypted database as plaintext on someone's
-              device, defeating the field encryption. Official OUTPUT is the
-              DOH report on Reports, which is aggregate counts and carries no
-              names. */}
-{canAddStudent && (
-            <>
-              {/* "Upload", not "Scan": this opens a file picker, and a scan icon
-                  + the verb "scan" both promised a camera the app does not have
-                  (backlog 0e). The OCR extraction is still described inside the
-                  modal — only the entry point stops over-promising. Rename this
-                  back if 0e ever ships. */}
-              {/* Rollover for a whole section — the bulk form of the per-year
-                  grade edit added in Sprint 70. */}
-              <button onClick={() => setShowPromote(true)}
-                className="flex items-center gap-2 px-4 py-2 border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium">
-                <GraduationCap className="w-4 h-4" /> Promote / Assign
-              </button>
-              <button onClick={() => { setOcrError(null); setShowOcrUpload(true); }} className="flex items-center gap-2 px-4 py-2 border border-primary text-primary rounded-lg hover:bg-primary-surface text-sm font-medium">
-                <Upload className="w-4 h-4" /> Upload IPTR Form
-              </button>
-              <button onClick={() => { setOcrConfidences({}); setOcrFindings([]); setOcrFindingsNote(null); setShowAddForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover text-sm font-medium">
-                <Plus className="w-4 h-4" /> Add Student
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+      )}
 
+      {/* LIST VIEW — one elevated card housing header, filters, table and
+          pagination, in place of the previous stack of separate boxes. */}
+      <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+        <div className="p-5 sm:p-6 space-y-4 border-b border-border">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-2 mb-2">
+                <span style={{ backgroundColor: kickerColor.light }} className="w-6 h-6 rounded-md grid place-items-center">
+                  <SchoolIcon style={{ color: kickerColor.solid }} className="w-3.5 h-3.5" />
+                </span>
+                <span style={{ color: kickerColor.solid }} className="text-xs font-bold uppercase tracking-wider">{kickerLabel}</span>
+              </div>
+              <h1 className="text-2xl font-bold text-foreground">Student Records</h1>
+              <p className="text-sm text-muted-foreground mt-0.5">{schoolStudents.length} students{selectedSchool ? '' : ' across 3 schools'}</p>
+            </div>
+            {/* Annual rollover — was "Promote / Assign" (a modal, one grade
+                at a time). Now a full page: school-wide clear + reassign +
+                archive, see UpdateSchoolYear.tsx. Sits top-right of this card,
+                level with the school kicker, because it acts on THIS roster. */}
+            {canAddStudent && (
+              <button
+                onClick={() => navigate('/students/update-school-year')}
+                title="Update School Year Information"
+                aria-label="Update School Year Information"
+                className={`shrink-0 p-2 rounded-full text-white shadow-sm transition-colors hover:brightness-110 ${
+                  schoolYearNeedsUpdate ? 'bg-gray-400' : 'bg-primary'
+                }`}
+              >
+                <GraduationCap className="w-6 h-6 text-white/90" strokeWidth={1.25} />
+              </button>
+            )}
+          </div>
 
-      {/* LIST VIEW */}
-        <div className="space-y-4">
           {/* Filters */}
-          <div className="bg-card rounded-xl border border-border p-4 space-y-3">
-            <div className="flex flex-wrap gap-2">
-              <ListSearchInput value={searchTerm} onChange={setSearchTerm} />
-              <FilterSelect value={gradeFilter} onChange={v => { setGradeFilter(v); setSectionFilter('all'); }} label="All Grades"
-                options={GRADES.map(g => ({ value: g, label: g }))} />
-              <FilterSelect value={sectionFilter} onChange={setSectionFilter} label="All Sections"
-                options={allSections.map(s => ({ value: s, label: s }))} />
-              <FilterSelect value={genderFilter} onChange={setGenderFilter} label="All Genders"
-                options={[{ value:'Male', label:'Male' }, { value:'Female', label:'Female' }]} />
-              <FilterSelect value={ageGroupFilter} onChange={setAgeGroupFilter} label="All Age Groups"
-                options={[{ value:'4 & below', label:'4 & below' }, { value:'5-9', label:'5-9' }, { value:'10-14', label:'10-14' }, { value:'15-19', label:'15-19' }, { value:'20 & above', label:'20 & above' }]} />
-              {hasActiveFilters && (
-                <button onClick={clearFilters} className="flex items-center gap-1 px-3 py-2 text-sm text-destructive border border-red-200 rounded-lg hover:bg-red-50">
-                  <X className="w-3 h-3" /> Clear All
+          <div className="flex flex-wrap items-center gap-2">
+            <ListSearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search student, grade, or section" />
+            <FilterSelect value={gradeFilter} onChange={v => { setGradeFilter(v); setSectionFilter('all'); }} label="All Grades"
+              options={GRADES.map(g => ({ value: g, label: g }))} />
+            <FilterSelect value={sectionFilter} onChange={setSectionFilter} label="All Sections"
+              options={allSections.map(s => ({ value: s, label: s }))} />
+            <FilterSelect value={genderFilter} onChange={setGenderFilter} label="All Genders"
+              options={[{ value:'Male', label:'Male' }, { value:'Female', label:'Female' }]} />
+            <FilterSelect value={ageGroupFilter} onChange={setAgeGroupFilter} label="All Age Groups"
+              options={[{ value:'4 & below', label:'4 & below' }, { value:'5-9', label:'5-9' }, { value:'10-14', label:'10-14' }, { value:'15-19', label:'15-19' }, { value:'20 & above', label:'20 & above' }]} />
+            {hasActiveFilters && (
+              <button onClick={clearFilters} className="flex items-center gap-1 px-3 py-2 text-sm text-destructive border border-destructive/20 rounded-full hover:bg-danger-surface">
+                <X className="w-3 h-3" /> Clear All
+              </button>
+            )}
+            <div className="ml-auto flex items-center gap-2">
+              {selectMode && tickedIds.size > 0 && (
+                <button
+                  onClick={() => { setArchivePassword(''); setArchivePasswordError(null); setConfirmArchiveTicked(true); }}
+                  title="Archive"
+                  aria-label={`Archive ${tickedIds.size} selected`}
+                  className="p-2 rounded-full border border-destructive text-destructive hover:bg-danger-surface"
+                >
+                  <ArchiveIcon className="w-4 h-4" />
                 </button>
               )}
-              {tickedIds.size > 0 && (
-                <button
-                  onClick={allTickedQueued ? unqueueTicked : queueTicked}
-                  className={`flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-lg ml-auto ${allTickedQueued ? 'text-primary border border-primary hover:bg-primary-surface' : 'text-white bg-primary hover:bg-primary-hover'}`}
-                >
-                  {allTickedQueued ? 'Unqueue' : 'Queue'} Selected ({tickedIds.size})
+              {selectMode ? (
+                <button onClick={exitSelectMode}
+                  className="text-sm font-medium text-foreground border border-border rounded-full px-3 py-2 hover:bg-canvas">
+                  Done
                 </button>
+              ) : (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowListMenu(v => !v)}
+                    className="p-2 rounded-full text-muted-foreground hover:bg-canvas hover:text-foreground"
+                    title="More options"
+                  >
+                    <MoreVertical className="w-4 h-4" />
+                  </button>
+                  {showListMenu && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setShowListMenu(false)} />
+                      <div className="absolute right-0 top-full mt-1 z-20 bg-card border border-border rounded-xl shadow-md py-1 w-44">
+                        <button
+                          onClick={() => { setSelectMode(true); setShowListMenu(false); }}
+                          className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-canvas flex items-center gap-2"
+                        >
+                          <ListChecks className="w-3.5 h-3.5" /> Select students…
+                        </button>
+                        <button
+                          onClick={() => { setShowListMenu(false); setShowDuplicates(true); void loadDuplicates(); }}
+                          className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-canvas flex items-center gap-2"
+                        >
+                          <Copy className="w-3.5 h-3.5" /> Find duplicates…
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
               )}
             </div>
           </div>
+        </div>
 
-          {/* Table */}
-          <div className={studentListTableStyles.wrapper}>
-            <div className={studentListTableStyles.scroller}>
-              <table className={studentListTableStyles.table}>
-                <thead className={studentListTableStyles.head}>
-                  <tr>
-                    <th className={studentListTableStyles.headerCell}>
-                      {/* Scoped to the current page, matching its own label: now
-                          that the table paginates, "select all" across the whole
-                          filtered set would tick rows the user cannot see. */}
-                      <input
-                        type="checkbox"
-                        aria-label="Select all students on this page for queueing"
-                        checked={paged.length > 0 && paged.every(s => s.pending || tickedIds.has(s.id))}
-                        onChange={(e) => {
-                          if (e.target.checked) setTickedIds(new Set(paged.filter(s => !s.pending).map(s => s.id)));
-                          else setTickedIds(new Set());
-                        }}
-                        className="w-4 h-4 accent-primary align-middle"
-                      />
-                    </th>
-                    <th className={studentListTableStyles.headerCell}>Student</th>
-                    <th className={studentListTableStyles.headerCell}>Grade</th>
-                    <th className={studentListTableStyles.headerCell}>Section</th>
-                    <th className={studentListTableStyles.headerCell}>Gender</th>
-                    <th className={studentListTableStyles.headerCell}>Age</th>
-                    <th className={studentListTableStyles.headerCell}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody className={studentListTableStyles.body}>
-                  {filtered.length === 0 ? (
-                    <tr><td colSpan={7} className={studentListTableStyles.emptyCell}>{hasActiveFilters ? <>No students match your filters. <button onClick={clearFilters} className="text-primary hover:underline font-medium">Clear filters</button></> : 'No students at this school yet — use Add Student to register one.'}</td></tr>
-                  ) : paged.map(student => {
-                    const age = calculateAge(student.birthdate);
-                    const isQueued = queuedStudentIds.includes(student.id);
-                    return (
-                      <tr key={student.id} {...activatable(() => { if (!student.pending) navigate(`/dental-chart/${student.id}?tab=history`); })} className={`${studentListTableStyles.row} ${student.pending ? 'opacity-70' : ''}`}>
-                        <td className={studentListTableStyles.secondaryCell} onClick={(e) => e.stopPropagation()}>
-                          {!student.pending && (
-                            <input
-                              type="checkbox"
-                              aria-label={`Select ${student.name} for queueing`}
-                              checked={tickedIds.has(student.id)}
-                              onChange={() => toggleTicked(student.id)}
-                              className="w-4 h-4 accent-primary align-middle"
-                            />
-                          )}
-                        </td>
-                        <td className={studentListTableStyles.primaryCell}>
-                          {student.name}
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-left px-4 py-3 sm:pl-6 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {/* The row-number column doubles as "select all" once select
+                      mode is on — same swap as each row's own cell, scoped to
+                      the current page: now that the table paginates, ticking
+                      everything in the filtered set would tick rows the user
+                      cannot see. */}
+                  {selectMode ? (
+                    <input
+                      type="checkbox"
+                      aria-label="Select all students on this page"
+                      checked={paged.length > 0 && paged.every(s => s.pending || tickedIds.has(s.id))}
+                      onChange={(e) => {
+                        if (e.target.checked) setTickedIds(new Set(paged.filter(s => !s.pending).map(s => s.id)));
+                        else setTickedIds(new Set());
+                      }}
+                      className="w-4 h-4 accent-primary align-middle"
+                    />
+                  ) : '#'}
+                </th>
+                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Student</th>
+                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Grade</th>
+                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Section</th>
+                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Gender</th>
+                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Age</th>
+                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground sm:pr-6">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/60">
+              {filtered.length === 0 ? (
+                <tr><td colSpan={7} className="text-center py-14 text-muted-foreground">{hasActiveFilters ? <>No students match your filters. <button onClick={clearFilters} className="text-primary hover:underline font-medium">Clear filters</button></> : 'No students at this school yet — use Add Student to register one.'}</td></tr>
+              ) : paged.map((student, i) => {
+                const age = calculateAge(student.birthdate);
+                const queuePosition = queuedStudentIds.indexOf(student.id);
+                const isQueued = queuePosition !== -1;
+                const gc = getGradeColor(student.grade);
+                return (
+                  <tr key={student.id} {...activatable(() => { if (!student.pending) navigate(`/dental-chart/${student.id}?tab=history`); })} className={`hover:bg-canvas transition-colors cursor-pointer ${student.pending ? 'opacity-70' : ''}`}>
+                    <td className="px-4 py-2.5 sm:pl-6 text-xs text-muted-foreground tabular-nums" onClick={(e) => e.stopPropagation()}>
+                      {selectMode ? (
+                        !student.pending && (
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${student.name}`}
+                            checked={tickedIds.has(student.id)}
+                            onChange={() => toggleTicked(student.id)}
+                            className="w-4 h-4 accent-primary align-middle"
+                          />
+                        )
+                      ) : pager.from + i}
+                    </td>
+                    <td className="px-4 py-2.5 font-medium text-foreground">
+                      <div className="flex items-center gap-3">
+                        <span style={{ backgroundColor: gc.light, color: gc.solid }} className="w-8 h-8 shrink-0 rounded-full grid place-items-center text-xs font-bold">
+                          {initials(student.name)}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate">{student.name}</p>
                           {student.pending && (
-                            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200">Pending sync</span>
+                            <span className="inline-flex items-center mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-warning-surface text-warning border border-warning/20">Pending Sync</span>
                           )}
-                        </td>
-                        <GradeTableCell grade={student.grade} />
-                        <td className={studentListTableStyles.secondaryCell}>{student.section}</td>
-                        <td className={studentListTableStyles.secondaryCell}>{student.gender}</td>
-                        <td className={studentListTableStyles.secondaryCell}>{age ?? '—'}</td>
-                        <td className={studentListTableStyles.secondaryCell}>
-                          {!student.pending && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setQueuedStudentIds(
-                                  isQueued ? removeQueuedStudentId(student.id) : addQueuedStudentId(student.id)
-                                );
-                              }}
-                              title={isQueued ? 'Remove from charting queue' : 'Add to charting queue'}
-                              className={`px-2.5 py-1 rounded text-xs font-semibold border transition-colors ${
-                                isQueued
-                                  ? 'bg-green-100 text-green-700 border-green-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200'
-                                  : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
-                              }`}
-                            >
-                              {isQueued ? 'Queued ✓' : 'Queue for Charting'}
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2.5 text-muted-foreground"><GradePill grade={student.grade} /></td>
+                    <td className="px-4 py-2.5 text-muted-foreground">{student.section}</td>
+                    <td className="px-4 py-2.5 text-muted-foreground">{student.gender}</td>
+                    <td className="px-4 py-2.5 text-muted-foreground">{age ?? '—'}</td>
+                    <td className="px-4 py-2.5 sm:pr-6">
+                      {!student.pending && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isQueued) {
+                              setDequeueTarget({ id: student.id, name: student.name });
+                            } else {
+                              setQueuedStudentIds(addQueuedStudentId(student.id));
+                              toast.success(`${student.name} queued.`);
+                            }
+                          }}
+                          title="Queue"
+                          className={`inline-flex items-center justify-center w-16 h-8 rounded-full text-xs font-semibold border transition-colors ${
+                            isQueued
+                              ? 'bg-success-surface text-success border-success/20 hover:bg-danger-surface hover:text-destructive hover:border-destructive/20'
+                              : 'bg-primary-surface text-primary border-primary/20 hover:bg-primary/10'
+                          }`}
+                        >
+                          {isQueued ? queuePosition + 1 : 'Queue'}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Footer / pagination */}
+        {filtered.length > 0 && (
+          <div className="flex flex-col gap-3 border-t border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              <span>
+                Showing <span className="font-semibold text-foreground">{pager.from}</span> to{' '}
+                <span className="font-semibold text-foreground">{pager.to}</span> of{' '}
+                <span className="font-semibold text-foreground">{pager.total}</span> students
+                {filtered.length !== schoolStudents.length ? ` (filtered from ${schoolStudents.length})` : ''}
+                {selectedSchool ? ` at ${getSchoolShortName(selectedSchool)}` : ''}
+              </span>
+              <select
+                aria-label="Items per page"
+                value={pager.pageSize}
+                onChange={(e) => pager.changePageSize(Number(e.target.value))}
+                className="rounded-full border border-border bg-canvas px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}/page</option>)}
+              </select>
             </div>
-            {filtered.length > 0 && (
-              <div className={studentListTableStyles.footer}>
-                <Pagination
-                  {...pager}
-                  onPage={pager.setPage}
-                  onPageSize={pager.changePageSize}
-                  noun="students"
-                  detail={`${filtered.length !== schoolStudents.length ? `(filtered from ${schoolStudents.length}) ` : ''}${selectedSchool ? `at ${getSchoolShortName(selectedSchool)}` : ''}`.trim()}
-                />
+            {pager.pageCount > 1 && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => pager.setPage(Math.max(1, pager.page - 1))}
+                  disabled={pager.page === 1}
+                  className="flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-canvas disabled:opacity-40 disabled:hover:bg-transparent"
+                >
+                  <ChevronLeft className="w-4 h-4" /> Previous
+                </button>
+                <span className="rounded-full bg-primary-surface px-3 py-1.5 text-sm font-semibold text-primary tabular-nums">{pager.page} / {pager.pageCount}</span>
+                <button
+                  onClick={() => pager.setPage(Math.min(pager.pageCount, pager.page + 1))}
+                  disabled={pager.page === pager.pageCount}
+                  className="flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-canvas disabled:opacity-40 disabled:hover:bg-transparent"
+                >
+                  Next <ChevronRight className="w-4 h-4" />
+                </button>
               </div>
             )}
           </div>
-        </div>
+        )}
+      </div>
 
-      {showPromote && (
-        <Modal onClose={() => setShowPromote(false)}>
-          <PromoteAssign
-            onClose={() => { setShowPromote(false); void reloadStudents(); }}
-            schoolId={schools.find((s) => s.school_name === selectedSchool)?._id}
-            schoolName={selectedSchool ?? 'All schools'}
-          />
+      {/* Find Duplicates — a housekeeping scan over already-saved records,
+          separate from the create-time 409 check above. Grouped by
+          normalized name + birthday + sex; see studentDuplicates.ts. */}
+      {showDuplicates && (
+        <Modal onClose={() => setShowDuplicates(false)} maxWidth="max-w-2xl">
+          <div className="flex items-center justify-between p-6 border-b">
+            <h2 className="text-lg font-bold text-foreground">Possible Duplicate Records</h2>
+            <button onClick={() => setShowDuplicates(false)} className="text-muted-foreground hover:text-muted-foreground"><X className="w-5 h-5" /></button>
+          </div>
+          <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+            <p className="text-xs text-muted-foreground">
+              Matched on name, birthday and sex{selectedSchool ? ` at ${getSchoolShortName(selectedSchool)}` : ' across all schools'}. Review each group before archiving — a false match here just wastes a click, but archiving the wrong record does not.
+            </p>
+            {duplicatesLoading ? (
+              <p className="text-sm text-muted-foreground py-8 text-center">Scanning records…</p>
+            ) : duplicatesError ? (
+              <p className="text-sm text-destructive py-8 text-center">{duplicatesError}</p>
+            ) : duplicateGroups.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-8 text-center">No likely duplicates found.</p>
+            ) : (
+              <div className="space-y-4">
+                {duplicateGroups.map((group) => (
+                  <div key={group.map((s) => s._id).join('-')} className="border border-border rounded-xl overflow-hidden">
+                    <div className="bg-warning-surface text-warning text-xs font-semibold px-3 py-1.5">
+                      {group.length} records look like the same child
+                    </div>
+                    <div className="divide-y divide-border">
+                      {group.map((s) => (
+                        <div key={s._id} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">{s.full_name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {s.grade_level} · {s.section} · {s.sex} · {formatDate(s.birthday)}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              onClick={() => navigate(`/dental-chart/${s._id}?tab=history`)}
+                              title="View chart"
+                              className="p-2 rounded-full border border-border text-muted-foreground hover:bg-canvas hover:text-foreground"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => archiveOneDuplicate(s._id)}
+                              title="Archive"
+                              className="p-2 rounded-full border border-destructive text-destructive hover:bg-danger-surface"
+                            >
+                              <ArchiveIcon className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </Modal>
       )}
 
@@ -882,13 +1267,61 @@ export const PatientList = () => {
         </Modal>
       )}
 
-      {/* Add Student Modal */}
+      {/* Add Student Modal. maxWidth is max-w-4xl, not max-w-2xl — the
+          request was "50-60% of the screen on web/tablet, so there's less
+          to scroll." A raw viewport percentage (e.g. 55vw) does that on a
+          laptop but backfires on an iPad-width tablet, where 55vw is
+          narrower than the 2-column layout needs; a bigger FIXED cap
+          already behaves the same way as a percentage on anything narrower
+          than the cap (fills available width, same as before) while
+          landing in roughly that 50-60% range on the common 1440-1920px
+          desktop range specifically. */}
       {showAddForm && (
-        <Modal onClose={() => { setShowAddForm(false); setOcrConfidences({}); setOcrFindings([]); setOcrFindingsNote(null); }} maxWidth="max-w-lg" closeDisabled={addingPatient}>
-            <div className="flex items-center justify-between p-6 border-b">
-              <h2 className="text-lg font-bold text-foreground">Add New Student</h2>
-              <button onClick={() => { setShowAddForm(false); setOcrConfidences({}); setOcrFindings([]); setOcrFindingsNote(null); }} className="text-muted-foreground hover:text-muted-foreground"><X className="w-5 h-5" /></button>
+        <Modal onClose={closeAddForm} maxWidth="max-w-4xl" closeDisabled>
+            <div className="flex items-start justify-between gap-3 p-6 border-b">
+              <div>
+                <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-primary mb-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary" /> Basic Information
+                </div>
+                <h2 className="text-lg font-bold text-foreground">Add New Student</h2>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button onClick={closeAddForm} className="text-muted-foreground hover:text-muted-foreground"><X className="w-5 h-5" /></button>
+              </div>
             </div>
+            {/* Live check against the roster already loaded in the browser —
+                a heads-up before the form is even finished, not a
+                replacement for the server's 409 check on submit. Its own
+                dismiss X (or "Confirm different student") remembers THIS
+                match by id, so it stays quiet once handled but reappears on
+                its own if the fields change to match a different student. */}
+            {liveDuplicateMatches.length > 0 && liveDuplicateMatches[0].id !== acknowledgedDuplicateId && (
+              <div className="mx-6 mt-4 flex items-start justify-between gap-3 rounded-lg border border-destructive/20 bg-danger-surface px-3 py-2.5 text-destructive">
+                <div className="min-w-0">
+                  <p className="flex items-center gap-1 text-xs font-semibold">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" /> Possible duplicate
+                  </p>
+                  <p className="mt-0.5 text-xs leading-snug">
+                    {liveDuplicateMatches[0].name} is already on file, born {formatDate(liveDuplicateMatches[0].birthdate)}. Confirm if this is a different student.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmDifferentStudent(true)}
+                    className="mt-1.5 rounded-full border border-destructive/30 bg-card px-2.5 py-1 text-[11px] font-semibold text-destructive hover:bg-danger-surface"
+                  >
+                    Confirm different student
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAcknowledgedDuplicateId(liveDuplicateMatches[0].id)}
+                  title="Dismiss"
+                  className="shrink-0 text-destructive/70 hover:text-destructive"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
             <div className="p-6 space-y-4">
               {Object.keys(ocrConfidences).length > 0 && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700 flex items-start gap-2">
@@ -924,45 +1357,157 @@ export const PatientList = () => {
                 <p className="text-xs text-muted-foreground">{ocrFindingsNote}</p>
               )}
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium text-foreground mb-1">Last Name{req('lastName')} {ocrHint('lastName')}</label><input type="text" value={newPatient.lastName} onChange={e => setNewPatient({...newPatient, lastName: e.target.value})} className={ocrFieldClass('lastName')} /></div>
-                <div><label className="block text-sm font-medium text-foreground mb-1">First Name{req('firstName')} {ocrHint('firstName')}</label><input type="text" value={newPatient.firstName} onChange={e => setNewPatient({...newPatient, firstName: e.target.value})} className={ocrFieldClass('firstName')} /></div>
+                <div><label className="block text-sm font-medium text-foreground mb-1">Last Name{req('lastName')} {ocrHint('lastName')}</label><input type="text" value={newPatient.lastName} onChange={e => updateField('lastName', e.target.value.toUpperCase())} className={ocrFieldClass('lastName')} />{fieldError('lastName')}</div>
+                <div><label className="block text-sm font-medium text-foreground mb-1">First Name{req('firstName')} {ocrHint('firstName')}</label><input type="text" value={newPatient.firstName} onChange={e => updateField('firstName', e.target.value.toUpperCase())} className={ocrFieldClass('firstName')} />{fieldError('firstName')}</div>
               </div>
-              <div><label className="block text-sm font-medium text-foreground mb-1">Middle Name {ocrHint('middleName')}</label><input type="text" value={newPatient.middleName} onChange={e => setNewPatient({...newPatient, middleName: e.target.value})} className={ocrFieldClass('middleName')} /></div>
-              <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium text-foreground mb-1">Birthdate{req('birthdate')} {ocrHint('birthdate')}</label><input type="date" value={newPatient.birthdate} onChange={e => setNewPatient({...newPatient, birthdate: e.target.value})} className={ocrFieldClass('birthdate')} /></div>
-                <div><label className="block text-sm font-medium text-foreground mb-1">Gender{req('gender')} {ocrHint('gender')}</label><select value={newPatient.gender} onChange={e => setNewPatient({...newPatient, gender: e.target.value})} className={ocrFieldClass('gender')}><option value="">Select</option><option>Male</option><option>Female</option></select></div>
+              <div className="grid grid-cols-3 gap-4">
+                <div><label className="block text-sm font-medium text-foreground mb-1">Middle Name {ocrHint('middleName')}</label><input type="text" value={newPatient.middleName} onChange={e => updateField('middleName', e.target.value.toUpperCase())} className={ocrFieldClass('middleName')} /></div>
+                <div><label className="block text-sm font-medium text-foreground mb-1">Birthdate{req('birthdate')} {ocrHint('birthdate')}</label><input type="date" value={newPatient.birthdate} onChange={e => updateField('birthdate', e.target.value)} className={ocrFieldClass('birthdate')} />{fieldError('birthdate')}</div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Age</label>
+                  <input type="text" readOnly disabled value={newPatient.birthdate ? (calculateAge(newPatient.birthdate) ?? '—') : ''} placeholder="Automatically calculated" className={`${plainFieldClass} bg-muted text-muted-foreground cursor-not-allowed`} />
+                </div>
               </div>
-              <div><label className="block text-sm font-medium text-foreground mb-1">School{req('school')}</label><select value={newPatient.school} onChange={e => setNewPatient({...newPatient, school: e.target.value})} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"><option value="">Select School</option>{schoolNames.map(s => <option key={s}>{s}</option>)}</select></div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Sex{req('gender')} {ocrHint('gender')}</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['Male', 'Female'] as const).map((g) => (
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => updateField('gender', g)}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                        newPatient.gender === g
+                          ? 'bg-primary text-white border-primary'
+                          : 'border-border text-foreground hover:bg-canvas'
+                      }`}
+                    >
+                      {g}
+                    </button>
+                  ))}
+                </div>
+                {fieldError('gender')}
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 {/* No scan hint on Grade/Section: the DOH IPTR does not print
                     either field, so a scan can never fill them. A green "✓
                     scanned" chip here would have been a claim about a field
                     that isn't on the paper. */}
-                <div><label className="block text-sm font-medium text-foreground mb-1">Grade{req('grade')}</label><select value={newPatient.grade} onChange={e => setNewPatient({...newPatient, grade: e.target.value})} className={plainFieldClass}><option value="">Select Grade</option>{GRADES.map(g => <option key={g}>{g}</option>)}</select></div>
-                <div><label className="block text-sm font-medium text-foreground mb-1">Section{req('section')}</label><input type="text" value={newPatient.section} onChange={e => setNewPatient({...newPatient, section: e.target.value})} placeholder="e.g. Sampaguita" className={plainFieldClass} /></div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Grade{req('grade')}</label>
+                  <select value={newPatient.grade} onChange={e => updateField('grade', e.target.value)} className={plainFieldClass}>
+                    <option value="">Select Grade</option>{GRADES.map(g => <option key={g}>{g}</option>)}
+                  </select>
+                  {fieldError('grade')}
+                </div>
+                <div className="relative">
+                  <label className="block text-sm font-medium text-foreground mb-1">Section{req('section')}</label>
+                  {/* Combobox, not a plain <select> — section names come from
+                      the roster rather than a fixed list, so typing filters
+                      the suggestions AND, if nothing matches, just becomes
+                      the new section name. onMouseDown (not onClick) on the
+                      suggestion buttons fires before the input's onBlur, so
+                      a click actually registers instead of the list closing
+                      first. */}
+                  <input
+                    type="text"
+                    value={newPatient.section}
+                    onChange={e => { updateField('section', e.target.value); setSectionMenuOpen(true); }}
+                    onFocus={() => setSectionMenuOpen(true)}
+                    onBlur={() => setSectionMenuOpen(false)}
+                    placeholder="Search or add a section"
+                    autoComplete="off"
+                    className={plainFieldClass}
+                  />
+                  {sectionMenuOpen && (
+                    <div className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto rounded-lg border border-border bg-card shadow-md">
+                      {filteredSectionOptions.map(s => (
+                        <button
+                          key={s}
+                          type="button"
+                          onMouseDown={() => { updateField('section', s); setSectionMenuOpen(false); }}
+                          className="block w-full text-left px-3 py-2 text-sm text-foreground hover:bg-canvas"
+                        >
+                          {s}
+                        </button>
+                      ))}
+                      {newPatient.section.trim() && !schoolSectionOptions.some(s => s.toLowerCase() === newPatient.section.trim().toLowerCase()) && (
+                        <button
+                          type="button"
+                          onMouseDown={() => setSectionMenuOpen(false)}
+                          className={`block w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary-surface ${filteredSectionOptions.length > 0 ? 'border-t border-border' : ''}`}
+                        >
+                          + Add "{newPatient.section.trim()}" as new section
+                        </button>
+                      )}
+                      {filteredSectionOptions.length === 0 && !newPatient.section.trim() && (
+                        <p className="px-3 py-2 text-xs text-muted-foreground">Type to search or add a section</p>
+                      )}
+                    </div>
+                  )}
+                  {fieldError('section')}
+                </div>
               </div>
-              <div><label className="block text-sm font-medium text-foreground mb-1">Contact Number{req('contactNumber')} {ocrHint('contactNumber')}</label><input type="text" value={newPatient.contactNumber} onChange={e => setNewPatient({...newPatient, contactNumber: e.target.value})} placeholder="09XX-XXX-XXXX" className={ocrFieldClass('contactNumber')} /></div>
-              <div><label className="block text-sm font-medium text-foreground mb-1">Guardian Name{req('guardianName')}</label><input type="text" value={newPatient.guardianName} onChange={e => setNewPatient({...newPatient, guardianName: e.target.value})} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
-              <div><label className="block text-sm font-medium text-foreground mb-1">Guardian Contact{req('guardianContact')}</label><input type="text" value={newPatient.guardianContact} onChange={e => setNewPatient({...newPatient, guardianContact: e.target.value})} placeholder="09XX-XXX-XXXX" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
-              <div><label className="block text-sm font-medium text-foreground mb-1">PhilHealth Number {ocrHint('philhealthNumber')}</label><input type="text" value={newPatient.philhealthNumber} onChange={e => setNewPatient({...newPatient, philhealthNumber: e.target.value})} placeholder="XX-XXXXXXXXX-X" className={ocrFieldClass('philhealthNumber')} /></div>
-              <div><label className="block text-sm font-medium text-foreground mb-1">PhilHealth Status</label><select value={newPatient.philhealthStatus} onChange={e => setNewPatient({...newPatient, philhealthStatus: e.target.value})} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"><option value="None">None</option><option value="Principal">Principal</option><option value="Dependent">Dependent</option></select></div>
-              <div className="flex items-center gap-3 pt-2"><input type="checkbox" id="is4ps" checked={newPatient.is4Ps} onChange={e => setNewPatient({...newPatient, is4Ps: e.target.checked})} className="w-4 h-4 rounded accent-primary" /><label htmlFor="is4ps" className="text-sm font-medium text-foreground">4Ps / NHTS Member</label></div>
-              {newPatient.is4Ps && <div><label className="block text-sm font-medium text-foreground mb-1">4Ps ID{req('fourPsId')} {ocrHint('fourPsId')}</label><input type="text" value={newPatient.fourPsId} onChange={e => setNewPatient({...newPatient, fourPsId: e.target.value})} placeholder="4PS-XXXXXXXX" className={ocrFieldClass('fourPsId')} /></div>}
-              <div><label className="block text-sm font-medium text-foreground mb-1">Address{req('address')} {ocrHint('address')}</label><input type="text" value={newPatient.address} onChange={e => setNewPatient({...newPatient, address: e.target.value})} className={ocrFieldClass('address')} /></div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="block text-sm font-medium text-foreground mb-1">Place of Birth{optionalTag}</label><input type="text" value={newPatient.placeOfBirth} onChange={e => setNewPatient({...newPatient, placeOfBirth: e.target.value})} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+                <div><label className="block text-sm font-medium text-foreground mb-1">Contact Number{optionalTag} {ocrHint('contactNumber')}</label><input type="text" value={newPatient.contactNumber} onChange={e => updateField('contactNumber', e.target.value)} placeholder="09XX-XXX-XXXX" className={ocrFieldClass('contactNumber')} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="block text-sm font-medium text-foreground mb-1">Guardian Name{optionalTag}</label><input type="text" value={newPatient.guardianName} onChange={e => setNewPatient({...newPatient, guardianName: e.target.value})} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+                <div><label className="block text-sm font-medium text-foreground mb-1">Guardian Contact{optionalTag}</label><input type="text" value={newPatient.guardianContact} onChange={e => setNewPatient({...newPatient, guardianContact: e.target.value})} placeholder="09XX-XXX-XXXX" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+              </div>
+              <div><label className="block text-sm font-medium text-foreground mb-1">Occupation{optionalTag}</label><input type="text" value={newPatient.guardianOccupation} onChange={e => setNewPatient({...newPatient, guardianOccupation: e.target.value})} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="block text-sm font-medium text-foreground mb-1">PhilHealth Number{optionalTag} {ocrHint('philhealthNumber')}</label><input type="text" value={newPatient.philhealthNumber} onChange={e => setNewPatient({...newPatient, philhealthNumber: e.target.value})} placeholder="XX-XXXXXXXXX-X" className={ocrFieldClass('philhealthNumber')} /></div>
+                <div><label className="block text-sm font-medium text-foreground mb-1">PhilHealth Status</label><select value={newPatient.philhealthStatus} onChange={e => setNewPatient({...newPatient, philhealthStatus: e.target.value})} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"><option value="None">None</option><option value="Principal">Principal</option><option value="Dependent">Dependent</option></select></div>
+              </div>
+              <div><label className="block text-sm font-medium text-foreground mb-1">Address{optionalTag} {ocrHint('address')}</label><input type="text" value={newPatient.address} onChange={e => updateField('address', e.target.value)} className={ocrFieldClass('address')} />{fieldError('address')}</div>
+              <div className="flex items-center gap-3"><input type="checkbox" id="is4ps" checked={newPatient.is4Ps} onChange={e => setNewPatient({...newPatient, is4Ps: e.target.checked})} className="w-4 h-4 rounded accent-primary" /><label htmlFor="is4ps" className="text-sm font-medium text-foreground">4Ps / NHTS Member</label></div>
+              {newPatient.is4Ps && <div><label className="block text-sm font-medium text-foreground mb-1">4Ps ID{req('fourPsId')} {ocrHint('fourPsId')}</label><input type="text" value={newPatient.fourPsId} onChange={e => updateField('fourPsId', e.target.value)} placeholder="4PS-XXXXXXXX" className={ocrFieldClass('fourPsId')} />{fieldError('fourPsId')}</div>}
               {/* Notice, not a bare <p>: it carries role="alert", so a screen
                   reader announces the validation failure instead of leaving the
                   user staring at an unchanged form. */}
               {addPatientError && <Notice variant="error">{addPatientError}</Notice>}
             </div>
             <div className="flex gap-3 p-6 border-t">
-              <button onClick={() => { setShowAddForm(false); setOcrConfidences({}); setOcrFindings([]); setOcrFindingsNote(null); }} className="flex-1 px-4 py-2 border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium">Cancel</button>
-              {/* Wrapped, not passed directly: onClick would hand the MouseEvent
-                  in as confirmDuplicate, and a truthy value there silently
-                  skips the duplicate check. */}
-              <button onClick={() => handleAddStudent()} disabled={addingPatient} className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-60 text-sm font-medium">{addingPatient ? 'Adding…' : 'Add Student'}</button>
+              <button onClick={closeAddForm} className="flex-1 px-4 py-2 border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium">Cancel</button>
+              <button onClick={handleAddStudentClick} disabled={addingPatient} className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-60 text-sm font-medium">Add Student</button>
             </div>
         </Modal>
       )}
+
+      {/* One step between "form looks valid" and actually saving — a typo'd
+          click used to save immediately with no way back. */}
+      <ConfirmDialog
+        open={showAddConfirm}
+        title={`Add ${newPatient.firstName} ${newPatient.lastName} as a new student?`}
+        message="This creates a new student record and opens this school year's chart for them."
+        confirmLabel="Add Student"
+        tone="default"
+        busy={addingPatient}
+        onConfirm={() => handleAddStudent()}
+        onCancel={() => setShowAddConfirm(false)}
+      />
+
+      {/* A deliberate second step before waving off a possible duplicate —
+          matches the weight of the decision (a wrong call here means two
+          records for one child). */}
+      <ConfirmDialog
+        open={showConfirmDifferentStudent}
+        title="Are you sure this is a different student?"
+        message={
+          liveDuplicateMatches[0]
+            ? `${liveDuplicateMatches[0].name} is already on file with the same name, birthday and sex. Only confirm if you're certain this is a separate child, not a duplicate entry.`
+            : ''
+        }
+        confirmLabel="Yes, different student"
+        tone="danger"
+        onConfirm={() => {
+          if (liveDuplicateMatches[0]) setAcknowledgedDuplicateId(liveDuplicateMatches[0].id);
+          setShowConfirmDifferentStudent(false);
+        }}
+        onCancel={() => setShowConfirmDifferentStudent(false)}
+      />
 
       {/* ── POSSIBLE DUPLICATE MODAL (Sprint 47) ──
           Shown when POST /students answers 409. Deliberately a decision, not a
@@ -1012,7 +1557,7 @@ export const PatientList = () => {
                 <>
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
                     <FileText className="w-3.5 h-3.5 inline mr-1" />
-                    Upload a CSV or Excel (.xlsx) file. Required columns: <strong>Last Name, First Name, Sex, Grade Level, Section, Birthday, Address</strong>. Optional: Middle Name, Contact Number.
+                    Upload a CSV or Excel (.xlsx) file. Required columns: <strong>Last Name, First Name, Sex, Grade Level, Section, Birthday</strong>. Optional: Middle Name, Address, Contact Number.
                   </div>
                   <div
                     className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-blue-400 transition-colors cursor-pointer"
@@ -1141,6 +1686,68 @@ export const PatientList = () => {
             </div>
         </Modal>
       )}
+
+      <ConfirmDialog
+        open={dequeueTarget !== null}
+        title={`Remove ${dequeueTarget?.name ?? 'this student'} from the charting queue?`}
+        message="They'll need to be queued again to come back to this list."
+        confirmLabel="Remove"
+        tone="danger"
+        onConfirm={() => {
+          if (dequeueTarget) setQueuedStudentIds(removeQueuedStudentId(dequeueTarget.id));
+          setDequeueTarget(null);
+        }}
+        onCancel={() => setDequeueTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={confirmArchiveTicked}
+        title={`Archive ${tickedIds.size} student${tickedIds.size === 1 ? '' : 's'}?`}
+        message={
+          <div className="space-y-3">
+            <p>Archived students are removed from active rosters and reports. A System Admin can restore them later from Archived Records.</p>
+            {/* Isolated <form> on purpose — this was pairing with the page's
+                Search box as a "username" field once a saved-credential
+                suggestion was picked (browsers/password managers look for the
+                nearest preceding text input to pair with a password field,
+                and outside a form boundary that search for a pairing widened
+                to the whole page). Its own <form>, containing no other
+                input, gives the pairing heuristic nothing else to find. */}
+            <form autoComplete="off" onSubmit={(e) => e.preventDefault()}>
+              <label htmlFor={archivePasswordFieldName} className="block text-xs font-medium text-foreground mb-1">Enter your password to confirm</label>
+              <input
+                id={archivePasswordFieldName}
+                name={archivePasswordFieldName}
+                type="password"
+                required
+                // Neither "current-password" (invites autofill with the saved
+                // login password) nor "new-password" (invites Chrome's "suggest
+                // a strong password" prompt, since it reads that as account
+                // creation) fits a re-type-to-confirm field. "one-time-code"
+                // isn't a password-persistence hint at all, so it invites
+                // neither. The data-*-ignore attributes are the non-standard
+                // but widely honored way to tell LastPass/1Password/Bitwarden
+                // to leave this field alone too.
+                autoComplete="one-time-code"
+                data-lpignore="true"
+                data-1p-ignore="true"
+                data-bwignore="true"
+                autoFocus
+                value={archivePassword}
+                onChange={(e) => { setArchivePassword(e.target.value); setArchivePasswordError(null); }}
+                disabled={archivingTicked}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
+              />
+              {archivePasswordError && <p className="mt-1 text-xs text-destructive">{archivePasswordError}</p>}
+            </form>
+          </div>
+        }
+        confirmLabel="Archive"
+        tone="danger"
+        busy={archivingTicked}
+        onConfirm={archiveTicked}
+        onCancel={() => { setConfirmArchiveTicked(false); setArchivePassword(''); setArchivePasswordError(null); }}
+      />
     </div>
   );
 };

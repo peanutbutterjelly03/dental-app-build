@@ -22,6 +22,9 @@ export interface ApiSchool {
   street_address?: string;
   barangay?: string;
   city?: string;
+  /** System Admin-only override: lets Update School Year's "Start New
+   *  School Year" run outside its normal March-August window. */
+  allow_school_year_override?: boolean;
   isArchived: boolean;
 }
 
@@ -39,13 +42,14 @@ export interface ApiStudent {
   contact_number?: string;
   grade_level: string;
   section: string;
+  place_of_birth?: string;
   guardian_name?: string;
   guardian_contact?: string;
+  guardian_occupation?: string;
   philhealth_number?: string;
   philhealth_status?: 'None' | 'Principal' | 'Dependent';
   is_4ps?: boolean;
   fourps_id?: string;
-  consent_status: "pending" | "complete";
   isArchived: boolean;
 }
 
@@ -64,6 +68,21 @@ export interface ApiStudentIptr {
   /** Measured for THIS school year. BMI is derived from them, never stored. */
   height_cm: number | null;
   weight_kg: number | null;
+  /** Celsius. */
+  temperature_c?: number | null;
+  /** Free text pair, e.g. "110/70". */
+  blood_pressure?: string;
+  /** Consent for THIS school year — renewed annually, not a lifetime flag.
+   *  Moved off STUDENT for the same reason grade_level did (see above): one
+   *  signature does not authorize every year that follows it. */
+  consent_status: "pending" | "complete";
+  /** Set server-side the moment consent_status becomes "complete"; null again
+   *  the moment it reverts to "pending". Never client-supplied. */
+  consent_given_at: string | null;
+  /** Day this year's record was opened — defaults to today at creation,
+   *  editable afterward via the year menu's Edit action. */
+  date_opened?: string | null;
+  created_at?: string;
   isArchived: boolean;
 }
 
@@ -72,6 +91,15 @@ export interface ApiDentalChart {
   iptr_id: string;
   dentist_id: string;
   date_charted: string;
+  /** Date treatment was given — a separate visit from the examination. */
+  date_treated?: string | null;
+  /** Per-VISIT services — one per head, not one per tooth. Added 2026-09-05;
+   *  optional because charts created before then have no value stored. */
+  oral_examination?: boolean;
+  fluoride_varnish?: boolean;
+  oral_prophylaxis?: boolean;
+  consultation?: boolean;
+  treatment_others?: string;
   isArchived: boolean;
 }
 
@@ -133,12 +161,14 @@ export interface ApiDietarySocialHabits {
   body_piercing: boolean;
   nail_biting: boolean;
   thumb_sucking: boolean;
+  others?: string;
 }
 
 export interface ApiOralHealthCondition {
   _id: string;
   iptr_id: string;
   oral_hygiene: string;
+  orally_fit_child?: boolean;
   gingivitis: boolean;
   periodontal_disease: boolean;
   debris: boolean;

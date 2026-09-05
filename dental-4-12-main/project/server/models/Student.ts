@@ -18,7 +18,9 @@ const studentSchema = new mongoose.Schema(
     middle_name: { type: String, maxlength: 60, default: "" },
     birthday: { type: Date, required: true },
     sex: { type: String, maxlength: 10, required: true },
-    address: { type: String, maxlength: 200, required: true },
+    // Not required (2026-09-04, user decision) — the ERD (DATA-MODEL.md)
+    // never listed it as required either, unlike last_name/first_name.
+    address: { type: String, maxlength: 200, default: "" },
     contact_number: { type: String, maxlength: 15 },
     grade_level: { type: String, required: true },
     section: { type: String, required: true },
@@ -27,11 +29,17 @@ const studentSchema = new mongoose.Schema(
     // appointment_type addition).
     guardian_name: { type: String, default: "" },
     guardian_contact: { type: String, default: "" },
+    // Both printed on the DOH IPTR paper form (2026-09-04, user request) —
+    // place_of_birth is the student's own; guardian_occupation sits with the
+    // guardian name/contact fields it's printed beside on the form.
+    place_of_birth: { type: String, default: "" },
+    guardian_occupation: { type: String, default: "" },
     philhealth_number: { type: String, default: "" },
     philhealth_status: { type: String, enum: ["None", "Principal", "Dependent"], default: "None" },
     is_4ps: { type: Boolean, default: false },
     fourps_id: { type: String, default: "" },
-    consent_status: { type: String, enum: ["pending", "complete"], default: "pending" },
+    // consent_status moved to STUDENT_IPTR — consent is per school year, not
+    // a lifetime flag. See StudentIptr.ts and migrateIptrConsent.ts.
     ...softDeleteFields,
   },
   { timestamps: { createdAt: "created_at", updatedAt: false } },
@@ -54,7 +62,7 @@ studentSchema.plugin(
   // The name parts are patient PII exactly as full_name is, so they carry the
   // same encryption. Sprint 26 random-IV rule applies: plaintext equality
   // queries on these fields NEVER match — fetch and filter in JS instead.
-  fieldEncryptionOptions(["full_name", "last_name", "first_name", "middle_name", "address", "contact_number", "guardian_name", "guardian_contact", "philhealth_number", "fourps_id"]),
+  fieldEncryptionOptions(["full_name", "last_name", "first_name", "middle_name", "address", "contact_number", "guardian_name", "guardian_contact", "philhealth_number", "fourps_id", "place_of_birth", "guardian_occupation"]),
 );
 
 // Sprint 56. Both indexes lead with isArchived because every GET filters on it.

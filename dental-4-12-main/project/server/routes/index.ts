@@ -7,7 +7,7 @@ import predictionRoutes from "./predictionRoutes.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { ADMIN_ONLY, CLINICAL_WRITE_ROLES } from "../middleware/roleGroups.js";
-import { findDuplicateStudents } from "../utils/studentDuplicates.js";
+import { findDuplicateStudents, getDuplicateStudents } from "../utils/studentDuplicates.js";
 import {
   School,
   User,
@@ -115,9 +115,11 @@ router.get("/stats/high-risk-count", requireAuth, asyncHandler(async (req, res) 
 router.get("/stats/notifications", requireAuth, asyncHandler(async (req, res) => {
   const schoolName = typeof req.query.school === "string" ? req.query.school : null;
   let studentFilter: Record<string, unknown> = { isArchived: false };
+  let schoolId: unknown = null;
   if (schoolName) {
     const school = await School.findOne({ school_name: schoolName, isArchived: false }).select("_id").lean<{ _id: unknown } | null>();
-    if (!school) { res.json({ overdueRpc: 0, appointmentsToday: 0, awaitingValidation: 0 }); return; }
+    if (!school) { res.json({ overdueRpc: 0, appointmentsToday: 0, awaitingValidation: 0, remindersToday: 0 }); return; }
+    schoolId = school._id;
     studentFilter = { ...studentFilter, school_id: school._id };
   }
 
@@ -127,7 +129,7 @@ router.get("/stats/notifications", requireAuth, asyncHandler(async (req, res) =>
   const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
   const dayEnd = new Date(dayStart); dayEnd.setDate(dayEnd.getDate() + 1);
 
-  const [students, iptrs, preventives, risks, appointmentsToday] = await Promise.all([
+  const [students, iptrs, preventives, risks, appointmentsToday, remindersToday] = await Promise.all([
     Student.find(studentFilter).select("_id").lean(),
     StudentIptr.find({ isArchived: false }).select("_id student_id").lean(),
     PreventiveCareRecord.find({ isArchived: false }).select("iptr_id visit_number visit_date").lean(),
@@ -135,6 +137,15 @@ router.get("/stats/notifications", requireAuth, asyncHandler(async (req, res) =>
     Appointment.countDocuments({
       isArchived: false,
       appointment_datetime: { $gte: dayStart, $lt: dayEnd },
+    }),
+    // Calendar reminders (stored on DentistRotation, repurposed as a single-
+    // day note — week_start/week_end both set to the note's date) whose
+    // range covers today.
+    DentistRotation.countDocuments({
+      isArchived: false,
+      ...(schoolId ? { school_id: schoolId } : {}),
+      week_start: { $lte: dayEnd },
+      week_end: { $gte: dayStart },
     }),
   ]);
 
@@ -179,7 +190,7 @@ router.get("/stats/notifications", requireAuth, asyncHandler(async (req, res) =>
     if (iptrId && scopedIptrIds.has(iptrId)) awaitingValidation++;
   }
 
-  res.json({ overdueRpc, appointmentsToday, awaitingValidation });
+  res.json({ overdueRpc, appointmentsToday, awaitingValidation, remindersToday });
 }));
 
 // The patient-list row, joined server-side (Sprint 56b). Same join as the
@@ -204,7 +215,7 @@ router.get("/stats/student-rows", requireAuth, asyncHandler(async (_req, res) =>
   const [students, schools, iptrs, charts, preventives, risks] = await Promise.all([
     Student.find({ isArchived: false }),
     School.find({ isArchived: false }).select("_id school_name").lean(),
-    StudentIptr.find({ isArchived: false }).select("_id student_id").lean(),
+    StudentIptr.find({ isArchived: false }).select("_id student_id school_year consent_status").lean(),
     DentalChart.find({ isArchived: false }).select("iptr_id date_charted").lean(),
     PreventiveCareRecord.find({ isArchived: false }).select("_id iptr_id").lean(),
     RiskStratification.find({ isArchived: false }).select("preventive_id risk_level").lean(),
@@ -212,10 +223,21 @@ router.get("/stats/student-rows", requireAuth, asyncHandler(async (_req, res) =>
 
   const schoolNameById = new Map(schools.map((s: any) => [String(s._id), String(s.school_name)]));
   const iptrsByStudent = new Map<string, string[]>();
+  // Consent is per school year now (STUDENT_IPTR, not STUDENT — see
+  // StudentIptr.ts), so the list/report row shows the LATEST year's value,
+  // same "current" convention as grade_level on Student. null means the
+  // student has no IPTR at all yet, not "pending" — those are different
+  // facts and the NOTHING COSMETIC rule says not to blur them.
+  const latestConsentByStudent = new Map<string, { school_year: string; consent_status: string }>();
   for (const i of iptrs as any[]) {
     const list = iptrsByStudent.get(String(i.student_id)) ?? [];
     list.push(String(i._id));
     iptrsByStudent.set(String(i.student_id), list);
+    const key = String(i.student_id);
+    const current = latestConsentByStudent.get(key);
+    if (!current || String(i.school_year) > current.school_year) {
+      latestConsentByStudent.set(key, { school_year: String(i.school_year), consent_status: String(i.consent_status) });
+    }
   }
   const chartDatesByIptr = new Map<string, Date[]>();
   for (const c of charts as any[]) {
@@ -264,7 +286,7 @@ router.get("/stats/student-rows", requireAuth, asyncHandler(async (_req, res) =>
         : null,
       oralStatus: deriveOralStatus(riskLevel),
       riskLevel,
-      consentStatus: s.consent_status,
+      consentStatus: latestConsentByStudent.get(String(s._id))?.consent_status ?? null,
     };
   });
 
@@ -296,8 +318,19 @@ router.get("/stats/student-rows", requireAuth, asyncHandler(async (_req, res) =>
 // narrow slices of this collection — the students an appointment set actually
 // references (by _id), and the roster of one section for the create form — and
 // used to get both by pulling all ~8,000 students into the browser.
+// archiveRoles: default is System Admin only, but Update School Year's
+// "Archive Selected" (bulk transfer) is used by the dentist/dental aide who
+// already reach this whole screen — same widening already done below for
+// student-iptrs, and for the same reason.
+// Intercepted before the generic CRUD router, same pattern as /users above —
+// this is a housekeeping scan over ALREADY-SAVED students (findDuplicateGroups
+// in studentDuplicates.ts), not a single-record CRUD read, so it needs its own
+// handler. Same write-capable roles as the rest of student management: staff
+// who can't add/archive students have no reason to see this either.
+router.get("/students/duplicates", requireAuth, requireRole(...CLINICAL_WRITE_ROLES), asyncHandler(getDuplicateStudents));
 router.use("/students", createCrudRouter(Student, {
   writeRoles: CLINICAL_WRITE_ROLES,
+  archiveRoles: CLINICAL_WRITE_ROLES,
   duplicateCheck: findDuplicateStudents,
   filterable: ["_id", "school_id"],
   filterableText: ["grade_level", "section"],
@@ -331,8 +364,14 @@ router.use("/risk-stratifications", createCrudRouter(RiskStratification, {
 }));
 // dateField (Sprint 56): the Completed and Missed tabs have no self-limiting
 // date the way Today and Upcoming do, so without a bound they grow forever.
-router.use("/appointments", createCrudRouter(Appointment, { writeRoles: CLINICAL_WRITE_ROLES, dateField: "appointment_datetime" }));
-router.use("/dentist-rotations", createCrudRouter(DentistRotation, { writeRoles: CLINICAL_WRITE_ROLES }));
+// archiveRoles widened (default is System Admin only): the Today tab's
+// per-row delete is used by the dentist/dental aide who book these
+// appointments in the first place.
+router.use("/appointments", createCrudRouter(Appointment, { writeRoles: CLINICAL_WRITE_ROLES, archiveRoles: CLINICAL_WRITE_ROLES, dateField: "appointment_datetime" }));
+// archiveRoles widened (default is System Admin only): DentistRotation now
+// doubles as the calendar's per-day note, created and deleted by the same
+// dentist/dental_aide who use the calendar tab.
+router.use("/dentist-rotations", createCrudRouter(DentistRotation, { writeRoles: CLINICAL_WRITE_ROLES, archiveRoles: CLINICAL_WRITE_ROLES }));
 
 // Audit trail — System Admin only, both to read and (already, since Sprint 6)
 // impossible to write directly; entries are created internally via logAudit().
