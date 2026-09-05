@@ -116,7 +116,7 @@ Full field-level specs for all 16 models live in **`/docs/DATA-MODEL.md`** — R
 **PENDING backlog + Before-Defense checklist:** authoritative in HANDOFF.md (`## Open work`, `## User-only items`, `## Live warnings`) — state belongs there per DOC ROLES above. Each item needs approval; sprint loop applies.
 
 ## DENTAL CHART RESTORE POINT (set 2026-09-05, by user request)
-- The user will ask, in plain words, to "go back to the version before I made changes in the dental charting tab" — possibly many sprints later. The answer is the annotated git tag **`dental-chart-baseline-2026-09-05`** (pushed to origin, immutable). Do NOT try to reconstruct that layout by hand or from memory.
+- The user will ask, in plain words, to "go back to the version before I made changes in the dental charting tab" — possibly many sprints later. The baseline is **commit `176998c` on `majorUpdates`**, with a frozen copy at **`docs/snapshots/DentalChart.baseline-2026-09-05.tsx.txt`**. Do NOT try to reconstruct that layout by hand or from memory. (A git TAG was attempted and could not be pushed — this environment's proxy rejects `refs/tags`; don't rely on one.)
 - **Full restore procedure, the whole-file caveat, and what the baseline looks like are in HANDOFF.md** under the ⭐ DENTAL CHART BASELINE section. Read it before restoring — `DentalChart.tsx` holds all six tabs, so a blind `git checkout <tag> -- <file>` also reverts the sibling tabs.
 
 ## SPRINT LOOP (every session)

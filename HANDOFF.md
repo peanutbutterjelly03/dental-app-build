@@ -5,10 +5,16 @@
 ## ⭐ DENTAL CHART BASELINE TAGGED — `dental-chart-baseline-2026-09-05` (2026-09-05)
 **The user asked for a restore point before doing major work on the Dental Chart tab, and said they will ask for it back by voice — "go back to the version before I made changes in the dental charting tab" — however many rounds later.** This section is how that request gets honoured. Do not delete it.
 
-- **The restore point is an annotated git tag on commit `67a9087`: `dental-chart-baseline-2026-09-05`.** Pushed to `origin`, so it survives any container, any number of later commits, and any amount of history on top. A tag is immutable — later commits cannot move it.
-- **To restore, when the user asks:**
+- **⚠ THE TAG COULD NOT BE PUSHED.** `git push origin refs/tags/...` fails in this environment with `send-pack: unexpected disconnect` — retried 5× with backoff, branch pushes work fine, so the proxy blocks tag refs specifically. A local-only tag dies with the container, so the restore point does NOT rely on one. **Two things that ARE pushed carry it instead:**
+  1. **Commit `176998c` on `majorUpdates`** — reachable from the branch, so it is on origin and durable.
+  2. **A frozen copy of the file at `docs/snapshots/DentalChart.baseline-2026-09-05.tsx.txt`** — belt and braces, survives even a history rewrite. `.txt` on purpose: it must never be compiled, imported, linted, or picked up by Tailwind's `@source` scan. Verified byte-identical to the live file at the moment it was taken (its first 11 lines are a header; everything after is the file).
+  A local tag `dental-chart-baseline-2026-09-05` also exists in this container as a convenience, but do NOT depend on it — assume it is gone.
+- **To restore, when the user asks (either works):**
   ```
-  git checkout dental-chart-baseline-2026-09-05 -- dental-4-12-main/project/src/app/components/DentalChart.tsx
+  git checkout 176998c -- dental-4-12-main/project/src/app/components/DentalChart.tsx
+  # or, if history was ever rewritten:
+  tail -n +12 docs/snapshots/DentalChart.baseline-2026-09-05.tsx.txt \
+    > dental-4-12-main/project/src/app/components/DentalChart.tsx
   ```
   Then `npx tsc --noEmit` + `npm run build` before committing — a file from an older commit can reference props or helpers that later work removed.
 - **⚠ READ THIS BEFORE RESTORING — `DentalChart.tsx` is ONE file holding ALL SIX tabs**, not just the chart. The command above reverts History, Dental Chart, Caries Risk Assessment, Treatment History, DMFT History and Referrals together. If later rounds also changed a sibling tab, a whole-file restore silently throws that away too. **Check first:** `git diff dental-chart-baseline-2026-09-05 -- <that file>`; if the diff touches anything outside the `{/* ── TAB 2: Dental Chart ── */}` block, restore by hand from the tag's copy instead of checking the whole file out. The section markers (`── TAB 1:` … `── TAB 7:`) are what to navigate by, never line numbers.
