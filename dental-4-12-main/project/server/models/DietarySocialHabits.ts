@@ -12,6 +12,10 @@ const dietarySocialHabitsSchema = new mongoose.Schema(
     body_piercing: { type: Boolean, default: false },
     nail_biting: { type: Boolean, default: false },
     thumb_sucking: { type: Boolean, default: false },
+    // Not in the original ERD — added 2026-09-04 alongside the same field on
+    // MEDICAL_HISTORY/ORAL_HEALTH_CONDITION, all three gated behind an
+    // "Others" chip on the History tab.
+    others: { type: String, default: "" },
     ...softDeleteFields,
   },
   { timestamps: { createdAt: "created_at", updatedAt: false } },

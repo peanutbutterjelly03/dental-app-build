@@ -17,9 +17,12 @@ export interface NotificationCounts {
   appointmentsToday: number;
   /** Risk assessments the dentist has not validated. */
   awaitingValidation: number;
+  /** Calendar reminders/notes (stored as DentistRotation rows) whose date
+   *  range covers today. */
+  remindersToday: number;
 }
 
-const EMPTY: NotificationCounts = { overdueRpc: 0, appointmentsToday: 0, awaitingValidation: 0 };
+const EMPTY: NotificationCounts = { overdueRpc: 0, appointmentsToday: 0, awaitingValidation: 0, remindersToday: 0 };
 
 /**
  * Counts for the sidebar bell.
@@ -54,6 +57,6 @@ export function useNotifications(enabled: boolean, schoolName: string | null) {
 
   useEffect(() => { void reload(); }, [reload]);
 
-  const total = counts.overdueRpc + counts.appointmentsToday + counts.awaitingValidation;
+  const total = counts.overdueRpc + counts.appointmentsToday + counts.awaitingValidation + counts.remindersToday;
   return { counts, total, loading, error, reload };
 }

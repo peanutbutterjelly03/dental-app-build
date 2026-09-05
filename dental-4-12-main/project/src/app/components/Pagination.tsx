@@ -23,8 +23,8 @@ const DEFAULT_PAGE_SIZE = 25;
  *  `resetKeys` are the FILTER INPUTS — pass the search box and dropdowns, never
  *  the derived list. Keying the reset on the list itself means a background
  *  refresh (Sprint 40) yanks the reader back to page 1 mid-read. */
-export function usePagination<T>(items: T[], resetKeys: unknown[]) {
-  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
+export function usePagination<T>(items: T[], resetKeys: unknown[], initialPageSize: number = DEFAULT_PAGE_SIZE) {
+  const [pageSize, setPageSize] = useState<number>(initialPageSize);
   const [page, setPage] = useState(1);
 
   const pageCount = Math.max(1, Math.ceil(items.length / pageSize));

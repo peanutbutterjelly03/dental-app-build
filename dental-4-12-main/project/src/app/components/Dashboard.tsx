@@ -4,8 +4,7 @@ import {
   AlertCircle,
   Calendar,
   Shield,
-  Plus,
-  FileText,
+    FileText,
   TrendingUp,
   Activity,
   Eye,
@@ -475,18 +474,12 @@ export const Dashboard = () => {
         <div className="flex flex-wrap items-end gap-4 rise">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Dentist Dashboard</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Welcome back, {user?.name} — {selectedSchool ? getSchoolShortName(selectedSchool) : 'All Schools'}</p>
+            <p className="text-sm text-muted-foreground mt-0.5">Welcome back, {user?.name}!</p>
           </div>
-          {/* The date moved into the clinic summary title bar (Sprint A) and the
-              appointment count is now cell 2, so this header block is gone --
-              both would otherwise appear twice on the same screen. */}
-          <Link
-            to="/appointments?new=1"
-            className="ml-auto inline-flex items-center gap-1.5 bg-primary text-primary-foreground text-sm font-semibold px-4 py-2 rounded-lg hover:bg-primary-hover transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            New Appointment
-          </Link>
+          {/* No "New Appointment" button here on purpose — removed on request.
+              Booking lives on the Appointments page; the dashboard reports. The
+              date and appointment count moved into the clinic summary strip
+              (Sprints A/D) for the same reason. */}
         </div>
 
         {/* Clinic summary (Sprint A, direction 3a) — replaces the four KPI tiles */}
@@ -759,17 +752,12 @@ export const Dashboard = () => {
         <div className="flex flex-wrap items-end gap-4 rise">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Dental Aide Dashboard</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Welcome back, {user?.name}{selectedSchool ? ` — ${getSchoolShortName(selectedSchool)}` : ''}</p>
+            <p className="text-sm text-muted-foreground mt-0.5">Welcome back, {user?.name}!</p>
           </div>
-          {/* Date + appointment count moved into the clinic summary (Sprint D),
-              same as the dentist branch. */}
-          <Link
-            to="/appointments?new=1"
-            className="ml-auto inline-flex items-center gap-1.5 bg-primary text-primary-foreground text-sm font-semibold px-4 py-2 rounded-lg hover:bg-primary-hover transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            New Appointment
-          </Link>
+          {/* No "New Appointment" button here on purpose — removed on request.
+              Booking lives on the Appointments page; the dashboard reports. The
+              date and appointment count moved into the clinic summary strip
+              (Sprints A/D) for the same reason. */}
         </div>
 
         {/* Clinic summary (Sprint D) — same strip as the dentist branch */}

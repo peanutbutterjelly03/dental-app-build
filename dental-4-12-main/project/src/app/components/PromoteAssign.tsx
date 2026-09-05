@@ -4,7 +4,7 @@ import { apiClient, ApiError } from '../api/client';
 import type { ApiStudent, ApiStudentIptr } from '../api/types';
 import { Notice } from './Notice';
 import { useToast } from './Toast';
-import { schoolYearLabel } from '../utils/schoolYear';
+import { schoolYearLabel, nextSchoolYear } from '../utils/schoolYear';
 import { surnameFirst } from '../utils/studentName';
 
 // ─── Promote / Assign ────────────────────────────────────────────────────────
@@ -26,18 +26,12 @@ import { surnameFirst } from '../utils/studentName';
 // The user's standing constraint applies: no per-record prompts or badges
 // across thousands of students. One preview, one confirm, one summary.
 
-const GRADES = ['Kinder','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10'];
+export const GRADES = ['Kinder','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10'];
 
 /** The grade after `g`, or null for the exit year (Grade 10 leaves). */
 const nextGrade = (g: string): string | null => {
   const i = GRADES.indexOf(g);
   return i >= 0 && i < GRADES.length - 1 ? GRADES[i + 1] : null;
-};
-
-/** "2026-2027" → "2027-2028". */
-const nextSchoolYear = (sy: string): string => {
-  const [a, b] = sy.split('-').map(Number);
-  return Number.isFinite(a) && Number.isFinite(b) ? `${a + 1}-${b + 1}` : sy;
 };
 
 type Action = 'promote' | 'retain' | 'skip';
@@ -51,10 +45,14 @@ interface RowState {
   alreadyHasYear: boolean;
 }
 
-export const PromoteAssign = ({ onClose, schoolId, schoolName }: {
+export const PromoteAssign = ({ onClose, schoolId, schoolName, allSections }: {
   onClose: () => void;
   schoolId: string | undefined;
   schoolName: string;
+  /** Every section already in use anywhere at this school, for the
+   *  per-row Section combobox — school-wide, not just the selected grade,
+   *  matching the same scoping fix Add Student's Section field got. */
+  allSections: string[];
 }) => {
   const toast = useToast();
   const fromYear = schoolYearLabel();
@@ -69,6 +67,10 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName }: {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ created: number; skipped: number; failed: string[] } | null>(null);
+  // Which row's Section combobox is showing its suggestion list — one at a
+  // time, tracked by student id (same onMouseDown-before-onBlur pattern as
+  // Add Student's Section field, see PatientList.tsx).
+  const [openSectionRow, setOpenSectionRow] = useState<string | null>(null);
 
   // The roster for one school + grade, server-filtered (Sprint 56's
   // filterable/filterableText) rather than pulling every student.
@@ -171,18 +173,33 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName }: {
   const field = 'border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring';
 
   return (
-    <div className="p-6 space-y-4 max-w-4xl">
-      <div>
-        <h2 className="text-base font-bold text-foreground flex items-center gap-2">
-          <GraduationCap className="w-5 h-5" /> Promote / Assign
-        </h2>
-        <p className="text-xs text-muted-foreground mt-1">
-          Opens next year's record for a whole section at once.
-          <span className="font-medium text-foreground"> {fromYear} </span>
-          <ArrowRight className="w-3 h-3 inline mx-0.5" />
-          <span className="font-medium text-foreground"> {toYear} </span>
-          · {schoolName}
-        </p>
+    <div className="p-6 space-y-4">
+      {/* Actions live top-right, level with the heading — they used to be a
+          full-width pair pinned under the roster, which put the primary action
+          a scroll away from the controls that decide what it does. */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-base font-bold text-foreground flex items-center gap-2">
+            <GraduationCap className="w-5 h-5" /> Assign
+          </h2>
+          <p className="text-xs text-muted-foreground mt-1">
+            Opens next year's record for a whole section at once.
+            <span className="font-medium text-foreground"> {fromYear} </span>
+            <ArrowRight className="w-3 h-3 inline mx-0.5" />
+            <span className="font-medium text-foreground"> {toYear} </span>
+            · {schoolName}
+          </p>
+        </div>
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <button onClick={onClose} disabled={running}
+            className="px-4 py-2 border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium disabled:opacity-50">
+            {result ? 'Close' : 'Cancel'}
+          </button>
+          <button onClick={run} disabled={running || toApply.length === 0}
+            className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
+            {running ? 'Working…' : `Assign ${toApply.length} Student${toApply.length === 1 ? '' : 's'}`}
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -218,7 +235,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName }: {
 
       {rows.length > 0 && (
         <>
-          <div className="border border-border rounded-xl overflow-hidden max-h-80 overflow-y-auto">
+          <div className="border border-border rounded-xl overflow-hidden h-96 overflow-y-auto">
             <table className="w-full border-collapse text-sm">
               <thead className="bg-gray-50 sticky top-0">
                 <tr>
@@ -243,19 +260,58 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName }: {
                         className="text-xs border border-border rounded-md px-2 py-1 bg-card"
                         aria-label={`Action for ${surnameFirst(r.student)}`}
                       >
-                        {!graduating && <option value="promote">Promote to {target}</option>}
+                        {!graduating && <option value="promote">Assign to {target}</option>}
                         <option value="retain">Retain in {r.student.grade_level}</option>
                         <option value="skip">Skip</option>
                       </select>
                     </td>
                     <td className="px-3 py-2">
-                      <input
-                        value={r.section}
-                        onChange={(e) => setRow(r.student._id, { section: e.target.value })}
-                        disabled={r.action === 'skip'}
-                        className="text-xs border border-border rounded-md px-2 py-1 w-32 disabled:opacity-50"
-                        aria-label={`Section for ${surnameFirst(r.student)}`}
-                      />
+                      {/* The dropdown wraps in its own `relative` div rather
+                          than making the <td> itself relative — some browsers
+                          position an absolutely-positioned child of a
+                          relatively-positioned TABLE CELL against the table as
+                          a whole rather than the cell, which is exactly the
+                          "menu floats over the header/other rows" bug this
+                          replaced. A plain div is an unambiguous containing
+                          block. */}
+                      <div className="relative">
+                        <input
+                          value={r.section}
+                          onChange={(e) => setRow(r.student._id, { section: e.target.value })}
+                          onFocus={() => setOpenSectionRow(r.student._id)}
+                          onBlur={() => setOpenSectionRow(null)}
+                          disabled={r.action === 'skip'}
+                          autoComplete="off"
+                          placeholder="Search or add a section"
+                          className="text-xs border border-border rounded-md px-2 py-1 w-36 disabled:opacity-50"
+                          aria-label={`Section for ${surnameFirst(r.student)}`}
+                        />
+                        {openSectionRow === r.student._id && (
+                          <div className="absolute z-20 mt-1 w-36 max-h-40 overflow-y-auto rounded-lg border border-border bg-card shadow-md">
+                            {allSections
+                              .filter((s) => !r.section.trim() || s.toLowerCase().startsWith(r.section.trim().toLowerCase()))
+                              .map((s) => (
+                                <button
+                                  key={s}
+                                  type="button"
+                                  onMouseDown={() => { setRow(r.student._id, { section: s }); setOpenSectionRow(null); }}
+                                  className="block w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-canvas"
+                                >
+                                  {s}
+                                </button>
+                              ))}
+                            {r.section.trim() && !allSections.some((s) => s.toLowerCase() === r.section.trim().toLowerCase()) && (
+                              <button
+                                type="button"
+                                onMouseDown={() => setOpenSectionRow(null)}
+                                className="block w-full text-left px-2 py-1.5 text-xs text-primary hover:bg-primary-surface border-t border-border"
+                              >
+                                + Add "{r.section.trim()}" as new section
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -265,7 +321,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName }: {
 
           <p className="text-xs text-muted-foreground">
             <span className="font-medium text-foreground">{toApply.length}</span> of {rows.length} will get a {toYear} record.
-            Each also has their current grade and section updated — that is what promotion means. Existing years are left untouched.
+            Each also has their current grade and section updated. Existing years remain unchanged.
           </p>
         </>
       )}
@@ -279,16 +335,6 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName }: {
         </Notice>
       )}
 
-      <div className="flex gap-3 pt-1">
-        <button onClick={onClose} disabled={running}
-          className="flex-1 px-4 py-2 border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium disabled:opacity-50">
-          {result ? 'Close' : 'Cancel'}
-        </button>
-        <button onClick={run} disabled={running || toApply.length === 0}
-          className="flex-1 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
-          {running ? 'Working…' : `Open ${toYear} for ${toApply.length}`}
-        </button>
-      </div>
     </div>
   );
 };

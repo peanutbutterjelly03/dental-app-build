@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
+import { TOPBAR_H } from '../utils/layout';
 
 // App-wide action feedback (Sprint 23k / audit X2). One ToastProvider at the
 // app root; screens call useToast().success/error/info after mutations so
@@ -107,7 +108,13 @@ export const ToastProvider = ({ children }: { children: ReactNode }) => {
         // the eye already is after pressing Save, and the old corner position
         // is the main reason a save could go unnoticed. Leaves the bottom-right
         // corner to UpdateToast, which no longer has to share.
-        <div className="fixed top-4 inset-x-0 z-50 flex flex-col gap-2 items-center px-4 pointer-events-none">
+        <div
+          // Below the fixed status strip and above it in stacking order:
+          // at `top-4 z-50` a toast rendered underneath the strip, which is
+          // 48px tall. Transient feedback has to beat all page chrome.
+          style={{ top: TOPBAR_H + 8 }}
+          className="fixed inset-x-0 z-[80] flex flex-col gap-2 items-center px-4 pointer-events-none"
+        >
           {toasts.map((t) => {
             const { Icon, icon, box, close } = STYLES[t.variant];
             return (

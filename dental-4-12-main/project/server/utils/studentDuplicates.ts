@@ -1,3 +1,4 @@
+import type { Request, Response } from "express";
 import Student from "../models/Student.js";
 
 /** What the client needs to show "is this the same child?" — deliberately a
@@ -82,4 +83,57 @@ export async function findDuplicateStudents(
       sex: s.sex,
       birthday: s.birthday,
     }));
+}
+
+/** Housekeeping scan over ALL already-saved active students, grouping ones
+ *  that look like the same child encoded more than once — unlike
+ *  `findDuplicateStudents` above, which only checks one incoming record
+ *  against existing ones at create time. Match key: normalized last + first
+ *  name, birthday (calendar day), and sex. Sex IS part of the key here
+ *  (unlike the create-time check, which excludes it as a common mis-entry) —
+ *  a false positive here is just a review row, not a blocked save, so the
+ *  narrower key is the right trade-off: it surfaces the classic "the same
+ *  child was encoded twice" case without also flagging misspelled-sex typos
+ *  as a name-and-birthday coincidence.
+ *
+ *  Same encryption reasoning as findDuplicateStudents: name fields only
+ *  decrypt through `find()`'s hook, so the comparison happens in JS after an
+ *  unencrypted-field-only query narrows the read. Scoped to one school by
+ *  default to keep that read bounded — pass no school_id only for a
+ *  System-Admin-style cross-school scan. */
+export async function findDuplicateGroups(schoolId?: string): Promise<DuplicateCandidate[][]> {
+  const query: Record<string, unknown> = { isArchived: false };
+  if (schoolId) query.school_id = schoolId;
+  const students = await Student.find(query);
+
+  const groups = new Map<string, any[]>();
+  for (const s of students as any[]) {
+    if (!s.birthday) continue;
+    const day = new Date(s.birthday);
+    if (Number.isNaN(day.getTime())) continue;
+    const dayKey = day.toISOString().slice(0, 10);
+    const key = `${normalizeName(s.last_name)}|${normalizeName(s.first_name)}|${dayKey}|${String(s.sex ?? "").toLowerCase()}`;
+    const list = groups.get(key);
+    if (list) list.push(s);
+    else groups.set(key, [s]);
+  }
+
+  return [...groups.values()]
+    .filter((list) => list.length > 1)
+    .map((list) =>
+      list.map((s) => ({
+        _id: s._id.toString(),
+        full_name: s.full_name,
+        grade_level: s.grade_level,
+        section: s.section,
+        sex: s.sex,
+        birthday: s.birthday,
+      })),
+    );
+}
+
+export async function getDuplicateStudents(req: Request, res: Response) {
+  const schoolId = typeof req.query.school_id === "string" ? req.query.school_id : undefined;
+  const groups = await findDuplicateGroups(schoolId);
+  res.json(groups);
 }

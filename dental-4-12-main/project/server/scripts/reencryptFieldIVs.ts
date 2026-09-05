@@ -18,7 +18,7 @@ import { Student, DentalAide, MedicalHistory, Treatment } from "../models/index.
 // - TAKE AN ATLAS SNAPSHOT FIRST. Run with: npx tsx server/scripts/reencryptFieldIVs.ts --yes
 
 const TARGETS: { name: string; model: mongoose.Model<any>; fields: string[] }[] = [
-  { name: "Student", model: Student, fields: ["full_name", "last_name", "first_name", "middle_name", "address", "contact_number", "guardian_name", "guardian_contact", "philhealth_number", "fourps_id"] },
+  { name: "Student", model: Student, fields: ["full_name", "last_name", "first_name", "middle_name", "address", "contact_number", "guardian_name", "guardian_contact", "philhealth_number", "fourps_id", "place_of_birth", "guardian_occupation"] },
   { name: "DentalAide", model: DentalAide, fields: ["contact_number"] },
   { name: "MedicalHistory", model: MedicalHistory, fields: ["allergies", "others"] },
   { name: "Treatment", model: Treatment, fields: ["diagnosis", "treatment_done"] },

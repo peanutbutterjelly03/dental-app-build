@@ -50,8 +50,8 @@ export const getSchoolColor = (school: string): SchoolColor => {
 };
 
 export const SCHOOL_SHORT_NAMES: Record<string, string> = {
-  'Bagong Tanyag Integrated School': 'BT Integrated',
-  'Bagong Tanyag Elementary School Annex A': 'BT Annex A',
+  'Bagong Tanyag Integrated School': 'Bagong Tanyag Integrated',
+  'Bagong Tanyag Elementary School Annex A': 'Bagong Tanyag Annex A',
   'South Daang Hari Elementary School Main': 'S. Daang Hari',
 };
 

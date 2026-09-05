@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { WifiOff, RefreshCw, AlertTriangle, Check, Cloud } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { useOfflineQueue } from '../hooks/useOfflineQueue';
 import { retryQueue, discardFailedWrite, keepMyChange, discardMyChange } from '../offline/queueProcessor';
 import type { QueuedWrite } from '../offline/db';
@@ -44,6 +44,11 @@ type Tone = 'offline' | 'syncing' | 'auth' | 'failed' | 'conflict' | 'idle';
 // deliberately ALWAYS mounted: connection state is something staff in the
 // field need to be able to glance at, not something that only appears once
 // there's a problem.
+//
+// ONE shape: a small coloured pill in Root's status strip, which opens the
+// full sync panel. The floating round icon that used to hang in the top-right
+// corner was deleted on request — it overlapped page content and duplicated
+// what the strip already says.
 export const SyncStatus = () => {
   const { isOnline, pendingCount, failed, authBlocked, conflicts } = useOfflineQueue();
   const [open, setOpen] = useState(false);
@@ -84,58 +89,53 @@ export const SyncStatus = () => {
     };
   }, [open]);
 
-  const chrome: Record<Tone, { icon: JSX.Element; ring: string; label: string }> = {
+  const chrome: Record<Tone, { ring: string; label: string }> = {
     offline: {
-      icon: <WifiOff className="w-4 h-4" />,
       ring: 'bg-amber-100 text-amber-700 border-amber-300',
       label: `Offline${pendingCount > 0 ? ` — ${pendingCount} change${pendingCount > 1 ? 's' : ''} saved locally` : ''}`,
     },
     syncing: {
-      icon: <RefreshCw className="w-4 h-4 animate-spin" />,
       ring: 'bg-blue-100 text-blue-700 border-blue-300',
       label: `Syncing ${pendingCount} pending change${pendingCount > 1 ? 's' : ''}…`,
     },
     auth: {
-      icon: <AlertTriangle className="w-4 h-4" />,
       ring: 'bg-amber-100 text-amber-700 border-amber-300',
       label: 'Session expired — sign in again to sync',
     },
     failed: {
-      icon: <AlertTriangle className="w-4 h-4" />,
       ring: 'bg-red-100 text-red-700 border-red-300',
       label: "A change couldn't be saved",
     },
     conflict: {
-      icon: <AlertTriangle className="w-4 h-4" />,
       ring: 'bg-orange-100 text-orange-700 border-orange-300',
       label: `${conflicts.length} change${conflicts.length > 1 ? 's' : ''} need review`,
     },
     idle: {
-      icon: <Cloud className="w-4 h-4" />,
-      ring: 'bg-card text-muted-foreground border-border',
+      ring: 'bg-emerald-50 text-emerald-700 border-emerald-300',
       label: 'Online — everything synced',
     },
   };
 
-  const { icon, ring, label } = chrome[tone];
+  const { ring, label } = chrome[tone];
 
   return (
-    <div ref={containerRef} className="fixed top-2 right-2 md:top-3 md:right-4 z-40">
+    <div ref={containerRef} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
         aria-label={label}
         title={label}
         aria-expanded={open}
-        className={`flex items-center justify-center w-9 h-9 rounded-full border shadow-sm transition-colors ${ring}`}
+        className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-[2px] text-[13px] font-semibold leading-none transition-colors ${ring}`}
       >
-        {icon}
+        <span className="w-[5px] h-[5px] rounded-full bg-current" aria-hidden="true" />
+        {isOnline ? 'Online' : 'Offline'}
       </button>
 
       {open && (
         <div
           role="dialog"
           aria-label="Sync status"
-          className="absolute right-0 mt-2 w-[min(22rem,calc(100vw-1rem))] max-h-[70vh] overflow-y-auto bg-card border border-border rounded-xl shadow-xl p-3 text-sm"
+          className="absolute right-0 mt-2 w-[min(22rem,calc(100vw-1rem))] max-h-[70vh] overflow-y-auto bg-card border border-border rounded-xl shadow-xl p-3 text-sm text-left font-normal normal-case leading-normal z-50"
         >
           <p className="font-semibold text-foreground mb-2">{label}</p>
 
