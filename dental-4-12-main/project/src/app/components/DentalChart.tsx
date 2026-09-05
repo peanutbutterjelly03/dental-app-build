@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
-import { ArrowLeft, Save, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Check, Shield, ShieldCheck, ShieldAlert, Users, FileText, Plus, Pencil, Trash2, Brain, Download, X, MoreVertical } from 'lucide-react';
+import { ArrowLeft, Save, Maximize2, Minimize2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Check, Shield, ShieldCheck, ShieldAlert, Users, FileText, Plus, Pencil, Trash2, Brain, Download, X, MoreVertical } from 'lucide-react';
 import { exportDohReportToPdf } from '../utils/exportPdf';
 import { TOPBAR_H } from '../utils/layout';
 import { getGradeColor } from '../utils/gradeColors';
@@ -215,6 +215,11 @@ export const treatmentLabel = (t: { label: string; local?: string }) =>
 // worth a context or a storage key.
 let basicInfoExpandedMemo = true;
 
+// Focus mode has to survive the same remount: stepping to the next student is
+// the WHOLE POINT of it, and `routes.tsx` keys DentalChart by :id, so without
+// this the overlay would close on every "Next student" click.
+let focusModeMemo = false;
+
 export const DentalChart = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -346,11 +351,14 @@ export const DentalChart = () => {
   const [othersServiceOpen, setOthersServiceOpen] = useState(false);
   const [rareConditionsOpen, setRareConditionsOpen] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
+  const [focusMode, setFocusMode] = useState(focusModeMemo);
+  useEffect(() => { focusModeMemo = focusMode; }, [focusMode]);
+  const [pendingNextStudent, setPendingNextStudent] = useState<string | null>(null);
   // Height/weight live on the SELECTED YEAR's IPTR (Sprint 68) and are edited
   // from the History tab, alongside the rest of that year's clinical record —
   // not from the student-info modal, which only ever touched name/contact/
   // enrolment fields.
-  const [draftMeasure, setDraftMeasure] = useState<{ height_cm: string; weight_kg: string }>({ height_cm: '', weight_kg: '' });
+  const [draftMeasure, setDraftMeasure] = useState({ height_cm: '', weight_kg: '', temperature_c: '', blood_pressure: '' });
   // "Others" is a chip that reveals its text field rather than the field
   // always being visible — open state is separate from the text itself so a
   // click opens an EMPTY field, and existing saved text opens it on load.
@@ -365,7 +373,7 @@ export const DentalChart = () => {
       setDraftDiet(emptyDiet());
       setDraftOral(emptyOral());
       setDraftServices(emptyServices());
-      setDraftMeasure({ height_cm: '', weight_kg: '' });
+      setDraftMeasure({ height_cm: '', weight_kg: '', temperature_c: '', blood_pressure: '' });
       setOthersMedOpen(false);
       setOthersDietOpen(false);
       setOthersOralOpen(false);
@@ -423,6 +431,8 @@ export const DentalChart = () => {
     const measureSnapshot = {
       height_cm: currentYearData.iptr.height_cm != null ? String(currentYearData.iptr.height_cm) : '',
       weight_kg: currentYearData.iptr.weight_kg != null ? String(currentYearData.iptr.weight_kg) : '',
+      temperature_c: currentYearData.iptr.temperature_c != null ? String(currentYearData.iptr.temperature_c) : '',
+      blood_pressure: currentYearData.iptr.blood_pressure ?? '',
     };
     setDraftMeasure(measureSnapshot);
 
@@ -444,6 +454,32 @@ export const DentalChart = () => {
   // Effective edit rights: role AND edit mode. Aides keep read-only here —
   // they could tick history boxes before, but Save was always dentist-only,
   // so those edits silently went nowhere (dead UI, now honest).
+  // Escape exits focus mode, and the page behind is frozen while it is open —
+  // a fixed overlay over a scrollable page otherwise scroll-chains on a
+  // trackpad and the record moves behind it.
+  useEffect(() => {
+    if (!focusMode) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setFocusMode(false); };
+    document.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
+  }, [focusMode]);
+
+  // Focus mode is only meaningful on the chart tab — leaving it open while the
+  // user switches tabs would hide the tab they just chose.
+  useEffect(() => { if (activeTab !== 'chart') setFocusMode(false); }, [activeTab]);
+
+  // "Next student" from inside focus mode. Never silently discards: an unsaved
+  // draft stops the jump and asks first, which is the one thing a continuous
+  // charting loop must not get wrong.
+  const goToStudent = (studentId: string) => navigate(`/dental-chart/${studentId}`);
+  const requestNextStudent = () => {
+    if (!nextPatient) return;
+    if (editMode && isEditDirty()) setPendingNextStudent(nextPatient.id);
+    else goToStudent(nextPatient.id);
+  };
+
   const editingChart = canEdit && editMode;
   const editingHistory = canEditHistory && editMode;
 
@@ -779,6 +815,8 @@ export const DentalChart = () => {
       const measureWrite = apiClient.put(`/student-iptrs/${currentYearData.iptr._id}`, {
         height_cm: draftMeasure.height_cm.trim() === '' ? null : Number(draftMeasure.height_cm),
         weight_kg: draftMeasure.weight_kg.trim() === '' ? null : Number(draftMeasure.weight_kg),
+        temperature_c: draftMeasure.temperature_c.trim() === '' ? null : Number(draftMeasure.temperature_c),
+        blood_pressure: draftMeasure.blood_pressure.trim(),
       });
 
       await Promise.all([...chartWrites, ...toothWrites, medWrite, dietWrite, oralWrite, measureWrite]);
@@ -1510,6 +1548,13 @@ export const DentalChart = () => {
                   the only way to decode them, so it must be findable. Chart tab
                   only; the other tabs have no codes to decode. */}
               {activeTab === 'chart' && (
+                <button type="button" onClick={() => setFocusMode(true)}
+                  title="Charting mode — chart only, full screen"
+                  className="flex-shrink-0 mb-1 mr-2 inline-flex items-center gap-1.5 rounded-lg border border-primary bg-primary-surface px-3 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-white">
+                  <Maximize2 className="w-3.5 h-3.5" /> Charting Mode
+                </button>
+              )}
+              {activeTab === 'chart' && (
                 <button type="button" onClick={() => setLegendOpen(true)}
                   className="flex-shrink-0 mb-1 mr-2 inline-flex items-center gap-1.5 rounded-lg bg-destructive px-3 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:opacity-90">
                   <FileText className="w-3.5 h-3.5" /> Legend
@@ -1664,6 +1709,22 @@ export const DentalChart = () => {
                     onChange={(e) => setDraftMeasure((p) => ({ ...p, weight_kg: e.target.value }))}
                     placeholder="e.g. 25" className="w-full text-xs border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
                 </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Temperature (°C)</label>
+                  <input type="number" min="0" max="45" step="0.1" inputMode="decimal" disabled={!editingHistory}
+                    value={draftMeasure.temperature_c}
+                    onChange={(e) => setDraftMeasure((p) => ({ ...p, temperature_c: e.target.value }))}
+                    placeholder="e.g. 36.5" className="w-full text-xs border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Blood Pressure</label>
+                  {/* Text, not two numbers: it is read and written as a pair,
+                      and nothing in the app queries on systolic alone. */}
+                  <input type="text" disabled={!editingHistory}
+                    value={draftMeasure.blood_pressure}
+                    onChange={(e) => setDraftMeasure((p) => ({ ...p, blood_pressure: e.target.value }))}
+                    placeholder="e.g. 110/70" className="w-full text-xs border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+                </div>
                 {(() => {
                   const bmiValue = computeBmi(Number(draftMeasure.height_cm) || null, Number(draftMeasure.weight_kg) || null);
                   // Classified against the DOH/DepEd BMI-for-Age table by
@@ -1681,7 +1742,7 @@ export const DentalChart = () => {
                   // different reasons look identical otherwise (nothing
                   // entered yet vs. genuinely no reference for this age).
                   const statusFallback = bmiValue == null
-                    ? 'Enter height & weight'
+                    ? 'Automatic'
                     : (patientAgeMonths ?? 0) < 72
                     ? 'No reference below age 6'
                     : 'No reference above age 19';
@@ -1690,7 +1751,7 @@ export const DentalChart = () => {
                       <div>
                         <label className="block text-xs text-muted-foreground mb-1">BMI</label>
                         <div className="w-full text-xs border border-border rounded px-2 py-1 bg-muted text-muted-foreground" title={BMI_NOTE}>
-                          {bmiValue ?? 'Auto'}
+                          {bmiValue ?? 'Automatic'}
                         </div>
                       </div>
                       {/* Spans both columns on phone widths so it drops to
@@ -1737,7 +1798,7 @@ export const DentalChart = () => {
                   ))}
                   <button type="button" disabled={!editingHistory} onClick={() => setOthersMedOpen((v) => !v)}
                     className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs text-left transition-colors ${othersMedOpen ? 'border-primary bg-primary-surface text-primary font-medium' : 'border-border text-foreground'} ${editingHistory ? 'cursor-pointer hover:bg-canvas' : 'cursor-not-allowed opacity-70'}`}>
-                    <span className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${othersMedOpen ? 'bg-primary border-primary' : 'border-border'}`}>{othersMedOpen && <Check className="w-3 h-3 text-white" />}</span>
+                    <span className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${othersMedOpen ? 'bg-primary border-primary' : 'border-gray-600'}`}>{othersMedOpen && <Check className="w-3 h-3 text-white" />}</span>
                     Others
                   </button>
                 </div>
@@ -1772,7 +1833,7 @@ export const DentalChart = () => {
                   ))}
                   <button type="button" disabled={!editingHistory} onClick={() => setOthersDietOpen((v) => !v)}
                     className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs text-left transition-colors ${othersDietOpen ? 'border-primary bg-primary-surface text-primary font-medium' : 'border-border text-foreground'} ${editingHistory ? 'cursor-pointer hover:bg-canvas' : 'cursor-not-allowed opacity-70'}`}>
-                    <span className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${othersDietOpen ? 'bg-primary border-primary' : 'border-border'}`}>{othersDietOpen && <Check className="w-3 h-3 text-white" />}</span>
+                    <span className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${othersDietOpen ? 'bg-primary border-primary' : 'border-gray-600'}`}>{othersDietOpen && <Check className="w-3 h-3 text-white" />}</span>
                     Others
                   </button>
                 </div>
@@ -1790,7 +1851,52 @@ export const DentalChart = () => {
 
         {/* ── TAB 2: Dental Chart ── */}
         {activeTab === 'chart' && (
-          <div className="p-0 space-y-0">
+          // CHARTING MODE. The tab's own container becomes a full-screen
+          // surface rather than a separate overlay component, so the palette,
+          // the chips and the odontogram are literally the same JSX in both
+          // states — no second copy to keep in sync. z-[75] puts it over the
+          // nav rail (z-[70]) and the status strip (z-[60]), which is what
+          // "the nav bar de-expands" means in practice: it is covered, so the
+          // whole width belongs to the chart.
+          <div className={focusMode ? 'fixed inset-0 z-[75] bg-canvas overflow-y-auto overscroll-contain' : 'p-0 space-y-0'}>
+            {focusMode && (
+              <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-border bg-card px-4 py-2">
+                <div className="min-w-0">
+                  <div className="text-sm font-bold text-foreground truncate">{surnameFirst(student)}</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {currentYearData?.iptr.school_year}{navIndex >= 0 ? ` · ${navIndex + 1} of ${navList.length}` : ''}
+                  </div>
+                </div>
+                <div className="ml-auto flex items-center gap-2">
+                  {canEditHistory && currentYearData && !editMode && (
+                    <button onClick={() => setConfirmEditChart(true)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted">
+                      <Pencil className="w-3.5 h-3.5" /> Edit
+                    </button>
+                  )}
+                  {editMode && (
+                    <button onClick={handleSave} disabled={saving}
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-colors disabled:opacity-60 ${saved ? 'bg-green-600 text-white' : 'bg-primary text-white hover:bg-primary-hover'}`}>
+                      <Save className="w-3.5 h-3.5" />
+                      {saving ? 'Saving…' : saved ? 'Saved!' : 'Save'}
+                    </button>
+                  )}
+                  {/* The continuous-charting loop: finish this mouth, step to
+                      the next. Guarded — see requestNextStudent. */}
+                  <button onClick={requestNextStudent} disabled={!nextPatient}
+                    title={nextPatient ? `Next: ${nextPatient.name}` : 'Last student in this list'}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-primary bg-primary-surface px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary hover:text-white disabled:opacity-40 disabled:pointer-events-none">
+                    Next student
+                    {nextPatient && <span className="max-w-[90px] truncate font-normal">· {nextPatient.lastName || nextPatient.name}</span>}
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={() => setFocusMode(false)} title="Exit charting mode (Esc)"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted">
+                    <Minimize2 className="w-3.5 h-3.5" /> Exit
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="p-4 space-y-4">
             {/* Whole-mouth findings and services, FIRST — before the per-tooth
                 palette, at explicit request: they are what a screening records
@@ -2019,7 +2125,7 @@ export const DentalChart = () => {
               </div>
             </div>
 
-            <div className="bg-gray-50 rounded-xl border border-border p-4">
+            <div className={`bg-gray-50 rounded-xl border border-border p-4 ${focusMode ? 'hidden' : ''}`}>
               <div className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wide">DMFT / dmft Scores (Auto-computed)</div>
               <div className="grid grid-cols-2 gap-6">
                 <div>
@@ -2065,13 +2171,16 @@ export const DentalChart = () => {
                 content-sized columns drifted per table and read as sloppy. The
                 two cards are tinted differently (teal = conditions, blue =
                 treatments) to match the palette colours each one summarises. */}
+            {/* Hidden in charting mode. Charting mode exists so the dentist
+                looks at one thing — the mouth — and the summaries are a
+                read-out of what was just entered, not an input. */}
+            {!focusMode && (
+            <>
             {/* Side by side, and EQUAL HEIGHT — the grid stretches (no
                 `items-start`) so the two cards end at the same y.
 
-                Every cell is bordered on ALL FOUR sides, not just underlined:
-                these are the DOH form's own tables, and that form is a ruled
-                grid. Row-only rules left the count and tooth-number columns
-                visually unbounded.
+                Cells carry a bottom rule only. A full four-sided grid was
+                tried and reverted on request — it read as a spreadsheet.
 
                 Both cards share ONE column geometry — 45 / 18 / 37 — so the
                 middle column lands on the same axis in all four tables. It only
@@ -2088,23 +2197,23 @@ export const DentalChart = () => {
                   <colgroup><col className="w-[45%]" /><col className="w-[18%]" /><col className="w-[37%]" /></colgroup>
                   <tbody>
                     <tr>
-                      <td className="border border-teal-200 px-2 py-1.5 text-foreground">Date of Oral Examination</td>
-                      <td className="border border-teal-200 px-2 py-1.5 font-semibold text-foreground whitespace-nowrap" colSpan={2}>{examinationDate}</td>
+                      <td className="border-b border-teal-200/70 px-2 py-1.5 text-foreground">Date of Oral Examination</td>
+                      <td className="border-b border-teal-200/70 px-2 py-1.5 text-foreground whitespace-nowrap" colSpan={2}>{examinationDate}</td>
                     </tr>
                     {/* Highlighted: the single headline answer a DOH screening asks. */}
                     <tr className={isOrallyFit ? 'bg-success-surface' : ''}>
-                      <td className={`border border-teal-200 px-2 py-1.5 ${isOrallyFit ? 'font-bold text-success' : 'text-foreground'}`}>Orally Fit Child</td>
-                      <td className="border border-teal-200 px-2 py-1.5 font-bold text-success" colSpan={2}>{isOrallyFit ? 'Yes' : ''}</td>
+                      <td className={`border-b border-teal-200/70 px-2 py-1.5 ${isOrallyFit ? 'font-bold text-success' : 'text-foreground'}`}>Orally Fit Child</td>
+                      <td className="border-b border-teal-200/70 px-2 py-1.5 font-bold text-success" colSpan={2}>{isOrallyFit ? 'Yes' : ''}</td>
                     </tr>
                     {presentOralConditions.map(({ label, present }) => (
                       <tr key={label}>
-                        <td className="border border-teal-200 px-2 py-1.5 text-foreground">{label}</td>
-                        <td className="border border-teal-200 px-2 py-1.5 font-semibold text-success" colSpan={2}>{present ? 'Yes' : ''}</td>
+                        <td className="border-b border-teal-200/70 px-2 py-1.5 text-foreground">{label}</td>
+                        <td className="border-b border-teal-200/70 px-2 py-1.5 font-semibold text-success" colSpan={2}>{present ? 'Yes' : ''}</td>
                       </tr>
                     ))}
                     <tr>
-                      <td className="border border-teal-200 px-2 py-1.5 text-foreground">Others</td>
-                      <td className="border border-teal-200 px-2 py-1.5 font-semibold text-success break-words" colSpan={2}>{draftOral.others.trim()}</td>
+                      <td className="border-b border-teal-200/70 px-2 py-1.5 text-foreground">Others</td>
+                      <td className="border-b border-teal-200/70 px-2 py-1.5 font-semibold text-success break-words" colSpan={2}>{draftOral.others.trim()}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -2115,17 +2224,17 @@ export const DentalChart = () => {
                 <colgroup><col className="w-[45%]" /><col className="w-[18%]" /><col className="w-[37%]" /></colgroup>
                 <thead>
                   <tr className="text-left text-teal-800">
-                    <th className="border border-teal-200 px-2 py-1.5 font-semibold">B. Indicate Number</th>
-                    <th className="border border-teal-200 px-2 py-1.5 font-semibold">Tooth Count</th>
-                    <th className="border border-teal-200 px-2 py-1.5 font-semibold">Tooth Numbers</th>
+                    <th className="border-b border-teal-200/70 px-2 py-1.5 font-semibold">Indicate Number</th>
+                    <th className="border-b border-teal-200/70 px-2 py-1.5 font-semibold">Tooth Count</th>
+                    <th className="border-b border-teal-200/70 px-2 py-1.5 font-semibold">Tooth Numbers</th>
                   </tr>
                 </thead>
                 <tbody>
                   {indicateNumberRows.map(({ label, teeth }) => (
                     <tr key={label}>
-                      <td className="border border-teal-200 px-2 py-1.5 text-foreground">{label}</td>
-                      <td className="border border-teal-200 px-2 py-1.5 font-semibold text-foreground">{teeth.length ? teeth.length : ''}</td>
-                      <td className="border border-teal-200 px-2 py-1.5 font-mono text-foreground break-words">{teeth.join(', ')}</td>
+                      <td className="border-b border-teal-200/70 px-2 py-1.5 text-foreground">{label}</td>
+                      <td className="border-b border-teal-200/70 px-2 py-1.5 font-semibold text-foreground">{teeth.length ? teeth.length : ''}</td>
+                      <td className="border-b border-teal-200/70 px-2 py-1.5 font-mono text-foreground break-words">{teeth.join(', ')}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -2142,18 +2251,18 @@ export const DentalChart = () => {
                   <colgroup><col className="w-[45%]" /><col className="w-[18%]" /><col className="w-[37%]" /></colgroup>
                   <tbody>
                     <tr>
-                      <td className="border border-blue-200 px-2 py-1.5 text-foreground">Date of Treatment</td>
-                      <td className="border border-blue-200 px-2 py-1.5 font-semibold text-foreground whitespace-nowrap" colSpan={2}>{treatmentDate}</td>
+                      <td className="border-b border-blue-200/70 px-2 py-1.5 text-foreground">Date of Treatment</td>
+                      <td className="border-b border-blue-200/70 px-2 py-1.5 text-foreground whitespace-nowrap" colSpan={2}>{treatmentDate}</td>
                     </tr>
                     {serviceChips.map(({ label, field }) => (
                       <tr key={field}>
-                        <td className="border border-blue-200 px-2 py-1.5 text-foreground">{label}</td>
-                        <td className="border border-blue-200 px-2 py-1.5 font-semibold text-success" colSpan={2}>{draftServices[field] ? 'Yes' : ''}</td>
+                        <td className="border-b border-blue-200/70 px-2 py-1.5 text-foreground">{label}</td>
+                        <td className="border-b border-blue-200/70 px-2 py-1.5 font-semibold text-success" colSpan={2}>{draftServices[field] ? 'Yes' : ''}</td>
                       </tr>
                     ))}
                     <tr>
-                      <td className="border border-blue-200 px-2 py-1.5 text-foreground">Others</td>
-                      <td className="border border-blue-200 px-2 py-1.5 font-semibold text-success break-words" colSpan={2}>{draftServices.others.trim()}</td>
+                      <td className="border-b border-blue-200/70 px-2 py-1.5 text-foreground">Others</td>
+                      <td className="border-b border-blue-200/70 px-2 py-1.5 font-semibold text-success break-words" colSpan={2}>{draftServices.others.trim()}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -2163,9 +2272,9 @@ export const DentalChart = () => {
                 <colgroup><col className="w-[45%]" /><col className="w-[18%]" /><col className="w-[37%]" /></colgroup>
                 <thead>
                   <tr className="text-left text-primary">
-                    <th className="border border-blue-200 px-2 py-1.5 font-semibold">Treatment</th>
-                    <th className="border border-blue-200 px-2 py-1.5 font-semibold">Tooth Count</th>
-                    <th className="border border-blue-200 px-2 py-1.5 font-semibold">Tooth Numbers</th>
+                    <th className="border-b border-blue-200/70 px-2 py-1.5 font-semibold">Treatment</th>
+                    <th className="border-b border-blue-200/70 px-2 py-1.5 font-semibold">Tooth Count</th>
+                    <th className="border-b border-blue-200/70 px-2 py-1.5 font-semibold">Tooth Numbers</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2173,11 +2282,11 @@ export const DentalChart = () => {
                     const teeth = teethByTreatment[t.code] ?? [];
                     return (
                       <tr key={t.code}>
-                        <td className="border border-blue-200 px-2 py-1.5 text-foreground">
+                        <td className="border-b border-blue-200/70 px-2 py-1.5 text-foreground">
                           <span className="font-mono font-bold mr-2">{t.code}</span>{t.label}
                         </td>
-                        <td className="border border-blue-200 px-2 py-1.5 font-semibold text-foreground">{teeth.length ? teeth.length : ''}</td>
-                        <td className="border border-blue-200 px-2 py-1.5 font-mono text-foreground break-words">{teeth.join(', ')}</td>
+                        <td className="border-b border-blue-200/70 px-2 py-1.5 font-semibold text-foreground">{teeth.length ? teeth.length : ''}</td>
+                        <td className="border-b border-blue-200/70 px-2 py-1.5 font-mono text-foreground break-words">{teeth.join(', ')}</td>
                       </tr>
                     );
                   })}
@@ -2185,6 +2294,8 @@ export const DentalChart = () => {
               </table>
             </div>
             </div>
+            </>
+            )}
             </div>
           </div>
         )}
@@ -2415,6 +2526,22 @@ export const DentalChart = () => {
           </div>
         </Modal>
       )}
+
+      <ConfirmDialog
+        open={pendingNextStudent !== null}
+        title="Save before moving on?"
+        message="This chart has changes that have not been saved. Move to the next student and they are lost."
+        confirmLabel="Save and continue"
+        cancelLabel="Stay here"
+        onCancel={() => setPendingNextStudent(null)}
+        onConfirm={async () => {
+          const next = pendingNextStudent;
+          setPendingNextStudent(null);
+          if (!next) return;
+          await handleSave();
+          goToStudent(next);
+        }}
+      />
 
       <ConfirmDialog
         open={confirmOpenEdit}

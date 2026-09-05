@@ -15,7 +15,7 @@ Exact from ERD Chapter 3. **Read this before touching any schema, model, or migr
 - Existing records were migrated by `server/scripts/splitStudentNames.ts` (dry-run by default, idempotent, handles suffixes and surname particles, flags ambiguous names rather than guessing).
 - All four name fields are encrypted, so the **Sprint 26 random-IV rule applies: plaintext equality queries on them never match** — fetch and filter in JS.
 
-**STUDENT_IPTR** — iptr_id, student_id (FK), school_year (VARCHAR 20), created_at, isArchived, archivedAt, archivedBy
+**STUDENT_IPTR** — iptr_id, student_id (FK), school_year (VARCHAR 20), created_at, isArchived, archivedAt, archivedBy **Vitals added 2026-09-05, not in the original Chapter 3 ERD: temperature_c (FLOAT, Celsius, nullable), blood_pressure (VARCHAR, free text pair e.g. "110/70" — stored as one string because it is read and written as a pair and nothing queries systolic alone).**
 
 **MEDICAL_HISTORY** — medical_id, iptr_id (FK), allergies (TEXT), diabetes_mellitus (BOOLEAN), hypertension (BOOLEAN), cardiovascular_disease (BOOLEAN), thyroid_disorders (BOOLEAN), hepatitis_disorders (BOOLEAN), malignancy (BOOLEAN), previous_hospitalization (BOOLEAN), previous_surgical (BOOLEAN), blood_transfusion (BOOLEAN), tattoo (BOOLEAN), others (TEXT), created_at
 

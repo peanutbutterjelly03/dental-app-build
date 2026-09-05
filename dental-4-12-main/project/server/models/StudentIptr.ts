@@ -33,6 +33,13 @@ const studentIptrSchema = new mongoose.Schema(
     // recorded either, so no migration accompanies this.
     height_cm: { type: Number, default: null, min: 0, max: 300 },
     weight_kg: { type: Number, default: null, min: 0, max: 500 },
+    // Vitals recorded alongside height/weight at the screening (2026-09-05).
+    // Not in the original Chapter 3 ERD — same precedent as the DENTAL_CHART
+    // service fields. Temperature is CELSIUS; blood pressure stays a string
+    // because it is a pair ("110/70"), not a number, and splitting it into
+    // systolic/diastolic columns buys nothing this app ever queries on.
+    temperature_c: { type: Number, default: null, min: 0, max: 45 },
+    blood_pressure: { type: String, default: "" },
     // Consent must be renewed every school year, not given once for life —
     // a guardian's 2023 signature does not authorize treatment in 2026. It
     // used to live on STUDENT as a single lifetime flag; that's the same

@@ -68,6 +68,10 @@ export interface ApiStudentIptr {
   /** Measured for THIS school year. BMI is derived from them, never stored. */
   height_cm: number | null;
   weight_kg: number | null;
+  /** Celsius. */
+  temperature_c?: number | null;
+  /** Free text pair, e.g. "110/70". */
+  blood_pressure?: string;
   /** Consent for THIS school year — renewed annually, not a lifetime flag.
    *  Moved off STUDENT for the same reason grade_level did (see above): one
    *  signature does not authorize every year that follows it. */

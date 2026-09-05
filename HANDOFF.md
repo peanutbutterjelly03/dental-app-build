@@ -2,6 +2,20 @@
 
 **Compressed 2026-07-11 (hygiene pass).** Completed-sprint history → `docs/BUILD-LOG.md`; full pre-compression narratives → git history (`git show 73bc4e47:HANDOFF.md`). This file keeps only live state: current status, open work, warnings, and durable gotchas.
 
+## ⭐ CHARTING MODE + vitals + summary reverts (2026-09-05)
+- **CHARTING MODE — the sprint's real feature.** A full-screen surface for the one job the dentist actually repeats: chart a mouth, save, next child. Entered from "Charting Mode" in the year strip, left with Exit or **Escape**.
+  - **It is the chart tab's OWN container that goes full screen** (`fixed inset-0 z-[75] bg-canvas`), not a separate overlay component — so the chips, the palette and the odontogram are literally the same JSX in both states. A second copy would have drifted within a sprint.
+  - `z-[75]` sits over the nav rail (`z-[70]`) and the status strip (`z-[60]`). That IS "the nav bar de-expands": it is covered, so the full width belongs to the chart. No cross-component call into Root's `collapsed` state was needed.
+  - Sticky action bar keeps **Save** and **Next student** visible; body scroll is frozen and `overscroll-contain` stops the record behind from scroll-chaining on a trackpad.
+  - **Next student is GUARDED**: `editMode && isEditDirty()` opens "Save before moving on?" which saves and *then* navigates. It never silently discards — that is the one thing a continuous charting loop must not get wrong.
+  - **`focusModeMemo` (module scope) survives the remount.** `routes.tsx` keys DentalChart by `:id`, so without it the overlay would close on every "Next student" — which is the entire point of the feature. Same trick as `basicInfoExpandedMemo`; see that note for why.
+  - Summaries and the DMFT block are **hidden** in charting mode: they are a read-out of what was just typed, not an input. Charting mode also closes itself if the user switches tabs.
+- **STUDENT_IPTR gains `temperature_c` (Celsius) and `blood_pressure`.** BP is a STRING, not two numbers: it is read and written as a pair and nothing in the app queries systolic alone. Placeholders are worked examples (`e.g. 36.5`, `e.g. 110/70`) matching the height/weight fields. BMI and Nutritional Status now both read **"Automatic"** when empty.
+- **Reverts, on request:** the four-sided cell grid in the summaries is back to a bottom rule only (it read as a spreadsheet), and the summary dates are no longer bold.
+- **"B. Indicate Number" → "Indicate Number".**
+- **History's Others checkboxes** (Medical History, Dietary Habits) now use the same `border-gray-600` as the chart's, so a fake checkbox does not read lighter than the real ones beside it.
+- `npx tsc --noEmit` clean, `npm run build` clean; charting mode rendered against the built CSS — chips, codes and the full odontogram fit one 1200×760 screen with Save and Next pinned.
+
 ## DOH "B. Indicate Number" block added to the chart summaries (2026-09-05)
 - **"Summary of Dental Condition" → "Dental Condition Summary".**
 - **Section B of the paper IPTR is now rendered, verbatim rows and order**, from a photo of the form: Permanent Teeth Present / Permanent Sound / D / M / F / X / DMFX, then Temporary Present / Temporary Sound / d / f / x / dfx. Every figure is **derived from the odontogram** (`indicateNumberRows`) — none of it is typed, so it cannot disagree with the teeth above it.
