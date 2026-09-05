@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Mail, Lock, Eye, EyeOff, ShieldCheck, ArrowLeft } from 'lucide-react';
 import { apiClient, ApiError } from '../api/client';
 import { Notice } from './Notice';
+import { useOfflineQueue } from '../hooks/useOfflineQueue';
 
 type Step = 'credentials' | 'otp' | 'forgot' | 'forgot-sent';
 
@@ -17,6 +18,7 @@ export const Login = () => {
   // browser is the safer default. Ticking it restores the 7-day cookie.
   const [remember, setRemember] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { isOnline } = useOfflineQueue();
   const [submitting, setSubmitting] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const { login, verifyOtp } = useAuth();
@@ -136,6 +138,19 @@ export const Login = () => {
         </div>
 
         <h2 className="hidden lg:block text-lg font-bold text-foreground mb-3">Sign in</h2>
+
+        {/* Signing in is the one action that genuinely cannot work offline —
+            it needs the server to issue a token — so a failed attempt would
+            otherwise read as a wrong password. Shown only when offline: there
+            is no write queue on this screen, so a permanent "Online" chip
+            would be noise. */}
+        {!isOnline && (
+          <div className="mb-3">
+            <Notice variant="warning">
+              You're offline. Signing in needs a connection — reconnect and try again.
+            </Notice>
+          </div>
+        )}
 
         <div className="bg-white rounded-2xl shadow-xl p-5 border border-gray-100">
           {step === 'credentials' && (

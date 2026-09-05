@@ -321,7 +321,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, allSections }: {
 
           <p className="text-xs text-muted-foreground">
             <span className="font-medium text-foreground">{toApply.length}</span> of {rows.length} will get a {toYear} record.
-            Each also has their current grade and section updated. Existing years are remained.
+            Each also has their current grade and section updated. Existing years remain unchanged.
           </p>
         </>
       )}

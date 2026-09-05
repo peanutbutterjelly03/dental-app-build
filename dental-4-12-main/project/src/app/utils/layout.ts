@@ -6,4 +6,4 @@
 // the sidebar rail, the mobile header, the SyncStatus icon, and the IPTR
 // screen's sticky toolbar + tab strip all offset by this value. Shared as one
 // constant so those five call sites cannot drift apart.
-export const TOPBAR_H = 64;
+export const TOPBAR_H = 128;

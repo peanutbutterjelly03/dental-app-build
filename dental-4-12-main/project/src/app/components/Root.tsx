@@ -281,7 +281,7 @@ export const Root = () => {
           covering the first row of content. */}
       <div
         style={{ height: TOPBAR_H }}
-        className={`fixed top-0 right-0 left-0 ${collapsed ? 'md:left-[60px]' : 'md:left-[220px]'} z-[60] flex items-center justify-end gap-1.5 px-3 bg-card border-b border-border leading-none transition-[left] duration-200`}
+        className={`fixed top-0 right-0 left-0 ${collapsed ? 'md:left-[60px]' : 'md:left-[220px]'} z-[60] flex items-center justify-end gap-3 px-6 bg-card border-b border-border leading-none transition-[left] duration-200`}
       >
         {/* Two pills, no divider — the rings already separate them. The sync
             pill IS the affordance: clicking it opens the full panel, which is
@@ -293,7 +293,7 @@ export const Root = () => {
             color: stripSchool.solid,
             borderColor: stripSchool.border,
           }}
-          className="inline-flex items-center rounded-full border px-2.5 py-[3px] text-[13px] font-semibold leading-none truncate max-w-[45vw]"
+          className="inline-flex items-center rounded-full border px-5 py-[6px] text-[26px] font-semibold leading-none truncate max-w-[45vw]"
         >
           {selectedSchool ? getSchoolShortName(selectedSchool) : 'All Schools'}
         </span>
