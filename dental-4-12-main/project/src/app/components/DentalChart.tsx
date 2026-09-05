@@ -249,7 +249,12 @@ export const DentalChart = () => {
   type TabKey = 'history' | 'chart' | 'records' | 'treatments' | 'referrals' | 'ai';
   type IptrContext = 'default' | 'dental-queue' | 'risk' | 'treatment';
   const iptrContext = (searchParams.get('context') as IptrContext) || 'default';
-  const initialTab = (searchParams.get('tab') as TabKey) || 'history';
+  // Charting mode is session state, not URL state, so a jump to the next
+  // student has to land back on the CHART tab. Without this the remount opened
+  // on History, and the "close charting mode if the tab is not chart" effect
+  // then shut the overlay a beat later — the dentist ended up on the wrong tab
+  // of the next child every single time, which defeats the whole loop.
+  const initialTab = (searchParams.get('tab') as TabKey) || (focusModeMemo ? 'chart' : 'history');
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
   const allTabs: { key: TabKey; label: string }[] = [
     { key: 'history', label: 'History' },
@@ -1863,24 +1868,34 @@ export const DentalChart = () => {
           <div className={focusMode ? 'fixed inset-0 z-[75] bg-canvas overflow-y-auto overscroll-contain' : 'p-0 space-y-0'}>
             {focusMode && (
               <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-border bg-card px-4 py-2">
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-bold text-foreground truncate">{surnameFirst(student)}</div>
-                  {/* Grade and section as the SAME coloured pills the patient
-                      card uses, not plain text — charting mode is where a
-                      dentist confirms they are looking at the right child, and
-                      colour-by-grade is already the app's way of saying that. */}
-                  <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                    {yearGrade && <GradePill grade={yearGrade} />}
-                    {yearSection && (
-                      <span style={{ backgroundColor: gc.light, color: gc.solid }}
-                        className="rounded-full px-2 py-0.5 text-[10px] font-semibold">{yearSection}</span>
-                    )}
-                    <span className="text-[11px] text-muted-foreground">
-                      {currentYearData?.iptr.school_year}
-                      {examinationDate ? ` · ${examinationDate}` : ''}
-                      {navIndex >= 0 ? ` · ${navIndex + 1} of ${navList.length}` : ''}
+                {/* One line: name, then grade + section, then the year/date,
+                    then the position — separated by rules rather than stacked,
+                    so the whole identity reads left to right in a single pass.
+                    Grade and section keep the SAME coloured pills the patient
+                    card uses; charting mode is exactly where a dentist confirms
+                    they have the right child, and colour-by-grade is already
+                    this app's way of saying that rather than a new device. */}
+                <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span className="text-lg font-bold text-foreground truncate">{surnameFirst(student)}</span>
+                  {(yearGrade || yearSection) && (
+                    <span className="flex items-center gap-1.5">
+                      {yearGrade && <GradePill grade={yearGrade} />}
+                      {yearSection && (
+                        <span style={{ backgroundColor: gc.light, color: gc.solid }}
+                          className="rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap">{yearSection}</span>
+                      )}
                     </span>
-                  </div>
+                  )}
+                  <span className="h-4 w-px bg-border" aria-hidden="true" />
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    {currentYearData?.iptr.school_year}{examinationDate ? ` · ${examinationDate}` : ''}
+                  </span>
+                  {navIndex >= 0 && (
+                    <>
+                      <span className="h-4 w-px bg-border" aria-hidden="true" />
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">{navIndex + 1} of {navList.length}</span>
+                    </>
+                  )}
                 </div>
                 <div className="ml-auto flex items-center gap-2">
                   {canEditHistory && currentYearData && !editMode && (
