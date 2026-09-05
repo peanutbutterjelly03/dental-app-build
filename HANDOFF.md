@@ -2,6 +2,11 @@
 
 **Compressed 2026-07-11 (hygiene pass).** Completed-sprint history → `docs/BUILD-LOG.md`; full pre-compression narratives → git history (`git show 73bc4e47:HANDOFF.md`). This file keeps only live state: current status, open work, warnings, and durable gotchas.
 
+## Status strip raised to a half inch — 48px, pills untouched (2026-09-05)
+- **`TOPBAR_H` 24 → 48px, which is 1/2 inch exactly** (CSS `1in = 96px`). ONE constant changed; nothing else in this round.
+- **The pills were explicitly kept** — user said "i like the size of the online and the school one, keep it". Still `text-[13px]` / 19px tall, now with 14.5px clearance each side. This is the first round where the two dials were moved independently, which is the lesson from the 64px/128px overshoot recorded above: the container and the type are separate, and only the one named should move.
+- Measured against the built CSS: strip 48px, both pills 19px at 13px. `npx tsc --noEmit` clean, `npm run build` clean.
+
 ## Status strip settled at a quarter inch — 24px (2026-09-05)
 - **`TOPBAR_H` = 24px, and that is 1/4 inch exactly**: CSS defines `1in = 96px` regardless of the physical display, so the user's "maybe the container size is just like 1/4 inch" has a precise answer. Pills back to `text-[13px]` with `py-[2px]` = 19px tall, so they nearly fill the 24px bar (2.5px clearance each side).
 - **Why the two "double it" rounds overshot, so it is not repeated:** the ask was to double the CONTAINER, and both times the type was doubled alongside it (10→13→26px), which compounds — a 2× container with 2× type reads as ~4× and the 128px/26px version was bigger than the page `<h1>`. **The container and the type are separate dials. Change the one that was named.** The real complaint underneath was never "make everything bigger": it was that the pills floated in a bar far taller than they needed, i.e. the RATIO was wrong. Fixed by shrinking the bar to the contents, not by growing the contents.
