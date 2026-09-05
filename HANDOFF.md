@@ -2,6 +2,13 @@
 
 **Compressed 2026-07-11 (hygiene pass).** Completed-sprint history → `docs/BUILD-LOG.md`; full pre-compression narratives → git history (`git show 73bc4e47:HANDOFF.md`). This file keeps only live state: current status, open work, warnings, and durable gotchas.
 
+## Code buttons shrunk to small 12px boxes (2026-09-05)
+- **`aspect-square` was the actual cause of the height**, not the padding: in a stretched grid cell the height tracked the width, so a wide card produced 86px-tall boxes to hold two characters. Removed, and replaced with a fixed `h-9 w-[60px]`.
+- Grids changed from `grid grid-cols-5 justify-items-center` to `flex flex-wrap` for the same reason — a grid cell can stretch its child, a flex item with a fixed width cannot. All three palettes (common conditions, rare conditions, per-tooth treatments) use it.
+- Type `text-base` (16px) → `text-xs` (12px); corner `rounded-lg` → `rounded-md` to stay proportionate at the smaller size.
+- Measured against the built CSS: every button 60 × 36px with 12px type, down from 86 × 86.
+- `npx tsc --noEmit` clean, `npm run build` clean.
+
 ## Dental Chart tab rebuilt — per-tooth vs per-head-count split (2026-09-05)
 **This is the first change since the baseline was frozen.** Restore point unaffected: commit `176998c` + `docs/snapshots/DentalChart.baseline-2026-09-05.tsx.txt`.
 

@@ -1716,11 +1716,11 @@ export const DentalChart = () => {
                   {/* Code only — the words moved to the Legend. A dentist
                       charting knows D/d; the label was repeating it on every
                       button and forcing the type down to 9px to fit. */}
-                  <div className="grid gap-1.5 justify-items-center grid-cols-5">
+                  <div className="flex flex-wrap gap-1.5">
                     {commonConditionCodes.map((c) => (
                       <button key={c.code} title={c.label} onClick={() => { setSelectedCondition(selectedCondition === c.code ? null : c.code); setSelectedTreatment(null); }}
-                        className={`aspect-square w-full max-w-[86px] min-h-[48px] rounded-lg border text-center transition-all flex items-center justify-center ${selectedCondition === c.code ? 'bg-teal-600 text-white ring-2 ring-teal-300 border-teal-600' : 'bg-card border-border text-foreground hover:border-teal-400'}`}>
-                        <span className="text-base font-bold font-mono leading-none">{c.perm}/{c.temp}</span>
+                        className={`h-9 w-[60px] shrink-0 rounded-md border text-center transition-all flex items-center justify-center ${selectedCondition === c.code ? 'bg-teal-600 text-white ring-2 ring-teal-300 border-teal-600' : 'bg-card border-border text-foreground hover:border-teal-400'}`}>
+                        <span className="text-xs font-bold font-mono leading-none">{c.perm}/{c.temp}</span>
                       </button>
                     ))}
                   </div>
@@ -1732,11 +1732,11 @@ export const DentalChart = () => {
                     More conditions ({rareConditionCodes.length})
                   </button>
                   {rareConditionsOpen && (
-                    <div className="mt-2 grid gap-1.5 justify-items-center grid-cols-4">
+                    <div className="mt-2 flex flex-wrap gap-1.5">
                       {rareConditionCodes.map((c) => (
                         <button key={c.code} title={c.label} onClick={() => { setSelectedCondition(selectedCondition === c.code ? null : c.code); setSelectedTreatment(null); }}
-                          className={`aspect-square w-full max-w-[86px] min-h-[48px] rounded-lg border text-center transition-all flex items-center justify-center ${selectedCondition === c.code ? 'bg-teal-600 text-white ring-2 ring-teal-300 border-teal-600' : 'bg-card border-border text-foreground hover:border-teal-400'}`}>
-                          <span className="text-base font-bold font-mono leading-none">{c.perm}/{c.temp}</span>
+                          className={`h-9 w-[60px] shrink-0 rounded-md border text-center transition-all flex items-center justify-center ${selectedCondition === c.code ? 'bg-teal-600 text-white ring-2 ring-teal-300 border-teal-600' : 'bg-card border-border text-foreground hover:border-teal-400'}`}>
+                          <span className="text-xs font-bold font-mono leading-none">{c.perm}/{c.temp}</span>
                         </button>
                       ))}
                     </div>
@@ -1753,11 +1753,11 @@ export const DentalChart = () => {
                   <div className="text-sm font-semibold text-foreground mb-2 uppercase tracking-wide">Treatment Codes</div>
                   {/* Only the five treatments that happen TO A TOOTH. Code
                       only; the Legend carries the words and the local terms. */}
-                  <div className="grid gap-1.5 justify-items-center grid-cols-5">
+                  <div className="flex flex-wrap gap-1.5">
                     {toothTreatmentCodes.map((t) => (
                       <button key={t.code} title={treatmentLabel(t)} onClick={() => { setSelectedTreatment(selectedTreatment === t.code ? null : t.code); setSelectedCondition(null); }}
-                        className={`aspect-square w-full max-w-[86px] min-h-[48px] rounded-lg border text-center transition-all flex items-center justify-center ${selectedTreatment === t.code ? 'bg-blue-600 text-white ring-2 ring-blue-300 border-blue-600' : 'bg-card border-border text-foreground hover:border-blue-400'}`}>
-                        <span className="text-base font-bold font-mono leading-none">{t.code}</span>
+                        className={`h-9 w-[60px] shrink-0 rounded-md border text-center transition-all flex items-center justify-center ${selectedTreatment === t.code ? 'bg-blue-600 text-white ring-2 ring-blue-300 border-blue-600' : 'bg-card border-border text-foreground hover:border-blue-400'}`}>
+                        <span className="text-xs font-bold font-mono leading-none">{t.code}</span>
                       </button>
                     ))}
                   </div>
