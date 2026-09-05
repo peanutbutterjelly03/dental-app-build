@@ -1461,6 +1461,19 @@ export const DentalChart = () => {
               })}
               </div>
               </div>
+              {/* Legend rides in the year strip, immediately before the 3-dot
+                  menu — it had its own full-width row above the card, which
+                  cost a whole band of vertical space for one button. Filled
+                  red: with the words gone from the code buttons this dialog is
+                  the only way to decode them, so it must be findable. Chart tab
+                  only; the other tabs have no codes to decode. */}
+              {activeTab === 'chart' && (
+                <button type="button" onClick={() => setLegendOpen(true)}
+                  className="flex-shrink-0 mb-1 mr-2 inline-flex items-center gap-1.5 rounded-lg bg-destructive px-3 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:opacity-90">
+                  <FileText className="w-3.5 h-3.5" /> Legend
+                </button>
+              )}
+
               {/* 3-dot year menu — replaces the old "Edit Years" toggle +
                   per-row trash icon. Add/Edit/Delete all act on the
                   currently SELECTED year tab and are all password-gated
@@ -1575,19 +1588,6 @@ export const DentalChart = () => {
               <span className="text-xs font-medium text-foreground">Consent has been obtained (Nakumpleto na ang pahintulot)</span>
             </label>
           )}
-        </div>
-      )}
-
-      {/* Legend sits OUTSIDE the tab card, above it — inside, it claimed a
-          whole row of the card's own padding for one button. Filled red: with
-          the words gone from the code buttons this dialog is the only way to
-          decode them, so it has to be findable at a glance. */}
-      {activeTab === 'chart' && years.length > 0 && (
-        <div className="flex justify-end">
-          <button type="button" onClick={() => setLegendOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-destructive px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:opacity-90">
-            <FileText className="w-3.5 h-3.5" /> Legend
-          </button>
         </div>
       )}
 
@@ -1761,10 +1761,14 @@ export const DentalChart = () => {
                 Conditions follow `editingHistory` (dentist + aide); services
                 follow `editingChart`, matching the codes they replaced.
 
-                Two groups STACKED full width rather than side by side, so each
-                fits three chips per row on a desktop as asked — two half-width
-                columns cannot do that without wrapping "Periodontal Disease". */}
-            <div className="bg-card rounded-xl border border-border p-4 space-y-4">
+                Back to two columns SIDE BY SIDE (they were briefly stacked to
+                fit three chips per row): stacked, this card alone ran most of a
+                screen. Side by side halves that, and the chip grid keeps
+                `2xl:grid-cols-3` so the three-per-row layout still appears once
+                a column is genuinely wide enough — at laptop width a half
+                column cannot hold three without wrapping "Periodontal
+                Disease", so it settles at two. */}
+            <div className="bg-card rounded-xl border border-border p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className={editingHistory ? '' : 'opacity-60 pointer-events-none select-none'}>
                 <div className="flex flex-wrap items-center gap-3 mb-2">
                   <div className="text-sm font-bold text-primary uppercase tracking-wide">Oral Conditions</div>
@@ -1775,7 +1779,7 @@ export const DentalChart = () => {
                       className="border border-border rounded px-2 py-1 text-xs bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
                   </label>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-2">
                   {oralConditionChips.map(({ label, field }) => (
                     <label key={field}
                       className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs cursor-pointer transition-colors ${draftOral[field] ? 'border-primary bg-primary-surface text-primary font-medium' : 'border-blue-200 text-foreground hover:bg-canvas'}`}>
@@ -1803,7 +1807,7 @@ export const DentalChart = () => {
                 )}
               </div>
 
-              <div className={`border-t border-border pt-4 ${editingChart ? '' : 'opacity-60 pointer-events-none select-none'}`}>
+              <div className={`border-t border-border pt-4 lg:border-t-0 lg:pt-0 lg:border-l lg:border-border lg:pl-4 ${editingChart ? '' : 'opacity-60 pointer-events-none select-none'}`}>
                 <div className="flex flex-wrap items-center gap-3 mb-2">
                   <div className="text-sm font-bold text-primary uppercase tracking-wide">Treatments Given</div>
                   <label className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -1813,7 +1817,7 @@ export const DentalChart = () => {
                       className="border border-border rounded px-2 py-1 text-xs bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
                   </label>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-2">
                   {serviceChips.map(({ label, field }) => (
                     <label key={field}
                       className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs cursor-pointer transition-colors ${draftServices[field] ? 'border-primary bg-primary-surface text-primary font-medium' : 'border-blue-200 text-foreground hover:bg-canvas'}`}>
@@ -2006,34 +2010,42 @@ export const DentalChart = () => {
                 chart already states, and a hand-ticked second source could
                 contradict the teeth drawn above it.
 
-                All three tables share ONE column geometry — `w-[260px]` label,
-                `w-[90px]` value — so the Yes column lands on the same x in every
+                All three tables share ONE column geometry — `w-[220px]` label,
+                `w-[84px]` value — so the Yes column lands on the same x in every
                 table. `table-fixed` with explicit widths is what makes that hold;
                 content-sized columns drifted per table and read as sloppy. The
                 two cards are tinted differently (teal = conditions, blue =
                 treatments) to match the palette colours each one summarises. */}
+            {/* Side by side: each summary is a narrow two-column table, so on
+                its own it left most of the card empty. The shared column
+                geometry below is retuned for HALF width (220/84 rather than
+                260/90) so the value column still lands on the same x in all
+                three tables without any of them overflowing. Measured, not
+                guessed: at 180/70 the date wrapped to two lines and "PFS Pit
+                and Fissure Sealant" broke mid-label. */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
             <div className="bg-teal-50/70 rounded-xl border border-teal-200 p-4">
               <div className="text-xs font-semibold text-teal-800 mb-3 uppercase tracking-wide">Summary of Dental Condition</div>
               <div className="overflow-x-auto">
                 <table className="table-fixed border-collapse text-xs">
                   <tbody>
                     <tr className="border-b border-teal-200/70">
-                      <td className="w-[260px] py-1.5 pr-4 text-foreground">Date of Oral Examination</td>
-                      <td className="w-[90px] py-1.5 font-semibold text-foreground">{examinationDate}</td>
+                      <td className="w-[220px] py-1.5 pr-4 text-foreground">Date of Oral Examination</td>
+                      <td className="w-[84px] py-1.5 font-semibold text-foreground">{examinationDate}</td>
                     </tr>
                     {/* Highlighted: the single headline answer a DOH screening asks. */}
                     <tr className={`border-b border-teal-200/70 ${isOrallyFit ? 'bg-success-surface' : ''}`}>
-                      <td className={`w-[260px] py-1.5 pr-4 ${isOrallyFit ? 'font-bold text-success' : 'text-foreground'}`}>Orally Fit Child</td>
-                      <td className={`w-[90px] py-1.5 font-bold ${isOrallyFit ? 'text-success' : 'text-muted-foreground'}`}>{isOrallyFit ? 'Yes' : '—'}</td>
+                      <td className={`w-[220px] py-1.5 pr-4 ${isOrallyFit ? 'font-bold text-success' : 'text-foreground'}`}>Orally Fit Child</td>
+                      <td className={`w-[84px] py-1.5 font-bold ${isOrallyFit ? 'text-success' : 'text-muted-foreground'}`}>{isOrallyFit ? 'Yes' : '—'}</td>
                     </tr>
                     {presentOralConditions.map(({ label, present }) => (
                       <tr key={label} className="border-b border-teal-200/70 last:border-b-0">
-                        <td className="w-[260px] py-1.5 pr-4 text-foreground">{label}</td>
-                        <td className={`w-[90px] py-1.5 font-semibold ${present ? 'text-success' : 'text-muted-foreground'}`}>{present ? 'Yes' : '—'}</td>
+                        <td className="w-[220px] py-1.5 pr-4 text-foreground">{label}</td>
+                        <td className={`w-[84px] py-1.5 font-semibold ${present ? 'text-success' : 'text-muted-foreground'}`}>{present ? 'Yes' : '—'}</td>
                       </tr>
                     ))}
                     <tr>
-                      <td className="w-[260px] py-1.5 pr-4 text-foreground">Others</td>
+                      <td className="w-[220px] py-1.5 pr-4 text-foreground">Others</td>
                       <td className={`py-1.5 font-semibold ${draftOral.others.trim() ? 'text-success' : 'text-muted-foreground'}`}>
                         {draftOral.others.trim() || '—'}
                       </td>
@@ -2055,17 +2067,17 @@ export const DentalChart = () => {
                   <table className="table-fixed border-collapse text-xs">
                     <tbody>
                       <tr className="border-b border-blue-200/70">
-                        <td className="w-[260px] py-1.5 pr-4 text-foreground">Date of Treatment</td>
-                        <td className="w-[90px] py-1.5 font-semibold text-foreground">{treatmentDate}</td>
+                        <td className="w-[220px] py-1.5 pr-4 text-foreground">Date of Treatment</td>
+                        <td className="w-[84px] py-1.5 font-semibold text-foreground">{treatmentDate}</td>
                       </tr>
                       {serviceChips.map(({ label, field }) => (
                         <tr key={field} className="border-b border-blue-200/70">
-                          <td className="w-[260px] py-1.5 pr-4 text-foreground">{label}</td>
-                          <td className={`w-[90px] py-1.5 font-semibold ${draftServices[field] ? 'text-success' : 'text-muted-foreground'}`}>{draftServices[field] ? 'Yes' : '—'}</td>
+                          <td className="w-[220px] py-1.5 pr-4 text-foreground">{label}</td>
+                          <td className={`w-[84px] py-1.5 font-semibold ${draftServices[field] ? 'text-success' : 'text-muted-foreground'}`}>{draftServices[field] ? 'Yes' : '—'}</td>
                         </tr>
                       ))}
                       <tr>
-                        <td className="w-[260px] py-1.5 pr-4 text-foreground">Others</td>
+                        <td className="w-[220px] py-1.5 pr-4 text-foreground">Others</td>
                         <td className={`py-1.5 font-semibold ${draftServices.others.trim() ? 'text-success' : 'text-muted-foreground'}`}>
                           {draftServices.others.trim() || '—'}
                         </td>
@@ -2079,8 +2091,8 @@ export const DentalChart = () => {
                 <table className="table-fixed border-collapse text-xs">
                   <thead>
                     <tr className="border-b border-blue-300 text-left text-muted-foreground">
-                      <th className="w-[260px] py-1.5 pr-4 font-semibold">Treatment</th>
-                      <th className="w-[90px] py-1.5 font-semibold">Given</th>
+                      <th className="w-[220px] py-1.5 pr-4 font-semibold">Treatment</th>
+                      <th className="w-[84px] py-1.5 font-semibold">Given</th>
                       <th className="py-1.5 font-semibold whitespace-nowrap">Tooth numbers</th>
                     </tr>
                   </thead>
@@ -2089,10 +2101,10 @@ export const DentalChart = () => {
                       const teeth = teethByTreatment[t.code] ?? [];
                       return (
                         <tr key={t.code} className="border-b border-blue-200/70 last:border-b-0">
-                          <td className="w-[260px] py-1.5 pr-4 text-foreground">
+                          <td className="w-[220px] py-1.5 pr-4 text-foreground">
                             <span className="font-mono font-bold mr-2">{t.code}</span>{t.label}
                           </td>
-                          <td className={`w-[90px] py-1.5 font-semibold ${teeth.length ? 'text-success' : 'text-muted-foreground'}`}>{teeth.length ? 'Yes' : '—'}</td>
+                          <td className={`w-[84px] py-1.5 font-semibold ${teeth.length ? 'text-success' : 'text-muted-foreground'}`}>{teeth.length ? 'Yes' : '—'}</td>
                           <td className="py-1.5 font-mono text-foreground">{teeth.length ? teeth.join(', ') : '—'}</td>
                         </tr>
                       );
@@ -2100,6 +2112,7 @@ export const DentalChart = () => {
                   </tbody>
                 </table>
               </div>
+            </div>
             </div>
             </div>
           </div>

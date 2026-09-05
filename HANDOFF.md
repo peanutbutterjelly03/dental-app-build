@@ -2,6 +2,14 @@
 
 **Compressed 2026-07-11 (hygiene pass).** Completed-sprint history → `docs/BUILD-LOG.md`; full pre-compression narratives → git history (`git show 73bc4e47:HANDOFF.md`). This file keeps only live state: current status, open work, warnings, and durable gotchas.
 
+## Chart tab compacted — three side-by-side pairs (2026-09-05)
+- **Chips back to two columns side by side.** They were stacked last round specifically to fit three per row; stacked, that one card ran most of a screen. The grid keeps `sm:grid-cols-2 2xl:grid-cols-3`, so three-per-row still appears once a column is genuinely wide enough — at laptop width a half column cannot hold three without wrapping "Periodontal Disease", so it settles at two. **These two asks are in direct tension; vertical space won.**
+- **Legend moved into the year-strip row, immediately before the 3-dot menu.** It previously owned a full-width row above the tab card — a whole horizontal band for one button. Chart tab only.
+- **The two summaries are side by side.** Each is a narrow two-column table, so alone each left most of its card empty.
+- **Shared column geometry retuned 260/90 → 220/84** for half-width cards. First attempt at 180/70 was too tight and was caught by measuring, not by eye: the date wrapped to two lines and "PFS Pit and Fissure Sealant" broke mid-label. Verified after: every table cell reports one distinct height (nothing wraps) and every value column sits at the same 237px offset **within its own card**, which is what alignment means once the cards are in different screen positions.
+- ⚠ **Harness gotcha:** the Playwright mock-up links `dist/assets/index-<hash>.css`, and the hash changes on every rebuild — a stale link silently renders an unstyled page that looks like a catastrophic layout regression. Re-point the href after any rebuild before trusting a screenshot.
+- `npx tsc --noEmit` clean, `npm run build` clean.
+
 ## Chart tab: two dates, chips-first, aligned two-tone summaries (2026-09-05)
 - **DENTAL_CHART gains `date_treated`** (nullable). A screening and the treatment that follows it are routinely different visits, and one shared `date_charted` forced the chart to claim they were the same day. `date_charted` is now explicitly the CONDITIONS date; null `date_treated` means findings recorded with nothing done yet. `DATA-MODEL.md` updated — Chapter 3 needs the same note.
 - **Both dates are editable `<input type="date">` and auto-stamp on first mark.** `stampDate()` fills a date only when it is EMPTY and never overwrites — silently resetting a date the clinician typed would be worse than leaving it blank. Condition clicks + oral-condition chips stamp `dateCharted`; treatment clicks + service chips stamp `dateTreated`. Both flow into the summaries from the DRAFT, so an edit shows before saving.
