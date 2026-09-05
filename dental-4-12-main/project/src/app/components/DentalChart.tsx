@@ -474,10 +474,12 @@ export const DentalChart = () => {
   // draft stops the jump and asks first, which is the one thing a continuous
   // charting loop must not get wrong.
   const goToStudent = (studentId: string) => navigate(`/dental-chart/${studentId}`);
-  const requestNextStudent = () => {
-    if (!nextPatient) return;
-    if (editMode && isEditDirty()) setPendingNextStudent(nextPatient.id);
-    else goToStudent(nextPatient.id);
+  // Generalised over direction — the guard is identical going back, and having
+  // Previous skip it would be the one hole in "never lose an unsaved chart".
+  const requestStudentJump = (target: { id: string } | null) => {
+    if (!target) return;
+    if (editMode && isEditDirty()) setPendingNextStudent(target.id);
+    else goToStudent(target.id);
   };
 
   const editingChart = canEdit && editMode;
@@ -1861,10 +1863,23 @@ export const DentalChart = () => {
           <div className={focusMode ? 'fixed inset-0 z-[75] bg-canvas overflow-y-auto overscroll-contain' : 'p-0 space-y-0'}>
             {focusMode && (
               <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-border bg-card px-4 py-2">
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <div className="text-sm font-bold text-foreground truncate">{surnameFirst(student)}</div>
-                  <div className="text-[11px] text-muted-foreground">
-                    {currentYearData?.iptr.school_year}{navIndex >= 0 ? ` · ${navIndex + 1} of ${navList.length}` : ''}
+                  {/* Grade and section as the SAME coloured pills the patient
+                      card uses, not plain text — charting mode is where a
+                      dentist confirms they are looking at the right child, and
+                      colour-by-grade is already the app's way of saying that. */}
+                  <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                    {yearGrade && <GradePill grade={yearGrade} />}
+                    {yearSection && (
+                      <span style={{ backgroundColor: gc.light, color: gc.solid }}
+                        className="rounded-full px-2 py-0.5 text-[10px] font-semibold">{yearSection}</span>
+                    )}
+                    <span className="text-[11px] text-muted-foreground">
+                      {currentYearData?.iptr.school_year}
+                      {examinationDate ? ` · ${examinationDate}` : ''}
+                      {navIndex >= 0 ? ` · ${navIndex + 1} of ${navList.length}` : ''}
+                    </span>
                   </div>
                 </div>
                 <div className="ml-auto flex items-center gap-2">
@@ -1882,14 +1897,22 @@ export const DentalChart = () => {
                     </button>
                   )}
                   {/* The continuous-charting loop: finish this mouth, step to
-                      the next. Guarded — see requestNextStudent. */}
-                  <button onClick={requestNextStudent} disabled={!nextPatient}
-                    title={nextPatient ? `Next: ${nextPatient.name}` : 'Last student in this list'}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-primary bg-primary-surface px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary hover:text-white disabled:opacity-40 disabled:pointer-events-none">
-                    Next student
-                    {nextPatient && <span className="max-w-[90px] truncate font-normal">· {nextPatient.lastName || nextPatient.name}</span>}
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
+                      the next — or back, when the last one needs another look.
+                      Both guarded; see requestStudentJump. */}
+                  <div className="flex items-center rounded-lg border border-primary overflow-hidden">
+                    <button onClick={() => requestStudentJump(prevPatient)} disabled={!prevPatient}
+                      title={prevPatient ? `Previous: ${prevPatient.name}` : 'First student in this list'}
+                      className="inline-flex items-center gap-1 border-r border-primary/40 bg-primary-surface px-2.5 py-1.5 text-xs font-semibold text-primary hover:bg-primary hover:text-white disabled:opacity-40 disabled:pointer-events-none">
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                      {prevPatient && <span className="max-w-[80px] truncate font-normal">{prevPatient.lastName || prevPatient.name}</span>}
+                    </button>
+                    <button onClick={() => requestStudentJump(nextPatient)} disabled={!nextPatient}
+                      title={nextPatient ? `Next: ${nextPatient.name}` : 'Last student in this list'}
+                      className="inline-flex items-center gap-1 bg-primary-surface px-2.5 py-1.5 text-xs font-semibold text-primary hover:bg-primary hover:text-white disabled:opacity-40 disabled:pointer-events-none">
+                      {nextPatient && <span className="max-w-[80px] truncate font-normal">{nextPatient.lastName || nextPatient.name}</span>}
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                   <button onClick={() => setFocusMode(false)} title="Exit charting mode (Esc)"
                     className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted">
                     <Minimize2 className="w-3.5 h-3.5" /> Exit
@@ -2043,7 +2066,7 @@ export const DentalChart = () => {
                     const c = conditionCodes.find((x) => x.code === selectedCondition);
                     return (
                       <div className="mt-3 flex items-center gap-2">
-                        <span className="text-xs font-semibold px-3 py-1 rounded-full bg-teal-100 text-teal-800">
+                        <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-teal-100 text-teal-800">
                           Applying: {c?.perm}/{c?.temp} ({c?.label}). Click teeth to apply.
                         </span>
                         <button onClick={() => setSelectedCondition(null)} className="text-xs text-muted-foreground hover:text-foreground underline">Clear</button>
@@ -2093,7 +2116,7 @@ export const DentalChart = () => {
                     const t = toothTreatmentCodes.find((x) => x.code === selectedTreatment);
                     return (
                       <div className="mt-3 flex items-center gap-2">
-                        <span className="text-xs font-semibold px-3 py-1 rounded-full bg-blue-100 text-blue-800">
+                        <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-blue-100 text-blue-800">
                           Applying: {selectedTreatment} ({t?.label}). Click teeth to apply.
                         </span>
                         <button onClick={() => setSelectedTreatment(null)} className="text-xs text-muted-foreground hover:text-foreground underline">Clear</button>
@@ -2257,12 +2280,12 @@ export const DentalChart = () => {
                     {serviceChips.map(({ label, field }) => (
                       <tr key={field}>
                         <td className="border-b border-blue-200/70 px-2 py-1.5 text-foreground">{label}</td>
-                        <td className="border-b border-blue-200/70 px-2 py-1.5 font-semibold text-success" colSpan={2}>{draftServices[field] ? 'Yes' : ''}</td>
+                        <td className="border-b border-blue-200/70 px-2 py-1.5 font-semibold text-primary" colSpan={2}>{draftServices[field] ? 'Yes' : ''}</td>
                       </tr>
                     ))}
                     <tr>
                       <td className="border-b border-blue-200/70 px-2 py-1.5 text-foreground">Others</td>
-                      <td className="border-b border-blue-200/70 px-2 py-1.5 font-semibold text-success break-words" colSpan={2}>{draftServices.others.trim()}</td>
+                      <td className="border-b border-blue-200/70 px-2 py-1.5 font-semibold text-primary break-words" colSpan={2}>{draftServices.others.trim()}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -2530,7 +2553,7 @@ export const DentalChart = () => {
       <ConfirmDialog
         open={pendingNextStudent !== null}
         title="Save before moving on?"
-        message="This chart has changes that have not been saved. Move to the next student and they are lost."
+        message="This chart has changes that have not been saved. Move to another student and they are lost."
         confirmLabel="Save and continue"
         cancelLabel="Stay here"
         onCancel={() => setPendingNextStudent(null)}

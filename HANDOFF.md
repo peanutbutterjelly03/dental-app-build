@@ -2,6 +2,13 @@
 
 **Compressed 2026-07-11 (hygiene pass).** Completed-sprint history → `docs/BUILD-LOG.md`; full pre-compression narratives → git history (`git show 73bc4e47:HANDOFF.md`). This file keeps only live state: current status, open work, warnings, and durable gotchas.
 
+## Charting-mode header + treatment Yes in blue (2026-09-05)
+- **Treatment summary's "Yes" is `text-primary`, not `text-success`.** Green is the condition card's language; the treatment card is blue everywhere else (palette, chips, borders) and a green Yes inside it read as a stray. The condition summary keeps green. Only the two service-answer cells changed — the per-tooth Tooth Count stays `text-foreground` because a count is not an answer.
+- **Charting-mode header now identifies the child properly:** grade and section as the SAME coloured pills the patient card uses (`GradePill` + the grade colour for the section), then school year · examination date · position in the list. Charting mode is exactly where a dentist confirms they are looking at the right mouth, and colour-by-grade is already how this app says that — not a new device. Name block got `flex-1` so it stops truncating before it has to.
+- **Previous student added beside Next**, as one segmented control. `requestNextStudent` generalised to **`requestStudentJump(target)`** — the unsaved-changes guard is identical in both directions, and letting Previous skip it would have been the single hole in "never lose an unsaved chart". Dialog copy went direction-neutral.
+- **"Applying: …" banners dropped to `text-[11px]`** (from `text-xs`) on both palettes.
+- `npx tsc --noEmit` clean, `npm run build` clean, rendered against the built CSS.
+
 ## ⭐ CHARTING MODE + vitals + summary reverts (2026-09-05)
 - **CHARTING MODE — the sprint's real feature.** A full-screen surface for the one job the dentist actually repeats: chart a mouth, save, next child. Entered from "Charting Mode" in the year strip, left with Exit or **Escape**.
   - **It is the chart tab's OWN container that goes full screen** (`fixed inset-0 z-[75] bg-canvas`), not a separate overlay component — so the chips, the palette and the odontogram are literally the same JSX in both states. A second copy would have drifted within a sprint.
