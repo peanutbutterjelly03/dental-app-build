@@ -87,6 +87,8 @@ export interface ApiDentalChart {
   iptr_id: string;
   dentist_id: string;
   date_charted: string;
+  /** Date treatment was given — a separate visit from the examination. */
+  date_treated?: string | null;
   /** Per-VISIT services — one per head, not one per tooth. Added 2026-09-05;
    *  optional because charts created before then have no value stored. */
   oral_examination?: boolean;
