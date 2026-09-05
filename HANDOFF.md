@@ -2,6 +2,25 @@
 
 **Compressed 2026-07-11 (hygiene pass).** Completed-sprint history → `docs/BUILD-LOG.md`; full pre-compression narratives → git history (`git show 73bc4e47:HANDOFF.md`). This file keeps only live state: current status, open work, warnings, and durable gotchas.
 
+## ⭐ DENTAL CHART BASELINE TAGGED — `dental-chart-baseline-2026-09-05` (2026-09-05)
+**The user asked for a restore point before doing major work on the Dental Chart tab, and said they will ask for it back by voice — "go back to the version before I made changes in the dental charting tab" — however many rounds later.** This section is how that request gets honoured. Do not delete it.
+
+- **The restore point is an annotated git tag on commit `67a9087`: `dental-chart-baseline-2026-09-05`.** Pushed to `origin`, so it survives any container, any number of later commits, and any amount of history on top. A tag is immutable — later commits cannot move it.
+- **To restore, when the user asks:**
+  ```
+  git checkout dental-chart-baseline-2026-09-05 -- dental-4-12-main/project/src/app/components/DentalChart.tsx
+  ```
+  Then `npx tsc --noEmit` + `npm run build` before committing — a file from an older commit can reference props or helpers that later work removed.
+- **⚠ READ THIS BEFORE RESTORING — `DentalChart.tsx` is ONE file holding ALL SIX tabs**, not just the chart. The command above reverts History, Dental Chart, Caries Risk Assessment, Treatment History, DMFT History and Referrals together. If later rounds also changed a sibling tab, a whole-file restore silently throws that away too. **Check first:** `git diff dental-chart-baseline-2026-09-05 -- <that file>`; if the diff touches anything outside the `{/* ── TAB 2: Dental Chart ── */}` block, restore by hand from the tag's copy instead of checking the whole file out. The section markers (`── TAB 1:` … `── TAB 7:`) are what to navigate by, never line numbers.
+- **Scope of "the dental charting tab":** the odontogram grid, the condition/treatment palette, `Clear All Conditions`/`Clear All Treatments`, and the auto-computed `DMFT / dmft SCORES` block — all inside the TAB 2 block of `DentalChart.tsx`. `computeDMFT` and `treatmentCodes` also live in that file. `hooks/useDentalChartData.ts` (data fetch) and `components/DentalChartNav.tsx` (the list page that links into it) are SEPARATE files and are NOT covered by the command above — include them explicitly if a later change touched them.
+- Baseline state, so it is recognisable: six tabs on one line in a scrolling strip, active tab bold blue with an underline and no fill, no card shadow; the odontogram is four rows of outlined tooth boxes (55-65 / 18-28 / 48-38 / 85-75) split by a dashed midline; year chips sit under the tab strip with DMFT and date.
+
+## Nav rail raised above the status strip; toasts moved clear of it (2026-09-05)
+- **The sidebar's collapse toggle was unclickable.** It is `absolute -right-3 top-5`, so it deliberately pokes 12px past the rail into the strip's horizontal range and sits at y 20-44px — entirely inside the 48px strip. `<aside>` was `z-50`, the strip `z-[60]`, so the strip painted over it. **Raising the button's own z-index cannot fix this:** the aside's z-index makes it a stacking context, so a child can never escape its parent's layer. The RAIL had to win → `z-50` → `z-[70]`. It does not overlap the strip anywhere else, so nothing is hidden in return. Verified with `elementFromPoint` at the button's centre: it returns the button, not the strip.
+- **Same bug, found while fixing it: toasts.** `Toast.tsx` was `fixed top-4 z-50`, centred — i.e. underneath the same strip. Now `top: TOPBAR_H + 8` at `z-[80]`. Transient feedback must beat all page chrome.
+- **Current z-order, top to bottom:** native `<dialog>` (browser top layer) → toasts `z-[80]` → nav rail `z-[70]` → status strip `z-[60]` → IPTR sticky toolbar `z-40` / drawer backdrop `z-40` → IPTR tab strip `z-30` / mobile header `z-30`. Anything new that pins to the viewport has to be placed in this list deliberately.
+- `npx tsc --noEmit` clean, `npm run build` clean.
+
 ## Status strip raised to a half inch — 48px, pills untouched (2026-09-05)
 - **`TOPBAR_H` 24 → 48px, which is 1/2 inch exactly** (CSS `1in = 96px`). ONE constant changed; nothing else in this round.
 - **The pills were explicitly kept** — user said "i like the size of the online and the school one, keep it". Still `text-[13px]` / 19px tall, now with 14.5px clearance each side. This is the first round where the two dials were moved independently, which is the lesson from the 64px/128px overshoot recorded above: the container and the type are separate, and only the one named should move.

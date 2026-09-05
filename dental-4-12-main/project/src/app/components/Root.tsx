@@ -335,7 +335,15 @@ export const Root = () => {
       <aside
         ref={drawerRef}
         id="main-nav"
-        className={`bg-card border-r border-border flex flex-col fixed left-0 top-0 h-screen z-50
+        // z-[70], ABOVE the status strip's z-[60]. The collapse toggle inside is
+        // `absolute -right-3 top-5`, so it deliberately pokes 12px past the rail
+        // into the strip's horizontal range and sits at y 20-44px, inside the
+        // 48px strip — at z-50 the strip painted straight over it and the button
+        // could not be clicked. z-index on the button itself cannot fix this:
+        // this aside's own z-index makes it a stacking context, so a child can
+        // never escape it. The rail has to win, and it does not overlap the
+        // strip anywhere else.
+        className={`bg-card border-r border-border flex flex-col fixed left-0 top-0 h-screen z-[70]
           w-[280px] transition-transform duration-200
           ${drawerOpen ? 'translate-x-0 visible' : '-translate-x-full invisible'}
           md:visible md:translate-x-0 md:transition-[width]
