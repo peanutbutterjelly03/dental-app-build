@@ -2,6 +2,18 @@
 
 **Compressed 2026-07-11 (hygiene pass).** Completed-sprint history → `docs/BUILD-LOG.md`; full pre-compression narratives → git history (`git show 73bc4e47:HANDOFF.md`). This file keeps only live state: current status, open work, warnings, and durable gotchas.
 
+## DOH "B. Indicate Number" block added to the chart summaries (2026-09-05)
+- **"Summary of Dental Condition" → "Dental Condition Summary".**
+- **Section B of the paper IPTR is now rendered, verbatim rows and order**, from a photo of the form: Permanent Teeth Present / Permanent Sound / D / M / F / X / DMFX, then Temporary Present / Temporary Sound / d / f / x / dfx. Every figure is **derived from the odontogram** (`indicateNumberRows`) — none of it is typed, so it cannot disagree with the teeth above it.
+- **Two readings of the form worth not re-deriving:**
+  · **"Present" EXCLUDES missing and unerupted** (`M`/`Un`, `m`/`un`). A tooth that is not in the mouth cannot be counted as present.
+  · The temporary block is **"dfx", not "dmfx", and the form has NO "missing (m)" row** — primary teeth exfoliate naturally, so a missing one is not a caries outcome. Followed exactly rather than "corrected" to match the permanent block.
+- **Both summaries now carry Tooth Count + Tooth Numbers.** The treatment per-tooth table's "Given" column became "Tooth Count" (the count answers "given?" implicitly and says how many). All four tables share the 45/18/37 geometry, so the middle column is on one axis throughout.
+- **Every cell bordered on all four sides** (`border border-teal-200` / `border-blue-200`) instead of row-only rules — these are the DOH form's tables and that form is a ruled grid; underlines left the count and tooth-number columns visually unbounded.
+- **IPTR page header untinted:** `bg-gray-50` → `bg-canvas`. It is sticky so it MUST stay opaque or scrolled content shows through; matching the page background makes the fill invisible without breaking that.
+- Verified against the built CSS: both cards 792px (equal height).
+- `npx tsc --noEmit` clean, `npm run build` clean.
+
 ## Summary column distribution + per-column Applying banner (2026-09-05)
 - **The "Applying: …" banner now lives under the palette it came from.** It was one banner at the bottom of the whole blue card, so picking a treatment on the RIGHT lit a message on the far LEFT. Split into two, each with its own Clear. The "No code selected · click teeth to clear" variant is gone with it — it only ever rendered inside a `selectedCondition || selectedTreatment` guard, so it was dead markup that could never display.
 - **Column widths are PERCENTAGES now, not fixed px.** Fixed 220/84 left a ragged empty strip on the right of a card whose width varies with the viewport. Conditions = plain yes/no → `50/50`. Treatments = `45/18/37`; the middle column only ever holds "Yes" or a date, so everything it does not need goes to the label and the tooth numbers. **The whole-mouth table declares the SAME three columns** (empty third cell, `colSpan` on the two date/Others rows) so its value column lands under "Given" instead of on its own axis.

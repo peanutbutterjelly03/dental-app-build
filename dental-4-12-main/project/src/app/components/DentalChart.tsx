@@ -957,6 +957,43 @@ export const DentalChart = () => {
   const stampDate = (which: 'dateCharted' | 'dateTreated') =>
     setDraftServices((prev) => (prev[which] ? prev : { ...prev, [which]: toLocalDateString(new Date()) }));
 
+  // DOH IPTR section "B. Indicate Number", computed from the odontogram — the
+  // paper form's exact rows, in the paper form's order. Every figure is derived;
+  // none of it is typed, so it cannot disagree with the teeth above it.
+  //
+  // Two deliberate readings of the form:
+  //  · "Present" EXCLUDES teeth recorded missing or unerupted. A tooth that is
+  //    not in the mouth cannot be counted as present.
+  //  · The temporary block is "dfx", not "dmfx", and the form has no "missing
+  //    (m)" row — primary teeth exfoliate naturally, so a missing one is not a
+  //    caries outcome. Followed exactly rather than "corrected".
+  const indicateNumberRows = useMemo(() => {
+    const charted = Object.entries(currentChart)
+      .map(([n, e]) => ({ n: Number(n), c: e.condition }))
+      .filter((e) => e.c !== '');
+    const perm = charted.filter((e) => !temporaryTeeth.has(e.n));
+    const temp = charted.filter((e) => temporaryTeeth.has(e.n));
+    const teethWhere = (list: typeof charted, codes: string[]) =>
+      list.filter((e) => codes.includes(e.c)).map((e) => e.n).sort((a, b) => a - b);
+    const teethWhereNot = (list: typeof charted, codes: string[]) =>
+      list.filter((e) => !codes.includes(e.c)).map((e) => e.n).sort((a, b) => a - b);
+    return [
+      { label: 'No. of Permanent Teeth Present', teeth: teethWhereNot(perm, ['M', 'Un']) },
+      { label: 'No. of Permanent Sound Teeth', teeth: teethWhere(perm, ['✓']) },
+      { label: 'No. of Decayed Teeth (D)', teeth: teethWhere(perm, ['D']) },
+      { label: 'No. of Missing Teeth (M)', teeth: teethWhere(perm, ['M']) },
+      { label: 'No. of Filled Teeth (F)', teeth: teethWhere(perm, ['F']) },
+      { label: 'No. of Teeth for Extraction (X)', teeth: teethWhere(perm, ['X']) },
+      { label: 'No. of DMFX Teeth', teeth: teethWhere(perm, ['D', 'M', 'F', 'X']) },
+      { label: 'No. of Temporary Teeth Present', teeth: teethWhereNot(temp, ['m', 'un']) },
+      { label: 'No. of Temporary Sound Teeth', teeth: teethWhere(temp, ['✓']) },
+      { label: 'No. of Decayed Teeth (d)', teeth: teethWhere(temp, ['d']) },
+      { label: 'No. of Filled Teeth (f)', teeth: teethWhere(temp, ['f']) },
+      { label: 'No. of Teeth for Extraction (x)', teeth: teethWhere(temp, ['x']) },
+      { label: 'No. of dfx Teeth', teeth: teethWhere(temp, ['d', 'f', 'x']) },
+    ];
+  }, [currentChart]);
+
   // Per-tooth treatment summary: which TEETH carry each code, not just how
   // many. A count answered "3 fillings" without ever saying which three, which
   // is the question the dentist and the DOH form both actually ask. Sorted
@@ -1098,7 +1135,12 @@ export const DentalChart = () => {
   return (
     <div className="space-y-4 w-full">
       {/* Sticky header row */}
-      <div ref={headerRowRef} style={{ top: TOPBAR_H }} className="sticky z-40 bg-gray-50 pb-2">
+      {/* `bg-canvas`, not `bg-gray-50`: this row is sticky so it MUST stay
+          opaque or scrolled content shows through it, but at gray-50 it was a
+          slightly different tone from the page behind it and read as a tinted
+          band. Matching the page background makes the fill invisible while
+          keeping it opaque. */}
+      <div ref={headerRowRef} style={{ top: TOPBAR_H }} className="sticky z-40 bg-canvas pb-2">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-3 min-w-0">
           <Link to={backPath} className="p-2 hover:bg-gray-100 rounded-lg shrink-0">
@@ -2023,78 +2065,95 @@ export const DentalChart = () => {
                 content-sized columns drifted per table and read as sloppy. The
                 two cards are tinted differently (teal = conditions, blue =
                 treatments) to match the palette colours each one summarises. */}
-            {/* Side by side, and EQUAL HEIGHT — the grid is left to stretch
-                (no `items-start`) so the two cards match whichever is taller
-                instead of ending at different y.
+            {/* Side by side, and EQUAL HEIGHT — the grid stretches (no
+                `items-start`) so the two cards end at the same y.
 
-                Column widths are PERCENTAGES of each card, not fixed pixels:
-                fixed widths left a ragged empty strip on the right of a card
-                whose width varies with the viewport. Conditions is a plain
-                yes/no, so it splits 50/50. Treatments carries a tooth-number
-                list, so it goes 45/18/37 — the middle column only ever holds
-                "Yes" or a date, and everything it does not need goes to the
-                label and the tooth numbers. The whole-mouth table above it
-                declares the SAME three columns (with an empty third cell) so
-                its value column lands under the "Given" column rather than
-                floating on its own axis.
+                Every cell is bordered on ALL FOUR sides, not just underlined:
+                these are the DOH form's own tables, and that form is a ruled
+                grid. Row-only rules left the count and tooth-number columns
+                visually unbounded.
 
-                Blank, not "—", where a finding is absent: per request, and it
-                matches the paper form, where an untouched cell is left empty.
-                The ROWS still always render — that part of the DOH-form rule
-                stands. */}
+                Both cards share ONE column geometry — 45 / 18 / 37 — so the
+                middle column lands on the same axis in all four tables. It only
+                ever holds a count, a date or "Yes", so the width it does not
+                need goes to the label and the tooth numbers.
+
+                Blank, never "—", where there is nothing: the ROWS always render
+                (the DOH-form rule), the cells go empty. */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="bg-teal-50/70 rounded-xl border border-teal-200 p-4">
-              <div className="text-xs font-semibold text-teal-800 mb-3 uppercase tracking-wide">Summary of Dental Condition</div>
+            <div className="bg-teal-50/70 rounded-xl border border-teal-200 p-4 space-y-4">
+              <div>
+                <div className="text-xs font-semibold text-teal-800 mb-3 uppercase tracking-wide">Dental Condition Summary</div>
+                <table className="w-full table-fixed border-collapse text-xs">
+                  <colgroup><col className="w-[45%]" /><col className="w-[18%]" /><col className="w-[37%]" /></colgroup>
+                  <tbody>
+                    <tr>
+                      <td className="border border-teal-200 px-2 py-1.5 text-foreground">Date of Oral Examination</td>
+                      <td className="border border-teal-200 px-2 py-1.5 font-semibold text-foreground whitespace-nowrap" colSpan={2}>{examinationDate}</td>
+                    </tr>
+                    {/* Highlighted: the single headline answer a DOH screening asks. */}
+                    <tr className={isOrallyFit ? 'bg-success-surface' : ''}>
+                      <td className={`border border-teal-200 px-2 py-1.5 ${isOrallyFit ? 'font-bold text-success' : 'text-foreground'}`}>Orally Fit Child</td>
+                      <td className="border border-teal-200 px-2 py-1.5 font-bold text-success" colSpan={2}>{isOrallyFit ? 'Yes' : ''}</td>
+                    </tr>
+                    {presentOralConditions.map(({ label, present }) => (
+                      <tr key={label}>
+                        <td className="border border-teal-200 px-2 py-1.5 text-foreground">{label}</td>
+                        <td className="border border-teal-200 px-2 py-1.5 font-semibold text-success" colSpan={2}>{present ? 'Yes' : ''}</td>
+                      </tr>
+                    ))}
+                    <tr>
+                      <td className="border border-teal-200 px-2 py-1.5 text-foreground">Others</td>
+                      <td className="border border-teal-200 px-2 py-1.5 font-semibold text-success break-words" colSpan={2}>{draftOral.others.trim()}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Section B of the paper IPTR, verbatim rows and order. */}
               <table className="w-full table-fixed border-collapse text-xs">
-                <colgroup><col className="w-1/2" /><col className="w-1/2" /></colgroup>
+                <colgroup><col className="w-[45%]" /><col className="w-[18%]" /><col className="w-[37%]" /></colgroup>
+                <thead>
+                  <tr className="text-left text-teal-800">
+                    <th className="border border-teal-200 px-2 py-1.5 font-semibold">B. Indicate Number</th>
+                    <th className="border border-teal-200 px-2 py-1.5 font-semibold">Tooth Count</th>
+                    <th className="border border-teal-200 px-2 py-1.5 font-semibold">Tooth Numbers</th>
+                  </tr>
+                </thead>
                 <tbody>
-                  <tr className="border-b border-teal-200/70">
-                    <td className="py-1.5 pr-4 text-foreground">Date of Oral Examination</td>
-                    <td className="py-1.5 font-semibold text-foreground">{examinationDate}</td>
-                  </tr>
-                  {/* Highlighted: the single headline answer a DOH screening asks. */}
-                  <tr className={`border-b border-teal-200/70 ${isOrallyFit ? 'bg-success-surface' : ''}`}>
-                    <td className={`py-1.5 pr-4 ${isOrallyFit ? 'font-bold text-success' : 'text-foreground'}`}>Orally Fit Child</td>
-                    <td className="py-1.5 font-bold text-success">{isOrallyFit ? 'Yes' : ''}</td>
-                  </tr>
-                  {presentOralConditions.map(({ label, present }) => (
-                    <tr key={label} className="border-b border-teal-200/70 last:border-b-0">
-                      <td className="py-1.5 pr-4 text-foreground">{label}</td>
-                      <td className="py-1.5 font-semibold text-success">{present ? 'Yes' : ''}</td>
+                  {indicateNumberRows.map(({ label, teeth }) => (
+                    <tr key={label}>
+                      <td className="border border-teal-200 px-2 py-1.5 text-foreground">{label}</td>
+                      <td className="border border-teal-200 px-2 py-1.5 font-semibold text-foreground">{teeth.length ? teeth.length : ''}</td>
+                      <td className="border border-teal-200 px-2 py-1.5 font-mono text-foreground break-words">{teeth.join(', ')}</td>
                     </tr>
                   ))}
-                  <tr>
-                    <td className="py-1.5 pr-4 text-foreground">Others</td>
-                    <td className="py-1.5 font-semibold text-success break-words">{draftOral.others.trim()}</td>
-                  </tr>
                 </tbody>
               </table>
             </div>
 
             {/* Two tables because there are two kinds of answer. A whole-mouth
                 service is answered "was it given?"; a per-tooth treatment is
-                only meaningful WITH the teeth it was done to, so that table
-                carries a third column. */}
+                only meaningful WITH the teeth it was done to. */}
             <div className="bg-blue-50/70 rounded-xl border border-blue-200 p-4 space-y-4">
               <div>
                 <div className="text-xs font-semibold text-primary mb-3 uppercase tracking-wide">Treatment Summary</div>
                 <table className="w-full table-fixed border-collapse text-xs">
                   <colgroup><col className="w-[45%]" /><col className="w-[18%]" /><col className="w-[37%]" /></colgroup>
                   <tbody>
-                    <tr className="border-b border-blue-200/70">
-                      <td className="py-1.5 pr-4 text-foreground">Date of Treatment</td>
-                      <td className="py-1.5 font-semibold text-foreground whitespace-nowrap" colSpan={2}>{treatmentDate}</td>
+                    <tr>
+                      <td className="border border-blue-200 px-2 py-1.5 text-foreground">Date of Treatment</td>
+                      <td className="border border-blue-200 px-2 py-1.5 font-semibold text-foreground whitespace-nowrap" colSpan={2}>{treatmentDate}</td>
                     </tr>
                     {serviceChips.map(({ label, field }) => (
-                      <tr key={field} className="border-b border-blue-200/70">
-                        <td className="py-1.5 pr-4 text-foreground">{label}</td>
-                        <td className="py-1.5 font-semibold text-success">{draftServices[field] ? 'Yes' : ''}</td>
-                        <td />
+                      <tr key={field}>
+                        <td className="border border-blue-200 px-2 py-1.5 text-foreground">{label}</td>
+                        <td className="border border-blue-200 px-2 py-1.5 font-semibold text-success" colSpan={2}>{draftServices[field] ? 'Yes' : ''}</td>
                       </tr>
                     ))}
                     <tr>
-                      <td className="py-1.5 pr-4 text-foreground">Others</td>
-                      <td className="py-1.5 font-semibold text-success break-words" colSpan={2}>{draftServices.others.trim()}</td>
+                      <td className="border border-blue-200 px-2 py-1.5 text-foreground">Others</td>
+                      <td className="border border-blue-200 px-2 py-1.5 font-semibold text-success break-words" colSpan={2}>{draftServices.others.trim()}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -2103,22 +2162,22 @@ export const DentalChart = () => {
               <table className="w-full table-fixed border-collapse text-xs">
                 <colgroup><col className="w-[45%]" /><col className="w-[18%]" /><col className="w-[37%]" /></colgroup>
                 <thead>
-                  <tr className="border-b border-blue-300 text-left text-muted-foreground">
-                    <th className="py-1.5 pr-4 font-semibold">Treatment</th>
-                    <th className="py-1.5 font-semibold">Given</th>
-                    <th className="py-1.5 font-semibold">Tooth numbers</th>
+                  <tr className="text-left text-primary">
+                    <th className="border border-blue-200 px-2 py-1.5 font-semibold">Treatment</th>
+                    <th className="border border-blue-200 px-2 py-1.5 font-semibold">Tooth Count</th>
+                    <th className="border border-blue-200 px-2 py-1.5 font-semibold">Tooth Numbers</th>
                   </tr>
                 </thead>
                 <tbody>
                   {toothTreatmentCodes.map((t) => {
                     const teeth = teethByTreatment[t.code] ?? [];
                     return (
-                      <tr key={t.code} className="border-b border-blue-200/70 last:border-b-0">
-                        <td className="py-1.5 pr-4 text-foreground">
+                      <tr key={t.code}>
+                        <td className="border border-blue-200 px-2 py-1.5 text-foreground">
                           <span className="font-mono font-bold mr-2">{t.code}</span>{t.label}
                         </td>
-                        <td className="py-1.5 font-semibold text-success">{teeth.length ? 'Yes' : ''}</td>
-                        <td className="py-1.5 font-mono text-foreground break-words">{teeth.join(', ')}</td>
+                        <td className="border border-blue-200 px-2 py-1.5 font-semibold text-foreground">{teeth.length ? teeth.length : ''}</td>
+                        <td className="border border-blue-200 px-2 py-1.5 font-mono text-foreground break-words">{teeth.join(', ')}</td>
                       </tr>
                     );
                   })}
