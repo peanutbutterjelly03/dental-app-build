@@ -115,6 +115,10 @@ Full field-level specs for all 16 models live in **`/docs/DATA-MODEL.md`** — R
 
 **PENDING backlog + Before-Defense checklist:** authoritative in HANDOFF.md (`## Open work`, `## User-only items`, `## Live warnings`) — state belongs there per DOC ROLES above. Each item needs approval; sprint loop applies.
 
+## DENTAL CHART RESTORE POINT (set 2026-09-05, by user request)
+- The user will ask, in plain words, to "go back to the version before I made changes in the dental charting tab" — possibly many sprints later. The answer is the annotated git tag **`dental-chart-baseline-2026-09-05`** (pushed to origin, immutable). Do NOT try to reconstruct that layout by hand or from memory.
+- **Full restore procedure, the whole-file caveat, and what the baseline looks like are in HANDOFF.md** under the ⭐ DENTAL CHART BASELINE section. Read it before restoring — `DentalChart.tsx` holds all six tabs, so a blind `git checkout <tag> -- <file>` also reverts the sibling tabs.
+
 ## SPRINT LOOP (every session)
 - **Two local dev devices in use.** Git-tracked files sync only via push/pull — never assume HANDOFF is current without pulling. Per-device (NOT synced): `.env`, `data/` Excel files, `.claude/settings.local.json`, Claude auto-memory, and machine quirks (Node 24 DNS workaround applies to one machine only).
 - **Start — PULL THEN READ, never read then pull.** `git pull` FIRST, before opening HANDOFF.md or any tracked file; only then read HANDOFF.md, /compact if resuming. If a pull isn't appropriate yet, **compare** instead — `git fetch` + `git rev-list --left-right --count HEAD...origin/main` — and state the behind-count before treating any file as current. An unpulled tracked file is UNKNOWN, not state: never claim "nothing is in progress", "X doesn't exist", or "the last sprint was N" from it. (2026-09-03: reading first put a session 43 commits behind — Sprints 56–80 — and produced a confidently wrong answer about the demo seed passwords; the failure is silent, a stale file reads as valid.) Complex sprints use /grill-me first: Sprints 1, 2, 7, 8, 16, 19, 21.
