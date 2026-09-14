@@ -2,6 +2,13 @@
 
 **Compressed 2026-07-11 (hygiene pass).** Completed-sprint history → `docs/BUILD-LOG.md`; full pre-compression narratives → git history (`git show 73bc4e47:HANDOFF.md`). This file keeps only live state: current status, open work, warnings, and durable gotchas.
 
+## IPTR EDA dashboard added under `/analytics` (2026-09-14)
+- **Streamlit dashboard over the thesis IPTR workbook** (`analytics/iptr_dashboard.py`), built from the Group 13 notebook `Group_13_A_1.ipynb`. Thesis-side analysis only — it does not touch the Floral app, its server, or its models.
+- `iptr_data.py` re-implements the notebook's cleaning (labelled subset, all-empty columns dropped, numeric coercion, yes/no flags, impossible age + zero-BMI repair, Sex variant folding, exact-duplicate removal) and returns an **audit dict**, so every correction is reported on the Data quality tab instead of applied invisibly.
+- Six tabs: Overview, Demographics, Oral findings, Caries burden, Data quality, Label check. **Label check recovers the cut-off the encoder used to assign the risk label from the data itself** (not hard-coded) and reports conformance — the target-leakage evidence the notebook argues from.
+- The workbook is NOT committed (`analytics/.gitignore` blocks `*.xlsx`); it is loaded from the sidebar or via `IPTR_DATASET`. The downloadable OFC-contradiction list carries learner names — patient data.
+- Verified against a synthetic fixture with the real column layout: all six tabs render with no page errors, and `streamlit.testing` AppTest confirms the empty-filter path shows the empty notice rather than throwing.
+
 ## 🐞 "Next student" dropped out of charting mode + one-line header (2026-09-05)
 - **THE BUG: stepping to the next student landed on the History tab with charting mode closed.** Cause: `initialTab` is `searchParams.get('tab') || 'history'`, and `routes.tsx` keys DentalChart by `:id`, so every jump remounted with `activeTab = 'history'`; the "close charting mode if the tab is not chart" effect then shut the overlay a beat later. The dentist ended up on the wrong tab of the next child **every single time**, which defeats the entire continuous-charting loop the feature exists for.
   **Fix:** `initialTab` falls back to `focusModeMemo ? 'chart' : 'history'`. Charting mode is SESSION state, not URL state, so the tab has to follow it across the remount. **Anything else that must survive "Next student" has to be read from a module memo the same way** — component state is wiped on every jump.
