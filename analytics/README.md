@@ -5,6 +5,71 @@ records) — the same dataset and the same cleaning as the Group 13 notebook
 `Group_13_A_1.ipynb`, rebuilt as a dashboard so the findings can be filtered and
 shown live instead of re-run cell by cell.
 
+## Step by step, from nothing (first time on a machine)
+
+**1. Check you have Python.** Open a terminal — **Command Prompt** on Windows,
+**Terminal** on macOS — and type:
+
+```
+python --version
+```
+
+Anything 3.9 or newer is fine. If it says the command is not found, install it
+from python.org — **on Windows tick “Add python.exe to PATH”** on the first
+screen of the installer — then close and reopen the terminal.
+
+On Windows, if `python` still isn't found, use `py` in place of `python` in every
+command below. On macOS use `python3`.
+
+**2. Get the code.** In the terminal, go to wherever you keep the repo and pull
+this branch:
+
+```
+cd path\to\dental-app-build
+git fetch origin
+git checkout claude/exciting-goldberg-uodxdu
+git pull
+cd analytics
+```
+
+**3. Install the libraries.** Once per machine:
+
+```
+python -m pip install -r requirements.txt
+```
+
+**4. Put the workbook where the script can find it.** Copy
+`IPTR_Dataset.xlsx` into this `analytics` folder.
+
+**5a. To get the HTML file:**
+
+```
+python build_report.py IPTR_Dataset.xlsx
+```
+
+It prints how many records it read and writes `iptr_report.html` beside the
+script. Double-click that file to open it in your browser.
+
+**5b. Or to get the filterable app instead:**
+
+```
+python -m streamlit run iptr_dashboard.py
+```
+
+Leave the terminal window open — closing it stops the app. It opens
+`http://localhost:8501` in your browser by itself; if it doesn't, copy the URL
+the terminal prints. Press `Ctrl+C` in the terminal to stop it.
+
+### If something goes wrong
+
+| What you see | What it means |
+|---|---|
+| `python: command not found` | Use `py` (Windows) or `python3` (macOS), or reinstall Python with “Add to PATH” ticked |
+| `No such workbook: IPTR_Dataset.xlsx` | You are not in the `analytics` folder, or the file is named differently — run `dir` (Windows) / `ls` (macOS) to see what's actually there |
+| `No module named pandas` | Step 3 was skipped, or it installed into a different Python — re-run it with the same word (`python` / `py` / `python3`) you use to run the script |
+| `Column 'Risk Classification' is not on this sheet` | The sheet has no label column; pass the right one, e.g. `--sheet "Raw Copy of Manual Encoded"` |
+| `streamlit: command not found` | Use `python -m streamlit run iptr_dashboard.py` rather than plain `streamlit` |
+
 ## Run it
 
 ```bash
