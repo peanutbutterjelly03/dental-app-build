@@ -1,3 +1,7 @@
 __pycache__/
 *.xlsx
 *.xlsm
+
+# generated report — carries learner names
+iptr_report.html
+*.report.html

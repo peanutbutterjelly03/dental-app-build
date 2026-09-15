@@ -16,12 +16,12 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
 import streamlit as st
 
+import iptr_charts as ch
 import iptr_data as idata
 from iptr_data import TARGET
-from iptr_theme import RISK_ORDER, STATUS, palette, style
+from iptr_theme import RISK_ORDER, STATUS, palette
 
 st.set_page_config(page_title="IPTR Dental EDA", page_icon="🦷", layout="wide")
 
@@ -69,103 +69,6 @@ def table_view(df: pd.DataFrame, label: str = "Show the numbers") -> None:
 
 def empty_note(msg: str = "No records match the current filters.") -> None:
     st.info(msg)
-
-
-# ── chart builders ───────────────────────────────────────────────────────────
-def risk_colors() -> list[str]:
-    return [P["risk"][r] for r in RISK_ORDER]
-
-
-def count_bar(labels, values, *, title: str, color=None, horizontal=False,
-              ylab="Learners", xlab="", height=340):
-    """Single series: no legend, direct value labels, thin marks."""
-    color = color or P["cat"][0]
-    txt = [f"{v:,}" for v in values]
-    if horizontal:
-        fig = go.Figure(go.Bar(
-            y=labels, x=values, orientation="h", marker_color=color,
-            marker_line=dict(color=P["surface"], width=1.5),
-            text=txt, textposition="outside", cliponaxis=False,
-            textfont=dict(color=P["ink_secondary"], size=11),
-            hovertemplate="%{y}<br>%{x:,} learners<extra></extra>",
-        ))
-        fig.update_layout(title=title)
-        return style(fig, P, height=height, showlegend=False, xlab=ylab)
-    fig = go.Figure(go.Bar(
-        x=labels, y=values, marker_color=color,
-        marker_line=dict(color=P["surface"], width=1.5),
-        text=txt, textposition="outside", cliponaxis=False,
-        textfont=dict(color=P["ink_secondary"], size=11),
-        hovertemplate="%{x}<br>%{y:,} learners<extra></extra>",
-    ))
-    fig.update_layout(title=title)
-    return style(fig, P, height=height, showlegend=False, ylab=ylab, xlab=xlab)
-
-
-def risk_share_bar(df: pd.DataFrame, dim: str, *, title: str, order=None,
-                   horizontal=True, height=380):
-    """100% stacked share of risk class within each level of `dim`.
-
-    Colour carries the risk class (ordinal blue ramp, Low -> High); the legend is
-    always present and segments over 8% are labelled directly.
-    """
-    d = df[[dim, TARGET]].dropna()
-    if d.empty:
-        return None
-    ct = pd.crosstab(d[dim], d[TARGET])
-    for r in RISK_ORDER:
-        if r not in ct.columns:
-            ct[r] = 0
-    ct = ct[RISK_ORDER]
-    if order:
-        ct = ct.reindex([o for o in order if o in ct.index])
-    share = ct.div(ct.sum(axis=1), axis=0) * 100
-
-    fig = go.Figure()
-    for r in RISK_ORDER:
-        labels = [f"{v:.0f}%" if v >= 8 else "" for v in share[r]]
-        common = dict(
-            name=r, marker_color=P["risk"][r],
-            marker_line=dict(color=P["surface"], width=2),
-            text=labels, textposition="inside", insidetextanchor="middle",
-            textfont=dict(color=P["surface"] if r == "High" else P["ink"], size=11),
-        )
-        if horizontal:
-            fig.add_bar(y=ct.index.astype(str), x=share[r], orientation="h",
-                        customdata=ct[r],
-                        hovertemplate=f"%{{y}} · {r}<br>%{{x:.1f}}%"
-                                      "<br>%{customdata:,} learners<extra></extra>",
-                        **common)
-        else:
-            fig.add_bar(x=ct.index.astype(str), y=share[r], customdata=ct[r],
-                        hovertemplate=f"%{{x}} · {r}<br>%{{y:.1f}}%"
-                                      "<br>%{customdata:,} learners<extra></extra>",
-                        **common)
-    fig.update_layout(barmode="stack", title=title)
-    fig = style(fig, P, height=height)
-    if horizontal:
-        fig.update_xaxes(title_text="Percent of learners", ticksuffix="%", range=[0, 100])
-        fig.update_yaxes(autorange="reversed", type="category", dtick=1)
-    else:
-        fig.update_yaxes(title_text="Percent of learners", ticksuffix="%", range=[0, 100])
-        fig.update_xaxes(type="category", dtick=1)
-    return fig, ct
-
-
-def box_by_risk(df: pd.DataFrame, col: str, *, title: str, height=340):
-    d = df[[col, TARGET]].dropna()
-    if d.empty:
-        return None
-    fig = go.Figure()
-    for r in RISK_ORDER:
-        vals = d.loc[d[TARGET] == r, col]
-        if vals.empty:
-            continue
-        fig.add_box(y=vals, name=r, marker_color=P["risk"][r], line_width=2,
-                    boxpoints=False, fillcolor=P["risk"][r], opacity=0.85,
-                    hovertemplate=f"{r}<br>median %{{median}}<extra></extra>")
-    fig.update_layout(title=title, showlegend=False)
-    return style(fig, P, height=height, ylab=col)
 
 
 # ── data source ──────────────────────────────────────────────────────────────
@@ -290,21 +193,12 @@ with tabs[0]:
 
         left, right = st.columns([1, 1.35])
         with left:
-            fig = go.Figure(go.Bar(
-                x=counts.index, y=counts.values, marker_color=risk_colors(),
-                marker_line=dict(color=P["surface"], width=2),
-                text=[f"{v:,}<br>{s:.1f}%" for v, s in zip(counts.values, share.values)],
-                textposition="outside", cliponaxis=False,
-                textfont=dict(color=P["ink_secondary"], size=11),
-                hovertemplate="%{x} risk<br>%{y:,} learners<extra></extra>",
-            ))
-            fig.update_layout(title="Caries risk class — counts in view")
-            st.plotly_chart(style(fig, P, height=360, showlegend=False, ylab="Learners"),
-                            width="stretch")
-            table_view(pd.DataFrame({"Learners": counts, "Share %": share.round(1)}))
+            fig, tbl = ch.risk_counts(P, f, title="Caries risk class — counts in view")
+            st.plotly_chart(fig, width="stretch")
+            table_view(tbl)
         with right:
             if "Grade" in f.columns:
-                out = risk_share_bar(f, "Grade", title="Risk mix by grade level",
+                out = ch.risk_share_bar(P, f, "Grade", title="Risk mix by grade level",
                                      order=idata.grade_order(f["Grade"].dropna().unique()),
                                      height=360)
                 if out:
@@ -327,36 +221,23 @@ with tabs[1]:
     else:
         c1, c2 = st.columns(2)
         with c1:
-            d = f[["Age", TARGET]].dropna()
-            if d.empty:
+            fig = ch.age_hist(P, f)
+            if fig is None:
                 empty_note("No age values in view.")
             else:
-                fig = go.Figure()
-                for r in RISK_ORDER:
-                    vals = d.loc[d[TARGET] == r, "Age"]
-                    if vals.empty:
-                        continue
-                    fig.add_histogram(x=vals, name=r, marker_color=P["risk"][r],
-                                      marker_line=dict(color=P["surface"], width=1),
-                                      xbins=dict(size=1),
-                                      hovertemplate=f"{r}<br>age %{{x}}"
-                                                    "<br>%{y:,} learners<extra></extra>")
-                fig.update_layout(barmode="stack", title="Age distribution by risk class")
-                st.plotly_chart(style(fig, P, height=360, ylab="Learners", xlab="Age (years)"),
-                                width="stretch")
-        with c2:
-            fig = box_by_risk(f, "BMI", title="BMI by risk class", height=360)
-            if fig:
                 st.plotly_chart(fig, width="stretch")
-                table_view(f.groupby(TARGET)["BMI"].describe().round(2)
-                           .reindex([r for r in RISK_ORDER if r in f[TARGET].unique()]))
+        with c2:
+            out = ch.box_by_risk(P, f, "BMI", title="BMI by risk class", height=360)
+            if out:
+                st.plotly_chart(out[0], width="stretch")
+                table_view(out[1])
             else:
                 empty_note("No BMI values in view.")
 
         c3, c4 = st.columns(2)
         with c3:
             if "Sex" in f.columns:
-                out = risk_share_bar(f, "Sex", title="Risk mix by sex", height=300)
+                out = ch.risk_share_bar(P, f, "Sex", title="Risk mix by sex", height=300)
                 if out:
                     fig, ct = out
                     st.plotly_chart(fig, width="stretch")
@@ -364,7 +245,7 @@ with tabs[1]:
         with c4:
             if "Nutritional Status" in f.columns:
                 ns_order = ["Severely Wasted", "Wasted", "Normal", "Overweight", "Obese"]
-                out = risk_share_bar(f, "Nutritional Status",
+                out = ch.risk_share_bar(P, f, "Nutritional Status",
                                      title="Risk mix by nutritional status",
                                      order=ns_order, height=300)
                 if out:
@@ -389,8 +270,9 @@ with tabs[2]:
         c1, c2 = st.columns([1, 1.2])
         with c1:
             st.plotly_chart(
-                count_bar(names, vals, title="Findings recorded (learners in view)",
-                          horizontal=True, height=340),
+                ch.count_bar(P, names, vals,
+                             title="Findings recorded (learners in view)",
+                             horizontal=True, height=340),
                 width="stretch")
             table_view(pd.DataFrame({"Finding": names, "Learners": vals,
                                      "Percent of view": [round(v / len(f) * 100, 1)
@@ -402,7 +284,7 @@ with tabs[2]:
             col = chosen + "_Flag"
             tmp = f.copy()
             tmp["_obs"] = np.where(tmp[col] == 1, "Observed", "Not observed")
-            out = risk_share_bar(tmp, "_obs", title=f"Risk mix — {chosen}",
+            out = ch.risk_share_bar(P, tmp, "_obs", title=f"Risk mix — {chosen}",
                                  order=["Not observed", "Observed"], height=340)
             if out:
                 fig, ct = out
@@ -420,8 +302,8 @@ with tabs[2]:
             ct = ct.reindex(columns=[r for r in RISK_ORDER if r in ct.columns])
             k1, k2 = st.columns([1.2, 1])
             with k1:
-                out = risk_share_bar(
-                    f.assign(_ofc=f["OFC_Flag"].map({0: "Not ticked", 1: "OFC"})),
+                out = ch.risk_share_bar(
+                    P, f.assign(_ofc=f["OFC_Flag"].map({0: "Not ticked", 1: "OFC"})),
                     "_ofc", title="Risk mix by OFC tick",
                     order=["Not ticked", "OFC"], height=280)
                 if out:
@@ -457,56 +339,19 @@ with tabs[3]:
         st.markdown("")
         c1, c2 = st.columns(2)
         with c1:
-            fig = go.Figure(go.Histogram(
-                x=total, xbins=dict(size=1), marker_color=P["cat"][0],
-                marker_line=dict(color=P["surface"], width=1),
-                hovertemplate="%{x} affected teeth<br>%{y:,} learners<extra></extra>"))
-            fig.update_layout(title="Combined DMFX + dmfx count")
-            st.plotly_chart(style(fig, P, height=340, showlegend=False,
-                                  ylab="Learners", xlab="Affected teeth"),
-                            width="stretch")
+            st.plotly_chart(ch.dmfx_hist(P, f), width="stretch")
         with c2:
-            if "Grade" in f.columns:
-                order = idata.grade_order(f["Grade"].dropna().unique())
-                g = (f.groupby("Grade")["Total_DMFX_dmfx"].agg(["mean", "count"])
-                     .reindex(order).dropna())
-                if g.empty:
-                    empty_note("No grade values in view.")
-                else:
-                    fig = go.Figure(go.Bar(
-                        x=g.index, y=g["mean"], marker_color=P["cat"][0],
-                        marker_line=dict(color=P["surface"], width=1.5),
-                        customdata=g["count"],
-                        text=[f"{v:.1f}" for v in g["mean"]], textposition="outside",
-                        cliponaxis=False, textfont=dict(color=P["ink_secondary"], size=11),
-                        hovertemplate="Grade %{x}<br>mean %{y:.2f} affected teeth"
-                                      "<br>%{customdata:,} learners<extra></extra>"))
-                    fig.update_layout(title="Mean affected teeth by grade")
-                    fig = style(fig, P, height=340, showlegend=False,
-                                ylab="Mean affected teeth")
-                    fig.update_xaxes(type="category", dtick=1)
-                    st.plotly_chart(fig, width="stretch")
-                    table_view(g.round(2))
+            out = ch.mean_burden_by_grade(P, f)
+            if out is None:
+                empty_note("No grade values in view.")
+            else:
+                st.plotly_chart(out[0], width="stretch")
+                table_view(out[1])
 
-        if {"Perm_DMFX", "Temp_dfx", "Grade"} <= set(f.columns):
-            order = idata.grade_order(f["Grade"].dropna().unique())
-            comp = (f.groupby("Grade")[["Perm_DMFX", "Temp_dfx"]].mean()
-                    .reindex(order).dropna(how="all"))
-            if not comp.empty:
-                fig = go.Figure()
-                for i, (col, label) in enumerate([("Temp_dfx", "Temporary (dfx)"),
-                                                  ("Perm_DMFX", "Permanent (DMFX)")]):
-                    fig.add_bar(x=comp.index, y=comp[col], name=label,
-                                marker_color=P["cat"][i],
-                                marker_line=dict(color=P["surface"], width=2),
-                                hovertemplate=f"{label}<br>grade %{{x}}"
-                                              "<br>mean %{y:.2f} teeth<extra></extra>")
-                fig.update_layout(barmode="stack",
-                                  title="Where the burden sits — dentition by grade")
-                fig = style(fig, P, height=340, ylab="Mean affected teeth")
-                fig.update_xaxes(type="category", dtick=1)
-                st.plotly_chart(fig, width="stretch")
-                table_view(comp.round(2))
+        out = ch.dentition_by_grade(P, f)
+        if out:
+            st.plotly_chart(out[0], width="stretch")
+            table_view(out[1])
 
 # ── 5. Data quality ──────────────────────────────────────────────────────────
 with tabs[4]:
@@ -527,41 +372,7 @@ with tabs[4]:
          "kept: a learner examined twice is two valid rows")
 
     st.markdown("#### Corrections applied")
-    rows = []
-    if "age_out_of_range" in audit:
-        lo, hi = audit["age_range_before"]
-        vals = ", ".join(str(int(v)) for v in audit["age_out_of_range_values"][:8])
-        rows.append((
-            "critical" if audit["age_out_of_range"] else "good",
-            "Impossible age",
-            f"{audit['age_out_of_range']} record(s) outside {idata.AGE_MIN}–{idata.AGE_MAX} "
-            f"years set to missing. Raw range was {lo:.0f}–{hi:.0f}"
-            + (f" (values: {vals})" if vals else "") + ".",
-        ))
-    if "bmi_recomputed" in audit:
-        rows.append((
-            "warning" if audit["bmi_recomputed"] else "good",
-            "BMI blank or zero",
-            f"{audit['bmi_recomputed']} value(s) recomputed from weight ÷ height², "
-            f"{audit['bmi_out_of_range']} left outside {idata.BMI_MIN}–{idata.BMI_MAX} "
-            "and set to missing.",
-        ))
-    if audit.get("sex_repaired"):
-        rows.append((
-            "serious", "Sex encoded inconsistently",
-            f"{audit['sex_repaired']} record(s) carried a variant spelling "
-            f"({', '.join(audit['sex_raw_values'])}) and were folded into M / F.",
-        ))
-    for col, lost in audit["non_numeric_coerced"].items():
-        rows.append(("serious", f"Text in a numeric column — {col}",
-                     f"{lost} value(s) could not be read as a number and became missing."))
-    for col, variants in audit["flag_variants"].items():
-        if len(variants) > 1:
-            rows.append(("warning", f"Mixed spellings — {col}",
-                         f"raw values {variants} all read as “present”."))
-    if len(audit["label_raw_values"]) > 3:
-        rows.append(("warning", "Label spelling variants",
-                     f"raw label values {audit['label_raw_values']} normalised by casing."))
+    rows = idata.correction_rows(audit)
 
     if not rows:
         st.success("No encoding corrections were needed on this sheet.")
@@ -573,26 +384,12 @@ with tabs[4]:
             unsafe_allow_html=True)
 
     st.markdown("#### Missing values")
-    miss = data.isnull().sum()
-    miss = miss[miss > 0].sort_values(ascending=False)
-    if miss.empty:
+    out = ch.missing_bar(P, data)
+    if out is None:
         st.success("No missing values in the retained columns.")
     else:
-        pct = (miss / len(data) * 100).round(1)
-        top = miss.head(20)[::-1]
-        fig = go.Figure(go.Bar(
-            y=top.index, x=(top / len(data) * 100), orientation="h",
-            marker_color=P["cat"][0], marker_line=dict(color=P["surface"], width=1.5),
-            customdata=top.values,
-            text=[f"{v:.0f}%" for v in (top / len(data) * 100)], textposition="outside",
-            cliponaxis=False, textfont=dict(color=P["ink_secondary"], size=11),
-            hovertemplate="%{y}<br>%{x:.1f}% missing"
-                          "<br>%{customdata:,} records<extra></extra>"))
-        fig.update_layout(title="Most incomplete columns (labelled subset)")
-        fig = style(fig, P, height=520, showlegend=False, xlab="Percent missing")
-        fig.update_xaxes(ticksuffix="%", range=[0, 105])
-        st.plotly_chart(fig, width="stretch")
-        table_view(pd.DataFrame({"Missing": miss, "Percent": pct}), "Show every column")
+        st.plotly_chart(out[0], width="stretch")
+        table_view(out[1], "Show every column")
 
     st.markdown("#### OFC contradictions")
     threshold = st.slider("Flag a learner ticked OFC while carrying at least", 1, 10, 2,
@@ -634,28 +431,10 @@ with tabs[5]:
              "Low · Medium · High, read off this data")
 
         st.markdown("")
-        d = f[["Total_DMFX_dmfx", TARGET]].dropna()
-        ct = pd.crosstab(d["Total_DMFX_dmfx"], d[TARGET])
-        ct = ct.reindex(columns=[r for r in RISK_ORDER if r in ct.columns])
-        cap = int(min(ct.index.max(), 20))
-        heat = ct.loc[ct.index <= cap]
+        fig, ct = ch.leak_heatmap(P, f)
 
         c1, c2 = st.columns([1.4, 1])
         with c1:
-            z = heat.astype(float).where(heat > 0)  # 0 learners renders blank, not pale
-            fig = go.Figure(go.Heatmap(
-                z=z.values, x=z.columns, y=z.index,
-                colorscale=[[i / (len(P["seq"]) - 1), c] for i, c in enumerate(P["seq"])],
-                hovertemplate="%{x} risk<br>%{y} affected teeth"
-                              "<br>%{z:,} learners<extra></extra>",
-                colorbar=dict(title=dict(text="Learners", font=dict(color=P["muted"],
-                                                                   size=11)),
-                              tickfont=dict(color=P["muted"], size=10),
-                              outlinewidth=0, thickness=12)))
-            fig.update_layout(title=f"Caries count against assigned risk (0–{cap} teeth)")
-            fig = style(fig, P, height=520, showlegend=False, ylab="Affected teeth")
-            fig.update_yaxes(gridcolor="rgba(0,0,0,0)", dtick=1)
-            fig.update_xaxes(type="category")
             st.plotly_chart(fig, width="stretch")
         with c2:
             st.dataframe(rule["stats"].reindex([r for r in RISK_ORDER

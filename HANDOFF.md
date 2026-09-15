@@ -2,6 +2,14 @@
 
 **Compressed 2026-07-11 (hygiene pass).** Completed-sprint history → `docs/BUILD-LOG.md`; full pre-compression narratives → git history (`git show 73bc4e47:HANDOFF.md`). This file keeps only live state: current status, open work, warnings, and durable gotchas.
 
+## IPTR report exports to a single HTML file (2026-09-15)
+- **`analytics/build_report.py` renders the whole dashboard as one self-contained `.html`** — `python build_report.py IPTR_Dataset.xlsx`. Plotly is embedded, so it opens by double-clicking, works offline, keeps hover/legend/zoom, and prints. Same six sections over the whole labelled subset.
+- **What the export cannot carry is the filtering** — that needs a running process. Said plainly in the file's own footer and in the README rather than faked with controls that do nothing.
+- **Figures moved to `analytics/iptr_charts.py` and the corrections list to `iptr_data.correction_rows`**, both now shared by the app and the exporter. Two copies of the same chart would have drifted within a sprint — same reasoning as charting mode reusing the chart tab's own container.
+- Plotly sizes a chart at creation and these sit in flex cells that settle afterwards, so the page carries a small `ResizeObserver` that re-fits each chart to its cell; without it the first chart rendered wider than its column and was clipped.
+- `iptr_report.html` is gitignored — it carries learner names in the OFC contradiction list.
+- Verified: 17 charts render from the fixture with no page errors, at 1280px and at 390px; the Streamlit app re-screenshotted after the refactor is unchanged.
+
 ## IPTR EDA dashboard added under `/analytics` (2026-09-14)
 - **Streamlit dashboard over the thesis IPTR workbook** (`analytics/iptr_dashboard.py`), built from the Group 13 notebook `Group_13_A_1.ipynb`. Thesis-side analysis only — it does not touch the Floral app, its server, or its models.
 - `iptr_data.py` re-implements the notebook's cleaning (labelled subset, all-empty columns dropped, numeric coercion, yes/no flags, impossible age + zero-BMI repair, Sex variant folding, exact-duplicate removal) and returns an **audit dict**, so every correction is reported on the Data quality tab instead of applied invisibly.

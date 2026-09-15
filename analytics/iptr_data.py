@@ -239,3 +239,47 @@ def derived_rule(data: pd.DataFrame) -> dict | None:
         "breaking_rows": int((~agree).sum()),
         "n": int(len(d)),
     }
+
+
+def correction_rows(audit: dict) -> list[tuple[str, str, str]]:
+    """The corrections `clean` applied, as (severity, title, detail) rows.
+
+    Shared by the dashboard and the exported report so the two cannot disagree
+    about what was changed.
+    """
+    rows: list[tuple[str, str, str]] = []
+    if "age_out_of_range" in audit:
+        lo, hi = audit["age_range_before"]
+        vals = ", ".join(str(int(v)) for v in audit["age_out_of_range_values"][:8])
+        rows.append((
+            "critical" if audit["age_out_of_range"] else "good",
+            "Impossible age",
+            f"{audit['age_out_of_range']} record(s) outside {AGE_MIN}–{AGE_MAX} "
+            f"years set to missing. Raw range was {lo:.0f}–{hi:.0f}"
+            + (f" (values: {vals})" if vals else "") + ".",
+        ))
+    if "bmi_recomputed" in audit:
+        rows.append((
+            "warning" if audit["bmi_recomputed"] else "good",
+            "BMI blank or zero",
+            f"{audit['bmi_recomputed']} value(s) recomputed from weight ÷ height², "
+            f"{audit['bmi_out_of_range']} left outside {BMI_MIN}–{BMI_MAX} "
+            "and set to missing.",
+        ))
+    if audit.get("sex_repaired"):
+        rows.append((
+            "serious", "Sex encoded inconsistently",
+            f"{audit['sex_repaired']} record(s) carried a variant spelling "
+            f"({', '.join(audit['sex_raw_values'])}) and were folded into M / F.",
+        ))
+    for col, lost in audit["non_numeric_coerced"].items():
+        rows.append(("serious", f"Text in a numeric column — {col}",
+                     f"{lost} value(s) could not be read as a number and became missing."))
+    for col, variants in audit["flag_variants"].items():
+        if len(variants) > 1:
+            rows.append(("warning", f"Mixed spellings — {col}",
+                         f"raw values {variants} all read as “present”."))
+    if len(audit["label_raw_values"]) > 3:
+        rows.append(("warning", "Label spelling variants",
+                     f"raw label values {audit['label_raw_values']} normalised by casing."))
+    return rows

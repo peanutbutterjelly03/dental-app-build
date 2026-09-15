@@ -20,6 +20,22 @@ it is picked up automatically and the uploader can be skipped.
 Run it from this folder so `.streamlit/config.toml` is picked up — it pins the
 app to the light surface the chart palette was validated against.
 
+## Or export it as one HTML file
+
+No server, nothing to install on the machine that reads it:
+
+```bash
+python build_report.py IPTR_Dataset.xlsx            # writes iptr_report.html
+python build_report.py IPTR_Dataset.xlsx -o docs/iptr_report.html
+```
+
+Double-click the file and it opens in any browser. Plotly is embedded, so the
+charts keep hover tooltips, legend toggles and zoom, and the file works offline
+and prints. It covers the same six sections over the whole labelled dataset.
+
+**What the export cannot do is filter** — sidebar filtering needs a running
+process. For a grade/sex/age slice, use the Streamlit app above.
+
 ## What it shows
 
 | Tab | Answers |
@@ -51,13 +67,16 @@ app to the light surface the chart palette was validated against.
 
 | File | Role |
 |---|---|
-| `iptr_dashboard.py` | The Streamlit app — layout, filters, charts |
+| `iptr_dashboard.py` | The Streamlit app — layout, filters, tabs |
+| `build_report.py` | Exports the same report as one self-contained HTML file |
+| `iptr_charts.py` | The figures, shared by both so they cannot drift apart |
 | `iptr_data.py` | Workbook loading, cleaning, and the audit it returns |
 | `iptr_theme.py` | Chart palette and chrome (validated light and dark steps) |
 | `.streamlit/config.toml` | App theme |
 
 ## A note on the data
 
-The workbook holds learner names and other patient information. It is not
+The generated `iptr_report.html` is gitignored along with the workbook: it
+carries learner names in the contradiction list. The workbook holds learner names and other patient information. It is not
 committed to this repository and the downloadable correction list contains
 names — handle both as patient data.
