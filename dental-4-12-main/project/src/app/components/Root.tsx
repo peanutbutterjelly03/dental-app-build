@@ -306,7 +306,7 @@ export const Root = () => {
         aria-current={isActive ? 'page' : undefined}
         // Exact RAMHIS getNavStyle spec: 48px min-height, 12px horizontal
         // padding, 16px rounded corners, 13px type (500 idle / 700 active).
-        className={`mx-2 rounded-2xl min-h-12 flex items-center gap-3 px-3 transition-colors ${
+        className={`mx-3 rounded-2xl min-h-12 flex items-center gap-3 px-3 transition-colors ${
           collapsed ? 'md:justify-center md:px-0' : ''
         } ${
           isActive
@@ -413,7 +413,7 @@ export const Root = () => {
           ${collapsed ? 'md:w-[76px]' : 'md:w-[250px]'}`}
       >
         {/* Logo */}
-        <div className={`p-4 border-b border-[#E2E8F0]/90 flex items-center gap-3 ${collapsed ? 'md:justify-center' : ''}`}>
+        <div className={`p-4 flex items-center gap-3 ${collapsed ? 'md:justify-center' : ''}`}>
           {/* CSS-hidden (md:hidden), not JS-gated -- collapsed only means
               anything at md+; mobile always ignores it and must keep showing
               the logo regardless of whatever collapsed was left at. */}
@@ -442,6 +442,9 @@ export const Root = () => {
             <Menu className="w-[18px] h-[18px]" />
           </button>
         </div>
+        {/* Inset divider -- a margin on both sides instead of a full-width
+            border, so the line doesn't touch the rounded card's edges. */}
+        <div className="mx-4 h-px bg-[#E2E8F0]/90" />
 
         {/* School switcher — a button to the dedicated selection screen
             (reverted 2026-09-04 at the user's explicit request from the
@@ -476,8 +479,9 @@ export const Root = () => {
         {/* ⚠ Notifications sits ABOVE the account block, where it was
             before the adoption (user, Sprint 186). Hers put it under the
             name, between the account and Logout; the bell belongs with the
-            app, not with the person. Its own bordered strip, as before. */}
-        <div className="border-t border-[#E2E8F0]/90 px-4 pt-3">
+            app, not with the person. Its own inset divider, as before. */}
+        <div className="mx-4 h-px bg-[#E2E8F0]/90" />
+        <div className="px-4 pt-3">
           {/* Notifications — ABOVE Logout, as the P2 doc asked ("notifications
               above ng log out"). Hidden entirely for School Admin and BHO
               staff: they view reports, never clinical records, so every count
@@ -545,7 +549,8 @@ export const Root = () => {
             10px muted role, no role badge; logout resting state is muted
             white, not red (red is reserved for the real app's confirm-modal
             icon, which FLORAL doesn't have a matching dialog for). */}
-        <div className="border-t border-[#E2E8F0]/90 p-4">
+        <div className="mx-4 h-px bg-[#E2E8F0]/90" />
+        <div className="p-4">
           <div className={`flex items-center gap-2.5 pb-[5px] pt-2.5 mb-1 ${collapsed ? 'md:justify-center' : ''}`}>
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-primary-surface text-[14px] font-bold" style={{ color: '#4F63D9' }}>
               {user.name.charAt(0).toUpperCase()}
