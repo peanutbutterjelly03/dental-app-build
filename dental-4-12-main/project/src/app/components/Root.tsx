@@ -7,7 +7,7 @@ import {
   ChevronLeft, ChevronRight, Menu, X, School, Archive, Bell, Settings, ArrowLeftRight
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { getSchoolColor, getSchoolShortName } from '../utils/schoolColors';
+import { getSchoolShortName } from '../utils/schoolColors';
 import { TOPBAR_H } from '../utils/layout';
 import { SyncStatus } from './SyncStatus';
 import { useNotifications, NOTIFIED_ROLES } from '../hooks/useNotifications';
@@ -280,12 +280,6 @@ export const Root = () => {
     );
   };
 
-  // Same school palette the kicker/GradePill use — the strip must not invent a
-  // second colour language for the same school.
-  const stripSchool = selectedSchool
-    ? getSchoolColor(selectedSchool)
-    : { solid: '#1E40AF', light: '#EFF6FF', border: '#93C5FD' };
-
   return (
     // flex-col below md so the mobile top bar stacks ABOVE the content as a
     // normal flow item. It is `sticky` under the fixed status strip.
@@ -304,20 +298,12 @@ export const Root = () => {
         style={{ height: TOPBAR_H }}
         className={`fixed top-0 right-0 left-0 ${collapsed ? 'md:left-[60px]' : 'md:left-[220px]'} z-[60] flex items-center justify-end gap-1.5 px-3 bg-card border-b border-border leading-none transition-[left] duration-200`}
       >
-        {/* All three read as one family now: the same neutral bordered box
-            (bg-card, border-border, rounded-lg) as the clock, so Online and
-            the school label match its shape instead of standing out as
-            differently-styled pills. Color stays only where it carries real
-            meaning -- the status dot, and the school's own palette on its
-            text (kicker/GradePill) -- never on the box itself. */}
+        {/* Clock and status+school now match: one neutral bordered box each,
+            two stacked lines. Online/school share a single box (status on
+            top, school small and black underneath) instead of two separate
+            pills -- one fact, not two competing ones. */}
         <LiveClock />
-        <SyncStatus />
-        <span
-          style={{ color: stripSchool.solid }}
-          className="inline-flex h-9 items-center rounded-lg border border-border bg-card px-2.5 text-[13px] font-medium leading-none truncate max-w-[45vw]"
-        >
-          {selectedSchool ? getSchoolShortName(selectedSchool) : 'All Schools'}
-        </span>
+        <SyncStatus schoolLabel={selectedSchool ? getSchoolShortName(selectedSchool) : 'All Schools'} />
       </div>
 
       {/* MOBILE TOP BAR -- below md only; the drawer's only entry point. The

@@ -49,7 +49,7 @@ type Tone = 'offline' | 'syncing' | 'auth' | 'failed' | 'conflict' | 'idle';
 // full sync panel. The floating round icon that used to hang in the top-right
 // corner was deleted on request — it overlapped page content and duplicated
 // what the strip already says.
-export const SyncStatus = () => {
+export const SyncStatus = ({ schoolLabel }: { schoolLabel?: string }) => {
   const { isOnline, pendingCount, failed, authBlocked, conflicts } = useOfflineQueue();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -124,24 +124,33 @@ export const SyncStatus = () => {
   // attention (offline, failed, conflict, syncing).
   const isIdle = tone === 'idle';
 
+  const fullLabel = schoolLabel ? `${label} — ${schoolLabel}` : label;
+
   return (
     <div ref={containerRef} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        aria-label={label}
-        title={label}
+        aria-label={fullLabel}
+        title={fullLabel}
         aria-expanded={open}
         className={
           isIdle
-            ? 'inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-[13px] font-medium leading-none text-foreground transition-colors hover:bg-muted/40'
-            : `inline-flex items-center gap-1.5 rounded-full border px-2 py-[2px] text-[13px] font-semibold leading-none transition-colors ${ring}`
+            ? 'inline-flex h-9 flex-col items-start justify-center rounded-lg border border-border bg-card px-2.5 text-[13px] font-medium leading-tight text-foreground transition-colors hover:bg-muted/40'
+            : `inline-flex h-9 flex-col items-start justify-center rounded-lg border px-2.5 text-[13px] font-semibold leading-tight transition-colors ${ring}`
         }
       >
-        <span
-          className={isIdle ? 'w-[7px] h-[7px] rounded-full bg-success ring-4 ring-success-surface' : 'w-[5px] h-[5px] rounded-full bg-current'}
-          aria-hidden="true"
-        />
-        {isOnline ? 'Online' : 'Offline'}
+        <span className="inline-flex items-center gap-1.5">
+          <span
+            className={isIdle ? 'w-[7px] h-[7px] rounded-full bg-success ring-4 ring-success-surface' : 'w-[5px] h-[5px] rounded-full bg-current'}
+            aria-hidden="true"
+          />
+          {isOnline ? 'Online' : 'Offline'}
+        </span>
+        {/* School is a fact, not a status -- stays black regardless of the
+            box's alert color, same as the clock's own second line. */}
+        {schoolLabel && (
+          <span className="text-[11px] font-normal leading-none text-foreground truncate max-w-[38vw]">{schoolLabel}</span>
+        )}
       </button>
 
       {open && (
