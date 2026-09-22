@@ -487,7 +487,7 @@ export const Dashboard = () => {
         </div>
 
         {/* Clinic summary (Sprint A, direction 3a) — replaces the four KPI tiles */}
-        <div className="bg-card border border-border rounded-sm overflow-hidden rise rise-1">
+        <div className="bg-card border border-border rounded-xl overflow-hidden rise rise-1">
           <div className="flex items-baseline justify-between gap-4 px-4 py-2.5 bg-muted border-b border-border">
             <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-foreground">Clinic summary</span>
             <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
@@ -776,7 +776,7 @@ export const Dashboard = () => {
         </div>
 
         {/* Clinic summary (Sprint D) — same strip as the dentist branch */}
-        <div className="bg-card border border-border rounded-sm overflow-hidden rise rise-1">
+        <div className="bg-card border border-border rounded-xl overflow-hidden rise rise-1">
           <div className="flex items-baseline justify-between gap-4 px-4 py-2.5 bg-muted border-b border-border">
             <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-foreground">Clinic summary</span>
             <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
@@ -941,7 +941,7 @@ export const Dashboard = () => {
         </div>
 
         {/* School summary (Sprint E, design 3a) */}
-        <div className="bg-card border border-border rounded-sm overflow-hidden rise rise-1">
+        <div className="bg-card border border-border rounded-xl overflow-hidden rise rise-1">
           <div className="flex items-baseline justify-between gap-4 px-4 py-2.5 bg-muted border-b border-border">
             <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-foreground">School summary</span>
             <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
@@ -1153,7 +1153,7 @@ export const Dashboard = () => {
         </div>
 
         {/* Barangay summary (Sprint F, design 3a) */}
-        <div className="bg-card border border-border rounded-sm overflow-hidden rise rise-1">
+        <div className="bg-card border border-border rounded-xl overflow-hidden rise rise-1">
           <div className="flex items-baseline justify-between gap-4 px-4 py-2.5 bg-muted border-b border-border">
             <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-foreground">Barangay summary</span>
             <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
@@ -1392,7 +1392,7 @@ export const Dashboard = () => {
             absences as if they were readings. Replaced with four figures the
             system actually holds; uptime and failed logins are still not
             measured anywhere, so they are simply gone rather than shown empty. */}
-        <div className="bg-card border border-border rounded-sm overflow-hidden rise rise-1">
+        <div className="bg-card border border-border rounded-xl overflow-hidden rise rise-1">
           <div className="flex items-baseline justify-between gap-4 px-4 py-2.5 bg-muted border-b border-border">
             <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-foreground">System summary</span>
             <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
