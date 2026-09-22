@@ -123,7 +123,7 @@ export const SchoolSelect = () => {
               {user.schools.length > 1 && (
                 <button
                   onClick={() => handleSelectSchool(ALL_SCHOOLS)}
-                  className="group w-full text-left bg-white rounded-2xl border-2 border-border p-6 hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5"
+                  className="group w-full text-left bg-card rounded-2xl border-2 border-border p-6 transition-colors hover:bg-muted/40"
                 >
                   <div className="w-full h-1.5 rounded-full mb-5 bg-primary" />
                   <div className="flex items-start justify-between mb-4">
@@ -145,7 +145,7 @@ export const SchoolSelect = () => {
                     key={school}
                     onClick={() => handleSelectSchool(school)}
                     style={{ borderColor: sc.border }}
-                    className="group w-full text-left bg-white rounded-2xl border-2 p-6 hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5"
+                    className="group w-full text-left bg-card rounded-2xl border-2 p-6 transition-colors hover:bg-muted/40"
                   >
                     {/* School color bar */}
                     <div style={{ backgroundColor: sc.solid }} className="w-full h-1.5 rounded-full mb-5" />
@@ -167,7 +167,7 @@ export const SchoolSelect = () => {
                       <span>{meta?.address}</span>
                     </div>
 
-                    <div className="mt-3 pt-3 border-t border-gray-100">
+                    <div className="mt-3 pt-3 border-t border-border">
                       <span style={{ backgroundColor: sc.light, color: sc.text }} className="text-xs font-medium px-2 py-1 rounded-full">
                         {meta?.levels}
                       </span>
