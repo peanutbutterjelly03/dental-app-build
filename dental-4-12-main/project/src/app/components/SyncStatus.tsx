@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check } from 'lucide-react';
 import { useOfflineQueue } from '../hooks/useOfflineQueue';
 import { retryQueue, discardFailedWrite, keepMyChange, discardMyChange } from '../offline/queueProcessor';
 import type { QueuedWrite } from '../offline/db';
@@ -118,11 +117,15 @@ export const SyncStatus = ({ schoolLabel }: { schoolLabel?: string }) => {
 
   const { ring, label } = chrome[tone];
 
-  // Idle ("everything's fine") is deliberately quiet — a neutral bordered box
-  // matching the clock widget, plain text and a small dot, no color fill — so
-  // it doesn't compete with the pills used for states that actually need
-  // attention (offline, failed, conflict, syncing).
   const isIdle = tone === 'idle';
+
+  // Deleted from the always-visible topbar on request (2026-09-23), matching
+  // both the reference topbar (which shows nothing but the user avatar) and
+  // CLAUDE.md's own PWA/OFFLINE spec: "Show offline banner when disconnected"
+  // -- implying nothing renders here at all while online and synced. The
+  // underlying offline/sync-failure tracking is untouched; it just no longer
+  // paints a permanent "Online" chip.
+  if (isIdle) return null;
 
   const fullLabel = schoolLabel ? `${label} — ${schoolLabel}` : label;
 
@@ -133,17 +136,10 @@ export const SyncStatus = ({ schoolLabel }: { schoolLabel?: string }) => {
         aria-label={fullLabel}
         title={fullLabel}
         aria-expanded={open}
-        className={
-          isIdle
-            ? 'inline-flex h-9 flex-col items-start justify-center rounded-lg border border-border bg-card px-2.5 text-[13px] font-medium leading-tight text-foreground transition-colors hover:bg-muted/40'
-            : `inline-flex h-9 flex-col items-start justify-center rounded-lg border px-2.5 text-[13px] font-semibold leading-tight transition-colors ${ring}`
-        }
+        className={`inline-flex h-9 flex-col items-start justify-center rounded-lg border px-2.5 text-[13px] font-semibold leading-tight transition-colors ${ring}`}
       >
         <span className="inline-flex items-center gap-1.5">
-          <span
-            className={isIdle ? 'w-[7px] h-[7px] rounded-full bg-success ring-4 ring-success-surface' : 'w-[5px] h-[5px] rounded-full bg-current'}
-            aria-hidden="true"
-          />
+          <span className="w-[5px] h-[5px] rounded-full bg-current" aria-hidden="true" />
           {isOnline ? 'Online' : 'Offline'}
         </span>
         {/* School is a fact, not a status -- stays black regardless of the
@@ -160,13 +156,6 @@ export const SyncStatus = ({ schoolLabel }: { schoolLabel?: string }) => {
           className="absolute right-0 mt-2 w-[min(22rem,calc(100vw-1rem))] max-h-[70vh] overflow-y-auto bg-card border border-border rounded-xl shadow-xl p-3 text-sm text-left font-normal normal-case leading-normal z-50"
         >
           <p className="font-semibold text-foreground mb-2">{label}</p>
-
-          {tone === 'idle' && (
-            <p className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Check className="w-3.5 h-3.5 text-success" />
-              No changes waiting to sync.
-            </p>
-          )}
 
           {tone === 'offline' && (
             <p className="text-xs text-muted-foreground">

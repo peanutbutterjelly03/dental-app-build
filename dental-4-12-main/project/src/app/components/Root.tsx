@@ -15,27 +15,6 @@ import { apiClient, ApiError } from '../api/client';
 import { useToast } from './Toast';
 import { Modal } from './Modal';
 
-// Quiet, standalone date/time readout for the status strip — its own bordered
-// box, not merged into the Online/school pills, so it doesn't compete with
-// them for attention. Ticks locally; nothing here is server data.
-const LiveClock = () => {
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(id);
-  }, []);
-  return (
-    <div className="hidden sm:flex h-9 flex-col items-end justify-center leading-tight rounded-lg border border-border bg-card px-2.5">
-      <span className="text-[12px] font-semibold text-foreground">
-        {now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-      </span>
-      <span className="text-[11px] text-muted-foreground tabular-nums font-mono">
-        {now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-      </span>
-    </div>
-  );
-};
-
 // Real working dropdown, matching RAMHIS's topbar.jsx exactly (sizes, radii,
 // the "Signed in as" panel) -- the avatar used to just open Change Password
 // directly with no menu at all.
@@ -325,20 +304,18 @@ export const Root = () => {
         onClick={() => setDrawerOpen(false)}
         title={collapsed ? tab.label : undefined}
         aria-current={isActive ? 'page' : undefined}
-        // Collapsed, the rail is 60px and px-4 left the 20px icon centred at
-        // 26px against the rail's 30px -- 4px off, and misaligned with the
-        // footer buttons, which already re-centre themselves when collapsed.
-        // Matches what Change Password / Logout do further down.
-        className={`mx-2 rounded-2xl flex items-center gap-3 px-4 py-3 transition-colors ${
+        // Exact RAMHIS getNavStyle spec: 48px min-height, 12px horizontal
+        // padding, 16px rounded corners, 13px type (500 idle / 700 active).
+        className={`mx-2 rounded-2xl min-h-12 flex items-center gap-3 px-3 transition-colors ${
           collapsed ? 'md:justify-center md:px-0' : ''
         } ${
           isActive
             ? 'bg-sidebar-active text-sidebar-bg font-bold'
-            : 'text-white/70 hover:bg-white/10 hover:text-white'
+            : 'text-white/70 hover:bg-white/10 hover:text-white font-medium'
         }`}
       >
-        <Icon className="w-5 h-5 flex-shrink-0" />
-        <span className={`${labelCls} text-sm font-medium`}>{tab.label}</span>
+        <Icon className="w-4 h-4 flex-shrink-0" />
+        <span className={`${labelCls} text-[13px]`}>{tab.label}</span>
         {tab.path === '/ai-analytics' && highRiskCount > 0 && (
           <span className={`${badgeCls} ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums ${
             isActive ? 'bg-sidebar-bg/20 text-sidebar-bg' : 'bg-danger-surface text-destructive'
@@ -358,23 +335,18 @@ export const Root = () => {
           sidebar in stacking order (z-[60] vs z-50) but NOT across it: it
           starts where the rail ends, so the rail keeps its own full-height
           top corner instead of being covered. Full width below md, where the
-          rail is off-canvas. Contents are right-aligned. Two facts staff in
-          the field must be able to glance at without scrolling: whether the
-          device is online, and which school's records they are looking at.
-          `fixed` (not sticky) because it must survive any scroll container on
-          the page; the wrapper's paddingTop above is what keeps it from
-          covering the first row of content. */}
+          rail is off-canvas. The user avatar is the only permanent content,
+          matching the reference topbar exactly -- SyncStatus renders nothing
+          at all while online/synced (see its own idle-return-null note) and
+          only appears as an actual alert (offline, sync failure, conflict),
+          per CLAUDE.md's "show offline banner when disconnected". `fixed`
+          (not sticky) because it must survive any scroll container on the
+          page; the wrapper's paddingTop above is what keeps it from covering
+          the first row of content. */}
       <div
         style={{ height: TOPBAR_H }}
-        className={`fixed top-0 right-0 left-0 ${collapsed ? 'md:left-[60px]' : 'md:left-[220px]'} z-[60] flex items-center justify-end gap-3 px-6 bg-white/80 backdrop-blur-xl border-b border-[#EEF2F7] leading-none transition-[left] duration-200`}
+        className={`fixed top-0 right-0 left-0 ${collapsed ? 'md:left-[76px]' : 'md:left-[250px]'} z-[60] flex items-center justify-end gap-3 px-6 bg-white/80 backdrop-blur-xl border-b border-[#EEF2F7] leading-none transition-[left] duration-200`}
       >
-        {/* Clock and status+school now match: one neutral bordered box each,
-            two stacked lines. Online/school share a single box (status on
-            top, school small and black underneath) instead of two separate
-            pills -- one fact, not two competing ones. The user identity
-            block (avatar + name + role) mirrors the real topbar's one piece
-            of content, appended at the true right edge. */}
-        <LiveClock />
         <SyncStatus schoolLabel={selectedSchool ? getSchoolShortName(selectedSchool) : 'All Schools'} />
         <UserMenu user={user} onAccountSettings={openChangePassword} />
       </div>
@@ -426,17 +398,19 @@ export const Root = () => {
         //
         // Floating, rounded card at md+ (RAMHIS spec: 12px inset, 28px radius,
         // its own border+shadow) -- flush/full-height below md, where it's an
-        // off-canvas slide-in drawer instead. Main content's margin and the
-        // status strip's left offset are UNCHANGED (still the raw 60/220px
-        // width): the floating rail's extra 12px overlaps 12px of that space,
-        // hidden by z-index, same as the real RAMHIS layout does -- its content
-        // div's marginLeft is the sidebar's raw width too, not width+inset.
+        // off-canvas slide-in drawer instead. Width is now the exact RAMHIS
+        // figure too (76/250, was 60/220). Main content's margin and the
+        // status strip's left offset stay equal to this RAW width (never
+        // width+inset): the floating rail's extra 12px overlaps that much of
+        // the content area, hidden by z-index, same as the real RAMHIS layout
+        // does it -- its own content div's marginLeft is the sidebar's raw
+        // width, not width+inset.
         className={`bg-sidebar-bg flex flex-col fixed left-0 top-0 h-screen z-[70]
           md:left-3 md:top-3 md:bottom-3 md:h-auto md:rounded-[28px] md:border md:border-white/10 md:shadow-[0_18px_45px_rgba(15,23,42,0.22)]
           w-[280px] transition-transform duration-200
           ${drawerOpen ? 'translate-x-0 visible' : '-translate-x-full invisible'}
           md:visible md:translate-x-0 md:transition-[width]
-          ${collapsed ? 'md:w-[60px]' : 'md:w-[220px]'}`}
+          ${collapsed ? 'md:w-[76px]' : 'md:w-[250px]'}`}
       >
         {/* Logo */}
         <div className="p-4 border-b border-white/10 relative">
@@ -452,7 +426,7 @@ export const Root = () => {
           <div className="flex items-center gap-3">
             <img src="/logo.svg" alt="FLORAL" className="w-8 h-8 md:w-10 md:h-10 object-contain flex-shrink-0" />
             <div className={labelCls}>
-              <div className="text-lg font-bold text-white">FLORAL</div>
+              <div className="text-[19px] font-bold text-white tracking-[0.5px]">FLORAL</div>
               <div className="text-[9px] font-semibold tracking-wide text-white/55 leading-tight uppercase">Dental Health Record Management System</div>
             </div>
             {/* Close -- drawer only; Escape and the backdrop also close it */}
@@ -487,7 +461,10 @@ export const Root = () => {
         )}
 
         {/* Tabs */}
-        <nav className="flex-1 overflow-y-auto py-2">
+        <nav className="flex-1 overflow-y-auto py-5">
+          {!collapsed && (
+            <div className="px-[18px] pb-[9px] text-[10px] font-bold uppercase tracking-[1px] text-[#94a3b8]">Main Menu</div>
+          )}
           {visibleTabs.map((tab) => (
             <TabLink key={tab.id} tab={tab} />
           ))}
@@ -560,16 +537,19 @@ export const Root = () => {
           )}
         </div>
 
-        {/* User info + settings + notifications + logout */}
+        {/* User info + settings + notifications + logout -- exact RAMHIS spec:
+            36px avatar chip (bg-primary-50/text-primary-600), 12px name,
+            10px muted role, no role badge; logout resting state is muted
+            white, not red (red is reserved for the real app's confirm-modal
+            icon, which FLORAL doesn't have a matching dialog for). */}
         <div className="border-t border-white/10 p-4">
-          <div className={`flex items-center justify-between gap-2 mb-3 ${collapsed ? 'md:justify-center' : ''}`}>
-            <div className={`min-w-0 ${labelCls}`}>
-              <div className="text-sm font-medium text-white truncate">{user.name}</div>
-              <div className="mt-1">
-                <span className="inline-block px-2 py-0.5 text-xs bg-sidebar-active text-sidebar-bg font-semibold rounded capitalize">
-                  {user.role.replace('_', ' ')}
-                </span>
-              </div>
+          <div className={`flex items-center gap-2.5 pb-[5px] pt-2.5 mb-1 ${collapsed ? 'md:justify-center' : ''}`}>
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-primary-surface text-[14px] font-bold" style={{ color: '#4F63D9' }}>
+              {user.name.charAt(0).toUpperCase()}
+            </span>
+            <div className={`min-w-0 flex flex-col ${labelCls}`}>
+              <strong className="text-[12px] text-white truncate">{user.name}</strong>
+              <span className="mt-[3px] text-[10px] text-white/55 capitalize">{user.role.replace('_', ' ')}</span>
             </div>
             {/* Profile settings — currently just Change Password, the one
                 self-service profile action that exists. Not a menu of
@@ -578,7 +558,7 @@ export const Root = () => {
               onClick={openChangePassword}
               title="Profile settings"
               aria-label="Profile settings"
-              className="flex-shrink-0 p-1.5 rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition-colors"
+              className={`flex-shrink-0 p-1.5 rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition-colors ${collapsed ? 'md:hidden' : ''}`}
             >
               <Settings className="w-4 h-4" />
             </button>
@@ -587,10 +567,10 @@ export const Root = () => {
           <button
             onClick={handleLogout}
             title={collapsed ? 'Logout' : undefined}
-            className={`w-full flex items-center gap-3 px-3 py-2 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200 rounded-lg transition-colors justify-start ${collapsed ? 'md:justify-center' : 'md:justify-start'}`}
+            className={`w-full h-11 flex items-center gap-3 px-3.5 text-[14px] font-medium text-white/55 hover:text-white hover:bg-white/10 rounded-[11px] transition-colors justify-start ${collapsed ? 'md:justify-center' : 'md:justify-start'}`}
           >
-            <LogOut className="w-5 h-5 flex-shrink-0" />
-            <span className={`${labelCls} text-sm font-medium`}>Logout</span>
+            <LogOut className="w-4 h-4 flex-shrink-0" />
+            <span className={labelCls}>Logout</span>
           </button>
         </div>
       </aside>
@@ -605,7 +585,7 @@ export const Root = () => {
           header inside the page (the IPTR toolbar and tab strip) was pinning to
           a box that never scrolls, i.e. silently not sticking at all. `clip`
           clips the same overflow without becoming a scroll container. */}
-      <main className={`flex-1 ml-0 ${collapsed ? 'md:ml-[60px]' : 'md:ml-[220px]'} overflow-x-clip transition-[margin] duration-200`}>
+      <main className={`flex-1 ml-0 ${collapsed ? 'md:ml-[76px]' : 'md:ml-[250px]'} overflow-x-clip transition-[margin] duration-200`}>
         <div className="p-4 md:p-8">
           <Outlet />
         </div>
