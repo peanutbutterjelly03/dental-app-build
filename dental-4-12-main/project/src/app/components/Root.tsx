@@ -413,7 +413,7 @@ export const Root = () => {
           ${collapsed ? 'md:w-[76px]' : 'md:w-[250px]'}`}
       >
         {/* Logo */}
-        <div className="p-4 border-b border-white/10 relative">
+        <div className="p-4 border-b border-[#E2E8F0]/90 relative">
           {/* Collapse toggle -- desktop only, mobile has no room to expand anyway */}
           <button
             onClick={toggleCollapsed}
@@ -474,7 +474,7 @@ export const Root = () => {
             before the adoption (user, Sprint 186). Hers put it under the
             name, between the account and Logout; the bell belongs with the
             app, not with the person. Its own bordered strip, as before. */}
-        <div className="border-t border-white/10 px-4 pt-3">
+        <div className="border-t border-[#E2E8F0]/90 px-4 pt-3">
           {/* Notifications — ABOVE Logout, as the P2 doc asked ("notifications
               above ng log out"). Hidden entirely for School Admin and BHO
               staff: they view reports, never clinical records, so every count
@@ -542,7 +542,7 @@ export const Root = () => {
             10px muted role, no role badge; logout resting state is muted
             white, not red (red is reserved for the real app's confirm-modal
             icon, which FLORAL doesn't have a matching dialog for). */}
-        <div className="border-t border-white/10 p-4">
+        <div className="border-t border-[#E2E8F0]/90 p-4">
           <div className={`flex items-center gap-2.5 pb-[5px] pt-2.5 mb-1 ${collapsed ? 'md:justify-center' : ''}`}>
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-primary-surface text-[14px] font-bold" style={{ color: '#4F63D9' }}>
               {user.name.charAt(0).toUpperCase()}
