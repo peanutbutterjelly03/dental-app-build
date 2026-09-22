@@ -358,7 +358,7 @@ export const Root = () => {
           the first row of content. */}
       <div
         style={{ height: TOPBAR_H }}
-        className={`fixed top-0 right-0 left-0 ${collapsed ? 'md:left-[116px]' : 'md:left-[320px]'} z-[60] flex items-center justify-end gap-3 px-6 bg-white/80 backdrop-blur-xl border-b border-[#EEF2F7] leading-none transition-[left] duration-200`}
+        className={`fixed top-0 right-0 left-0 ${collapsed ? 'md:left-[128px]' : 'md:left-[320px]'} z-[60] flex items-center justify-end gap-3 px-6 bg-white/80 backdrop-blur-xl border-b border-[#EEF2F7] leading-none transition-[left] duration-200`}
       >
         <SyncStatus schoolLabel={selectedSchool ? getSchoolShortName(selectedSchool) : 'All Schools'} />
         <UserMenu user={user} onAccountSettings={openChangePassword} />
@@ -423,10 +423,13 @@ export const Root = () => {
           w-[280px] transition-transform duration-200
           ${drawerOpen ? 'translate-x-0 visible' : '-translate-x-full invisible'}
           md:visible md:translate-x-0 md:transition-[width]
-          ${collapsed ? 'md:w-[76px]' : 'md:w-[280px]'}`}
+          ${collapsed ? 'md:w-[88px]' : 'md:w-[280px]'}`}
       >
         {/* Logo */}
-        <div className={`p-8 flex items-center gap-3 ${collapsed ? 'md:justify-center' : ''}`}>
+        {/* px-8 shrinks to md:px-0 when collapsed -- at 88px collapsed width,
+            32px of padding each side only leaves 24px for the 36px toggle
+            button, which doesn't fit and throws its centering off. */}
+        <div className={`pt-8 px-8 pb-3 flex items-center gap-3 ${collapsed ? 'md:justify-center md:px-0' : ''}`}>
           {/* CSS-hidden (md:hidden), not JS-gated -- collapsed only means
               anything at md+; mobile always ignores it and must keep showing
               the logo regardless of whatever collapsed was left at. */}
@@ -457,7 +460,7 @@ export const Root = () => {
         </div>
         {/* Inset divider -- a margin on both sides instead of a full-width
             border, so the line doesn't touch the rounded card's edges. */}
-        <div className="mx-8 h-px bg-[#E2E8F0]/90" />
+        <div className={`h-px bg-[#E2E8F0]/90 mx-8 ${collapsed ? "md:mx-2" : ""}`} />
 
         {/* School switcher — a button to the dedicated selection screen
             (reverted 2026-09-04 at the user's explicit request from the
@@ -470,10 +473,22 @@ export const Root = () => {
             onClick={() => navigate('/select-school')}
             title="Switch School"
             aria-label="Switch School"
-            className={`group flex items-center gap-2 mx-7 mt-2 mb-1 px-2.5 py-1.5 rounded-xl border border-white/10 bg-white/5 text-white hover:bg-white/10 transition-all ${collapsed ? 'md:justify-center' : ''} w-[calc(100%-56px)]`}
+            // Mobile-safe base classes always apply (border/bg/padding/chip);
+            // collapsed only ADDS md:-prefixed overrides on top to strip them
+            // at desktop collapsed width -- never swaps the whole class string,
+            // which would leave mobile unstyled if `collapsed` was left true
+            // from a prior desktop session (mobile ignores that flag).
+            className={`group flex items-center gap-2 mx-7 mt-2 mb-1 px-2.5 py-1.5 rounded-xl border border-white/10 bg-white/5 text-white hover:bg-white/10 transition-all w-[calc(100%-56px)] ${
+              collapsed ? 'md:justify-center md:mx-0 md:w-full md:border-0 md:bg-transparent md:px-0 md:py-3' : ''
+            }`}
           >
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sidebar-active text-sidebar-bg group-hover:scale-105 transition-transform">
-              <ArrowLeftRight className="w-3 h-3" />
+            {/* Collapsed: plain icon matching the nav items' size/color, no
+                gold circle chip -- expanded (incl. always on mobile): the
+                circle chip stays. */}
+            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sidebar-active text-sidebar-bg group-hover:scale-105 transition-transform ${
+              collapsed ? 'md:h-4 md:w-4 md:rounded-none md:bg-transparent md:text-white/70 md:group-hover:scale-100' : ''
+            }`}>
+              <ArrowLeftRight className={`w-3 h-3 ${collapsed ? 'md:w-4 md:h-4' : ''}`} />
             </span>
             <span className={`${labelCls} text-[13px] font-semibold`}>Switch School</span>
           </button>
@@ -494,8 +509,8 @@ export const Root = () => {
             10px muted role, no role badge; logout resting state is muted
             white, not red (red is reserved for the real app's confirm-modal
             icon, which FLORAL doesn't have a matching dialog for). */}
-        <div className="mx-8 h-px bg-[#E2E8F0]/90" />
-        <div className="p-8">
+        <div className={`h-px bg-[#E2E8F0]/90 mx-8 ${collapsed ? "md:mx-2" : ""}`} />
+        <div className="pt-3 px-8 pb-8">
           {/* Real spec hides this WHOLE block when collapsed (avatar included,
               not just the name/role text) -- CSS-based (md:hidden), not a JS
               conditional, so mobile (which ignores `collapsed`) still shows it
@@ -531,7 +546,7 @@ export const Root = () => {
           header inside the page (the IPTR toolbar and tab strip) was pinning to
           a box that never scrolls, i.e. silently not sticking at all. `clip`
           clips the same overflow without becoming a scroll container. */}
-      <main className={`flex-1 ml-0 ${collapsed ? 'md:ml-[116px]' : 'md:ml-[320px]'} overflow-x-clip transition-[margin] duration-200`}>
+      <main className={`flex-1 ml-0 ${collapsed ? 'md:ml-[128px]' : 'md:ml-[320px]'} overflow-x-clip transition-[margin] duration-200`}>
         <div className="p-4 md:p-8">
           <Outlet />
         </div>
