@@ -49,11 +49,13 @@
   --sidebar-active: #F4C542;     /* RAMHIS's exact active-nav gold */
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  /* Public Sans — the US federal government typeface: institutional,
-     highly legible for older/non-technical staff, quietly distinctive.
-     Gives the app a type identity instead of the OS default (Segoe UI). */
-  --font-sans: 'Public Sans Variable', system-ui, -apple-system, sans-serif;
-  /* The one exception to Public Sans, declared 2026-08-11. `font-mono` was
+  /* Inter (2026-09-22, part of the RAMHIS-derived redesign) — replaces
+     Public Sans app-wide, matching RAMHIS's own MainLayout.jsx font stack
+     (which names Inter but never actually loads it there; FLORAL loads the
+     real variable-font file via @fontsource-variable/inter in main.tsx so it
+     still works offline, unlike a Google Fonts CDN link would). */
+  --font-sans: 'Inter Variable', system-ui, -apple-system, sans-serif;
+  /* The one exception to the body font, declared 2026-08-11. `font-mono` was
      already in use on audit-trail record IDs and dental notation codes, but it
      resolved to Tailwind's built-in stack — undeclared here, so the app picked a
      different face per operating system. Pinned to a Windows-first order because

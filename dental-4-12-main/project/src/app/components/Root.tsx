@@ -366,7 +366,16 @@ export const Root = () => {
         // this aside's own z-index makes it a stacking context, so a child can
         // never escape it. The rail has to win, and it does not overlap the
         // strip anywhere else.
+        //
+        // Floating, rounded card at md+ (RAMHIS spec: 12px inset, 28px radius,
+        // its own border+shadow) -- flush/full-height below md, where it's an
+        // off-canvas slide-in drawer instead. Main content's margin and the
+        // status strip's left offset are UNCHANGED (still the raw 60/220px
+        // width): the floating rail's extra 12px overlaps 12px of that space,
+        // hidden by z-index, same as the real RAMHIS layout does -- its content
+        // div's marginLeft is the sidebar's raw width too, not width+inset.
         className={`bg-sidebar-bg flex flex-col fixed left-0 top-0 h-screen z-[70]
+          md:left-3 md:top-3 md:bottom-3 md:h-auto md:rounded-[28px] md:border md:border-white/10 md:shadow-[0_18px_45px_rgba(15,23,42,0.22)]
           w-[280px] transition-transform duration-200
           ${drawerOpen ? 'translate-x-0 visible' : '-translate-x-full invisible'}
           md:visible md:translate-x-0 md:transition-[width]
