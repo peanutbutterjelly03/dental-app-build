@@ -118,6 +118,11 @@ export const SyncStatus = () => {
 
   const { ring, label } = chrome[tone];
 
+  // Idle ("everything's fine") is deliberately quiet — plain text and a small
+  // dot, no fill or border — so it doesn't compete with the pills used for
+  // states that actually need attention (offline, failed, conflict, syncing).
+  const isIdle = tone === 'idle';
+
   return (
     <div ref={containerRef} className="relative">
       <button
@@ -125,9 +130,16 @@ export const SyncStatus = () => {
         aria-label={label}
         title={label}
         aria-expanded={open}
-        className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-[2px] text-[13px] font-semibold leading-none transition-colors ${ring}`}
+        className={
+          isIdle
+            ? 'inline-flex items-center gap-1.5 rounded-full px-1.5 py-[2px] text-[13px] font-medium leading-none text-muted-foreground transition-colors hover:text-foreground'
+            : `inline-flex items-center gap-1.5 rounded-full border px-2 py-[2px] text-[13px] font-semibold leading-none transition-colors ${ring}`
+        }
       >
-        <span className="w-[5px] h-[5px] rounded-full bg-current" aria-hidden="true" />
+        <span
+          className={isIdle ? 'w-[7px] h-[7px] rounded-full bg-success ring-4 ring-success-surface' : 'w-[5px] h-[5px] rounded-full bg-current'}
+          aria-hidden="true"
+        />
         {isOnline ? 'Online' : 'Offline'}
       </button>
 

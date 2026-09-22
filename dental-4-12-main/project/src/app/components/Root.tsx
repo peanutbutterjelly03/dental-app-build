@@ -15,6 +15,26 @@ import { apiClient, ApiError } from '../api/client';
 import { useToast } from './Toast';
 import { Modal } from './Modal';
 
+// Quiet, standalone date/time readout for the status strip — its own bordered
+// box, not merged into the Online/school pills, so it doesn't compete with
+// them for attention. Ticks locally; nothing here is server data.
+const LiveClock = () => {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <div className="hidden sm:flex flex-col items-end leading-tight rounded-lg border border-border bg-card px-2.5 py-1">
+      <span className="text-[12px] font-semibold text-foreground">
+        {now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+      </span>
+      <span className="text-[11px] text-muted-foreground tabular-nums font-mono">
+        {now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+      </span>
+    </div>
+  );
+};
 
 export const Root = () => {
   const { user, logout, selectedSchool } = useAuth();
@@ -284,9 +304,13 @@ export const Root = () => {
         style={{ height: TOPBAR_H }}
         className={`fixed top-0 right-0 left-0 ${collapsed ? 'md:left-[60px]' : 'md:left-[220px]'} z-[60] flex items-center justify-end gap-1.5 px-3 bg-card border-b border-border leading-none transition-[left] duration-200`}
       >
-        {/* Two pills, no divider — the rings already separate them. The sync
-            pill IS the affordance: clicking it opens the full panel, which is
-            why the floating cloud icon it replaced is gone entirely. */}
+        {/* Clock is its own quiet box — never merged with the status pills, so
+            it doesn't compete with them. The sync pill IS the affordance:
+            clicking it opens the full panel, which is why the floating cloud
+            icon it replaced is gone entirely. School keeps the shared school
+            palette (kicker/GradePill) per the note above, just at a lighter
+            weight so it reads as a label, not an alert. */}
+        <LiveClock />
         <SyncStatus />
         <span
           style={{
@@ -294,7 +318,7 @@ export const Root = () => {
             color: stripSchool.solid,
             borderColor: stripSchool.border,
           }}
-          className="inline-flex items-center rounded-full border px-2.5 py-[2px] text-[13px] font-semibold leading-none truncate max-w-[45vw]"
+          className="inline-flex items-center rounded-full border px-2.5 py-[2px] text-[13px] font-medium leading-none truncate max-w-[45vw] opacity-90"
         >
           {selectedSchool ? getSchoolShortName(selectedSchool) : 'All Schools'}
         </span>
