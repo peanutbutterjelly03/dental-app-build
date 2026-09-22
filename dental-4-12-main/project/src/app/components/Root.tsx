@@ -306,7 +306,7 @@ export const Root = () => {
         aria-current={isActive ? 'page' : undefined}
         // Exact RAMHIS getNavStyle spec: 48px min-height, 12px horizontal
         // padding, 16px rounded corners, 13px type (500 idle / 700 active).
-        className={`mx-3 rounded-2xl min-h-12 flex items-center gap-3 px-3 transition-colors ${
+        className={`mx-4 rounded-2xl min-h-12 flex items-center gap-3 px-3 transition-colors ${
           collapsed ? 'md:justify-center md:px-0' : ''
         } ${
           isActive
@@ -345,7 +345,7 @@ export const Root = () => {
           the first row of content. */}
       <div
         style={{ height: TOPBAR_H }}
-        className={`fixed top-0 right-0 left-0 ${collapsed ? 'md:left-[244px]' : 'md:left-[448px]'} z-[60] flex items-center justify-end gap-3 px-6 bg-white/80 backdrop-blur-xl border-b border-[#EEF2F7] leading-none transition-[left] duration-200`}
+        className={`fixed top-0 right-0 left-0 ${collapsed ? 'md:left-[116px]' : 'md:left-[320px]'} z-[60] flex items-center justify-end gap-3 px-6 bg-white/80 backdrop-blur-xl border-b border-[#EEF2F7] leading-none transition-[left] duration-200`}
       >
         <SyncStatus schoolLabel={selectedSchool ? getSchoolShortName(selectedSchool) : 'All Schools'} />
         <UserMenu user={user} onAccountSettings={openChangePassword} />
@@ -406,14 +406,14 @@ export const Root = () => {
         // does it -- its own content div's marginLeft is the sidebar's raw
         // width, not width+inset.
         className={`bg-sidebar-bg flex flex-col fixed left-0 top-0 h-screen z-[70]
-          md:left-[84px] md:top-[84px] md:bottom-[84px] md:h-auto md:rounded-[28px] md:border md:border-white/10 md:shadow-[0_18px_45px_rgba(15,23,42,0.22)]
+          md:left-5 md:top-5 md:bottom-5 md:h-auto md:rounded-[28px] md:border md:border-white/10 md:shadow-[0_18px_45px_rgba(15,23,42,0.22)]
           w-[280px] transition-transform duration-200
           ${drawerOpen ? 'translate-x-0 visible' : '-translate-x-full invisible'}
           md:visible md:translate-x-0 md:transition-[width]
           ${collapsed ? 'md:w-[76px]' : 'md:w-[280px]'}`}
       >
         {/* Logo */}
-        <div className={`p-4 flex items-center gap-3 ${collapsed ? 'md:justify-center' : ''}`}>
+        <div className={`p-5 flex items-center gap-3 ${collapsed ? 'md:justify-center' : ''}`}>
           {/* CSS-hidden (md:hidden), not JS-gated -- collapsed only means
               anything at md+; mobile always ignores it and must keep showing
               the logo regardless of whatever collapsed was left at. */}
@@ -444,7 +444,7 @@ export const Root = () => {
         </div>
         {/* Inset divider -- a margin on both sides instead of a full-width
             border, so the line doesn't touch the rounded card's edges. */}
-        <div className="mx-4 h-px bg-[#E2E8F0]/90" />
+        <div className="mx-5 h-px bg-[#E2E8F0]/90" />
 
         {/* School switcher — a button to the dedicated selection screen
             (reverted 2026-09-04 at the user's explicit request from the
@@ -457,7 +457,7 @@ export const Root = () => {
             onClick={() => navigate('/select-school')}
             title="Switch School"
             aria-label="Switch School"
-            className={`group flex items-center gap-2 mx-3 mt-2 mb-1 px-2.5 py-1.5 rounded-xl border border-white/10 bg-white/5 text-white hover:bg-white/10 transition-all ${collapsed ? 'md:justify-center' : ''} w-[calc(100%-24px)]`}
+            className={`group flex items-center gap-2 mx-4 mt-2 mb-1 px-2.5 py-1.5 rounded-xl border border-white/10 bg-white/5 text-white hover:bg-white/10 transition-all ${collapsed ? 'md:justify-center' : ''} w-[calc(100%-32px)]`}
           >
             <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sidebar-active text-sidebar-bg group-hover:scale-105 transition-transform">
               <ArrowLeftRight className="w-3 h-3" />
@@ -469,7 +469,7 @@ export const Root = () => {
         {/* Tabs */}
         <nav className="flex-1 overflow-y-auto py-5">
           {!collapsed && (
-            <div className="px-[18px] pb-[9px] text-[10px] font-bold uppercase tracking-[1px] text-[#94a3b8]">Main Menu</div>
+            <div className="px-5 pb-[9px] text-[10px] font-bold uppercase tracking-[1px] text-[#94a3b8]">Main Menu</div>
           )}
           {visibleTabs.map((tab) => (
             <TabLink key={tab.id} tab={tab} />
@@ -480,8 +480,8 @@ export const Root = () => {
             before the adoption (user, Sprint 186). Hers put it under the
             name, between the account and Logout; the bell belongs with the
             app, not with the person. Its own inset divider, as before. */}
-        <div className="mx-4 h-px bg-[#E2E8F0]/90" />
-        <div className="px-4 pt-3">
+        <div className="mx-5 h-px bg-[#E2E8F0]/90" />
+        <div className="px-5 pt-3">
           {/* Notifications — ABOVE Logout, as the P2 doc asked ("notifications
               above ng log out"). Hidden entirely for School Admin and BHO
               staff: they view reports, never clinical records, so every count
@@ -549,8 +549,8 @@ export const Root = () => {
             10px muted role, no role badge; logout resting state is muted
             white, not red (red is reserved for the real app's confirm-modal
             icon, which FLORAL doesn't have a matching dialog for). */}
-        <div className="mx-4 h-px bg-[#E2E8F0]/90" />
-        <div className="p-4">
+        <div className="mx-5 h-px bg-[#E2E8F0]/90" />
+        <div className="p-5">
           <div className={`flex items-center gap-2.5 pb-[5px] pt-2.5 mb-1 ${collapsed ? 'md:justify-center' : ''}`}>
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-primary-surface text-[14px] font-bold" style={{ color: '#4F63D9' }}>
               {user.name.charAt(0).toUpperCase()}
@@ -582,7 +582,7 @@ export const Root = () => {
           header inside the page (the IPTR toolbar and tab strip) was pinning to
           a box that never scrolls, i.e. silently not sticking at all. `clip`
           clips the same overflow without becoming a scroll container. */}
-      <main className={`flex-1 ml-0 ${collapsed ? 'md:ml-[244px]' : 'md:ml-[448px]'} overflow-x-clip transition-[margin] duration-200`}>
+      <main className={`flex-1 ml-0 ${collapsed ? 'md:ml-[116px]' : 'md:ml-[320px]'} overflow-x-clip transition-[margin] duration-200`}>
         <div className="p-4 md:p-8">
           <Outlet />
         </div>
