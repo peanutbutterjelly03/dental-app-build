@@ -496,11 +496,15 @@ export const Root = () => {
             icon, which FLORAL doesn't have a matching dialog for). */}
         <div className="mx-8 h-px bg-[#E2E8F0]/90" />
         <div className="p-8">
-          <div className={`flex items-center gap-2.5 pb-[5px] pt-2.5 mb-1 ${collapsed ? 'md:justify-center' : ''}`}>
+          {/* Real spec hides this WHOLE block when collapsed (avatar included,
+              not just the name/role text) -- CSS-based (md:hidden), not a JS
+              conditional, so mobile (which ignores `collapsed`) still shows it
+              regardless of whatever the flag was left at. */}
+          <div className={`flex items-center gap-2.5 pb-[5px] pt-2.5 mb-1 ${collapsed ? 'md:hidden' : ''}`}>
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-primary-surface text-[14px] font-bold" style={{ color: '#4F63D9' }}>
               {user.name.charAt(0).toUpperCase()}
             </span>
-            <div className={`min-w-0 flex flex-col ${labelCls}`}>
+            <div className="min-w-0 flex flex-col">
               <strong className="text-[12px] text-white truncate">{user.name}</strong>
               <span className="mt-[3px] text-[10px] text-white/55 capitalize">{user.role.replace('_', ' ')}</span>
             </div>
