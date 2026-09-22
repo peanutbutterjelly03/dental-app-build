@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, Calendar, Brain,
   ClipboardList, LogOut, Stethoscope, Shield,
   Clipboard, FileBarChart, UserCog,
-  ChevronLeft, ChevronRight, Menu, X, School, Archive, Bell, Settings, ArrowLeftRight
+  ChevronLeft, ChevronRight, ChevronDown, Menu, X, School, Archive, Bell, Settings, ArrowLeftRight
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { getSchoolShortName } from '../utils/schoolColors';
@@ -32,6 +32,76 @@ const LiveClock = () => {
       <span className="text-[11px] text-muted-foreground tabular-nums font-mono">
         {now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
       </span>
+    </div>
+  );
+};
+
+// Real working dropdown, matching RAMHIS's topbar.jsx exactly (sizes, radii,
+// the "Signed in as" panel) -- the avatar used to just open Change Password
+// directly with no menu at all.
+const UserMenu = ({ user, onAccountSettings }: { user: { name: string; role: string }; onAccountSettings: () => void }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const firstLetter = user.name.charAt(0).toUpperCase();
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: MouseEvent | TouchEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('touchstart', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('touchstart', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative hidden sm:block">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className={`flex items-center gap-3 rounded-2xl px-2 py-1.5 transition-all duration-200 ${
+          open ? 'border border-border bg-card shadow-sm' : 'border border-transparent bg-transparent hover:bg-card'
+        }`}
+      >
+        <span
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white text-sm font-bold shadow-[0_6px_18px_rgba(30,42,94,0.22)]"
+          style={{ background: 'linear-gradient(135deg, #4F63D9, #17234D)' }}
+        >
+          {firstLetter}
+        </span>
+        <span className="hidden md:flex flex-col items-start min-w-[100px] max-w-[180px]">
+          <span className="text-[13px] font-bold text-sidebar-bg truncate max-w-[180px]">{user.name}</span>
+          <span className="mt-0.5 text-[11px] font-medium text-muted-foreground capitalize">{user.role.replace('_', ' ')}</span>
+        </span>
+        <ChevronDown className={`hidden sm:block w-[11px] h-[11px] text-muted-foreground transition-transform duration-200 ${open ? 'rotate-180' : 'rotate-0'}`} />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-[calc(100%+10px)] w-[230px] overflow-hidden rounded-2xl border border-border bg-card p-2 shadow-[0_20px_50px_rgba(15,23,42,0.12)] z-10">
+          <div className="mb-2 border-b border-border px-3 py-3">
+            <span className="block text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Signed in as</span>
+            <strong className="mt-1 block truncate text-[13px] font-bold text-sidebar-bg">{user.name}</strong>
+            <span className="mt-0.5 block text-[11px] capitalize text-muted-foreground">{user.role.replace('_', ' ')}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => { setOpen(false); onAccountSettings(); }}
+            className="flex h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] font-semibold text-muted-foreground transition-all duration-200 hover:bg-primary-surface hover:text-sidebar-bg"
+          >
+            <UserCog className="w-4 h-4 text-primary" />
+            <span>Account Settings</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 };
@@ -306,20 +376,7 @@ export const Root = () => {
             of content, appended at the true right edge. */}
         <LiveClock />
         <SyncStatus schoolLabel={selectedSchool ? getSchoolShortName(selectedSchool) : 'All Schools'} />
-        <button
-          type="button"
-          onClick={openChangePassword}
-          title="Profile settings"
-          className="hidden sm:flex items-center gap-2.5 rounded-2xl px-2 py-1.5 hover:bg-muted transition-colors"
-        >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-white text-sm font-bold shadow-[0_6px_18px_rgba(30,42,94,0.22)]" style={{ background: 'linear-gradient(135deg, #4F63D9, #17234D)' }}>
-            {user.name.charAt(0).toUpperCase()}
-          </span>
-          <span className="hidden md:flex flex-col items-start min-w-[90px] max-w-[160px]">
-            <span className="text-[13px] font-bold text-primary truncate max-w-[160px]">{user.name}</span>
-            <span className="text-[11px] font-medium text-muted-foreground capitalize">{user.role.replace('_', ' ')}</span>
-          </span>
-        </button>
+        <UserMenu user={user} onAccountSettings={openChangePassword} />
       </div>
 
       {/* MOBILE TOP BAR -- below md only; the drawer's only entry point. The
@@ -332,9 +389,9 @@ export const Root = () => {
           aria-label="Open navigation menu"
           aria-expanded={drawerOpen}
           aria-controls="main-nav"
-          className="-ml-2 p-2 rounded-lg text-foreground hover:bg-primary-surface transition-colors"
+          className="flex h-9 w-9 items-center justify-center rounded-xl bg-sidebar-bg text-white hover:opacity-90 transition-opacity"
         >
-          <Menu className="w-5 h-5" />
+          <Menu className="w-[18px] h-[18px]" />
         </button>
         <span className="text-base font-bold text-primary">FLORAL</span>
         {/* The school name used to repeat here. The status strip above now
