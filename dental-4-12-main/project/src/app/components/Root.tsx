@@ -161,22 +161,22 @@ export const Root = () => {
       .catch(() => setHighRiskCount(0));
   }, [user?.role, selectedSchool]);
 
-  // Sidebar bell (Sprint 97). One server aggregate, same pattern as the badge
-  // above — the sidebar renders on every screen, so it must not mount the
-  // six-collection hooks these counts come from.
-  const [showNotifications, setShowNotifications] = useState(false);
-  const { counts: notifCounts, error: notifError } = useNotifications(NOTIFIED_ROLES.includes(user?.role ?? ''), selectedSchool);
+  // Sidebar bell badge (Sprint 97, moved to its own /notifications page on
+  // request). One server aggregate, same pattern as the badge above — the
+  // sidebar renders on every screen, so it must not mount the six-collection
+  // hooks these counts come from. Only the total is needed here now; the
+  // per-category breakdown lives in Notifications.tsx.
+  const { counts: notifCounts } = useNotifications(NOTIFIED_ROLES.includes(user?.role ?? ''), selectedSchool);
 
   // ⚠ THE BADGE COUNTS ONLY THE ROWS THIS ROLE CAN SEE. Risk validation is
   // dentist-only (nav tab 5), so for an aide or admin that row is hidden — and
   // a badge saying "3" above a list showing two items is the kind of number
   // nobody can reconcile. The hook's own `total` is deliberately not used here.
-  const canValidateRisk = user?.role === 'dentist';
   const notifTotal =
     notifCounts.overdueRpc +
     notifCounts.appointmentsToday +
     notifCounts.remindersToday +
-    (canValidateRisk ? notifCounts.awaitingValidation : 0);
+    (user?.role === 'dentist' ? notifCounts.awaitingValidation : 0);
 
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -262,6 +262,12 @@ export const Root = () => {
       roles: ['dentist','dental_aide','school_admin','bho_staff','system_admin']
     },
     {
+      // Moved into the main nav list, right after Reports, on request --
+      // was a separate inline popover section above the user block.
+      id: 8.5, path: '/notifications', label: 'Notifications', icon: Bell,
+      roles: NOTIFIED_ROLES,
+    },
+    {
       id: 9, path: '/schools', label: 'Schools', icon: School,
       roles: ['system_admin']
     },
@@ -306,7 +312,7 @@ export const Root = () => {
         aria-current={isActive ? 'page' : undefined}
         // Exact RAMHIS getNavStyle spec: 48px min-height, 12px horizontal
         // padding, 16px rounded corners, 13px type (500 idle / 700 active).
-        className={`mx-6 rounded-2xl min-h-12 flex items-center gap-3 px-3 transition-colors ${
+        className={`mx-7 rounded-2xl min-h-12 flex items-center gap-3 px-3 transition-colors ${
           collapsed ? 'md:justify-center md:px-0' : ''
         } ${
           isActive
@@ -321,6 +327,13 @@ export const Root = () => {
             isActive ? 'bg-sidebar-bg/20 text-sidebar-bg' : 'bg-danger-surface text-destructive'
           }`}>
             {highRiskCount}
+          </span>
+        )}
+        {tab.path === '/notifications' && notifTotal > 0 && (
+          <span className={`${badgeCls} ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums ${
+            isActive ? 'bg-sidebar-bg/20 text-sidebar-bg' : 'bg-danger-surface text-destructive'
+          }`}>
+            {notifTotal > 99 ? '99+' : notifTotal}
           </span>
         )}
       </Link>
@@ -413,7 +426,7 @@ export const Root = () => {
           ${collapsed ? 'md:w-[76px]' : 'md:w-[280px]'}`}
       >
         {/* Logo */}
-        <div className={`p-7 flex items-center gap-3 ${collapsed ? 'md:justify-center' : ''}`}>
+        <div className={`p-8 flex items-center gap-3 ${collapsed ? 'md:justify-center' : ''}`}>
           {/* CSS-hidden (md:hidden), not JS-gated -- collapsed only means
               anything at md+; mobile always ignores it and must keep showing
               the logo regardless of whatever collapsed was left at. */}
@@ -444,7 +457,7 @@ export const Root = () => {
         </div>
         {/* Inset divider -- a margin on both sides instead of a full-width
             border, so the line doesn't touch the rounded card's edges. */}
-        <div className="mx-7 h-px bg-[#E2E8F0]/90" />
+        <div className="mx-8 h-px bg-[#E2E8F0]/90" />
 
         {/* School switcher — a button to the dedicated selection screen
             (reverted 2026-09-04 at the user's explicit request from the
@@ -457,7 +470,7 @@ export const Root = () => {
             onClick={() => navigate('/select-school')}
             title="Switch School"
             aria-label="Switch School"
-            className={`group flex items-center gap-2 mx-6 mt-2 mb-1 px-2.5 py-1.5 rounded-xl border border-white/10 bg-white/5 text-white hover:bg-white/10 transition-all ${collapsed ? 'md:justify-center' : ''} w-[calc(100%-48px)]`}
+            className={`group flex items-center gap-2 mx-7 mt-2 mb-1 px-2.5 py-1.5 rounded-xl border border-white/10 bg-white/5 text-white hover:bg-white/10 transition-all ${collapsed ? 'md:justify-center' : ''} w-[calc(100%-56px)]`}
           >
             <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sidebar-active text-sidebar-bg group-hover:scale-105 transition-transform">
               <ArrowLeftRight className="w-3 h-3" />
@@ -469,88 +482,20 @@ export const Root = () => {
         {/* Tabs */}
         <nav className="flex-1 overflow-y-auto py-5">
           {!collapsed && (
-            <div className="px-7 pb-[9px] text-[10px] font-bold uppercase tracking-[1px] text-[#94a3b8]">Main Menu</div>
+            <div className="px-8 pb-[9px] text-[10px] font-bold uppercase tracking-[1px] text-[#94a3b8]">Main Menu</div>
           )}
           {visibleTabs.map((tab) => (
             <TabLink key={tab.id} tab={tab} />
           ))}
         </nav>
 
-        {/* ⚠ Notifications sits ABOVE the account block, where it was
-            before the adoption (user, Sprint 186). Hers put it under the
-            name, between the account and Logout; the bell belongs with the
-            app, not with the person. Its own inset divider, as before. */}
-        <div className="mx-7 h-px bg-[#E2E8F0]/90" />
-        <div className="px-7 pt-3">
-          {/* Notifications — ABOVE Logout, as the P2 doc asked ("notifications
-              above ng log out"). Hidden entirely for School Admin and BHO
-              staff: they view reports, never clinical records, so every count
-              would be both zero and none of their business. Links straight to
-              the full notifications page rather than an inline dropdown. */}
-          {/* ⚠ RESTORED to the inline popover we had before the adoption
-              (Sprint 184, the user's call). Hers navigated to a full
-              /notifications page; the popover reads in place, which is what a
-              notification is for — glance, act, carry on, without losing the
-              screen you were on. */}
-          {NOTIFIED_ROLES.includes(user.role) && (
-            <>
-            <button
-              type="button"
-              onClick={() => setShowNotifications((v) => !v)}
-              aria-expanded={showNotifications}
-              title={collapsed ? `Notifications${notifTotal ? ` (${notifTotal})` : ''}` : undefined}
-              className={`w-full flex items-center gap-3 px-3 py-2 text-white/70 hover:bg-white/10 hover:text-white rounded-lg transition-colors mb-1 justify-start ${collapsed ? 'md:justify-center' : 'md:justify-start'}`}
-            >
-              <span className="relative flex-shrink-0">
-                <Bell className="w-5 h-5" />
-                {notifTotal > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-1 rounded-full bg-destructive text-white text-[9px] font-bold flex items-center justify-center">
-                    {notifTotal > 99 ? '99+' : notifTotal}
-                  </span>
-                )}
-              </span>
-              <span className={`${labelCls} text-sm font-medium`}>Notifications</span>
-            </button>
-            {/* Popover reads as a light card set into the dark sidebar --
-                same contrast relationship as a dropdown menu over page chrome. */}
-            {showNotifications && !collapsed && (
-              <div className="mt-1 mb-2 rounded-lg bg-white p-2 space-y-1 shadow-[0_10px_30px_rgba(15,23,42,0.25)]">
-                {notifTotal === 0 && (
-                  <p className="text-xs text-muted-foreground px-1 py-1">
-                    {notifError ? 'Counts unavailable right now.' : 'Nothing needs attention.'}
-                  </p>
-                )}
-                {notifCounts.overdueRpc > 0 && (
-                  <Link to="/rpc" onClick={() => setShowNotifications(false)}
-                    className="block text-xs px-2 py-1.5 rounded hover:bg-muted text-foreground">
-                    <span className="font-semibold text-destructive">{notifCounts.overdueRpc}</span> overdue RPC visit{notifCounts.overdueRpc === 1 ? '' : 's'}
-                  </Link>
-                )}
-                {notifCounts.appointmentsToday > 0 && (
-                  <Link to="/appointments" onClick={() => setShowNotifications(false)}
-                    className="block text-xs px-2 py-1.5 rounded hover:bg-muted text-foreground">
-                    <span className="font-semibold text-primary">{notifCounts.appointmentsToday}</span> appointment{notifCounts.appointmentsToday === 1 ? '' : 's'} today
-                  </Link>
-                )}
-                {notifCounts.awaitingValidation > 0 && canValidateRisk && (
-                  <Link to="/ai-analytics" onClick={() => setShowNotifications(false)}
-                    className="block text-xs px-2 py-1.5 rounded hover:bg-muted text-foreground">
-                    <span className="font-semibold text-warning">{notifCounts.awaitingValidation}</span> risk assessment{notifCounts.awaitingValidation === 1 ? '' : 's'} awaiting validation
-                  </Link>
-                )}
-              </div>
-            )}
-            </>
-          )}
-        </div>
-
         {/* User info + settings + notifications + logout -- exact RAMHIS spec:
             36px avatar chip (bg-primary-50/text-primary-600), 12px name,
             10px muted role, no role badge; logout resting state is muted
             white, not red (red is reserved for the real app's confirm-modal
             icon, which FLORAL doesn't have a matching dialog for). */}
-        <div className="mx-7 h-px bg-[#E2E8F0]/90" />
-        <div className="p-7">
+        <div className="mx-8 h-px bg-[#E2E8F0]/90" />
+        <div className="p-8">
           <div className={`flex items-center gap-2.5 pb-[5px] pt-2.5 mb-1 ${collapsed ? 'md:justify-center' : ''}`}>
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-primary-surface text-[14px] font-bold" style={{ color: '#4F63D9' }}>
               {user.name.charAt(0).toUpperCase()}
