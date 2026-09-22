@@ -346,18 +346,20 @@ export const Dashboard = () => {
     );
   };
 
-  // ===== CLINIC SUMMARY STRIP (Sprint A, design direction 3a) =====
-  // Replaces the four equal-weight StatCards, which DESIGN.md calls out by name
-  // as "the absence of hierarchy". Presented as clinical paperwork: ruled cells,
-  // uppercase field labels, tabular figures, no icon chips, no tint, no shadow.
-  // The strip is NOT clickable as a whole -- each cell is its own link.
+  // ===== CLINIC SUMMARY STAT TILES =====
+  // Each stat is its own rounded card (icon + label, big tabular figure, muted
+  // context line) instead of one ruled strip with divided cells -- requested
+  // directly, matching a reference dashboard's stat-tile language. Still flat
+  // (no shadow/lift): a border-color hover instead of a shadow, so this stays
+  // inside the app's no-shadow-on-cards elevation rule while picking up the
+  // softer, individually-boxed look.
   const SummaryCell = ({ icon: Icon, label, value, valueClass, context, linkTo, loading, trailing }: {
     icon: any; label: string; value: string; valueClass?: string; context: string;
     linkTo?: string; loading?: boolean; trailing?: string;
   }) => {
     const body = (
       <>
-        <div className="flex items-center justify-between gap-2 mb-1.5">
+        <div className="flex items-center justify-between gap-2 mb-2">
           <span className="flex items-center gap-[7px] min-w-0">
             <Icon className="w-3.5 h-3.5 text-muted-foreground shrink-0" strokeWidth={2} />
             <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-muted-foreground truncate">{label}</span>
@@ -390,14 +392,12 @@ export const Dashboard = () => {
       </>
     );
 
-    // Cell tint replaces the old card lift; focus ring is explicit because these
-    // are links and the previous tiles relied on the browser default.
-    const cell = 'px-4 py-3.5 border-border';
+    const cell = 'bg-card border border-border rounded-xl p-4 h-full';
     if (!linkTo) return <div className={cell}>{body}</div>;
     return (
       <Link
         to={linkTo}
-        className={`${cell} block transition-colors duration-150 hover:bg-primary-surface focus-visible:bg-primary-surface focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-2`}
+        className={`${cell} block transition-colors duration-150 hover:border-primary/40 focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-2`}
       >
         {body}
       </Link>
@@ -487,10 +487,10 @@ export const Dashboard = () => {
         </div>
 
         {/* Clinic summary (Sprint A, direction 3a) — replaces the four KPI tiles */}
-        <div className="bg-card border border-border rounded-xl overflow-hidden rise rise-1">
-          <div className="flex items-baseline justify-between gap-4 px-4 py-2.5 bg-muted border-b border-border">
-            <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-foreground">Clinic summary</span>
-            <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+        <div className="space-y-3 rise rise-1">
+          <div className="flex items-baseline justify-between gap-4">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Clinic summary</span>
+            <span className="text-xs font-medium text-muted-foreground">
               {formatDateWithWeekday(new Date())}
             </span>
           </div>
@@ -498,7 +498,7 @@ export const Dashboard = () => {
           {/* 1 column stacked with horizontal rules, 4 columns with vertical
               rules from lg. No 2-column middle step: at that width the context
               lines wrap and the ledger stops reading as a single row. */}
-          <div className="grid grid-cols-1 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-border">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <SummaryCell
               icon={Users}
               label="Patients enrolled"
@@ -542,7 +542,7 @@ export const Dashboard = () => {
           </div>
 
           {!rpcLoading && scopedRpc.length > 0 && (
-            <div className="px-4 py-2.5 border-t border-border text-[11px] text-muted-foreground">
+            <div className="text-[11px] text-muted-foreground">
               {/* mostOverdueDays belongs to ONE student, so it can only be
                   attached to the figure when there is exactly one. With several
                   overdue it becomes "most by N days" rather than implying they
@@ -776,15 +776,15 @@ export const Dashboard = () => {
         </div>
 
         {/* Clinic summary (Sprint D) — same strip as the dentist branch */}
-        <div className="bg-card border border-border rounded-xl overflow-hidden rise rise-1">
-          <div className="flex items-baseline justify-between gap-4 px-4 py-2.5 bg-muted border-b border-border">
-            <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-foreground">Clinic summary</span>
-            <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+        <div className="space-y-3 rise rise-1">
+          <div className="flex items-baseline justify-between gap-4">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Clinic summary</span>
+            <span className="text-xs font-medium text-muted-foreground">
               {formatDateWithWeekday(new Date())}
             </span>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-border">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <SummaryCell
               icon={Calendar}
               label="Appointments today"
@@ -822,7 +822,7 @@ export const Dashboard = () => {
           </div>
 
           {!rpcLoading && scopedRpc.length > 0 && (
-            <div className="px-4 py-2.5 border-t border-border text-[11px] text-muted-foreground">
+            <div className="text-[11px] text-muted-foreground">
               {mostOverdueDays !== null && (
                 <span className="text-primary font-semibold">
                   {rpcOverdueCount === 1
@@ -941,15 +941,15 @@ export const Dashboard = () => {
         </div>
 
         {/* School summary (Sprint E, design 3a) */}
-        <div className="bg-card border border-border rounded-xl overflow-hidden rise rise-1">
-          <div className="flex items-baseline justify-between gap-4 px-4 py-2.5 bg-muted border-b border-border">
-            <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-foreground">School summary</span>
-            <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+        <div className="space-y-3 rise rise-1">
+          <div className="flex items-baseline justify-between gap-4">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">School summary</span>
+            <span className="text-xs font-medium text-muted-foreground">
               {formatDateWithWeekday(new Date())}
             </span>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-border">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <SummaryCell
               icon={Users}
               label="Students enrolled"
@@ -1153,15 +1153,15 @@ export const Dashboard = () => {
         </div>
 
         {/* Barangay summary (Sprint F, design 3a) */}
-        <div className="bg-card border border-border rounded-xl overflow-hidden rise rise-1">
-          <div className="flex items-baseline justify-between gap-4 px-4 py-2.5 bg-muted border-b border-border">
-            <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-foreground">Barangay summary</span>
-            <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+        <div className="space-y-3 rise rise-1">
+          <div className="flex items-baseline justify-between gap-4">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Barangay summary</span>
+            <span className="text-xs font-medium text-muted-foreground">
               {formatDateWithWeekday(new Date())}
             </span>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-border">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <SummaryCell
               icon={Users}
               label="Students served"
@@ -1392,15 +1392,15 @@ export const Dashboard = () => {
             absences as if they were readings. Replaced with four figures the
             system actually holds; uptime and failed logins are still not
             measured anywhere, so they are simply gone rather than shown empty. */}
-        <div className="bg-card border border-border rounded-xl overflow-hidden rise rise-1">
-          <div className="flex items-baseline justify-between gap-4 px-4 py-2.5 bg-muted border-b border-border">
-            <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-foreground">System summary</span>
-            <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+        <div className="space-y-3 rise rise-1">
+          <div className="flex items-baseline justify-between gap-4">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">System summary</span>
+            <span className="text-xs font-medium text-muted-foreground">
               {formatDateWithWeekday(new Date())}
             </span>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-border">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <SummaryCell
               icon={Users}
               label="Active users"
