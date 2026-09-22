@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, Calendar, Brain,
   ClipboardList, LogOut, Stethoscope, Shield,
   Clipboard, FileBarChart, UserCog,
-  ChevronLeft, ChevronRight, ChevronDown, Menu, X, School, Archive, Bell, Settings, ArrowLeftRight
+  ChevronDown, Menu, X, School, Archive, Bell, ArrowLeftRight
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { getSchoolShortName } from '../utils/schoolColors';
@@ -345,7 +345,7 @@ export const Root = () => {
           the first row of content. */}
       <div
         style={{ height: TOPBAR_H }}
-        className={`fixed top-0 right-0 left-0 ${collapsed ? 'md:left-[76px]' : 'md:left-[250px]'} z-[60] flex items-center justify-end gap-3 px-6 bg-white/80 backdrop-blur-xl border-b border-[#EEF2F7] leading-none transition-[left] duration-200`}
+        className={`fixed top-0 right-0 left-0 ${collapsed ? 'md:left-[100px]' : 'md:left-[274px]'} z-[60] flex items-center justify-end gap-3 px-6 bg-white/80 backdrop-blur-xl border-b border-[#EEF2F7] leading-none transition-[left] duration-200`}
       >
         <SyncStatus schoolLabel={selectedSchool ? getSchoolShortName(selectedSchool) : 'All Schools'} />
         <UserMenu user={user} onAccountSettings={openChangePassword} />
@@ -413,31 +413,34 @@ export const Root = () => {
           ${collapsed ? 'md:w-[76px]' : 'md:w-[250px]'}`}
       >
         {/* Logo */}
-        <div className="p-4 border-b border-[#E2E8F0]/90 relative">
-          {/* Collapse toggle -- desktop only, mobile has no room to expand anyway */}
+        <div className={`p-4 border-b border-[#E2E8F0]/90 flex items-center gap-3 ${collapsed ? 'md:justify-center' : ''}`}>
+          {/* CSS-hidden (md:hidden), not JS-gated -- collapsed only means
+              anything at md+; mobile always ignores it and must keep showing
+              the logo regardless of whatever collapsed was left at. */}
+          <img src="/logo.svg" alt="FLORAL" className={`w-8 h-8 md:w-10 md:h-10 object-contain flex-shrink-0 ${collapsed ? 'md:hidden' : ''}`} />
+          <div className={`min-w-0 ${collapsed ? 'md:hidden' : ''}`}>
+            <div className="text-[19px] font-bold text-white tracking-[0.5px]">FLORAL</div>
+            <div className="text-[9px] font-semibold tracking-wide text-white/55 leading-tight uppercase">Dental Health Record Management System</div>
+          </div>
+          {/* On mobile (below md) this row shows the logo plus an X to close the
+              drawer, matching before. At md+ it's the RAMHIS toggle instead: a
+              filled dark rounded-square three-line icon, same as the mobile
+              hamburger, replacing the old floating chevron circle. */}
+          <button
+            onClick={() => setDrawerOpen(false)}
+            aria-label="Close navigation menu"
+            className="md:hidden ml-auto -mr-2 p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
           <button
             onClick={toggleCollapsed}
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className="hidden md:flex absolute -right-3 top-5 w-6 h-6 items-center justify-center rounded-full border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-gray-50 shadow-sm z-10"
+            className={`hidden md:flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20 transition-colors ${collapsed ? '' : 'ml-auto'}`}
           >
-            {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
+            <Menu className="w-[18px] h-[18px]" />
           </button>
-          <div className="flex items-center gap-3">
-            <img src="/logo.svg" alt="FLORAL" className="w-8 h-8 md:w-10 md:h-10 object-contain flex-shrink-0" />
-            <div className={labelCls}>
-              <div className="text-[19px] font-bold text-white tracking-[0.5px]">FLORAL</div>
-              <div className="text-[9px] font-semibold tracking-wide text-white/55 leading-tight uppercase">Dental Health Record Management System</div>
-            </div>
-            {/* Close -- drawer only; Escape and the backdrop also close it */}
-            <button
-              onClick={() => setDrawerOpen(false)}
-              aria-label="Close navigation menu"
-              className="md:hidden ml-auto -mr-2 p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
         </div>
 
         {/* School switcher — a button to the dedicated selection screen
@@ -551,17 +554,6 @@ export const Root = () => {
               <strong className="text-[12px] text-white truncate">{user.name}</strong>
               <span className="mt-[3px] text-[10px] text-white/55 capitalize">{user.role.replace('_', ' ')}</span>
             </div>
-            {/* Profile settings — currently just Change Password, the one
-                self-service profile action that exists. Not a menu of
-                invented options (CLAUDE.md: nothing cosmetic). */}
-            <button
-              onClick={openChangePassword}
-              title="Profile settings"
-              aria-label="Profile settings"
-              className={`flex-shrink-0 p-1.5 rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition-colors ${collapsed ? 'md:hidden' : ''}`}
-            >
-              <Settings className="w-4 h-4" />
-            </button>
           </div>
 
           <button
@@ -585,7 +577,7 @@ export const Root = () => {
           header inside the page (the IPTR toolbar and tab strip) was pinning to
           a box that never scrolls, i.e. silently not sticking at all. `clip`
           clips the same overflow without becoming a scroll container. */}
-      <main className={`flex-1 ml-0 ${collapsed ? 'md:ml-[76px]' : 'md:ml-[250px]'} overflow-x-clip transition-[margin] duration-200`}>
+      <main className={`flex-1 ml-0 ${collapsed ? 'md:ml-[100px]' : 'md:ml-[274px]'} overflow-x-clip transition-[margin] duration-200`}>
         <div className="p-4 md:p-8">
           <Outlet />
         </div>
