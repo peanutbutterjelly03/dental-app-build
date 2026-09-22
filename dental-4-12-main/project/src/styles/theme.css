@@ -11,7 +11,11 @@
   --background: #ffffff;
   --foreground: oklch(0.145 0 0);
   --card: #ffffff;
-  --primary: #1E40AF;
+  /* RAMHIS-derived palette (adopted 2026-09-22, sourced from the real
+     carlonana0213-arch/RAMHIS-V3 `production` branch's Theme/colors.js, not
+     eyeballed from a screenshot). primary-700 does general brand/button duty;
+     primary-900 is reserved for the sidebar surface + high-emphasis figures. */
+  --primary: #273A78;            /* primary-700 */
   --primary-foreground: oklch(1 0 0);
   --muted: #ececf0;
   /* Sprint 94: #717182 -> #67687A. MEASURED, not taste. The old value is
@@ -22,22 +26,27 @@
      incidental. #67687A measures 5.47:1 on white, 5.05:1 on canvas and
      4.94:1 on gray-100. */
   --muted-foreground: #67687A;
-  --destructive: #DC2626;
+  --destructive: #BE123C;        /* RAMHIS danger-700 / status.critical.text */
   /* Semantic state vocabulary (Sprint 23g). Each state = a solid color for
      text/icon/border on white, plus a light `-surface` fill for banners,
      tints, and selected rows. Replaces ad-hoc blue-50/green-700/amber-* etc.
      scattered across components. Restrained per product register — brand blue
      carries primary + info; green/amber/red carry the three real statuses. */
-  --canvas: #F4F6FA;             /* app page background — cool-biased, not default gray */
-  --primary-hover: #1D4ED8;      /* blue-700 — hover on primary buttons */
-  --primary-surface: #EFF6FF;    /* blue-50 — nav active/hover, selected, info fill */
-  --success: #15803D;            /* green-700 — legible on white */
-  --success-surface: #F0FDF4;    /* green-50 */
-  --warning: #B45309;            /* amber-700 */
-  --warning-surface: #FFFBEB;    /* amber-50 */
-  --danger-surface: #FEF2F2;     /* red-50 — destructive light fill / hover */
-  --border: rgba(0, 0, 0, 0.1);
+  --canvas: #F6F9FC;             /* RAMHIS background.DEFAULT — cool-biased, not default gray */
+  --primary-hover: #1E2E63;      /* primary-800 — hover on primary buttons */
+  --primary-surface: #F4F7FF;    /* primary-50 — nav active/hover, selected, info fill */
+  --success: #15803D;            /* matches RAMHIS success-700 exactly, unchanged */
+  --success-surface: #F0FDF4;    /* matches RAMHIS success-50 exactly, unchanged */
+  --warning: #B45309;            /* matches RAMHIS warning-700 exactly, unchanged */
+  --warning-surface: #FEF3C7;    /* RAMHIS warning-100 (was warning-50 -- brighter attention fill) */
+  --danger-surface: #FFF1F2;     /* RAMHIS danger-50 / status.critical.bg */
+  --border: #E2E8F0;             /* RAMHIS border.DEFAULT (was a translucent black) */
   --input: transparent;
+  /* Sidebar-only surface pair: the app's one dark, floating panel. Kept as
+     tokens (not hardcoded hex in Root.tsx) so they follow the same
+     single-source-of-truth pattern as everything else here. */
+  --sidebar-bg: #17234D;         /* RAMHIS primary-900 */
+  --sidebar-active: #F4C542;     /* RAMHIS's exact active-nav gold */
   --font-weight-medium: 500;
   --font-weight-normal: 400;
   /* Public Sans — the US federal government typeface: institutional,
@@ -51,8 +60,10 @@
      the clinic runs Windows. Scope is deliberate and narrow: hex identifiers and
      dental codes, never body copy or headings. */
   --font-mono: Consolas, 'Cascadia Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-  --ring: #1E40AF;
-  --radius: 0.625rem;
+  --ring: #273A78;
+  /* Bumped from 0.625rem so --radius-xl lands on 16px (RAMHIS's rounded-2xl
+     card standard) instead of 14px. */
+  --radius: 0.75rem;
 }
 
 /* No dark theme: this is a light-only internal clinical tool. The former
@@ -79,6 +90,8 @@
   --color-warning: var(--warning);
   --color-warning-surface: var(--warning-surface);
   --color-danger-surface: var(--danger-surface);
+  --color-sidebar-bg: var(--sidebar-bg);
+  --color-sidebar-active: var(--sidebar-active);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);

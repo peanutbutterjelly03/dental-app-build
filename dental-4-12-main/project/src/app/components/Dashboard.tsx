@@ -347,33 +347,29 @@ export const Dashboard = () => {
   };
 
   // ===== CLINIC SUMMARY STAT TILES =====
-  // Each stat is its own rounded card (icon + label, big tabular figure, muted
-  // context line) instead of one ruled strip with divided cells -- requested
-  // directly, matching a reference dashboard's stat-tile language. Still flat
-  // (no shadow/lift): a border-color hover instead of a shadow, so this stays
-  // inside the app's no-shadow-on-cards elevation rule while picking up the
-  // softer, individually-boxed look.
+  // Matches the RAMHIS-derived statCardVariants spec exactly (real source,
+  // not eyeballed): rounded-2xl, p-6, shadow-[0_4px_20px_rgba(0,0,0,0.06)],
+  // a 48px icon chip top-right, hover -translate-y-0.5 + border-primary tint
+  // + a bigger shadow. --radius-xl is now 16px (theme.css), so `rounded-xl`
+  // already lands on the same 16px the real cards use.
   const SummaryCell = ({ icon: Icon, label, value, valueClass, context, linkTo, loading, trailing }: {
     icon: any; label: string; value: string; valueClass?: string; context: string;
     linkTo?: string; loading?: boolean; trailing?: string;
   }) => {
     const body = (
       <>
-        <div className="flex items-center justify-between gap-2 mb-2">
-          <span className="flex items-center gap-[7px] min-w-0">
-            <Icon className="w-3.5 h-3.5 text-muted-foreground shrink-0" strokeWidth={2} />
-            <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-muted-foreground truncate">{label}</span>
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <span className="text-[13px] font-medium text-muted-foreground min-w-0 truncate">{label}</span>
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary-surface text-primary">
+            <Icon className="w-5 h-5" strokeWidth={2} />
           </span>
-          {/* Chevron only where the cell actually navigates -- an affordance on a
-              dead cell is a lie about what a click will do. */}
-          {linkTo && <ChevronRight className="w-3 h-3 text-primary shrink-0" strokeWidth={2.5} />}
         </div>
         {loading ? (
-          <SkeletonBlock className="h-7 w-16" />
+          <SkeletonBlock className="h-9 w-20" />
         ) : (
           <div className="flex items-baseline gap-2">
             {/* Some cells legitimately carry prose or a date rather than a
-                figure ("None scheduled"). Rendering a sentence at 28px makes it
+                figure ("None scheduled"). Rendering a sentence at 36px makes it
                 shout louder than the real numbers beside it, so it steps down
                 to 15px/600 muted -- the treatment the 3a school-admin mock
                 specifies. Detected the same way StatCard does it (`:269`) so no
@@ -382,22 +378,25 @@ export const Dashboard = () => {
                 full size, since those ARE the reading. */}
             <span className={
               /^\d/.test(String(value).trim())
-                ? `text-[28px] font-bold leading-none tabular-nums ${valueClass ?? 'text-foreground'}`
+                ? `text-[36px] font-bold leading-none tracking-tight tabular-nums ${valueClass ?? 'text-foreground'}`
                 : 'text-[15px] font-semibold leading-tight py-[5px] text-muted-foreground'
             }>{value}</span>
             {trailing && <span className="text-[11px] text-muted-foreground">{trailing}</span>}
           </div>
         )}
-        <div className="text-[11px] text-muted-foreground mt-1.5">{loading ? ' ' : context}</div>
+        <div className={`mt-4 flex items-center gap-2 border-t border-border pt-3 text-xs ${valueClass ?? 'text-muted-foreground'}`}>
+          {linkTo && <ChevronRight className="w-3 h-3 shrink-0" strokeWidth={2.5} />}
+          <span className="font-normal text-muted-foreground">{loading ? ' ' : context}</span>
+        </div>
       </>
     );
 
-    const cell = 'bg-card border border-border rounded-xl p-4 h-full';
+    const cell = 'bg-card border border-border rounded-2xl p-6 h-full shadow-[0_4px_20px_rgba(0,0,0,0.06)] transition-all duration-200';
     if (!linkTo) return <div className={cell}>{body}</div>;
     return (
       <Link
         to={linkTo}
-        className={`${cell} block transition-colors duration-150 hover:border-primary/40 focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-2`}
+        className={`${cell} block hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_10px_30px_rgba(15,23,42,0.08)] focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-2`}
       >
         {body}
       </Link>
@@ -498,7 +497,7 @@ export const Dashboard = () => {
           {/* 1 column stacked with horizontal rules, 4 columns with vertical
               rules from lg. No 2-column middle step: at that width the context
               lines wrap and the ledger stops reading as a single row. */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <SummaryCell
               icon={Users}
               label="Patients enrolled"
@@ -784,7 +783,7 @@ export const Dashboard = () => {
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <SummaryCell
               icon={Calendar}
               label="Appointments today"
@@ -949,7 +948,7 @@ export const Dashboard = () => {
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <SummaryCell
               icon={Users}
               label="Students enrolled"
@@ -1161,7 +1160,7 @@ export const Dashboard = () => {
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <SummaryCell
               icon={Users}
               label="Students served"
@@ -1400,7 +1399,7 @@ export const Dashboard = () => {
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <SummaryCell
               icon={Users}
               label="Active users"

@@ -6,11 +6,8 @@
 // the sidebar rail, the mobile header, the SyncStatus icon, and the IPTR
 // screen's sticky toolbar + tab strip all offset by this value. Shared as one
 // constant so those five call sites cannot drift apart.
-// 48px is exactly 1/2 inch: CSS defines 1in = 96px regardless of the physical
-// display, so this is the literal half-inch the strip was asked for.
-//
-// This is the CONTAINER dial only. The pills inside are settled at 13px/19px
-// and are NOT to be rescaled with it — the 64px and 128px rounds overshot
-// precisely because the type was doubled alongside the height, which
-// compounds. Change the one that was named.
-export const TOPBAR_H = 48;
+// Bumped from 48 to 76 (2026-09-22) to match the RAMHIS-derived topbar spec
+// (Components/navigation/topbar.jsx: h-[76px]) as part of the navy/gold
+// redesign -- the strip now carries the user identity block plus the
+// clock/online/school boxes, which need the extra height.
+export const TOPBAR_H = 76;

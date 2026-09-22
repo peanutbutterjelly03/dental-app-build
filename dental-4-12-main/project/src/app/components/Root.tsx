@@ -259,19 +259,19 @@ export const Root = () => {
         // 26px against the rail's 30px -- 4px off, and misaligned with the
         // footer buttons, which already re-centre themselves when collapsed.
         // Matches what Change Password / Logout do further down.
-        className={`flex items-center gap-3 px-4 py-3 transition-colors ${
+        className={`mx-2 rounded-2xl flex items-center gap-3 px-4 py-3 transition-colors ${
           collapsed ? 'md:justify-center md:px-0' : ''
         } ${
           isActive
-            ? 'bg-primary text-primary-foreground'
-            : 'text-foreground hover:bg-primary-surface'
+            ? 'bg-sidebar-active text-sidebar-bg font-bold'
+            : 'text-white/70 hover:bg-white/10 hover:text-white'
         }`}
       >
         <Icon className="w-5 h-5 flex-shrink-0" />
         <span className={`${labelCls} text-sm font-medium`}>{tab.label}</span>
         {tab.path === '/ai-analytics' && highRiskCount > 0 && (
           <span className={`${badgeCls} ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums ${
-            isActive ? 'bg-white/20 text-white' : 'bg-danger-surface text-destructive'
+            isActive ? 'bg-sidebar-bg/20 text-sidebar-bg' : 'bg-danger-surface text-destructive'
           }`}>
             {highRiskCount}
           </span>
@@ -296,14 +296,30 @@ export const Root = () => {
           covering the first row of content. */}
       <div
         style={{ height: TOPBAR_H }}
-        className={`fixed top-0 right-0 left-0 ${collapsed ? 'md:left-[60px]' : 'md:left-[220px]'} z-[60] flex items-center justify-end gap-1.5 px-3 bg-card border-b border-border leading-none transition-[left] duration-200`}
+        className={`fixed top-0 right-0 left-0 ${collapsed ? 'md:left-[60px]' : 'md:left-[220px]'} z-[60] flex items-center justify-end gap-3 px-6 bg-white/80 backdrop-blur-xl border-b border-[#EEF2F7] leading-none transition-[left] duration-200`}
       >
         {/* Clock and status+school now match: one neutral bordered box each,
             two stacked lines. Online/school share a single box (status on
             top, school small and black underneath) instead of two separate
-            pills -- one fact, not two competing ones. */}
+            pills -- one fact, not two competing ones. The user identity
+            block (avatar + name + role) mirrors the real topbar's one piece
+            of content, appended at the true right edge. */}
         <LiveClock />
         <SyncStatus schoolLabel={selectedSchool ? getSchoolShortName(selectedSchool) : 'All Schools'} />
+        <button
+          type="button"
+          onClick={openChangePassword}
+          title="Profile settings"
+          className="hidden sm:flex items-center gap-2.5 rounded-2xl px-2 py-1.5 hover:bg-muted transition-colors"
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-white text-sm font-bold shadow-[0_6px_18px_rgba(30,42,94,0.22)]" style={{ background: 'linear-gradient(135deg, #4F63D9, #17234D)' }}>
+            {user.name.charAt(0).toUpperCase()}
+          </span>
+          <span className="hidden md:flex flex-col items-start min-w-[90px] max-w-[160px]">
+            <span className="text-[13px] font-bold text-primary truncate max-w-[160px]">{user.name}</span>
+            <span className="text-[11px] font-medium text-muted-foreground capitalize">{user.role.replace('_', ' ')}</span>
+          </span>
+        </button>
       </div>
 
       {/* MOBILE TOP BAR -- below md only; the drawer's only entry point. The
@@ -350,14 +366,14 @@ export const Root = () => {
         // this aside's own z-index makes it a stacking context, so a child can
         // never escape it. The rail has to win, and it does not overlap the
         // strip anywhere else.
-        className={`bg-card border-r border-border flex flex-col fixed left-0 top-0 h-screen z-[70]
+        className={`bg-sidebar-bg flex flex-col fixed left-0 top-0 h-screen z-[70]
           w-[280px] transition-transform duration-200
           ${drawerOpen ? 'translate-x-0 visible' : '-translate-x-full invisible'}
           md:visible md:translate-x-0 md:transition-[width]
           ${collapsed ? 'md:w-[60px]' : 'md:w-[220px]'}`}
       >
         {/* Logo */}
-        <div className="p-4 border-b border-border relative">
+        <div className="p-4 border-b border-white/10 relative">
           {/* Collapse toggle -- desktop only, mobile has no room to expand anyway */}
           <button
             onClick={toggleCollapsed}
@@ -370,14 +386,14 @@ export const Root = () => {
           <div className="flex items-center gap-3">
             <img src="/logo.svg" alt="FLORAL" className="w-8 h-8 md:w-10 md:h-10 object-contain flex-shrink-0" />
             <div className={labelCls}>
-              <div className="text-lg font-bold text-primary">FLORAL</div>
-              <div className="text-xs text-muted-foreground leading-tight">Dental Health Record Management System</div>
+              <div className="text-lg font-bold text-white">FLORAL</div>
+              <div className="text-[9px] font-semibold tracking-wide text-white/55 leading-tight uppercase">Dental Health Record Management System</div>
             </div>
             {/* Close -- drawer only; Escape and the backdrop also close it */}
             <button
               onClick={() => setDrawerOpen(false)}
               aria-label="Close navigation menu"
-              className="md:hidden ml-auto -mr-2 p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-primary-surface transition-colors"
+              className="md:hidden ml-auto -mr-2 p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -395,9 +411,9 @@ export const Root = () => {
             onClick={() => navigate('/select-school')}
             title="Switch School"
             aria-label="Switch School"
-            className={`group flex items-center gap-2.5 mx-3 my-2 px-3 py-2.5 rounded-xl border border-primary/15 bg-primary-surface text-primary hover:border-primary/30 hover:shadow-sm transition-all ${collapsed ? 'md:justify-center' : ''} w-[calc(100%-24px)]`}
+            className={`group flex items-center gap-2.5 mx-3 my-2 px-3 py-2.5 rounded-xl border border-white/10 bg-white/5 text-white hover:bg-white/10 transition-all ${collapsed ? 'md:justify-center' : ''} w-[calc(100%-24px)]`}
           >
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-card shadow-sm group-hover:scale-105 transition-transform">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sidebar-active text-sidebar-bg group-hover:scale-105 transition-transform">
               <ArrowLeftRight className="w-3.5 h-3.5" />
             </span>
             <span className={`${labelCls} text-sm font-semibold`}>Switch School</span>
@@ -415,7 +431,7 @@ export const Root = () => {
             before the adoption (user, Sprint 186). Hers put it under the
             name, between the account and Logout; the bell belongs with the
             app, not with the person. Its own bordered strip, as before. */}
-        <div className="border-t border-border px-4 pt-3">
+        <div className="border-t border-white/10 px-4 pt-3">
           {/* Notifications — ABOVE Logout, as the P2 doc asked ("notifications
               above ng log out"). Hidden entirely for School Admin and BHO
               staff: they view reports, never clinical records, so every count
@@ -433,7 +449,7 @@ export const Root = () => {
               onClick={() => setShowNotifications((v) => !v)}
               aria-expanded={showNotifications}
               title={collapsed ? `Notifications${notifTotal ? ` (${notifTotal})` : ''}` : undefined}
-              className={`w-full flex items-center gap-3 px-3 py-2 text-muted-foreground hover:bg-muted rounded-lg transition-colors mb-1 justify-start ${collapsed ? 'md:justify-center' : 'md:justify-start'}`}
+              className={`w-full flex items-center gap-3 px-3 py-2 text-white/70 hover:bg-white/10 hover:text-white rounded-lg transition-colors mb-1 justify-start ${collapsed ? 'md:justify-center' : 'md:justify-start'}`}
             >
               <span className="relative flex-shrink-0">
                 <Bell className="w-5 h-5" />
@@ -445,8 +461,10 @@ export const Root = () => {
               </span>
               <span className={`${labelCls} text-sm font-medium`}>Notifications</span>
             </button>
+            {/* Popover reads as a light card set into the dark sidebar --
+                same contrast relationship as a dropdown menu over page chrome. */}
             {showNotifications && !collapsed && (
-              <div className="mt-1 mb-2 rounded-lg bg-muted/60 p-2 space-y-1">
+              <div className="mt-1 mb-2 rounded-lg bg-white p-2 space-y-1 shadow-[0_10px_30px_rgba(15,23,42,0.25)]">
                 {notifTotal === 0 && (
                   <p className="text-xs text-muted-foreground px-1 py-1">
                     {notifError ? 'Counts unavailable right now.' : 'Nothing needs attention.'}
@@ -454,19 +472,19 @@ export const Root = () => {
                 )}
                 {notifCounts.overdueRpc > 0 && (
                   <Link to="/rpc" onClick={() => setShowNotifications(false)}
-                    className="block text-xs px-2 py-1.5 rounded hover:bg-card text-foreground">
+                    className="block text-xs px-2 py-1.5 rounded hover:bg-muted text-foreground">
                     <span className="font-semibold text-destructive">{notifCounts.overdueRpc}</span> overdue RPC visit{notifCounts.overdueRpc === 1 ? '' : 's'}
                   </Link>
                 )}
                 {notifCounts.appointmentsToday > 0 && (
                   <Link to="/appointments" onClick={() => setShowNotifications(false)}
-                    className="block text-xs px-2 py-1.5 rounded hover:bg-card text-foreground">
+                    className="block text-xs px-2 py-1.5 rounded hover:bg-muted text-foreground">
                     <span className="font-semibold text-primary">{notifCounts.appointmentsToday}</span> appointment{notifCounts.appointmentsToday === 1 ? '' : 's'} today
                   </Link>
                 )}
                 {notifCounts.awaitingValidation > 0 && canValidateRisk && (
                   <Link to="/ai-analytics" onClick={() => setShowNotifications(false)}
-                    className="block text-xs px-2 py-1.5 rounded hover:bg-card text-foreground">
+                    className="block text-xs px-2 py-1.5 rounded hover:bg-muted text-foreground">
                     <span className="font-semibold text-warning">{notifCounts.awaitingValidation}</span> risk assessment{notifCounts.awaitingValidation === 1 ? '' : 's'} awaiting validation
                   </Link>
                 )}
@@ -477,12 +495,12 @@ export const Root = () => {
         </div>
 
         {/* User info + settings + notifications + logout */}
-        <div className="border-t border-border p-4">
+        <div className="border-t border-white/10 p-4">
           <div className={`flex items-center justify-between gap-2 mb-3 ${collapsed ? 'md:justify-center' : ''}`}>
             <div className={`min-w-0 ${labelCls}`}>
-              <div className="text-sm font-medium text-foreground truncate">{user.name}</div>
+              <div className="text-sm font-medium text-white truncate">{user.name}</div>
               <div className="mt-1">
-                <span className="inline-block px-2 py-0.5 text-xs bg-primary-surface text-primary rounded capitalize">
+                <span className="inline-block px-2 py-0.5 text-xs bg-sidebar-active text-sidebar-bg font-semibold rounded capitalize">
                   {user.role.replace('_', ' ')}
                 </span>
               </div>
@@ -494,7 +512,7 @@ export const Root = () => {
               onClick={openChangePassword}
               title="Profile settings"
               aria-label="Profile settings"
-              className="flex-shrink-0 p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              className="flex-shrink-0 p-1.5 rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition-colors"
             >
               <Settings className="w-4 h-4" />
             </button>
@@ -503,7 +521,7 @@ export const Root = () => {
           <button
             onClick={handleLogout}
             title={collapsed ? 'Logout' : undefined}
-            className={`w-full flex items-center gap-3 px-3 py-2 text-destructive hover:bg-danger-surface rounded-lg transition-colors justify-start ${collapsed ? 'md:justify-center' : 'md:justify-start'}`}
+            className={`w-full flex items-center gap-3 px-3 py-2 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200 rounded-lg transition-colors justify-start ${collapsed ? 'md:justify-center' : 'md:justify-start'}`}
           >
             <LogOut className="w-5 h-5 flex-shrink-0" />
             <span className={`${labelCls} text-sm font-medium`}>Logout</span>
