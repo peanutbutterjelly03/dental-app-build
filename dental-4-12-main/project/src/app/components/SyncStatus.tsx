@@ -118,9 +118,10 @@ export const SyncStatus = () => {
 
   const { ring, label } = chrome[tone];
 
-  // Idle ("everything's fine") is deliberately quiet — plain text and a small
-  // dot, no fill or border — so it doesn't compete with the pills used for
-  // states that actually need attention (offline, failed, conflict, syncing).
+  // Idle ("everything's fine") is deliberately quiet — a neutral bordered box
+  // matching the clock widget, plain text and a small dot, no color fill — so
+  // it doesn't compete with the pills used for states that actually need
+  // attention (offline, failed, conflict, syncing).
   const isIdle = tone === 'idle';
 
   return (
@@ -132,7 +133,7 @@ export const SyncStatus = () => {
         aria-expanded={open}
         className={
           isIdle
-            ? 'inline-flex items-center gap-1.5 rounded-full px-1.5 py-[2px] text-[13px] font-medium leading-none text-muted-foreground transition-colors hover:text-foreground'
+            ? 'inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1 text-[13px] font-medium leading-none text-foreground transition-colors hover:bg-muted/40'
             : `inline-flex items-center gap-1.5 rounded-full border px-2 py-[2px] text-[13px] font-semibold leading-none transition-colors ${ring}`
         }
       >

@@ -304,21 +304,17 @@ export const Root = () => {
         style={{ height: TOPBAR_H }}
         className={`fixed top-0 right-0 left-0 ${collapsed ? 'md:left-[60px]' : 'md:left-[220px]'} z-[60] flex items-center justify-end gap-1.5 px-3 bg-card border-b border-border leading-none transition-[left] duration-200`}
       >
-        {/* Clock is its own quiet box — never merged with the status pills, so
-            it doesn't compete with them. The sync pill IS the affordance:
-            clicking it opens the full panel, which is why the floating cloud
-            icon it replaced is gone entirely. School keeps the shared school
-            palette (kicker/GradePill) per the note above, just at a lighter
-            weight so it reads as a label, not an alert. */}
+        {/* All three read as one family now: the same neutral bordered box
+            (bg-card, border-border, rounded-lg) as the clock, so Online and
+            the school label match its shape instead of standing out as
+            differently-styled pills. Color stays only where it carries real
+            meaning -- the status dot, and the school's own palette on its
+            text (kicker/GradePill) -- never on the box itself. */}
         <LiveClock />
         <SyncStatus />
         <span
-          style={{
-            backgroundColor: stripSchool.light,
-            color: stripSchool.solid,
-            borderColor: stripSchool.border,
-          }}
-          className="inline-flex items-center rounded-full border px-2.5 py-[2px] text-[13px] font-medium leading-none truncate max-w-[45vw] opacity-90"
+          style={{ color: stripSchool.solid }}
+          className="inline-flex items-center rounded-lg border border-border bg-card px-2.5 py-1 text-[13px] font-medium leading-none truncate max-w-[45vw]"
         >
           {selectedSchool ? getSchoolShortName(selectedSchool) : 'All Schools'}
         </span>
