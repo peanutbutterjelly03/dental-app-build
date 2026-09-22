@@ -25,7 +25,7 @@ const LiveClock = () => {
     return () => clearInterval(id);
   }, []);
   return (
-    <div className="hidden sm:flex flex-col items-end leading-tight rounded-lg border border-border bg-card px-2.5 py-1">
+    <div className="hidden sm:flex h-9 flex-col items-end justify-center leading-tight rounded-lg border border-border bg-card px-2.5">
       <span className="text-[12px] font-semibold text-foreground">
         {now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
       </span>
@@ -314,7 +314,7 @@ export const Root = () => {
         <SyncStatus />
         <span
           style={{ color: stripSchool.solid }}
-          className="inline-flex items-center rounded-lg border border-border bg-card px-2.5 py-1 text-[13px] font-medium leading-none truncate max-w-[45vw]"
+          className="inline-flex h-9 items-center rounded-lg border border-border bg-card px-2.5 text-[13px] font-medium leading-none truncate max-w-[45vw]"
         >
           {selectedSchool ? getSchoolShortName(selectedSchool) : 'All Schools'}
         </span>

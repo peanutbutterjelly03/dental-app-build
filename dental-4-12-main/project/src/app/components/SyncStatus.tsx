@@ -133,7 +133,7 @@ export const SyncStatus = () => {
         aria-expanded={open}
         className={
           isIdle
-            ? 'inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1 text-[13px] font-medium leading-none text-foreground transition-colors hover:bg-muted/40'
+            ? 'inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-[13px] font-medium leading-none text-foreground transition-colors hover:bg-muted/40'
             : `inline-flex items-center gap-1.5 rounded-full border px-2 py-[2px] text-[13px] font-semibold leading-none transition-colors ${ring}`
         }
       >
