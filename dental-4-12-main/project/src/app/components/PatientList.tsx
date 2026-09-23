@@ -488,32 +488,24 @@ export const PatientList = () => {
     apiClient.get<ApiSchool[]>('/schools').then(setSchools).catch(() => {});
   }, []);
 
-  // Pins the toolbar, the card's header/filter block and the table's column
-  // headings at the top (stacked below TOPBAR_H, the fixed status strip —
-  // see DentalChart.tsx for the same pattern) and the pagination footer at
-  // the bottom, so only the row list scrolls in between. Heights are measured
-  // rather than hardcoded because the filter row wraps to more than one line
-  // at narrow widths, changing the offset the column headings must stick to.
+  // Pins the toolbar and the card's header/filter block at the top, stacked
+  // below TOPBAR_H (the fixed status strip — see DentalChart.tsx for the same
+  // pattern). Heights are measured rather than hardcoded because the filter
+  // row wraps to more than one line at narrow widths.
   const toolbarRef = useRef<HTMLDivElement | null>(null);
   const cardHeaderRef = useRef<HTMLDivElement | null>(null);
-  const [stickyTop, setStickyTop] = useState({ toolbar: TOPBAR_H, cardHeader: TOPBAR_H, thead: TOPBAR_H });
+  const [stickyTop, setStickyTop] = useState({ toolbar: TOPBAR_H, cardHeader: TOPBAR_H });
 
   useEffect(() => {
     const measure = () => {
       const toolbarH = toolbarRef.current?.offsetHeight ?? 0;
-      const cardHeaderH = cardHeaderRef.current?.offsetHeight ?? 0;
-      setStickyTop({
-        toolbar: TOPBAR_H,
-        cardHeader: TOPBAR_H + toolbarH,
-        thead: TOPBAR_H + toolbarH + cardHeaderH,
-      });
+      setStickyTop({ toolbar: TOPBAR_H, cardHeader: TOPBAR_H + toolbarH });
     };
     measure();
     let resizeObserver: ResizeObserver | null = null;
     if (typeof ResizeObserver !== 'undefined') {
       resizeObserver = new ResizeObserver(measure);
       if (toolbarRef.current) resizeObserver.observe(toolbarRef.current);
-      if (cardHeaderRef.current) resizeObserver.observe(cardHeaderRef.current);
     }
     window.addEventListener('resize', measure);
     return () => {
@@ -879,6 +871,41 @@ export const PatientList = () => {
   const pager = usePagination(filtered, [gradeFilter, sectionFilter, genderFilter, ageGroupFilter, searchTerm, selectedSchool], 10);
   const paged = pager.paged;
 
+  // Bounds the row list to whatever viewport space is left below the toolbar
+  // and the card header and above the pagination footer, so THAT is the only
+  // part of the page that scrolls — the sticky toolbar/header above stay put
+  // because there is nothing left for the page itself to scroll past. The
+  // column headings stick to the top of this same bounded box (not the
+  // viewport): a `<tr>` stuck to the viewport rendered as a visual duplicate
+  // mid-table in some browsers, so each `<th>` sticks to this container
+  // instead, which is the more broadly compatible technique.
+  const rowsWrapRef = useRef<HTMLDivElement | null>(null);
+  const footerRef = useRef<HTMLDivElement | null>(null);
+  const [rowsMaxHeight, setRowsMaxHeight] = useState<number | null>(null);
+
+  useEffect(() => {
+    const measure = () => {
+      if (!rowsWrapRef.current) return;
+      const top = rowsWrapRef.current.getBoundingClientRect().top;
+      const footerH = footerRef.current?.offsetHeight ?? 0;
+      const PAGE_BOTTOM_GUTTER = 16; // matches `<main>`'s own bottom padding closely enough
+      setRowsMaxHeight(Math.max(window.innerHeight - top - footerH - PAGE_BOTTOM_GUTTER, 160));
+    };
+    measure();
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(measure);
+      if (toolbarRef.current) resizeObserver.observe(toolbarRef.current);
+      if (cardHeaderRef.current) resizeObserver.observe(cardHeaderRef.current);
+      if (footerRef.current) resizeObserver.observe(footerRef.current);
+    }
+    window.addEventListener('resize', measure);
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [canAddStudent, filtered.length, pager.pageCount]);
+
   const hasActiveFilters = gradeFilter !== 'all' || sectionFilter !== 'all' || genderFilter !== 'all' || ageGroupFilter !== 'all' || searchTerm !== '';
 
   const clearFilters = () => {
@@ -1100,19 +1127,16 @@ export const PatientList = () => {
           </div>
         </div>
 
-        {/* Table
-            ⚠ `overflow-y-visible` is NOT decorative. Setting only `overflow-x`
-            makes the browser compute the unset `overflow-y` as `auto` too (a
-            CSS spec quirk) — so this div silently became its own vertical
-            scroll container. It has no fixed height, so nothing looked clipped
-            on desktop, but on a touch screen a vertical drag that starts over
-            the table gets captured by that phantom scrollport instead of the
-            page, and the pagination footer below can never be reached. */}
-        <div className="overflow-x-auto overflow-y-visible">
+        {/* Table — bounded height, so this box (not the page) is what
+            scrolls; see rowsMaxHeight above. The column headings stick to
+            the TOP OF THIS BOX via `sticky` on each `<th>`, not the `<tr>` —
+            a sticky `<tr>` rendered as a visual duplicate mid-table in some
+            browsers. */}
+        <div ref={rowsWrapRef} className="overflow-auto" style={{ maxHeight: rowsMaxHeight ?? undefined }}>
           <table className="w-full text-sm">
             <thead>
-              <tr className="sticky z-30 border-b border-border bg-card" style={{ top: stickyTop.thead }}>
-                <th className="text-left px-4 py-3 sm:pl-6 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <tr className="border-b border-border">
+                <th className="sticky top-0 z-10 bg-card text-left px-4 py-3 sm:pl-6 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   {/* The row-number column doubles as "select all" once select
                       mode is on — same swap as each row's own cell, scoped to
                       the current page: now that the table paginates, ticking
@@ -1131,12 +1155,12 @@ export const PatientList = () => {
                     />
                   ) : '#'}
                 </th>
-                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Student</th>
-                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Grade</th>
-                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Section</th>
-                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Gender</th>
-                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Age</th>
-                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground sm:pr-6">Actions</th>
+                <th className="sticky top-0 z-10 bg-card text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Student</th>
+                <th className="sticky top-0 z-10 bg-card text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Grade</th>
+                <th className="sticky top-0 z-10 bg-card text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Section</th>
+                <th className="sticky top-0 z-10 bg-card text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Gender</th>
+                <th className="sticky top-0 z-10 bg-card text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Age</th>
+                <th className="sticky top-0 z-10 bg-card text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground sm:pr-6">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
@@ -1209,10 +1233,11 @@ export const PatientList = () => {
           </table>
         </div>
 
-        {/* Footer / pagination — sticky to the bottom of the viewport so it
-            stays reachable without scrolling past every row first. */}
+        {/* Footer / pagination — sits right after the bounded, scrollable
+            row list above, so it is always in view without its own sticky
+            positioning; its height feeds back into rowsMaxHeight. */}
         {filtered.length > 0 && (
-          <div className="sticky bottom-0 z-30 flex flex-col gap-3 border-t border-border bg-card px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div ref={footerRef} className="flex flex-col gap-3 border-t border-border bg-card px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               <span>
                 Showing <span className="font-semibold text-foreground">{pager.from}</span> to{' '}
