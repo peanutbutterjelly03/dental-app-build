@@ -164,7 +164,7 @@ export const Appointments = () => {
     const duplicates = selectedStudents.filter(id => pendingAppointmentFor(id));
     if (duplicates.length > 0) {
       const names = duplicates.map(id => allStudentsForSearch.find(s => s.id === id)?.name ?? 'A selected student');
-      setCreateError(`${names.join(', ')} already ${duplicates.length === 1 ? 'has' : 'have'} an unresolved appointment — mark it Completed or Missed first.`);
+      setCreateError(`${names.join(', ')} already ${duplicates.length === 1 ? 'has' : 'have'} an unresolved appointment. Mark it Completed or Missed first.`);
       return;
     }
     if (!resolvedType) {
@@ -667,7 +667,7 @@ export const Appointments = () => {
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm font-bold text-foreground truncate">
-                  {soleStudent ? soleStudent.name : `${a.section} — ${a.grade}`}
+                  {soleStudent ? soleStudent.name : `${a.section} · ${a.grade}`}
                 </span>
                 <span className={`text-[10.5px] font-bold px-2 py-0.5 rounded-full ${statusBadge(status)}`}>{status}</span>
                 {a.pending && (
@@ -942,7 +942,7 @@ export const Appointments = () => {
           </div>
           {!selectedSchool && (
             <div className="px-4 py-2">
-              <Notice variant="warning">Pick a specific school from the school switcher to add reminders — appointments and notes are both kept one school at a time.</Notice>
+              <Notice variant="warning">Pick a specific school from the school switcher to add reminders. Appointments and notes are both kept one school at a time.</Notice>
             </div>
           )}
           <div className="grid grid-cols-7 border-b border-border">
@@ -964,7 +964,7 @@ export const Appointments = () => {
                 <div
                   key={idx}
                   onClick={() => clickable && openDay(day)}
-                  title={clickable ? 'Open this day — schedule and notes' : undefined}
+                  title={clickable ? 'Open this day: schedule and notes' : undefined}
                   className={`min-h-[82px] p-1.5 border-r border-b border-gray-100 last:border-b-0 space-y-1 ${!day ? 'bg-gray-50/60' : ''} ${isToday ? 'bg-teal-50' : ''} ${clickable ? 'cursor-pointer hover:bg-gray-50' : ''}`}
                 >
                   {day && (
@@ -1177,7 +1177,7 @@ export const Appointments = () => {
                     }}
                     maxLength={500}
                     rows={3}
-                    placeholder="e.g. No clinic — holiday"
+                    placeholder="e.g. No clinic, holiday"
                     aria-label="New note for this date"
                     className="w-full px-3 py-2 text-sm border border-border rounded-lg resize-y overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary"
                   />
@@ -1212,7 +1212,7 @@ export const Appointments = () => {
             </div>
             <div className="p-5 space-y-4">
               {!selectedSchool ? (
-                <Notice variant="warning">Pick a specific school from the school switcher first — appointments are booked one school at a time.</Notice>
+                <Notice variant="warning">Pick a specific school from the school switcher first. Appointments are booked one school at a time.</Notice>
               ) : (
                 <>
                   <div>
@@ -1246,7 +1246,7 @@ export const Appointments = () => {
                             {pending ? (
                               <span className="text-xs text-destructive ml-auto">{pending.status} for {shortenDate(pending.date)}</span>
                             ) : (
-                              <span className="text-xs text-muted-foreground ml-auto">{s.grade} · {s.section || '—'}</span>
+                              <span className="text-xs text-muted-foreground ml-auto">{s.grade} · {s.section || 'N/A'}</span>
                             )}
                           </label>
                         );
@@ -1350,7 +1350,7 @@ export const Appointments = () => {
               {rescheduleTarget.studentCount === 1
                 ? rescheduleTarget.students[0]?.name ?? 'This student'
                 : `${rescheduleTarget.studentCount} students`}
-              {' — pick a new date and time. This also clears the missed status.'}
+              {': pick a new date and time. This also clears the missed status.'}
             </p>
             <div className="grid grid-cols-2 gap-3">
               <div>

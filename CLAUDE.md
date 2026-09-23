@@ -28,6 +28,7 @@ Capstone Thesis — Build Phase — Group 404 — AY 2025-2026
 - YAGNI: don't build it if it doesn't need to exist yet
 - Prefer native platform features (e.g. `<input type="date">`) and stdlib/already-installed deps over new packages or custom code
 - Before starting a sprint, give a one-line scope estimate (files touched, new models, complexity). Claude Code has no token/cost visibility here — this is the substitute for a usage warning.
+- **No em dashes in user-facing UI text** (toasts, `<Notice>` copy, button/menu labels, `title=`/`placeholder=`/`aria-label=` strings) — user rule, 2026-09-23. Use a period, comma, or colon instead. Code comments are unaffected; this codebase's own comment style uses them throughout and that stays as-is.
 
 ## APP CONTEXT
 - Floral — web app only (no NATIVE mobile app), internal use only, Barangay Tanyag, Taguig City
