@@ -704,15 +704,13 @@ export const Appointments = () => {
       <div className="flex flex-col md:flex-row gap-5 md:min-h-[calc(100vh-260px)]">
         <nav className="flex md:flex-col gap-1 md:w-[200px] flex-shrink-0 overflow-x-auto md:overflow-visible">
           {[
-            // Solid fill when active, colored to match what the tab means --
-            // the same hue family AppointmentCard's time block uses, so
-            // "Missed" (red) and "Completed" (green) read the same way in
-            // both places. Today/Upcoming/All/Calendar aren't a status, so
-            // they get the brand navy rather than inventing a meaning.
+            // Fixed brand navy for every tab's active fill -- status color
+            // (red Missed, green Completed) lives on the cards themselves
+            // (time block, badge), not on the rail's own selection state.
             { key: 'today',     label: 'Today',     count: todayAppts.length,     fill: '#273A78' },
             { key: 'upcoming',  label: 'Upcoming',  count: upcomingAppts.length,  fill: '#273A78' },
-            { key: 'completed', label: 'Completed', count: completedAppts.length, fill: '#16A34A' },
-            { key: 'missed',    label: 'Missed',    count: missedAppts.length,    fill: '#DC2626' },
+            { key: 'completed', label: 'Completed', count: completedAppts.length, fill: '#273A78' },
+            { key: 'missed',    label: 'Missed',    count: missedAppts.length,    fill: '#273A78' },
             { key: 'all',       label: 'All',       count: appointments.length,   fill: '#273A78' },
             { key: 'calendar',  label: 'Calendar',  count: null,                  fill: '#273A78' },
           ].map(tab => {
