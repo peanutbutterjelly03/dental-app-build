@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import { getSchoolShortName } from '../utils/schoolColors';
 import { TOPBAR_H } from '../utils/layout';
 import { SyncStatus } from './SyncStatus';
+import { useOfflineQueue } from '../hooks/useOfflineQueue';
 import { useNotifications, NOTIFIED_ROLES } from '../hooks/useNotifications';
 import { apiClient, ApiError } from '../api/client';
 import { useToast } from './Toast';
@@ -22,6 +23,8 @@ const UserMenu = ({ user, onAccountSettings }: { user: { name: string; role: str
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const firstLetter = user.name.charAt(0).toUpperCase();
+  // Real connectivity, same source SyncStatus tracks -- not decorative.
+  const { isOnline } = useOfflineQueue();
 
   useEffect(() => {
     if (!open) return;
@@ -59,6 +62,10 @@ const UserMenu = ({ user, onAccountSettings }: { user: { name: string; role: str
         </span>
         <span className="hidden md:flex flex-col items-start min-w-[100px] max-w-[180px]">
           <span className="text-[13px] font-bold text-sidebar-bg truncate max-w-[180px]">{user.name}</span>
+          <span className={`mt-0.5 inline-flex items-center gap-1 text-[11px] font-semibold ${isOnline ? 'text-success' : 'text-warning'}`}>
+            <span className={`w-[6px] h-[6px] rounded-full ${isOnline ? 'bg-success' : 'bg-warning'}`} aria-hidden="true" />
+            {isOnline ? 'Online' : 'Offline'}
+          </span>
           <span className="mt-0.5 text-[11px] font-medium text-muted-foreground capitalize">{user.role.replace('_', ' ')}</span>
         </span>
         <ChevronDown className={`hidden sm:block w-[11px] h-[11px] text-muted-foreground transition-transform duration-200 ${open ? 'rotate-180' : 'rotate-0'}`} />
@@ -109,6 +116,11 @@ export const Root = () => {
   // to a 60px icon rail with every label hidden and no working tooltip --
   // ten unlabeled glyphs. It is now off-canvas and fully labeled.
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Students expandable submenu (Dental Charts, Treatment nested under it),
+  // matching RAMHIS's real Pharmacy > Queue/Inventory pattern. Manually
+  // toggled OR auto-open when the current route is a child, so landing on
+  // /dental-charts directly (not via the chevron) still shows it expanded.
+  const [openStudents, setOpenStudents] = useState(false);
   const drawerRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -241,17 +253,22 @@ export const Root = () => {
       id: 3, path: '/patients', label: 'Students', icon: Users,
       roles: ['dentist','dental_aide','system_admin']
     },
+    // Rendered as children of Students (see StudentsGroup below), not as
+    // their own top-level rows -- requested to match RAMHIS's real
+    // Pharmacy > Queue/Inventory expandable-submenu pattern. Kept in
+    // allTabs so role filtering stays in one place; the render loop skips
+    // them here and draws them nested instead.
     {
       id: 4, path: '/dental-charts', label: 'Dental Charts', icon: Stethoscope,
       roles: ['dentist','dental_aide','system_admin']
     },
     {
-      id: 5, path: '/ai-analytics', label: 'Risk Classification', icon: Brain,
-      roles: ['dentist']
-    },
-    {
       id: 6, path: '/treatment-records', label: 'Treatment', icon: Clipboard,
       roles: ['dentist','dental_aide','system_admin']
+    },
+    {
+      id: 5, path: '/ai-analytics', label: 'Risk Classification', icon: Brain,
+      roles: ['dentist']
     },
     {
       id: 7, path: '/rpc', label: 'RPC Tracking', icon: Shield,
@@ -337,6 +354,74 @@ export const Root = () => {
           </span>
         )}
       </Link>
+    );
+  };
+
+  // Students + its two children (Dental Charts, Treatment) as an expandable
+  // group -- real RAMHIS spec (sidebar.jsx submenuStyle/submenuLinkStyle):
+  // indented 20px, left border rule, active child = a light pill (bg-card)
+  // on the dark rail rather than the gold TabLink treatment (that's reserved
+  // for top-level items). Students itself still navigates normally on click;
+  // only the chevron toggles the group, via stopPropagation so it doesn't
+  // also trigger the Link.
+  const StudentsGroup = ({ studentsTab, children }: { studentsTab: typeof allTabs[0]; children: typeof allTabs }) => {
+    const isActive = isTabActive(studentsTab.path);
+    const childActive = children.some((c) => isTabActive(c.path));
+    const isOpen = openStudents || childActive;
+    const Icon = studentsTab.icon;
+    return (
+      <div>
+        <Link
+          to={studentsTab.path}
+          onClick={() => setDrawerOpen(false)}
+          title={collapsed ? studentsTab.label : undefined}
+          aria-current={isActive ? 'page' : undefined}
+          className={`mx-7 rounded-2xl min-h-12 flex items-center gap-3 px-3 transition-colors ${
+            collapsed ? 'md:justify-center md:px-0' : ''
+          } ${
+            isActive
+              ? 'bg-sidebar-active text-sidebar-bg font-bold'
+              : 'text-white/70 hover:bg-white/10 hover:text-white font-medium'
+          }`}
+        >
+          <Icon className="w-4 h-4 flex-shrink-0" />
+          <span className={`${labelCls} text-[13px]`}>{studentsTab.label}</span>
+          <button
+            type="button"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpenStudents((v) => !v); }}
+            aria-label={isOpen ? 'Collapse Students submenu' : 'Expand Students submenu'}
+            aria-expanded={isOpen}
+            className={`${labelCls} ml-auto -mr-1 p-0.5 rounded transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          >
+            <ChevronDown className="w-3.5 h-3.5" />
+          </button>
+        </Link>
+
+        {isOpen && !collapsed && (
+          <div className="mt-1 ml-[44px] mr-3 pl-3 border-l border-white/15 flex flex-col gap-[3px]">
+            {children.map((child) => {
+              const childIsActive = isTabActive(child.path);
+              const ChildIcon = child.icon;
+              return (
+                <Link
+                  key={child.id}
+                  to={child.path}
+                  onClick={() => setDrawerOpen(false)}
+                  aria-current={childIsActive ? 'page' : undefined}
+                  className={`flex items-center gap-2.5 min-h-[38px] px-3 rounded-[9px] text-[13px] transition-colors ${
+                    childIsActive
+                      ? 'bg-card text-primary font-semibold'
+                      : 'text-white/60 hover:bg-white/10 hover:text-white font-medium'
+                  }`}
+                >
+                  <ChildIcon className="w-3.5 h-3.5 flex-shrink-0" />
+                  {child.label}
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
     );
   };
 
@@ -486,7 +571,7 @@ export const Root = () => {
                 gold circle chip -- expanded (incl. always on mobile): the
                 circle chip stays. */}
             <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sidebar-active text-sidebar-bg group-hover:scale-105 transition-transform ${
-              collapsed ? 'md:h-4 md:w-4 md:rounded-none md:bg-transparent md:text-white/70 md:group-hover:scale-100' : ''
+              collapsed ? 'md:h-4 md:w-4 md:rounded-none md:bg-transparent md:text-sidebar-active md:group-hover:scale-100' : ''
             }`}>
               <ArrowLeftRight className={`w-3 h-3 ${collapsed ? 'md:w-4 md:h-4' : ''}`} />
             </span>
@@ -499,9 +584,16 @@ export const Root = () => {
           {!collapsed && (
             <div className="px-8 pb-[9px] text-[10px] font-bold uppercase tracking-[1px] text-[#94a3b8]">Main Menu</div>
           )}
-          {visibleTabs.map((tab) => (
-            <TabLink key={tab.id} tab={tab} />
-          ))}
+          {visibleTabs.map((tab) => {
+            // Dental Charts (4) and Treatment (6) render nested inside the
+            // Students (3) group below, not as their own row here.
+            if (tab.id === 4 || tab.id === 6) return null;
+            if (tab.id === 3) {
+              const studentsChildren = visibleTabs.filter((t) => t.id === 4 || t.id === 6);
+              return <StudentsGroup key={tab.id} studentsTab={tab} children={studentsChildren} />;
+            }
+            return <TabLink key={tab.id} tab={tab} />;
+          })}
         </nav>
 
         {/* User info + settings + notifications + logout -- exact RAMHIS spec:
