@@ -1163,7 +1163,7 @@ export const DentalChart = () => {
         <div ref={iptrFormV2Ref}><IptrFormV2 student={student} schoolName={schoolName} years={years} /></div>
       </div>
       {/* Sticky header row */}
-      <div ref={headerRowRef} className="sticky z-40 bg-gray-50 pb-2" style={{ top: TOPBAR_H }}>
+      <div ref={headerRowRef} className="sticky z-40 bg-gray-50 pt-3 pb-2" style={{ top: TOPBAR_H }}>
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-3 min-w-0">
           <Link to={backPath} className="p-2 hover:bg-gray-100 rounded-lg shrink-0">
@@ -1682,7 +1682,7 @@ export const DentalChart = () => {
           "—" beside a completed consent reads as a missing signature rather
           than a missing field. It goes in once the data is real. */}
       {activeTab === 'history' && years.length > 0 && yearIptr && (
-        <div className="flex rounded-xl overflow-hidden shadow-[0_4px_14px_rgba(15,23,42,0.06)]">
+        <div className="flex rounded-xl overflow-hidden border border-border shadow-[0_4px_14px_rgba(15,23,42,0.08)]">
           <div className={`w-14 flex-shrink-0 flex items-center justify-center ${consentComplete ? 'bg-[#15803D]' : 'bg-[#B45309]'}`}>
             {consentComplete ? <ShieldCheck className="w-5 h-5 text-white" /> : <ShieldAlert className="w-5 h-5 text-white" />}
           </div>
