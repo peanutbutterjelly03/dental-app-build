@@ -571,11 +571,10 @@ export const Root = () => {
             onClick={() => navigate('/select-school')}
             title="Switch School"
             aria-label="Switch School"
-            // Same shape/size as a main-menu row (TabLink), just filled: white
-            // background + gold border + gold icon/text, matching the RAMHIS
-            // reference chip's white-bg/colored-border/colored-text treatment
-            // but in the app's gold rather than blue.
-            className={`mx-7 mt-2 mb-1 rounded-2xl min-h-12 flex items-center gap-3 px-3 border-2 border-sidebar-active bg-card text-sidebar-active font-bold transition-colors hover:bg-sidebar-active/10 ${
+            // Identical shape/size/alignment to a plain main-menu row
+            // (TabLink's idle state) -- no fill, no border -- the only
+            // difference is the gold icon/text color instead of white.
+            className={`mx-7 mt-2 mb-1 rounded-2xl min-h-12 flex items-center gap-3 px-3 text-sidebar-active font-medium hover:bg-white/10 transition-colors ${
               collapsed ? 'md:justify-center md:px-0' : ''
             }`}
           >
