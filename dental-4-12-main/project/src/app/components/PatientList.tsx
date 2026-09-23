@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { Plus, Eye, FileText, X, School as SchoolIcon, List, ChevronLeft, ChevronRight, Users, Upload, CheckCircle, AlertCircle, ScanLine, GraduationCap, MoreVertical, ListChecks, Archive as ArchiveIcon, Copy } from 'lucide-react';
@@ -888,8 +888,7 @@ export const PatientList = () => {
       if (!rowsWrapRef.current) return;
       const top = rowsWrapRef.current.getBoundingClientRect().top;
       const footerH = footerRef.current?.offsetHeight ?? 0;
-      const PAGE_BOTTOM_GUTTER = 16; // matches `<main>`'s own bottom padding closely enough
-      setRowsMaxHeight(Math.max(window.innerHeight - top - footerH - PAGE_BOTTOM_GUTTER, 160));
+      setRowsMaxHeight(Math.max(window.innerHeight - top - footerH, 160));
     };
     measure();
     let resizeObserver: ResizeObserver | null = null;
@@ -905,6 +904,18 @@ export const PatientList = () => {
       window.removeEventListener('resize', measure);
     };
   }, [canAddStudent, filtered.length, pager.pageCount]);
+
+  // The estimate above can leave a few stray pixels of page scroll (e.g.
+  // `<main>`'s own bottom padding, which this component has no clean way to
+  // read). Trim exactly that much, synchronously before paint, so the page
+  // itself never scrolls — only the bounded row list above does.
+  useLayoutEffect(() => {
+    if (rowsMaxHeight == null) return;
+    const overflow = document.documentElement.scrollHeight - window.innerHeight;
+    if (overflow > 0) {
+      setRowsMaxHeight((h) => (h == null ? h : Math.max(h - overflow, 160)));
+    }
+  }, [rowsMaxHeight]);
 
   const hasActiveFilters = gradeFilter !== 'all' || sectionFilter !== 'all' || genderFilter !== 'all' || ageGroupFilter !== 'all' || searchTerm !== '';
 
