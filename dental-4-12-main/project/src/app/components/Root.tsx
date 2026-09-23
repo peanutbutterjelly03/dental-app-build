@@ -367,19 +367,32 @@ export const Root = () => {
   const StudentsGroup = ({ studentsTab, children }: { studentsTab: typeof allTabs[0]; children: typeof allTabs }) => {
     const isActive = isTabActive(studentsTab.path);
     const childActive = children.some((c) => isTabActive(c.path));
+    // Highlight tracks the REAL route only -- never the manual expand/collapse
+    // state. Using `isOpen` here was the bug: toggle the group open, then
+    // navigate to an unrelated page, and the gold pill stayed lit because
+    // `openStudents` was still true. Expansion (below) is allowed to stay
+    // open across navigation; the color is not.
+    const highlighted = isActive || childActive;
     const isOpen = openStudents || childActive;
     const Icon = studentsTab.icon;
+    // Every click toggles, in addition to navigating -- first click from
+    // elsewhere opens it (and lands on Students), a second click while
+    // already there closes it, a third reopens it, and so on.
+    const onRowClick = () => {
+      setDrawerOpen(false);
+      setOpenStudents((v) => !v);
+    };
     return (
       <div>
         <Link
           to={studentsTab.path}
-          onClick={() => setDrawerOpen(false)}
+          onClick={onRowClick}
           title={collapsed ? studentsTab.label : undefined}
           aria-current={isActive ? 'page' : undefined}
           className={`mx-7 rounded-full min-h-12 flex items-center gap-3 px-4 transition-colors ${
             collapsed ? 'md:justify-center md:px-0' : ''
           } ${
-            isActive || isOpen
+            highlighted
               ? 'bg-sidebar-active text-sidebar-bg font-bold'
               : 'text-white/70 hover:bg-white/10 hover:text-white font-medium'
           }`}
@@ -443,7 +456,7 @@ export const Root = () => {
           the first row of content. */}
       <div
         style={{ height: TOPBAR_H }}
-        className={`fixed top-0 right-0 left-0 ${collapsed ? 'md:left-[128px]' : 'md:left-[320px]'} z-[60] flex items-center justify-end gap-3 px-6 bg-white/80 backdrop-blur-xl border-b border-[#EEF2F7] leading-none transition-[left] duration-200`}
+        className={`fixed top-0 right-0 left-0 ${collapsed ? 'md:left-[128px]' : 'md:left-[320px]'} z-[60] flex items-center justify-end gap-3 px-6 bg-white border-b border-[#EEF2F7] leading-none transition-[left] duration-200`}
       >
         <SyncStatus schoolLabel={selectedSchool ? getSchoolShortName(selectedSchool) : 'All Schools'} />
         <UserMenu user={user} onAccountSettings={openChangePassword} />
@@ -567,15 +580,16 @@ export const Root = () => {
               collapsed ? 'md:justify-center md:mx-0 md:w-full md:border-0 md:bg-transparent md:px-0 md:py-3' : ''
             }`}
           >
-            {/* Collapsed: plain icon matching the nav items' size/color, no
-                gold circle chip -- expanded (incl. always on mobile): the
-                circle chip stays. */}
+            {/* Collapsed: no gold FILL chip (that was reserved for active nav
+                items), but still a visible ring so the icon reads as a button
+                and not stray gold ink on the dark rail -- expanded (incl.
+                always on mobile): the solid circle chip stays. */}
             <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sidebar-active text-sidebar-bg group-hover:scale-105 transition-transform ${
-              collapsed ? 'md:h-4 md:w-4 md:rounded-none md:bg-transparent md:text-sidebar-active md:group-hover:scale-100' : ''
+              collapsed ? 'md:h-7 md:w-7 md:bg-transparent md:text-sidebar-active md:border md:border-sidebar-active/50 md:group-hover:scale-100' : ''
             }`}>
-              <ArrowLeftRight className={`w-3 h-3 ${collapsed ? 'md:w-4 md:h-4' : ''}`} />
+              <ArrowLeftRight className={`w-3 h-3 ${collapsed ? 'md:w-3.5 md:h-3.5' : ''}`} />
             </span>
-            <span className={`${labelCls} text-[13px] font-semibold`}>Switch School</span>
+            <span className={`${labelCls} flex-1 text-[13px] font-semibold tracking-[0.2em]`}>Switch School</span>
           </button>
         )}
 
