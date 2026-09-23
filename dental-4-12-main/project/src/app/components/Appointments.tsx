@@ -546,8 +546,13 @@ export const Appointments = () => {
   // card -- same hue family as statusBadge above (blue/yellow/green/red/gray),
   // just a bold block instead of a soft chip, so a card reads its status at
   // a glance without needing to read the text badge too.
-  const statusBlock = (status: string): string => {
+  // 'Today' is a display-only pseudo-status (not a real value of
+  // AppointmentSession.status) so a Scheduled card happening today reads
+  // differently from one that's still days out -- otherwise every Scheduled
+  // card was the same blue whether it needed attention right now or not.
+  const statusBlock = (status: string | 'Today'): string => {
     const map: Record<string, string> = {
+      'Today': '#0D9488',
       'Scheduled': '#2563EB',
       'In Progress': '#CA8A04',
       'Completed': '#16A34A',
@@ -641,7 +646,8 @@ export const Appointments = () => {
     // badge stays on the real stored status ("Scheduled"): that is still
     // true until someone confirms otherwise, only the color is a preview.
     const isOverdueUnmarked = a.date < TODAY && status === 'Scheduled';
-    const blockFill = statusBlock(isOverdueUnmarked ? 'Missed' : status);
+    const isScheduledToday = a.date === TODAY && status === 'Scheduled';
+    const blockFill = statusBlock(isOverdueUnmarked ? 'Missed' : isScheduledToday ? 'Today' : status);
     const { clock, ampm } = formatTimeBlock(a.time);
     const actionsOpen = openCardMenu === a.id;
     return (
