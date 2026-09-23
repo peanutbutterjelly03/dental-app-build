@@ -758,7 +758,7 @@ export const Appointments = () => {
                             onClick={() => { setOpenCardMenu(null); setConfirmStatusAction({ session: a, status: 'Missed' }); }}
                             className="w-full text-left px-3 py-2 text-sm text-destructive hover:bg-danger-surface flex items-center gap-2"
                           >
-                            <X className="w-3.5 h-3.5" /> Confirm Missed Appointment
+                            <X className="w-3.5 h-3.5" /> Confirm No-Show
                           </button>
                         </div>
                       </>
