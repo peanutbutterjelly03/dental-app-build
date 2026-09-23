@@ -1237,7 +1237,8 @@ export const DentalChart = () => {
           the PDF captures. */}
       <div ref={recordRef} className="space-y-4">
       {/* Patient Info Card */}
-      <div className="bg-card rounded-xl border border-border p-4">
+      <div className="relative overflow-hidden bg-card rounded-xl border border-border shadow-[0_8px_24px_rgba(15,23,42,0.08)] p-4">
+        <div className="absolute top-0 left-0 right-0 h-1 bg-primary" />
         {editingInfo ? (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
@@ -1469,7 +1470,8 @@ export const DentalChart = () => {
 
       {/* Tabs */}
       <div className="sticky z-30 bg-gray-50 space-y-0" style={{ top: stickyOffsets.tabsTop }}>
-        <div className="bg-card rounded-xl border border-border">
+        <div className="relative overflow-hidden bg-card rounded-xl border border-border shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-primary z-10" />
           <div ref={tabsRowRef} className="rounded-t-xl border-b border-border bg-card">
             <div className="flex items-center">
               {/* Her strip: every tab takes an equal share of the card's
@@ -1724,7 +1726,8 @@ export const DentalChart = () => {
       )}
 
       {/* Tab Content */}
-      <div className="bg-card rounded-xl border border-border">
+      <div className="relative overflow-hidden bg-card rounded-xl border border-border shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+        <div className="absolute top-0 left-0 right-0 h-1 bg-teal-600 z-10" />
 
         {years.length === 0 ? (
           <div className="p-12 text-center text-muted-foreground">
@@ -1828,7 +1831,8 @@ export const DentalChart = () => {
                 DENTAL_CHART, ours live on ORAL_HEALTH_CONDITION and on the RPC
                 visit's PREVENTIVE_CARE_RECORD (Sprint 147), which is what the
                 Target Client List and the DOH return read. */}
-            <div className="bg-card rounded-xl border border-border p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="relative overflow-hidden bg-card rounded-xl border border-border shadow-[0_8px_24px_rgba(15,23,42,0.08)] p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-green-600 z-10" />
               <div className={editingHistory ? '' : 'opacity-60 pointer-events-none select-none'}>
                 <div className="flex flex-wrap items-center gap-3 mb-2">
                   <div className="text-sm font-bold text-primary uppercase tracking-wide">Oral Conditions</div>
@@ -2096,7 +2100,8 @@ export const DentalChart = () => {
               )}
             </div>
 
-            <div className="bg-card rounded-xl border border-border p-4 overflow-x-auto">
+            <div className="relative bg-card rounded-xl border border-border shadow-[0_8px_24px_rgba(15,23,42,0.08)] p-4 overflow-x-auto">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-amber-600 z-10 rounded-t-xl" />
               {/* Every row is 16 equal slots, so a primary tooth sits directly
                   under the permanent tooth it will replace: 55↔15, 54↔14 …
                   51↔11, 61↔21 … 65↔25 (FDI). The primary rows previously used
