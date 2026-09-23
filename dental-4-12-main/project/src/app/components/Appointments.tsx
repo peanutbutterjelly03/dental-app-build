@@ -703,7 +703,7 @@ export const Appointments = () => {
             // both places. Today/Upcoming/All/Calendar aren't a status, so
             // they get the brand navy rather than inventing a meaning.
             { key: 'today',     label: 'Today',     count: todayAppts.length,     fill: '#273A78' },
-            { key: 'upcoming',  label: 'Upcoming',  count: upcomingAppts.length,  fill: '#2563EB' },
+            { key: 'upcoming',  label: 'Upcoming',  count: upcomingAppts.length,  fill: '#273A78' },
             { key: 'completed', label: 'Completed', count: completedAppts.length, fill: '#16A34A' },
             { key: 'missed',    label: 'Missed',    count: missedAppts.length,    fill: '#DC2626' },
             { key: 'all',       label: 'All',       count: appointments.length,   fill: '#273A78' },
