@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link, useSearchParams } from 'react-router';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, X, Check, Clock, Users, FileText, Mars, Venus, MoreVertical, Trash2, ClipboardList, StickyNote, Pencil } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, X, Check, FileText, Mars, Venus, MoreVertical, Trash2, StickyNote, Pencil } from 'lucide-react';
 import { getGradeColor } from '../utils/gradeColors';
 import { getSchoolShortName } from '../utils/schoolColors';
 import { useAppointments, type AppointmentSession } from '../hooks/useAppointments';
@@ -475,6 +475,31 @@ export const Appointments = () => {
     return map[status] || 'bg-gray-100 text-muted-foreground';
   };
 
+  // Solid fill for the card's time block + the border tint around the whole
+  // card -- same hue family as statusBadge above (blue/yellow/green/red/gray),
+  // just a bold block instead of a soft chip, so a card reads its status at
+  // a glance without needing to read the text badge too.
+  const statusBlock = (status: string): { fill: string; border: string } => {
+    const map: Record<string, { fill: string; border: string }> = {
+      'Scheduled': { fill: '#2563EB', border: '#BFDBFE' },
+      'In Progress': { fill: '#CA8A04', border: '#FDE68A' },
+      'Completed': { fill: '#16A34A', border: '#BBF7D0' },
+      'Missed': { fill: '#DC2626', border: '#FECACA' },
+      'Cancelled': { fill: '#6B7280', border: '#E5E7EB' },
+    };
+    return map[status] || { fill: '#6B7280', border: '#E5E7EB' };
+  };
+
+  // "HH:MM" (24h, as stored) -> the 12h clock + AM/PM shown in the card's
+  // time block.
+  const formatTimeBlock = (time: string) => {
+    const [hStr, mStr] = time.split(':');
+    let h = parseInt(hStr, 10);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return { clock: `${String(h).padStart(2, '0')}:${mStr}`, ampm };
+  };
+
   // ⚠ `compact` exists because this card is ALSO rendered inside the day
   // dialog's left half — roughly 340px, against the ~1300px list it was drawn
   // for. At that width the chips wrap one per line, the section name truncates
@@ -514,87 +539,81 @@ export const Appointments = () => {
       : isFemale
         ? <Venus className="w-5 h-5" />
         : a.grade.replace('Grade ', 'G');
-    // Meta info as a row of small tags instead of "Label: value" text — same
-    // information, read at a glance instead of parsed word by word.
-    const chip = 'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-gray-100 text-xs font-medium text-foreground';
+    const block = statusBlock(status);
+    const { clock, ampm } = formatTimeBlock(a.time);
     return (
-      <div className="flex items-center justify-between gap-4 px-4 py-2.5 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <div style={{ backgroundColor: iconBg, color: iconColor }} className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0">
-            {genderIcon}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-bold text-foreground truncate">
-              {soleStudent ? soleStudent.name : `${a.section} — ${a.grade}`}
-            </div>
-            {/* One row of tags, using the row's width instead of stacking
-                three mostly-empty lines or spelling out "Label: value". */}
-            <div className="flex flex-wrap items-center gap-1.5 mt-1">
-              {soleStudent && (
-                <span className={chip} style={{ backgroundColor: gc.light, color: gc.solid }}>
-                  {a.grade} <span className="opacity-70 font-normal">· {a.section}</span>
-                </span>
-              )}
-              {!compact && (
-                <span className={chip}>
-                  <CalendarIcon className="w-3 h-3 text-muted-foreground" /> {shortDate}
-                </span>
-              )}
-              <span className={chip}>
-                <Clock className="w-3 h-3 text-muted-foreground" /> {a.time}
-              </span>
-              <span className={chip}>
-                <ClipboardList className="w-3 h-3 text-muted-foreground" /> {a.type}
-              </span>
-              {!soleStudent && !compact && (
-                <span className={chip}>
-                  <Users className="w-3 h-3 text-muted-foreground" /> {a.studentCount} students
-                </span>
-              )}
-            </div>
-          </div>
+      <div className="flex overflow-hidden rounded-2xl border mb-2.5 last:mb-0" style={{ borderColor: block.border }}>
+        {/* Time block — solid fill by status, same hue family as the text
+            badge below, so the card's status reads before you even get to
+            the badge. */}
+        <div className="w-[72px] sm:w-[84px] flex-shrink-0 flex flex-col items-center justify-center px-2 py-3" style={{ backgroundColor: block.fill }}>
+          <div className="text-[15px] sm:text-base font-extrabold text-white tabular-nums">{clock}</div>
+          <div className="text-[9.5px] font-semibold text-white/75 mt-0.5">{ampm}</div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {a.pending && (
-            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200">Pending sync</span>
-          )}
-          <Link
-            to={soleStudent ? `/dental-chart/${soleStudent.id}` : '/dental-charts'}
-            className="w-7 h-7 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 flex items-center justify-center transition-colors"
-            title={soleStudent ? `Open ${soleStudent.name}'s Dental Chart` : 'Open Dental Charts'}
-          >
-            <FileText className="w-3.5 h-3.5" />
-          </Link>
-          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusBadge(status)}`}>{status}</span>
-          {/* Delete mode replaces the status actions with one clear choice,
-              so a stray click can't both change status and delete. */}
-          {deleteMode && !a.pending ? (
-            <button onClick={() => removeAppointment(a)}
-              className="w-7 h-7 rounded-full bg-red-100 hover:bg-red-200 text-red-700 flex items-center justify-center transition-colors" title="Delete this appointment">
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          ) : (
-            <>
-              {showActions && !a.pending && status === 'Scheduled' && (
-                <>
+
+        <div className="flex-1 min-w-0 bg-card flex items-center justify-between gap-3 px-4 py-3">
+          <div className="min-w-0 flex-1 flex items-center gap-3">
+            <div style={{ backgroundColor: iconBg, color: iconColor }} className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0">
+              {genderIcon}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-bold text-foreground truncate">
+                  {soleStudent ? soleStudent.name : `${a.section} — ${a.grade}`}
+                </span>
+                <span className={`text-[10.5px] font-bold px-2 py-0.5 rounded-full ${statusBadge(status)}`}>{status}</span>
+                {a.pending && (
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200">Pending sync</span>
+                )}
+              </div>
+              {/* Plain meta line (grade/section · date · treatment), matching
+                  the chosen agenda-card layout — the chip row this replaced
+                  is a later refinement, not part of this pass. */}
+              <div className="text-xs text-muted-foreground mt-1 truncate">
+                {soleStudent ? <>{a.grade} · {a.section}</> : <>{a.studentCount} students</>}
+                {!compact && <> · {shortDate}</>}
+                {' · '}{a.type}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Link
+              to={soleStudent ? `/dental-chart/${soleStudent.id}` : '/dental-charts'}
+              className="w-7 h-7 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 flex items-center justify-center transition-colors"
+              title={soleStudent ? `Open ${soleStudent.name}'s Dental Chart` : 'Open Dental Charts'}
+            >
+              <FileText className="w-3.5 h-3.5" />
+            </Link>
+            {/* Delete mode replaces the status actions with one clear choice,
+                so a stray click can't both change status and delete. */}
+            {deleteMode && !a.pending ? (
+              <button onClick={() => removeAppointment(a)}
+                className="w-7 h-7 rounded-full bg-red-100 hover:bg-red-200 text-red-700 flex items-center justify-center transition-colors" title="Delete this appointment">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <>
+                {showActions && !a.pending && status === 'Scheduled' && (
+                  <>
+                    <button onClick={() => setConfirmStatusAction({ session: a, status: 'Completed' })}
+                      className="w-7 h-7 rounded-full bg-green-100 hover:bg-green-200 text-green-700 flex items-center justify-center transition-colors" title="Mark Attended">
+                      <Check className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => setConfirmStatusAction({ session: a, status: 'Missed' })}
+                      className="w-7 h-7 rounded-full bg-red-100 hover:bg-red-200 text-red-700 flex items-center justify-center transition-colors" title="Mark Missed">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </>
+                )}
+                {showActions && !a.pending && status === 'In Progress' && (
                   <button onClick={() => setConfirmStatusAction({ session: a, status: 'Completed' })}
-                    className="w-7 h-7 rounded-full bg-green-100 hover:bg-green-200 text-green-700 flex items-center justify-center transition-colors" title="Mark Attended">
+                    className="w-7 h-7 rounded-full bg-green-100 hover:bg-green-200 text-green-700 flex items-center justify-center transition-colors" title="Mark Completed">
                     <Check className="w-3.5 h-3.5" />
                   </button>
-                  <button onClick={() => setConfirmStatusAction({ session: a, status: 'Missed' })}
-                    className="w-7 h-7 rounded-full bg-red-100 hover:bg-red-200 text-red-700 flex items-center justify-center transition-colors" title="Mark Missed">
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </>
-              )}
-              {showActions && !a.pending && status === 'In Progress' && (
-                <button onClick={() => setConfirmStatusAction({ session: a, status: 'Completed' })}
-                  className="w-7 h-7 rounded-full bg-green-100 hover:bg-green-200 text-green-700 flex items-center justify-center transition-colors" title="Mark Completed">
-                  <Check className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </>
-          )}
+                )}
+              </>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -641,28 +660,42 @@ export const Appointments = () => {
         </div>
       </div>
 
-      {/* ── TABS: Today / Upcoming / Completed / Missed / All / Calendar ── */}
-      {/* max-w-full + scroll is still required at six tabs: they do not fit a
-          390px phone, and the last one would otherwise sit past the right edge
-          with no way to reach it. */}
-      <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 w-fit max-w-full overflow-x-auto">
-        {[
-          { key: 'today',     label: `Today (${todayAppts.length})`            },
-          { key: 'upcoming',  label: `Upcoming (${upcomingAppts.length})`      },
-          { key: 'completed', label: `Completed (${completedAppts.length})`    },
-          { key: 'missed',    label: `Missed (${missedAppts.length})`          },
-          { key: 'all',       label: `All (${appointments.length})`            },
-          { key: 'calendar',  label: 'Calendar'                                },
-        ].map(tab => (
-          <button key={tab.key} onClick={() => setActiveTab(tab.key as any)}
-            className={`flex-shrink-0 whitespace-nowrap px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === tab.key ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {/* ── LEFT RAIL: Today / Upcoming / Completed / Missed / All / Calendar ──
+          Vertical view switcher next to the agenda, replacing the old
+          horizontal pill strip -- the six tabs never fit a 390px phone as a
+          row, and the rail scrolls its own short list instead of fighting
+          the page for width. Below md it stacks above the content like the
+          old strip did. */}
+      <div className="flex flex-col md:flex-row gap-5">
+        <nav className="flex md:flex-col gap-1 md:w-[200px] flex-shrink-0 overflow-x-auto md:overflow-visible">
+          {[
+            { key: 'today',     label: 'Today',     count: todayAppts.length },
+            { key: 'upcoming',  label: 'Upcoming',  count: upcomingAppts.length },
+            { key: 'completed', label: 'Completed', count: completedAppts.length },
+            { key: 'missed',    label: 'Missed',    count: missedAppts.length },
+            { key: 'all',       label: 'All',       count: appointments.length },
+            { key: 'calendar',  label: 'Calendar',  count: null },
+          ].map(tab => {
+            const isActive = activeTab === tab.key;
+            const activeIsMissed = isActive && tab.key === 'missed';
+            return (
+              <button key={tab.key} onClick={() => setActiveTab(tab.key as any)}
+                className={`flex-shrink-0 flex items-center justify-between gap-3 whitespace-nowrap px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                  activeIsMissed
+                    ? 'bg-danger-surface text-destructive'
+                    : isActive
+                      ? 'bg-primary-surface text-primary'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-gray-100'
+                }`}>
+                <span>{tab.label}</span>
+                {tab.count !== null && <span className={isActive ? 'opacity-100' : 'opacity-55'}>{tab.count}</span>}
+              </button>
+            );
+          })}
+        </nav>
 
-      {/* ── TAB CONTENT ── */}
-      <div className="bg-card rounded-xl border border-border overflow-hidden">
+        {/* ── TAB CONTENT ── */}
+        <div className="flex-1 min-w-0 bg-card rounded-xl border border-border overflow-hidden">
 
       {/* TODAY */}
       {activeTab === 'today' && (
@@ -678,7 +711,9 @@ export const Appointments = () => {
               <p className="text-sm">No appointments scheduled for today</p>
             </div>
           ) : (
-            todayAppts.map(a => <AppointmentCard key={a.id} a={a} showActions deleteMode={deleteModeTab === 'today'} />)
+            <div className="p-3">
+              {todayAppts.map(a => <AppointmentCard key={a.id} a={a} showActions deleteMode={deleteModeTab === 'today'} />)}
+            </div>
           )}
         </>
       )}
@@ -696,17 +731,19 @@ export const Appointments = () => {
               <p className="text-sm">No upcoming appointments</p>
             </div>
           ) : (
-            upcomingAppts.map(a => (
-              <div key={a.id} className="flex items-center gap-4 px-4 py-3 border-b border-gray-100 last:border-0 hover:bg-gray-50">
-                <div className="text-center min-w-[48px]">
-                  <div className="text-lg font-bold text-primary">{a.date.split('-')[2]}</div>
-                  <div className="text-xs text-muted-foreground">{new Date(a.date + 'T00:00:00').toLocaleString('default', { month: 'short' })}</div>
+            <div className="p-3">
+              {upcomingAppts.map(a => (
+                <div key={a.id} className="flex items-start gap-3 mb-2.5 last:mb-0">
+                  <div className="text-center w-11 flex-shrink-0 pt-1">
+                    <div className="text-lg font-bold text-primary leading-none">{a.date.split('-')[2]}</div>
+                    <div className="text-[10px] text-muted-foreground mt-1">{new Date(a.date + 'T00:00:00').toLocaleString('default', { month: 'short' })}</div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <AppointmentCard a={a} showActions deleteMode={deleteModeTab === 'upcoming'} />
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <AppointmentCard a={a} showActions deleteMode={deleteModeTab === 'upcoming'} />
-                </div>
-              </div>
-            ))
+              ))}
+            </div>
           )}
         </>
       )}
@@ -721,7 +758,9 @@ export const Appointments = () => {
               <p className="text-sm">No completed appointments</p>
             </div>
           ) : (
-            completedAppts.map(a => <AppointmentCard key={a.id} a={a} showActions deleteMode={deleteModeTab === 'completed'} />)
+            <div className="p-3">
+              {completedAppts.map(a => <AppointmentCard key={a.id} a={a} showActions deleteMode={deleteModeTab === 'completed'} />)}
+            </div>
           )}
         </>
       )}
@@ -736,7 +775,9 @@ export const Appointments = () => {
               <p className="text-sm">No missed appointments</p>
             </div>
           ) : (
-            missedAppts.map(a => <AppointmentCard key={a.id} a={a} showActions deleteMode={deleteModeTab === 'missed'} />)
+            <div className="p-3">
+              {missedAppts.map(a => <AppointmentCard key={a.id} a={a} showActions deleteMode={deleteModeTab === 'missed'} />)}
+            </div>
           )}
         </>
       )}
@@ -754,7 +795,9 @@ export const Appointments = () => {
               <p className="text-sm">No appointments loaded for this window</p>
             </div>
           ) : (
-            allAppts.map(a => <AppointmentCard key={a.id} a={a} showActions deleteMode={deleteModeTab === 'all'} />)
+            <div className="p-3">
+              {allAppts.map(a => <AppointmentCard key={a.id} a={a} showActions deleteMode={deleteModeTab === 'all'} />)}
+            </div>
           )}
         </>
       )}
@@ -836,7 +879,8 @@ export const Appointments = () => {
         </>
       )}
 
-      </div>{/* end tab content box */}
+        </div>{/* end tab content box */}
+      </div>{/* end rail + content row */}
 
       {/* ── CREATE APPOINTMENT MODAL ── */}
       {noteDay && (
