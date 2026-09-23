@@ -552,7 +552,7 @@ export const Appointments = () => {
   // card was the same blue whether it needed attention right now or not.
   const statusBlock = (status: string | 'Today'): string => {
     const map: Record<string, string> = {
-      'Today': '#0D9488',
+      'Today': '#C026D3',
       'Scheduled': '#2563EB',
       'In Progress': '#CA8A04',
       'Completed': '#16A34A',
