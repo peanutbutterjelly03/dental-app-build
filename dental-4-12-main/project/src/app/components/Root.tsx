@@ -376,10 +376,10 @@ export const Root = () => {
           onClick={() => setDrawerOpen(false)}
           title={collapsed ? studentsTab.label : undefined}
           aria-current={isActive ? 'page' : undefined}
-          className={`mx-7 rounded-2xl min-h-12 flex items-center gap-3 px-3 transition-colors ${
+          className={`mx-7 rounded-full min-h-12 flex items-center gap-3 px-4 transition-colors ${
             collapsed ? 'md:justify-center md:px-0' : ''
           } ${
-            isActive
+            isActive || isOpen
               ? 'bg-sidebar-active text-sidebar-bg font-bold'
               : 'text-white/70 hover:bg-white/10 hover:text-white font-medium'
           }`}
@@ -398,7 +398,7 @@ export const Root = () => {
         </Link>
 
         {isOpen && !collapsed && (
-          <div className="mt-1 ml-[44px] mr-3 pl-3 border-l border-white/15 flex flex-col gap-[3px]">
+          <div className="mt-1.5 mx-7 flex flex-col gap-1">
             {children.map((child) => {
               const childIsActive = isTabActive(child.path);
               const ChildIcon = child.icon;
@@ -408,7 +408,7 @@ export const Root = () => {
                   to={child.path}
                   onClick={() => setDrawerOpen(false)}
                   aria-current={childIsActive ? 'page' : undefined}
-                  className={`flex items-center gap-2.5 min-h-[38px] px-3 rounded-[9px] text-[13px] transition-colors ${
+                  className={`flex items-center gap-2.5 min-h-[38px] pl-9 pr-3 rounded-full text-[13px] transition-colors ${
                     childIsActive
                       ? 'bg-card text-primary font-semibold'
                       : 'text-white/60 hover:bg-white/10 hover:text-white font-medium'
