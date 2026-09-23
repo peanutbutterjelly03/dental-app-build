@@ -11,7 +11,6 @@ import { GradePill } from './GradePill';
 import { useToast } from './Toast';
 import { useStudentNav } from '../hooks/useStudentNav';
 import { validateStudentValues } from '../../../shared/studentValidation';
-import { useAppointments } from '../hooks/useAppointments';
 import { useDentalChartData } from '../hooks/useDentalChartData';
 import { apiClient, ApiError } from '../api/client';
 import { toLocalDateString, formatDate } from '../utils/localDate';
@@ -139,18 +138,6 @@ export const DentalChart = () => {
   const { entries: allStudents } = useStudentNav();
   // School list comes from the DB now, not a hardcoded array (Sprint 60).
   const { schoolNames } = useSchools();
-  // Only the Consent tab's "upcoming appointments" list reads this, and it
-  // filters to `date >= today`, so nothing before today is worth loading
-  // (Sprint 56). The forward bound is a year out — generous for any real
-  // scheduling horizon, and a bound rather than none.
-  const upcomingWindow = useMemo(() => {
-    const now = new Date();
-    return {
-      from: new Date(now.getFullYear(), now.getMonth(), now.getDate()),
-      to: new Date(now.getFullYear() + 1, now.getMonth(), now.getDate(), 23, 59, 59, 999),
-    };
-  }, []);
-  const { sessions: appointmentSessions } = useAppointments(upcomingWindow);
   const { student, schoolName, years, dentists, loading, error, reload } = useDentalChartData(id);
   const currentDentist = dentists.find((d) => d.user_id === user?.id);
 
@@ -1055,15 +1042,6 @@ export const DentalChart = () => {
     }
   };
 
-  // Real upcoming appointments for this specific student.
-  const today = toLocalDateString(new Date());
-  const studentAppointments = useMemo(
-    () => appointmentSessions
-      .filter((s) => s.students.some((stu) => stu.id === id) && s.date >= today)
-      .sort((a, b) => a.date.localeCompare(b.date)),
-    [appointmentSessions, id, today],
-  );
-
   const showStickyYearBar = activeTab === 'history' || activeTab === 'chart';
   const backPath = iptrContext === 'risk' ? '/ai-analytics' : iptrContext === 'treatment' ? '/treatment-records' : '/dental-charts';
 
@@ -1129,8 +1107,6 @@ export const DentalChart = () => {
   const consentComplete = yearIptr?.consent_status === 'complete';
   const yearGrade = yearIptr?.grade_level ?? null;
   const yearSection = yearIptr?.section ?? null;
-  const NOT_RECORDED = 'Grade not recorded';
-  const yearGradeLabel = yearGrade ? `${yearGrade}${yearSection ? ` ${yearSection}` : ''}` : NOT_RECORDED;
 
   // The patient's own record as a PDF — Sprint 52 named this "the one export a
   // clinic actually needs (a patient's own record for their file)".
@@ -1404,7 +1380,6 @@ export const DentalChart = () => {
                 </div>
                 <div>
                   <div className="font-bold text-foreground">{surnameFirstWithInitial(student)}</div>
-                  <div className="text-xs text-muted-foreground">{yearGradeLabel} • {student.sex} • Age {patientAge}</div>
                   <div className="flex items-center gap-2 mt-1">
                     {/* Nothing when the year has no recorded grade — the detail
                         line directly above already says so, and repeating it
@@ -1516,7 +1491,7 @@ export const DentalChart = () => {
               {visibleTabs.map((tab) => (
                 <button key={tab.key} onClick={() => setActiveTab(tab.key as TabKey)}
                   aria-current={activeTab === tab.key ? 'page' : undefined}
-                  className={`${visibleTabs.length > 1 ? 'flex-1' : 'px-6'} whitespace-nowrap px-3 py-3 text-sm text-center transition-colors focus:outline-none focus-visible:outline-none ${activeTab === tab.key ? 'font-bold border-b-[3px] border-blue-700 text-blue-700 bg-blue-50/60' : 'font-medium text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
+                  className={`${visibleTabs.length > 1 ? 'flex-1' : 'px-6'} whitespace-nowrap px-3 py-2.5 my-1.5 mx-1 rounded-xl text-sm text-center transition-colors focus:outline-none focus-visible:outline-none ${activeTab === tab.key ? 'font-bold bg-primary text-white' : 'font-medium text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
                   {tab.label}
                 </button>
               ))}
@@ -1770,7 +1745,6 @@ export const DentalChart = () => {
             setDiet={setDraftDiet}
             patientAgeMonths={patientAgeMonths}
             sex={student.sex}
-            appointments={studentAppointments}
           />
         )}
 

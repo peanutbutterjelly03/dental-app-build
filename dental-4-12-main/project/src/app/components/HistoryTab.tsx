@@ -1,10 +1,8 @@
-import { Link } from 'react-router';
-import { Shield } from 'lucide-react';
 import { computeBmi, BMI_NOTE, classifyNutritionalStatus } from '../utils/bmi';
 import type { MedicalHistoryDraft, DietDraft, MeasureDraft } from './iptrDrafts';
 
 // The History tab — physical measurements, medical history, dietary/social
-// history, the RA 10173 notice and this pupil's upcoming appointments.
+// history.
 //
 // Extracted from `DentalChart.tsx` in Sprint 162c, unchanged.
 //
@@ -13,14 +11,6 @@ import type { MedicalHistoryDraft, DietDraft, MeasureDraft } from './iptrDrafts'
 // Chart tab edits — two editors for one record, on adjacent tabs, is how a
 // screen ends up disagreeing with itself. It lives beside the odontogram now,
 // because that is where a clinician is looking when they notice calculus.
-
-export interface StudentAppointmentRow {
-  id: string;
-  type: string;
-  date: string;
-  time: string;
-  status: string;
-}
 
 export function HistoryTab({
   editing,
@@ -32,7 +22,6 @@ export function HistoryTab({
   setDiet,
   patientAgeMonths,
   sex,
-  appointments,
 }: {
   /** Every field on this tab is disabled unless the record is in edit mode —
    *  the tab is a reader by default and an editor only on request. */
@@ -46,7 +35,6 @@ export function HistoryTab({
   /** Needed for BMI-for-Age, which is keyed on exact age in months and sex. */
   patientAgeMonths: number | null;
   sex: string;
-  appointments: StudentAppointmentRow[];
 }) {
   return (
     <div className="p-4 space-y-4">
@@ -181,49 +169,6 @@ export function HistoryTab({
         </div>
       </div>
 
-      {/* ⚠ Both kept from the Consent tab deleted in Sprint 171, because
-          neither has another home. The RA 10173 notice appears NOWHERE
-          else — not even on the printed consent form — and deleting a
-          legal notice to match a tab count is not a design decision.
-          Upcoming Appointments is real data read from this pupil's schedule.
-
-          NOT kept: the on-screen signature rules. Consent is signed on
-          the printed form (Reports → Consent Form), which carries the
-          real PANGALAN NG MAGULANG/GUARDIAN block; ruled lines on a
-          screen were never signable. */}
-      <div className="bg-blue-50 rounded-xl border border-blue-200 p-4">
-        <div className="flex items-start gap-3">
-          <Shield className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-          <div>
-            <div className="text-xs font-bold text-blue-900 mb-1">Republic Act No. 10173 — Data Privacy Act of 2012</div>
-            <p className="text-xs text-blue-700 leading-relaxed">
-              Ang impormasyong nakolekta sa form na ito ay gagamitin lamang para sa mga layuning pangkalusugan ng Dental Health Program ng Barangay Tanyag, Lungsod ng Taguig. Ang inyong personal na impormasyon ay protektado ng Batas Republika Blg. 10173 o ang Data Privacy Act ng 2012. Ang inyong datos ay hindi ibabahagi sa anumang partido na walang pahintulot maliban kung kinakailangan ng batas.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-card rounded-xl border border-border p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="text-sm font-semibold text-foreground">Upcoming Appointments</div>
-          <Link to="/appointments" className="text-xs text-blue-600 hover:underline">View all →</Link>
-        </div>
-        {appointments.length === 0 ? (
-          <p className="text-xs text-muted-foreground text-center py-4">No upcoming appointments scheduled.</p>
-        ) : (
-          <div className="space-y-2">
-            {appointments.map((apt) => (
-              <div key={apt.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                <div>
-                  <div className="text-xs font-medium text-foreground">{apt.type}</div>
-                  <div className="text-xs text-muted-foreground">{apt.date} at {apt.time}</div>
-                </div>
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">{apt.status}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 }
