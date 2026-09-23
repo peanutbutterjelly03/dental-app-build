@@ -1469,7 +1469,7 @@ export const DentalChart = () => {
 
       {/* Tabs */}
       <div className="sticky z-30 bg-gray-50 space-y-0" style={{ top: stickyOffsets.tabsTop }}>
-        <div className="overflow-hidden bg-card rounded-xl border-2 border-primary/40">
+        <div className="overflow-hidden bg-card rounded-xl border-2 border-primary">
           <div ref={tabsRowRef} className="border-b border-border bg-card">
             <div className="flex items-center">
               {/* Her strip: every tab takes an equal share of the card's
