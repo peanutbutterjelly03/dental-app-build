@@ -9,7 +9,9 @@ import type { VisitServices } from '../../../shared/rpcTracking';
 import { SkeletonTable } from './Skeleton';
 import { formatDate, toLocalDateString } from '../utils/localDate';
 import { FORM_SECTION_BAND } from '../utils/dohFormStyle';
-import { exportSheetsToXlsx } from '../utils/exportXlsx';
+import { buildSheetsXlsx } from '../utils/exportXlsx';
+import { usePreviewModal } from '../hooks/usePreviewModal';
+import { PreviewModal } from './PreviewModal';
 import { FileSpreadsheet } from 'lucide-react';
 
 // ─── Target Client List for Oral Health Care and Services ────────────────────
@@ -381,7 +383,7 @@ export const TargetClientList = () => {
   const [period, setPeriod] = useState<Period>('monthly');
   const [anchor, setAnchor] = useState(() => toLocalDateString(new Date()));
 
-  const [busy, setBusy] = useState<'xlsx' | null>(null);
+  const { preview, building, previewExcel, closePreview, confirmDownload } = usePreviewModal();
   const [orals, setOrals] = useState<ApiOralHealthCondition[]>([]);
   const [iptrs, setIptrs] = useState<ApiStudentIptr[]>([]);
 
@@ -583,9 +585,8 @@ export const TargetClientList = () => {
   const ruledRows = Math.max(FORM_ROWS, Math.ceil(visible.length / FORM_ROWS) * FORM_ROWS);
   const blankRowIndexes = Array.from({ length: ruledRows - visible.length }, (_, n) => visible.length + n);
 
-  const onXlsx = async () => {
-    setBusy('xlsx');
-    try {
+  const onXlsx = () => {
+    previewExcel('Target Client List', `${exportBaseName}.xlsx`, async () => {
       // `row: null` is one of the form's blank ruled rows — numbered, empty.
       type XlsxRow = { row: Row | null; i: number };
       const svc = (c: (typeof visibleServices)[number]) => ({
@@ -617,16 +618,11 @@ export const TargetClientList = () => {
         ...visible.map((row, i) => ({ row: row as Row | null, i })),
         ...blankRowIndexes.map((i) => ({ row: null, i })),
       ];
-      await exportSheetsToXlsx(
-        [
-          { name: 'Page 1', rows, columns: page1 },
-          { name: 'Page 2', rows, columns: page2 },
-        ],
-        `${exportBaseName}.xlsx`,
-      );
-    } finally {
-      setBusy(null);
-    }
+      return buildSheetsXlsx([
+        { name: 'Page 1', rows, columns: page1 },
+        { name: 'Page 2', rows, columns: page2 },
+      ]);
+    });
   };
 
   if (studentsLoading || rpcLoading) return <SkeletonTable rows={8} />;
@@ -865,10 +861,10 @@ export const TargetClientList = () => {
           <div className="flex items-center gap-2">
             <button
               onClick={onXlsx}
-              disabled={busy !== null || visible.length === 0}
+              disabled={building || visible.length === 0}
               className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-gray-50 disabled:opacity-50"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5" />{busy === 'xlsx' ? 'Preparing…' : 'Excel'}
+              <FileSpreadsheet className="w-3.5 h-3.5" />{building ? 'Preparing…' : 'Excel'}
             </button>
           </div>
         </div>
@@ -959,6 +955,14 @@ export const TargetClientList = () => {
         {formPage(1, visibleIdentity, page1Services, false)}
         {formPage(2, [NUMBER_COLUMN], page2Services, remarksVisible)}
       </div>
+      <PreviewModal
+        open={preview.open}
+        kind={preview.kind}
+        title={preview.title}
+        url={preview.url}
+        onClose={closePreview}
+        onDownload={confirmDownload}
+      />
     </div>
   );
 };

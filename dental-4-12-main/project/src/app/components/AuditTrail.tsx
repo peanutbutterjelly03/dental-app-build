@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react';
 import { Search, Filter, Calendar, Download } from 'lucide-react';
 import { useAuditTrail, windowStart, AUDIT_WINDOW_DAYS } from '../hooks/useAuditTrail';
 import { exportToCsv, type ExportColumn } from '../utils/exportCsv';
-import { exportToXlsx } from '../utils/exportXlsx';
+import { buildXlsx } from '../utils/exportXlsx';
+import { usePreviewModal } from '../hooks/usePreviewModal';
+import { PreviewModal } from './PreviewModal';
 import { ExportMenu, type ExportFormat } from './ExportMenu';
 import { toLocalDateString, formatDateTime } from '../utils/localDate';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
@@ -71,6 +73,8 @@ export const AuditTrail = () => {
 
   const formatTimestamp = (iso: string) => formatDateTime(iso);
 
+  const { preview, previewExcel, closePreview, confirmDownload } = usePreviewModal();
+
   const handleExport = (format: ExportFormat) => {
     const columns: ExportColumn<(typeof filteredLogs)[number]>[] = [
       { label: 'Timestamp', value: (log) => formatTimestamp(log.timestamp) },
@@ -80,7 +84,7 @@ export const AuditTrail = () => {
       { label: 'Record ID', value: (log) => log.affectedRecordId },
     ];
     const base = `audit_trail_${toLocalDateString(new Date())}`;
-    if (format === 'xlsx') void exportToXlsx(filteredLogs, columns, `${base}.xlsx`, 'Audit Trail');
+    if (format === 'xlsx') previewExcel('Audit Trail', `${base}.xlsx`, () => buildXlsx(filteredLogs, columns, 'Audit Trail'));
     else exportToCsv(filteredLogs, columns, `${base}.csv`);
   };
 
@@ -276,6 +280,14 @@ export const AuditTrail = () => {
           )}
         </div>
       )}
+      <PreviewModal
+        open={preview.open}
+        kind={preview.kind}
+        title={preview.title}
+        url={preview.url}
+        onClose={closePreview}
+        onDownload={confirmDownload}
+      />
     </div>
   );
 };

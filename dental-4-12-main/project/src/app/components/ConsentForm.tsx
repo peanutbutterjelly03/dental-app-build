@@ -1,7 +1,9 @@
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import { usePrintOrientation } from '../hooks/usePrintOrientation';
 import { Download } from 'lucide-react';
-import { exportDohReportToPdf } from '../utils/exportPdf';
+import { buildDohReportPdf } from '../utils/exportPdf';
+import { usePreviewModal } from '../hooks/usePreviewModal';
+import { PreviewModal } from './PreviewModal';
 
 // ─── Parents/Guardian Consent Form ───────────────────────────────────────────
 // Transcribed from the blank form the user supplied 2026-09-03
@@ -63,16 +65,12 @@ export const ConsentForm = () => {
   // → A one-page letter with a signature block, built at 780px — portrait.
   usePrintOrientation('portrait');
   const printableRef = useRef<HTMLDivElement>(null);
-  const [busy, setBusy] = useState(false);
+  const { preview, building, previewPdf, closePreview, confirmDownload } = usePreviewModal();
 
-  const onPdf = async () => {
+  const onPdf = () => {
     if (!printableRef.current) return;
-    setBusy(true);
-    try {
-      await exportDohReportToPdf(printableRef.current, 'Parents-Guardian-Consent-Form.pdf');
-    } finally {
-      setBusy(false);
-    }
+    const el = printableRef.current;
+    previewPdf('Parents/Guardian Consent Form', 'Parents-Guardian-Consent-Form.pdf', () => buildDohReportPdf(el));
   };
 
   return (
@@ -87,10 +85,10 @@ export const ConsentForm = () => {
           </div>
           <button
             onClick={onPdf}
-            disabled={busy}
+            disabled={building}
             className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-gray-50 disabled:opacity-50 w-fit"
           >
-            <Download className="w-3.5 h-3.5" />{busy ? 'Preparing…' : 'PDF'}
+            <Download className="w-3.5 h-3.5" />{building ? 'Preparing…' : 'PDF'}
           </button>
         </div>
       </div>
@@ -183,6 +181,14 @@ export const ConsentForm = () => {
           </div>
         </div>
       </div>
+      <PreviewModal
+        open={preview.open}
+        kind={preview.kind}
+        title={preview.title}
+        url={preview.url}
+        onClose={closePreview}
+        onDownload={confirmDownload}
+      />
     </div>
   );
 };

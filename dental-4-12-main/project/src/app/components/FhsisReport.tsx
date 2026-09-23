@@ -2,8 +2,10 @@ import { useRef, useState } from 'react';
 import { usePrintOrientation } from '../hooks/usePrintOrientation';
 import { Download, FileSpreadsheet } from 'lucide-react';
 import { useFhsisData, FHSIS_BANDS, type FhsisBandKey, type Measure } from '../hooks/useFhsisData';
-import { exportDohReportToPdf } from '../utils/exportPdf';
-import { exportToXlsx } from '../utils/exportXlsx';
+import { buildDohReportPdf } from '../utils/exportPdf';
+import { buildXlsx } from '../utils/exportXlsx';
+import { usePreviewModal } from '../hooks/usePreviewModal';
+import { PreviewModal } from './PreviewModal';
 import { SkeletonTable } from './Skeleton';
 import { FORM_SECTION_BAND } from '../utils/dohFormStyle';
 
@@ -75,29 +77,24 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
   const [month, setMonth] = useState(thisMonth);
   const { counts, monthsWithData, loading, error } = useFhsisData(month, schoolName);
   const printableRef = useRef<HTMLDivElement>(null);
-  const [busy, setBusy] = useState<'pdf' | 'xlsx' | null>(null);
+  const { preview, building, previewPdf, previewExcel, closePreview, confirmDownload } = usePreviewModal();
 
   /** Filename stamped with school + month, so downloads are distinguishable
    *  once several months are filed. */
   const baseName = `FHSIS-SectionD_${(schoolName || 'All-Schools').replace(/[^\w]+/g, '-')}_${month}`;
 
-  const onPdf = async () => {
+  const onPdf = () => {
     if (!printableRef.current) return;
-    setBusy('pdf');
-    try {
-      await exportDohReportToPdf(printableRef.current, `${baseName}.pdf`);
-    } finally {
-      setBusy(null);
-    }
+    const el = printableRef.current;
+    previewPdf('FHSIS Section D', `${baseName}.pdf`, () => buildDohReportPdf(el));
   };
 
   // The Excel export writes the SAME cells the screen shows, "—" included, so
   // the downloaded workbook makes the identical claims as the report. Writing
   // 0 where the screen says "—" would quietly turn "not recorded" into
   // "examined none" the moment it left the app.
-  const onXlsx = async () => {
-    setBusy('xlsx');
-    try {
+  const onXlsx = () => {
+    previewExcel('FHSIS Section D', `${baseName}.xlsx`, async () => {
       type Row = { indicator: string; male: string; female: string; total: string; remarks: string };
       const rows: Row[] = [];
       const dash = { male: '—', female: '—', total: '—', remarks: 'not recorded' };
@@ -134,7 +131,7 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
           });
         }
       }
-      await exportToXlsx(
+      return buildXlsx(
         rows,
         [
           { label: `Indicators — School: ${schoolName || 'All schools'} — Month: ${monthLabel(month)}`, value: (r) => r.indicator },
@@ -143,12 +140,9 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
           { label: 'Total', value: (r) => r.total },
           { label: 'Remarks', value: (r) => r.remarks },
         ],
-        `${baseName}.xlsx`,
         'FHSIS Section D',
       );
-    } finally {
-      setBusy(null);
-    }
+    });
   };
 
   if (error) {
@@ -190,17 +184,17 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
           )}
           <button
             onClick={onPdf}
-            disabled={busy !== null}
+            disabled={building}
             className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
           >
-            <Download className="h-4 w-4" /> {busy === 'pdf' ? 'Preparing…' : 'PDF'}
+            <Download className="h-4 w-4" /> {building && preview.kind === 'pdf' ? 'Preparing…' : 'PDF'}
           </button>
           <button
             onClick={onXlsx}
-            disabled={busy !== null}
+            disabled={building}
             className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
           >
-            <FileSpreadsheet className="h-4 w-4" /> {busy === 'xlsx' ? 'Preparing…' : 'Excel'}
+            <FileSpreadsheet className="h-4 w-4" /> {building && preview.kind === 'excel' ? 'Preparing…' : 'Excel'}
           </button>
         </div>
       </div>
@@ -337,6 +331,14 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
           and Remarks states how many visits are unclassified — so the two sub-rows may add up to less than the total.
         </p>
       </div>
+      <PreviewModal
+        open={preview.open}
+        kind={preview.kind}
+        title={preview.title}
+        url={preview.url}
+        onClose={closePreview}
+        onDownload={confirmDownload}
+      />
     </div>
   );
 };

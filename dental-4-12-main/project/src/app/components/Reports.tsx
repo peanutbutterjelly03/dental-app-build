@@ -8,8 +8,10 @@ import { getSchoolShortName } from '../utils/schoolColors';
 import { CHART } from '../utils/chartColors';
 import { GradePill } from './GradePill';
 import { useDohReportData } from '../hooks/useDohReportData';
-import { exportDohReportToPdf } from '../utils/exportPdf';
-import { exportDohReportToXlsx } from '../utils/exportDohXlsx';
+import { buildDohReportPdf } from '../utils/exportPdf';
+import { buildDohReportXlsx } from '../utils/exportDohXlsx';
+import { usePreviewModal } from '../hooks/usePreviewModal';
+import { PreviewModal } from './PreviewModal';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
 import { activatable } from '../utils/a11y';
 import { apiClient } from '../api/client';
@@ -316,8 +318,7 @@ export const Reports = () => {
   const [reportYear,  setReportYear]  = useState(new Date().getFullYear());
   // Local school override — defaults to All Schools regardless of global context
   const dohReportRef = useRef<HTMLDivElement>(null);
-  const [downloadingPdf, setDownloadingPdf] = useState(false);
-  const [downloadingExcel, setDownloadingExcel] = useState(false);
+  const { preview, building, previewPdf, previewExcel, closePreview, confirmDownload } = usePreviewModal();
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const { students: realStudents } = useStudents();
 
@@ -347,43 +348,44 @@ export const Reports = () => {
     referralRows: [],
   });
 
-  const handleDownloadPdf = async () => {
+  const handleDownloadPdf = () => {
     if (!dohReportRef.current) return;
-    setDownloadingPdf(true);
     setDownloadError(null);
-    try {
-      const schoolPart = reportSchool ? getSchoolShortName(reportSchool).replace(/\s+/g, '_') : 'AllSchools';
-      const filename = `DOH_Report_${schoolPart}_${bandSlug}_${MONTHS[reportMonth - 1]}${reportYear}.pdf`;
-      await exportDohReportToPdf(dohReportRef.current, filename);
-    } catch (err) {
-      setDownloadError(err instanceof Error ? err.message : 'Failed to generate PDF');
-    } finally {
-      setDownloadingPdf(false);
-    }
+    const el = dohReportRef.current;
+    const schoolPart = reportSchool ? getSchoolShortName(reportSchool).replace(/\s+/g, '_') : 'AllSchools';
+    const filename = `DOH_Report_${schoolPart}_${bandSlug}_${MONTHS[reportMonth - 1]}${reportYear}.pdf`;
+    previewPdf('DOH Consolidated Report', filename, async () => {
+      try {
+        return await buildDohReportPdf(el);
+      } catch (err) {
+        setDownloadError(err instanceof Error ? err.message : 'Failed to generate PDF');
+        return null;
+      }
+    });
   };
 
-  const handleDownloadExcel = async () => {
-    setDownloadingExcel(true);
+  const handleDownloadExcel = () => {
     setDownloadError(null);
-    try {
-      const schoolPart = reportSchool ? getSchoolShortName(reportSchool).replace(/\s+/g, '_') : 'AllSchools';
-      await exportDohReportToXlsx({
-        grades: visibleGrades,
-        gradeBrackets: GRADE_BRACKETS,
-        summaryBrackets: SUMMARY_BRACKETS,
-        rows: visibleDohRows,
-        getCell: (g, a, s, f) => V(g, a, s, f),
-        school: reportSchool ? getSchoolShortName(reportSchool) : 'All Schools',
-        // The spreadsheet has to say it is shortened: unlike the printout,
-        // a file gets forwarded without the screen it came from.
-        monthYear: `${MONTHS[reportMonth - 1]} ${reportYear} · ${bandLabel}${dohHiddenCount ? ` · SHORTENED — ${hiddenDohRows.size} row(s), ${hiddenGrades.size} grade(s) hidden` : ''}`,
-        filename: `DOH_Consolidated_${schoolPart}_${bandSlug}_${MONTHS[reportMonth - 1]}${reportYear}.xlsx`,
-      });
-    } catch (err) {
-      setDownloadError(err instanceof Error ? err.message : 'Failed to generate Excel');
-    } finally {
-      setDownloadingExcel(false);
-    }
+    const schoolPart = reportSchool ? getSchoolShortName(reportSchool).replace(/\s+/g, '_') : 'AllSchools';
+    const filename = `DOH_Consolidated_${schoolPart}_${bandSlug}_${MONTHS[reportMonth - 1]}${reportYear}.xlsx`;
+    previewExcel('DOH Consolidated Report', filename, async () => {
+      try {
+        return await buildDohReportXlsx({
+          grades: visibleGrades,
+          gradeBrackets: GRADE_BRACKETS,
+          summaryBrackets: SUMMARY_BRACKETS,
+          rows: visibleDohRows,
+          getCell: (g, a, s, f) => V(g, a, s, f),
+          school: reportSchool ? getSchoolShortName(reportSchool) : 'All Schools',
+          // The spreadsheet has to say it is shortened: unlike the printout,
+          // a file gets forwarded without the screen it came from.
+          monthYear: `${MONTHS[reportMonth - 1]} ${reportYear} · ${bandLabel}${dohHiddenCount ? ` · SHORTENED — ${hiddenDohRows.size} row(s), ${hiddenGrades.size} grade(s) hidden` : ''}`,
+        });
+      } catch (err) {
+        setDownloadError(err instanceof Error ? err.message : 'Failed to generate Excel');
+        return null;
+      }
+    });
   };
   const [internalSection, setInternalSection] = useState<'treatment'|'conditions'|'admin'>('treatment');
   const [periodType, setPeriodType] = useState<'monthly'|'quarterly'|'biannual'|'annual'>('monthly');
@@ -554,15 +556,15 @@ export const Reports = () => {
             <Printer className="w-4 h-4" /> Print
           </button>
           {activeReportTab === 'doh' && (
-            <button onClick={handleDownloadPdf} disabled={downloadingPdf}
+            <button onClick={handleDownloadPdf} disabled={building}
               className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-60 text-sm font-medium whitespace-nowrap">
-              <Download className="w-4 h-4" /> {downloadingPdf ? 'Generating…' : 'Download PDF'}
+              <Download className="w-4 h-4" /> {building && preview.kind === 'pdf' ? 'Generating…' : 'Download PDF'}
             </button>
           )}
           {activeReportTab === 'doh' && (
-            <button onClick={handleDownloadExcel} disabled={downloadingExcel}
+            <button onClick={handleDownloadExcel} disabled={building}
               className="flex items-center gap-2 px-4 py-2 bg-green-700 text-white rounded-lg hover:bg-green-800 disabled:opacity-60 text-sm font-medium whitespace-nowrap">
-              <FileSpreadsheet className="w-4 h-4" /> {downloadingExcel ? 'Generating…' : 'Download Excel'}
+              <FileSpreadsheet className="w-4 h-4" /> {building && preview.kind === 'excel' ? 'Generating…' : 'Download Excel'}
             </button>
           )}
         </div>
@@ -1360,6 +1362,15 @@ export const Reports = () => {
       {activeReportTab === 'summary' && <SchoolSummaryReport schoolYear={dohSchoolYear} schoolName={reportSchool} />}
       {/* No school/year props: the consent form is blank by design. */}
       {activeReportTab === 'consent' && canSeeNamedClientLists && <ConsentForm />}
+
+      <PreviewModal
+        open={preview.open}
+        kind={preview.kind}
+        title={preview.title}
+        url={preview.url}
+        onClose={closePreview}
+        onDownload={confirmDownload}
+      />
     </div>
   );
 };

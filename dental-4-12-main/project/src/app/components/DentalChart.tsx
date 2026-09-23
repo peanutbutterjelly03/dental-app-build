@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
 import { ArrowLeft, Save, ChevronLeft, ChevronRight, Shield, Users, FileText, Plus, Pencil, Trash2, Download, X, Maximize2, Minimize2, Check, ChevronUp, ChevronDown, ShieldCheck, ShieldAlert, Shield as ShieldIcon, MoreVertical } from 'lucide-react';
-import { exportPagesToPdf } from '../utils/exportPdf';
+import { buildPagesPdf } from '../utils/exportPdf';
+import { usePreviewModal } from '../hooks/usePreviewModal';
+import { PreviewModal } from './PreviewModal';
 import { getGradeColor } from '../utils/gradeColors';
 import { BMI_NOTE } from '../utils/bmi';
 import { useAuth } from '../context/AuthContext';
@@ -269,7 +271,7 @@ export const DentalChart = () => {
   // A stale id needs no clearing: the lookup below falls back to the latest
   // charting when the id is not in the year on display, so an id from another
   // year is simply ignored. Both breakages typechecked and built cleanly.
-  const [pdfBusy, setPdfBusy] = useState(false);
+  const { preview, building: pdfBusy, previewPdf, closePreview, confirmDownload } = usePreviewModal();
   const tabsRowRef = useRef<HTMLDivElement | null>(null);
   const [stickyOffsets, setStickyOffsets] = useState({ tabsTop: 0, yearTop: 0 });
 
@@ -1150,26 +1152,20 @@ export const DentalChart = () => {
   // PATIENT Treatment Record" (manuscript Appendix G, two pages); `form1` is
   // the DOH Center for Health Development "Individual Treatment Record". They
   // are different documents and are never merged.
-  const onIptrPdf = async (which: 'patient' | 'form1') => {
-    setPdfBusy(true);
-    try {
-      const who = surnameFirst(student).replace(/[^\w]+/g, '-');
-      if (which === 'form1') {
-        if (!iptrFormV2Ref.current) return;
-        await exportPagesToPdf([iptrFormV2Ref.current], `ITR_Form1_${who}.pdf`);
-        return;
-      }
-      if (!iptrFormRef.current) return;
-      // TWO PDF PAGES, because that form is a two-page form (Sprint 136).
-      // Capturing both into one tall page would produce a document that is not
-      // the form.
-      await exportPagesToPdf(
-        [iptrFormRef.current, iptrFormPage2Ref.current].filter((el): el is HTMLDivElement => el !== null),
-        `IPTR_${who}.pdf`,
-      );
-    } finally {
-      setPdfBusy(false);
+  const onIptrPdf = (which: 'patient' | 'form1') => {
+    const who = surnameFirst(student).replace(/[^\w]+/g, '-');
+    if (which === 'form1') {
+      if (!iptrFormV2Ref.current) return;
+      const el = iptrFormV2Ref.current;
+      previewPdf('Individual Treatment Record (DOH Form 1)', `ITR_Form1_${who}.pdf`, () => buildPagesPdf([el]));
+      return;
     }
+    if (!iptrFormRef.current) return;
+    // TWO PDF PAGES, because that form is a two-page form (Sprint 136).
+    // Capturing both into one tall page would produce a document that is not
+    // the form.
+    const pages = [iptrFormRef.current, iptrFormPage2Ref.current].filter((el): el is HTMLDivElement => el !== null);
+    previewPdf('Individual PATIENT Treatment Record', `IPTR_${who}.pdf`, () => buildPagesPdf(pages));
   };
 
   // ⚠ THE WIDTH. This wrapper carried `max-w-5xl mx-auto` — a 1024px cap with
@@ -2596,6 +2592,14 @@ export const DentalChart = () => {
         confirmLabel={confirmClear === 'treatment' ? 'Clear treatments' : 'Clear conditions'}
         onConfirm={() => confirmClear && clearAll(confirmClear)}
         onCancel={() => setConfirmClear(null)}
+      />
+      <PreviewModal
+        open={preview.open}
+        kind={preview.kind}
+        title={preview.title}
+        url={preview.url}
+        onClose={closePreview}
+        onDownload={confirmDownload}
       />
     </div>
   );

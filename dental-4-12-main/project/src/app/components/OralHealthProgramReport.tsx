@@ -3,8 +3,10 @@ import { usePrintOrientation } from '../hooks/usePrintOrientation';
 import { useDohReportData } from '../hooks/useDohReportData';
 import { SkeletonTable } from './Skeleton';
 import { FORM_SECTION_BAND, BLOCKED_CELL, BLOCKED_TITLE, FORM_SUBROW_LABEL } from '../utils/dohFormStyle';
-import { exportDohReportToPdf } from '../utils/exportPdf';
-import { exportToXlsx } from '../utils/exportXlsx';
+import { buildDohReportPdf } from '../utils/exportPdf';
+import { buildXlsx } from '../utils/exportXlsx';
+import { usePreviewModal } from '../hooks/usePreviewModal';
+import { PreviewModal } from './PreviewModal';
 import { Download, FileSpreadsheet } from 'lucide-react';
 
 /** What a no-source cell says in the exported workbook — the same mark the
@@ -324,7 +326,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
   const [hiddenRows, setHiddenRows] = useState<Set<string>>(() => loadSet('ohprf-hidden-rows'));
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(() => loadSet('ohprf-hidden-cols'));
   const [showPicker, setShowPicker] = useState(false);
-  const [busy, setBusy] = useState<'pdf' | 'xlsx' | null>(null);
+  const { preview, building, previewPdf, previewExcel, closePreview, confirmDownload } = usePreviewModal();
   // Wraps only the table, so the PDF carries the form and not the toolbar.
   const printableRef = useRef<HTMLDivElement>(null);
 
@@ -447,14 +449,10 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
 
   const exportBaseName = `OHPRF_${(schoolName ?? 'All Schools').replace(/[^\w]+/g, '-')}_${schoolYear ?? 'all-years'}`;
 
-  const onPdf = async () => {
+  const onPdf = () => {
     if (!printableRef.current) return;
-    setBusy('pdf');
-    try {
-      await exportDohReportToPdf(printableRef.current, `${exportBaseName}.pdf`);
-    } finally {
-      setBusy(null);
-    }
+    const el = printableRef.current;
+    previewPdf('Oral Health Program Report', `${exportBaseName}.pdf`, () => buildDohReportPdf(el));
   };
 
   // One row per indicator, one column per age-band/sex cell — the shape of the
@@ -462,9 +460,8 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
   // "—" into 0 in the workbook would convert "no source" into "none found" the
   // moment the file left the app. Blocked cells stay EMPTY, since the form
   // forbids writing in them at all.
-  const onXlsx = async () => {
-    setBusy('xlsx');
-    try {
+  const onXlsx = () => {
+    previewExcel('Oral Health Program Report', `${exportBaseName}.xlsx`, async () => {
       // The workbook mirrors the form's TWO label columns, so a sub-row keeps
       // its parent's name beside it — "ART | Tooth Count" reads correctly in a
       // spreadsheet, where an indented orphan "Tooth Count" would not.
@@ -507,10 +504,8 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
         }))),
         { label: 'Grand Total', value: (r: XRow) => r.total },
       ];
-      await exportToXlsx(rows, cols, `${exportBaseName}.xlsx`, 'Program Report');
-    } finally {
-      setBusy(null);
-    }
+      return buildXlsx(rows, cols, 'Program Report');
+    });
   };
 
   return (
@@ -537,17 +532,17 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
                 of the TCL's PII weight, and its width is bounded. */}
             <button
               onClick={onPdf}
-              disabled={busy !== null}
+              disabled={building}
               className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-gray-50 disabled:opacity-50"
             >
-              <Download className="w-3.5 h-3.5" />{busy === 'pdf' ? 'Preparing…' : 'PDF'}
+              <Download className="w-3.5 h-3.5" />{building && preview.kind === 'pdf' ? 'Preparing…' : 'PDF'}
             </button>
             <button
               onClick={onXlsx}
-              disabled={busy !== null}
+              disabled={building}
               className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-gray-50 disabled:opacity-50"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5" />{busy === 'xlsx' ? 'Preparing…' : 'Excel'}
+              <FileSpreadsheet className="w-3.5 h-3.5" />{building && preview.kind === 'excel' ? 'Preparing…' : 'Excel'}
             </button>
             <button
               onClick={() => setShowPicker((v) => !v)}
@@ -698,6 +693,14 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
         Higher Level of Care total is <span className="font-medium text-foreground">not necessarily a + b + c</span> —
         a pupil appearing in two sub-rows is still one patient in the total.
       </p>
+      <PreviewModal
+        open={preview.open}
+        kind={preview.kind}
+        title={preview.title}
+        url={preview.url}
+        onClose={closePreview}
+        onDownload={confirmDownload}
+      />
     </div>
   );
 };
