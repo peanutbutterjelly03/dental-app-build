@@ -571,35 +571,16 @@ export const Root = () => {
             onClick={() => navigate('/select-school')}
             title="Switch School"
             aria-label="Switch School"
-            // Mobile-safe base classes always apply (border/bg/padding/chip);
-            // collapsed only ADDS md:-prefixed overrides on top to strip them
-            // at desktop collapsed width -- never swaps the whole class string,
-            // which would leave mobile unstyled if `collapsed` was left true
-            // from a prior desktop session (mobile ignores that flag).
-            className={`group flex items-center gap-2 mx-7 mt-2 mb-1 px-2.5 py-1.5 rounded-xl border border-white/10 bg-white/5 text-white hover:bg-white/10 transition-all w-[calc(100%-56px)] ${
-              collapsed ? 'md:justify-center md:mx-0 md:w-full md:border-0 md:bg-transparent md:px-0 md:py-3' : ''
+            // Same shape/size as a main-menu row (TabLink), just filled: white
+            // background + gold border + gold icon/text, matching the RAMHIS
+            // reference chip's white-bg/colored-border/colored-text treatment
+            // but in the app's gold rather than blue.
+            className={`mx-7 mt-2 mb-1 rounded-2xl min-h-12 flex items-center gap-3 px-3 border-2 border-sidebar-active bg-card text-sidebar-active font-bold transition-colors hover:bg-sidebar-active/10 ${
+              collapsed ? 'md:justify-center md:px-0' : ''
             }`}
           >
-            {/* Collapsed: no gold FILL chip (that was reserved for active nav
-                items), but still a visible ring so the icon reads as a button
-                and not stray gold ink on the dark rail -- expanded (incl.
-                always on mobile): the solid circle chip stays. */}
-            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sidebar-active text-sidebar-bg group-hover:scale-105 transition-transform ${
-              collapsed ? 'md:h-7 md:w-7 md:bg-transparent md:text-sidebar-active md:border md:border-sidebar-active/50 md:group-hover:scale-100' : ''
-            }`}>
-              <ArrowLeftRight className={`w-3 h-3 ${collapsed ? 'md:w-3.5 md:h-3.5' : ''}`} />
-            </span>
-            {/* Letter-justified, not letter-spaced: a fixed `tracking-*` either
-                undershoots or overflows to two lines depending on the button's
-                actual width. Splitting into per-letter spans inside a
-                `justify-between` flex row stretches the gaps to fill exactly
-                the space between the icon and the right edge, on one line,
-                at any width. */}
-            <span className={`${labelCls} flex-1 flex justify-between font-sans text-[11px] font-bold uppercase whitespace-nowrap`}>
-              {'Switch School'.split('').map((ch, i) => (
-                <span key={i}>{ch === ' ' ? ' ' : ch}</span>
-              ))}
-            </span>
+            <ArrowLeftRight className="w-4 h-4 flex-shrink-0" />
+            <span className={`${labelCls} text-[13px]`}>Switch School</span>
           </button>
         )}
 
