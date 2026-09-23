@@ -50,7 +50,7 @@ const UserMenu = ({ user, onAccountSettings }: { user: { name: string; role: str
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className={`flex items-center gap-3 rounded-2xl bg-card px-2 py-1.5 shadow-[0_2px_10px_rgba(15,23,42,0.12)] transition-all duration-200 ${
+        className={`flex items-center gap-3 rounded-2xl bg-card px-2 py-1.5 transition-all duration-200 ${
           open ? 'shadow-[0_6px_18px_rgba(15,23,42,0.16)]' : 'hover:shadow-[0_4px_14px_rgba(15,23,42,0.14)]'
         }`}
       >
