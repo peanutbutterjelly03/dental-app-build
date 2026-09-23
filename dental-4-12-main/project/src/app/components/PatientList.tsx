@@ -20,6 +20,7 @@ import { apiClient, ApiError } from '../api/client';
 import type { ApiSchool } from '../api/types';
 import { schoolYearLabel } from '../utils/schoolYear';
 import { Notice } from './Notice';
+import { TOPBAR_H } from '../utils/layout';
 // Re-applied on top of her file (Sprint 158). Sprints 120/121 added value
 // checks here and the SAME shared rules to the server and the bulk importer,
 // so the three cannot disagree about what a valid birthday is. Taking her
@@ -487,6 +488,40 @@ export const PatientList = () => {
     apiClient.get<ApiSchool[]>('/schools').then(setSchools).catch(() => {});
   }, []);
 
+  // Pins the toolbar, the card's header/filter block and the table's column
+  // headings at the top (stacked below TOPBAR_H, the fixed status strip —
+  // see DentalChart.tsx for the same pattern) and the pagination footer at
+  // the bottom, so only the row list scrolls in between. Heights are measured
+  // rather than hardcoded because the filter row wraps to more than one line
+  // at narrow widths, changing the offset the column headings must stick to.
+  const toolbarRef = useRef<HTMLDivElement | null>(null);
+  const cardHeaderRef = useRef<HTMLDivElement | null>(null);
+  const [stickyTop, setStickyTop] = useState({ toolbar: TOPBAR_H, cardHeader: TOPBAR_H, thead: TOPBAR_H });
+
+  useEffect(() => {
+    const measure = () => {
+      const toolbarH = toolbarRef.current?.offsetHeight ?? 0;
+      const cardHeaderH = cardHeaderRef.current?.offsetHeight ?? 0;
+      setStickyTop({
+        toolbar: TOPBAR_H,
+        cardHeader: TOPBAR_H + toolbarH,
+        thead: TOPBAR_H + toolbarH + cardHeaderH,
+      });
+    };
+    measure();
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(measure);
+      if (toolbarRef.current) resizeObserver.observe(toolbarRef.current);
+      if (cardHeaderRef.current) resizeObserver.observe(cardHeaderRef.current);
+    }
+    window.addEventListener('resize', measure);
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [canAddStudent]);
+
   // The Add Student form no longer has its own School field — it always adds
   // to whichever school is currently in view, set the moment the form opens
   // rather than left for the encoder to pick (and possibly get wrong).
@@ -937,7 +972,7 @@ export const PatientList = () => {
           DOH report on Reports, which is aggregate counts and carries no
           names. */}
       {canAddStudent && (
-        <div className="flex flex-wrap items-center justify-end gap-3">
+        <div ref={toolbarRef} className="sticky z-40 flex flex-wrap items-center justify-end gap-3 bg-gray-50 pb-2" style={{ top: stickyTop.toolbar }}>
           {/* "Upload", not "Scan": this opens a file picker, and a scan icon
               + the verb "scan" both promised a camera the app does not have
               (backlog 0e). The OCR extraction is still described inside the
@@ -954,8 +989,13 @@ export const PatientList = () => {
 
       {/* LIST VIEW — one elevated card housing header, filters, table and
           pagination, in place of the previous stack of separate boxes. */}
-      <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
-        <div className="p-5 sm:p-6 space-y-4 border-b border-border">
+      {/* `overflow-clip`, not `overflow-hidden` (see Root.tsx's own note on the
+          same distinction) — `hidden` makes this div a scroll container, which
+          is what `position: sticky` pins its descendants against, so the
+          header block, table headings and footer below would stick to THIS
+          div instead of the viewport and never visibly move. */}
+      <div className="bg-card rounded-2xl border border-border shadow-sm overflow-clip">
+        <div ref={cardHeaderRef} className="sticky z-40 space-y-4 border-b border-border bg-card p-5 sm:p-6" style={{ top: stickyTop.cardHeader }}>
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 mb-2">
@@ -1071,7 +1111,7 @@ export const PatientList = () => {
         <div className="overflow-x-auto overflow-y-visible">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border">
+              <tr className="sticky z-30 border-b border-border bg-card" style={{ top: stickyTop.thead }}>
                 <th className="text-left px-4 py-3 sm:pl-6 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   {/* The row-number column doubles as "select all" once select
                       mode is on — same swap as each row's own cell, scoped to
@@ -1169,9 +1209,10 @@ export const PatientList = () => {
           </table>
         </div>
 
-        {/* Footer / pagination */}
+        {/* Footer / pagination — sticky to the bottom of the viewport so it
+            stays reachable without scrolling past every row first. */}
         {filtered.length > 0 && (
-          <div className="flex flex-col gap-3 border-t border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div className="sticky bottom-0 z-30 flex flex-col gap-3 border-t border-border bg-card px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               <span>
                 Showing <span className="font-semibold text-foreground">{pager.from}</span> to{' '}
