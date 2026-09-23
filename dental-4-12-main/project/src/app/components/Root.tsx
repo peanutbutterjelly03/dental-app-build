@@ -112,6 +112,22 @@ export const Root = () => {
     });
   };
 
+  // Exposes the sidebar's current width as a CSS variable on the document
+  // root, so a `position: fixed` overlay that isn't part of this component
+  // tree (PreviewModal, rendered deep inside a page) can still centre itself
+  // in the space actually left of the rail instead of the full viewport --
+  // matching `<main>`'s own `md:ml-[128px|320px]` below. 0 below `md`, where
+  // the rail is an off-canvas drawer and reserves no space.
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const update = () => {
+      document.documentElement.style.setProperty('--content-left', mq.matches ? (collapsed ? '128px' : '320px') : '0px');
+    };
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, [collapsed]);
+
   // Mobile navigation drawer (Sprint 33). Below md the sidebar used to shrink
   // to a 60px icon rail with every label hidden and no working tooltip --
   // ten unlabeled glyphs. It is now off-canvas and fully labeled.

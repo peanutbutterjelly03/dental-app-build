@@ -25,8 +25,15 @@ export function PreviewModal({ open, kind, title, url, onClose, onDownload }: Pr
     // shared native <dialog> (Modal.tsx), which gets top-layer stacking for
     // free; at z-50 the status strip painted over its header, covering the
     // title and close button during a PDF preview.
+    //
+    // `paddingLeft: var(--content-left)` -- centres the panel in the space
+    // actually left of the sidebar rail, not the full viewport (which read
+    // as "centered on the page" but visibly off-centre in the content area
+    // the rail shares it with). The backdrop itself still covers the whole
+    // screen, rail included -- only the centring math is offset.
     <div
       className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4"
+      style={{ paddingLeft: 'calc(var(--content-left, 0px) + 1rem)' }}
       onClick={onClose}
     >
       <div
