@@ -479,15 +479,15 @@ export const Appointments = () => {
   // card -- same hue family as statusBadge above (blue/yellow/green/red/gray),
   // just a bold block instead of a soft chip, so a card reads its status at
   // a glance without needing to read the text badge too.
-  const statusBlock = (status: string): { fill: string; border: string } => {
-    const map: Record<string, { fill: string; border: string }> = {
-      'Scheduled': { fill: '#2563EB', border: '#BFDBFE' },
-      'In Progress': { fill: '#CA8A04', border: '#FDE68A' },
-      'Completed': { fill: '#16A34A', border: '#BBF7D0' },
-      'Missed': { fill: '#DC2626', border: '#FECACA' },
-      'Cancelled': { fill: '#6B7280', border: '#E5E7EB' },
+  const statusBlock = (status: string): string => {
+    const map: Record<string, string> = {
+      'Scheduled': '#2563EB',
+      'In Progress': '#CA8A04',
+      'Completed': '#16A34A',
+      'Missed': '#DC2626',
+      'Cancelled': '#6B7280',
     };
-    return map[status] || { fill: '#6B7280', border: '#E5E7EB' };
+    return map[status] || '#6B7280';
   };
 
   // "HH:MM" (24h, as stored) -> the 12h clock + AM/PM shown in the card's
@@ -574,14 +574,14 @@ export const Appointments = () => {
     // badge stays on the real stored status ("Scheduled"): that is still
     // true until someone confirms otherwise, only the color is a preview.
     const isOverdueUnmarked = a.date < TODAY && status === 'Scheduled';
-    const block = statusBlock(isOverdueUnmarked ? 'Missed' : status);
+    const blockFill = statusBlock(isOverdueUnmarked ? 'Missed' : status);
     const { clock, ampm } = formatTimeBlock(a.time);
     return (
-      <div className="flex overflow-hidden rounded-2xl border mb-2.5 last:mb-0" style={{ borderColor: block.border }}>
+      <div className="flex overflow-hidden rounded-2xl border border-border mb-2.5 last:mb-0">
         {/* Time block — solid fill by status, same hue family as the text
             badge below, so the card's status reads before you even get to
             the badge. */}
-        <div className="w-[72px] sm:w-[84px] flex-shrink-0 flex flex-col items-center justify-center px-2 py-3" style={{ backgroundColor: block.fill }}>
+        <div className="w-[72px] sm:w-[84px] flex-shrink-0 flex flex-col items-center justify-center px-2 py-3" style={{ backgroundColor: blockFill }}>
           <div className="text-[15px] sm:text-base font-extrabold text-white tabular-nums">{clock}</div>
           <div className="text-[9.5px] font-semibold text-white/75 mt-0.5">{ampm}</div>
         </div>
