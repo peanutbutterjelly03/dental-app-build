@@ -20,8 +20,13 @@ export function PreviewModal({ open, kind, title, url, onClose, onDownload }: Pr
   if (!open) return null;
 
   return (
+    // z-[80] -- above the fixed status strip (z-[60]) and the sidebar rail
+    // (z-[70], Root.tsx). This modal is a hand-rolled fixed overlay, not the
+    // shared native <dialog> (Modal.tsx), which gets top-layer stacking for
+    // free; at z-50 the status strip painted over its header, covering the
+    // title and close button during a PDF preview.
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4"
       onClick={onClose}
     >
       <div
