@@ -501,7 +501,7 @@ export const Reports = () => {
   const reportCategories = [
     {
       id: 'internal' as const,
-      label: 'Internal Reports',
+      label: 'School Internal Reports',
       subtitle: 'Clinic-facing summaries',
       tabs: [
         { id: 'internal' as const, label: 'Internal Reports', icon: FileText, visible: true },
@@ -511,7 +511,7 @@ export const Reports = () => {
     },
     {
       id: 'doh' as const,
-      label: 'DOH Consolidated',
+      label: 'DOH Consolidated Reports',
       subtitle: 'City Health Office report',
       tabs: [
         { id: 'tcl' as const, label: 'Target Client List', icon: Users, visible: canSeeNamedClientLists },
@@ -584,7 +584,7 @@ export const Reports = () => {
               <button
                 key={cat.id}
                 onClick={() => setActiveReportTab(cat.tabs.find(t => t.visible)?.id ?? cat.id)}
-                className={`flex-1 flex items-center gap-3 px-5 py-4 rounded-2xl border text-left transition-colors ${
+                className={`w-full sm:w-72 flex items-center gap-3 px-5 py-4 rounded-2xl border text-left transition-colors ${
                   isActiveCat
                     ? 'bg-primary border-primary text-white shadow-[0_6px_16px_rgba(39,58,120,0.25)]'
                     : 'bg-card border-border text-foreground hover:bg-gray-50'
