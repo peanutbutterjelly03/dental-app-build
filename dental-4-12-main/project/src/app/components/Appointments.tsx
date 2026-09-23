@@ -254,7 +254,7 @@ export const Appointments = () => {
   const allAppts = [...appointments].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
 
   const historyScopeBar = (label: string, tabKey: string) => (
-    <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+    <div className="sticky top-0 z-10 bg-card px-4 py-3 border-b border-border flex items-center justify-between">
       <span className="text-sm font-semibold text-foreground">{label}</span>
       <TabActionsMenu tabKey={tabKey} />
     </div>
@@ -486,7 +486,7 @@ export const Appointments = () => {
   // re-render of this page -- keeping it here, in the stable parent, avoids
   // that.
   const [openCardMenu, setOpenCardMenu] = useState<string | null>(null);
-  const [cardMenuAt, setCardMenuAt] = useState<{ top: number; right: number } | null>(null);
+  const [cardMenuAt, setCardMenuAt] = useState<{ top?: number; bottom?: number; right: number } | null>(null);
 
   useEffect(() => { setDeleteModeTab(null); setOpenTabMenu(null); setOpenCardMenu(null); }, [activeTab]);
 
@@ -717,7 +717,18 @@ export const Appointments = () => {
                     <button
                       onClick={(e) => {
                         const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                        setCardMenuAt({ top: r.bottom + 4, right: Math.max(8, window.innerWidth - r.right) });
+                        // Flip upward when there isn't room below -- a
+                        // 3-item menu is roughly 140px tall (2 items, no
+                        // No-Show option, a bit less); estimating high
+                        // avoids a downward menu clipping at the viewport
+                        // edge, which is the bug this fixes.
+                        const estMenuHeight = 150;
+                        const right = Math.max(8, window.innerWidth - r.right);
+                        setCardMenuAt(
+                          window.innerHeight - r.bottom < estMenuHeight
+                            ? { bottom: window.innerHeight - r.top + 4, right }
+                            : { top: r.bottom + 4, right },
+                        );
                         setOpenCardMenu(v => v === a.id ? null : a.id);
                       }}
                       className="flex items-center gap-1 h-7 pl-2.5 pr-2 rounded-full bg-gray-100 hover:bg-gray-200 text-foreground text-xs font-semibold transition-colors"
@@ -729,7 +740,7 @@ export const Appointments = () => {
                       <>
                         <div className="fixed inset-0 z-10" onClick={() => setOpenCardMenu(null)} />
                         <div
-                          style={cardMenuAt ? { top: cardMenuAt.top, right: cardMenuAt.right } : undefined}
+                          style={cardMenuAt ?? undefined}
                           className="fixed z-50 bg-card border border-border rounded-lg shadow-md py-1 w-52"
                         >
                           <button
@@ -855,12 +866,19 @@ export const Appointments = () => {
         </nav>
 
         {/* ── TAB CONTENT ── */}
-        <div className="flex-1 min-w-0 bg-card rounded-xl border border-border overflow-hidden">
+        {/* This box, not the page, is what scrolls: capped to the viewport
+            (minus the topbar + page header above it) so a long appointment
+            list scrolls inside its own container instead of the header,
+            rail and everything else scrolling away with it. Each tab's own
+            header bar (Today's date strip, historyScopeBar, etc.) is
+            `sticky top-0` inside it so it stays pinned while the list
+            beneath scrolls. */}
+        <div className="flex-1 min-w-0 bg-card rounded-xl border border-border overflow-y-auto max-h-[calc(100vh-260px)]">
 
       {/* TODAY */}
       {activeTab === 'today' && (
         <>
-          <div className="px-4 py-3 border-b border-border flex items-center gap-2">
+          <div className="sticky top-0 z-10 bg-card px-4 py-3 border-b border-border flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
             <span className="text-sm font-bold text-foreground flex-1">Today, {formatDateWithWeekday(TODAY)}</span>
             <TabActionsMenu tabKey="today" />
@@ -878,7 +896,7 @@ export const Appointments = () => {
       {/* UPCOMING */}
       {activeTab === 'upcoming' && (
         <>
-          <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+          <div className="sticky top-0 z-10 bg-card px-4 py-3 border-b border-border flex items-center justify-between">
             <span className="text-sm font-semibold text-foreground">Upcoming Appointments</span>
             <TabActionsMenu tabKey="upcoming" />
           </div>
@@ -917,7 +935,7 @@ export const Appointments = () => {
       {/* ALL */}
       {activeTab === 'all' && (
         <>
-          <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+          <div className="sticky top-0 z-10 bg-card px-4 py-3 border-b border-border flex items-center justify-between">
             <span className="text-sm font-semibold text-foreground">All Appointments</span>
             <TabActionsMenu tabKey="all" />
           </div>
@@ -937,7 +955,7 @@ export const Appointments = () => {
           wanted back, the answer is a cross-school week view, not this. */}
       {activeTab === 'calendar' && (
         <>
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+          <div className="sticky top-0 z-10 bg-card px-4 py-3 border-b border-gray-100 flex items-center justify-between">
             <span className="text-sm font-semibold text-foreground">Calendar Reminders</span>
             <div className="flex items-center gap-2">
               <button onClick={prevMonth} className="p-1.5 hover:bg-gray-100 rounded-lg"><ChevronLeft className="w-4 h-4 text-muted-foreground"/></button>
