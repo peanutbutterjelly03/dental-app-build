@@ -254,7 +254,7 @@ export const Appointments = () => {
   const allAppts = [...appointments].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
 
   const historyScopeBar = (label: string, tabKey: string) => (
-    <div className="sticky top-0 z-10 bg-card px-4 py-3 border-b border-border flex items-center justify-between">
+    <div className="sticky top-1 z-10 bg-card px-4 py-3 border-b border-border flex items-center justify-between">
       <span className="text-sm font-semibold text-foreground">{label}</span>
       <TabActionsMenu tabKey={tabKey} />
     </div>
@@ -872,13 +872,19 @@ export const Appointments = () => {
             rail and everything else scrolling away with it. Each tab's own
             header bar (Today's date strip, historyScopeBar, etc.) is
             `sticky top-0` inside it so it stays pinned while the list
-            beneath scrolls. */}
-        <div className="flex-1 min-w-0 bg-card rounded-xl border border-border overflow-y-auto max-h-[calc(100vh-260px)]">
+            beneath scrolls. `no-scrollbar` keeps it scrollable (wheel/touch/
+            keyboard) without drawing the OS scrollbar track. */}
+        <div className="no-scrollbar flex-1 min-w-0 bg-card rounded-xl border border-border shadow-[0_8px_24px_rgba(15,23,42,0.08)] overflow-y-auto max-h-[calc(100vh-260px)]">
+          {/* Top accent stripe, matching the reference card -- sticky and
+              above every other sticky header in this box (z-20 vs their
+              z-10) so it stays visible as the sole rounded band at the very
+              top while everything beneath scrolls under it. */}
+          <div className="sticky top-0 z-20 h-1 bg-primary rounded-t-xl" />
 
       {/* TODAY */}
       {activeTab === 'today' && (
         <>
-          <div className="sticky top-0 z-10 bg-card px-4 py-3 border-b border-border flex items-center gap-2">
+          <div className="sticky top-1 z-10 bg-card px-4 py-3 border-b border-border flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
             <span className="text-sm font-bold text-foreground flex-1">Today, {formatDateWithWeekday(TODAY)}</span>
             <TabActionsMenu tabKey="today" />
@@ -896,7 +902,7 @@ export const Appointments = () => {
       {/* UPCOMING */}
       {activeTab === 'upcoming' && (
         <>
-          <div className="sticky top-0 z-10 bg-card px-4 py-3 border-b border-border flex items-center justify-between">
+          <div className="sticky top-1 z-10 bg-card px-4 py-3 border-b border-border flex items-center justify-between">
             <span className="text-sm font-semibold text-foreground">Upcoming Appointments</span>
             <TabActionsMenu tabKey="upcoming" />
           </div>
@@ -935,7 +941,7 @@ export const Appointments = () => {
       {/* ALL */}
       {activeTab === 'all' && (
         <>
-          <div className="sticky top-0 z-10 bg-card px-4 py-3 border-b border-border flex items-center justify-between">
+          <div className="sticky top-1 z-10 bg-card px-4 py-3 border-b border-border flex items-center justify-between">
             <span className="text-sm font-semibold text-foreground">All Appointments</span>
             <TabActionsMenu tabKey="all" />
           </div>
@@ -955,7 +961,7 @@ export const Appointments = () => {
           wanted back, the answer is a cross-school week view, not this. */}
       {activeTab === 'calendar' && (
         <>
-          <div className="sticky top-0 z-10 bg-card px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+          <div className="sticky top-1 z-10 bg-card px-4 py-3 border-b border-gray-100 flex items-center justify-between">
             <span className="text-sm font-semibold text-foreground">Calendar Reminders</span>
             <div className="flex items-center gap-2">
               <button onClick={prevMonth} className="p-1.5 hover:bg-gray-100 rounded-lg"><ChevronLeft className="w-4 h-4 text-muted-foreground"/></button>

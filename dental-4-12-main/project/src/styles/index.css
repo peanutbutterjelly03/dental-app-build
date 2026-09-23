@@ -10,6 +10,16 @@ input::-ms-clear {
   display: none;
 }
 
+/* Scrollable but no visible scrollbar track/thumb -- the element still
+   scrolls via wheel/touch/keyboard, only the OS-drawn bar is hidden. */
+.no-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* old Edge/IE */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome/Safari/new Edge */
+}
+
 /* ── Dashboard entrance motion (Sprint 23j / audit X4-lite) ──────────────
    Content is fully visible by default; motion is pure enhancement and only
    runs when the OS allows it. Short ease-out, no bounce, 4-step stagger. */
