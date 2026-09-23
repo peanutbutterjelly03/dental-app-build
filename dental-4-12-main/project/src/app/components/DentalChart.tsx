@@ -15,6 +15,7 @@ import { useDentalChartData } from '../hooks/useDentalChartData';
 import { apiClient, ApiError } from '../api/client';
 import { toLocalDateString, formatDate } from '../utils/localDate';
 import { schoolYearLabel } from '../utils/schoolYear';
+import { TOPBAR_H } from '../utils/layout';
 import { surnameFirst, surnameFirstWithInitial } from '../utils/studentName';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -549,7 +550,7 @@ export const DentalChart = () => {
     const measureStickyOffsets = () => {
       const headerHeight = headerRowRef.current?.offsetHeight ?? 0;
       const tabsHeight = tabsRowRef.current?.offsetHeight ?? 0;
-      setStickyOffsets({ tabsTop: headerHeight, yearTop: headerHeight + tabsHeight });
+      setStickyOffsets({ tabsTop: TOPBAR_H + headerHeight, yearTop: TOPBAR_H + headerHeight + tabsHeight });
     };
     measureStickyOffsets();
     let resizeObserver: ResizeObserver | null = null;
@@ -1162,7 +1163,7 @@ export const DentalChart = () => {
         <div ref={iptrFormV2Ref}><IptrFormV2 student={student} schoolName={schoolName} years={years} /></div>
       </div>
       {/* Sticky header row */}
-      <div ref={headerRowRef} className="sticky top-0 z-40 bg-gray-50 pb-2">
+      <div ref={headerRowRef} className="sticky z-40 bg-gray-50 pb-2" style={{ top: TOPBAR_H }}>
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-3 min-w-0">
           <Link to={backPath} className="p-2 hover:bg-gray-100 rounded-lg shrink-0">
