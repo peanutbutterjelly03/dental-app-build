@@ -571,10 +571,10 @@ export const Root = () => {
             onClick={() => navigate('/select-school')}
             title="Switch School"
             aria-label="Switch School"
-            // Identical shape/size/alignment to a plain main-menu row
-            // (TabLink's idle state) -- no fill, no border -- the only
-            // difference is the gold icon/text color instead of white.
-            className={`mx-7 mt-2 mb-1 rounded-2xl min-h-12 flex items-center gap-3 px-3 text-sidebar-active font-medium hover:bg-white/10 transition-colors ${
+            // Identical shape/size/alignment to a plain main-menu row (bold,
+            // like an always-emphasized item) -- no fill at rest, gold text
+            // instead of white, and a gold outline that only appears on hover.
+            className={`mx-7 mt-2 mb-1 rounded-2xl min-h-12 flex items-center gap-3 px-3 border-2 border-transparent text-sidebar-active font-bold hover:border-sidebar-active hover:bg-sidebar-active/10 transition-colors ${
               collapsed ? 'md:justify-center md:px-0' : ''
             }`}
           >
