@@ -567,7 +567,14 @@ export const Appointments = () => {
       : isFemale
         ? <Venus className="w-5 h-5" />
         : a.grade.replace('Grade ', 'G');
-    const block = statusBlock(status);
+    // The time block's color is the SAME "effectively missed" rule the
+    // Missed tab itself filters by (past-dated and never explicitly marked)
+    // -- so a card sitting in that tab visually reads as missed even before
+    // anyone clicks the X to record it as such in the database. The text
+    // badge stays on the real stored status ("Scheduled"): that is still
+    // true until someone confirms otherwise, only the color is a preview.
+    const isOverdueUnmarked = a.date < TODAY && status === 'Scheduled';
+    const block = statusBlock(isOverdueUnmarked ? 'Missed' : status);
     const { clock, ampm } = formatTimeBlock(a.time);
     return (
       <div className="flex overflow-hidden rounded-2xl border mb-2.5 last:mb-0" style={{ borderColor: block.border }}>
