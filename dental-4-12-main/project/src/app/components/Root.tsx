@@ -589,7 +589,17 @@ export const Root = () => {
             }`}>
               <ArrowLeftRight className={`w-3 h-3 ${collapsed ? 'md:w-3.5 md:h-3.5' : ''}`} />
             </span>
-            <span className={`${labelCls} flex-1 font-sans text-[11px] font-bold uppercase tracking-[0.15em] whitespace-nowrap`}>Switch School</span>
+            {/* Letter-justified, not letter-spaced: a fixed `tracking-*` either
+                undershoots or overflows to two lines depending on the button's
+                actual width. Splitting into per-letter spans inside a
+                `justify-between` flex row stretches the gaps to fill exactly
+                the space between the icon and the right edge, on one line,
+                at any width. */}
+            <span className={`${labelCls} flex-1 flex justify-between font-sans text-[11px] font-bold uppercase whitespace-nowrap`}>
+              {'Switch School'.split('').map((ch, i) => (
+                <span key={i}>{ch === ' ' ? ' ' : ch}</span>
+              ))}
+            </span>
           </button>
         )}
 
