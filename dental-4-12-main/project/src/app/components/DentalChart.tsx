@@ -1469,7 +1469,7 @@ export const DentalChart = () => {
 
       {/* Tabs */}
       <div className="sticky z-30 bg-gray-50 space-y-0" style={{ top: stickyOffsets.tabsTop }}>
-        <div className="bg-card rounded-xl border border-border shadow-[0_20px_32px_-8px_rgba(15,23,42,0.28)]">
+        <div className="bg-card rounded-xl border border-primary/30">
           <div ref={tabsRowRef} className="rounded-t-xl border-b border-border bg-card">
             <div className="flex items-center">
               {/* Her strip: every tab takes an equal share of the card's
@@ -1829,7 +1829,7 @@ export const DentalChart = () => {
                 DENTAL_CHART, ours live on ORAL_HEALTH_CONDITION and on the RPC
                 visit's PREVENTIVE_CARE_RECORD (Sprint 147), which is what the
                 Target Client List and the DOH return read. */}
-            <div className="bg-card rounded-xl border border-border shadow-[0_20px_32px_-8px_rgba(15,23,42,0.28)] p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="bg-card rounded-xl border border-primary/30 p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className={editingHistory ? '' : 'opacity-60 pointer-events-none select-none'}>
                 <div className="flex flex-wrap items-center gap-3 mb-2">
                   <div className="text-sm font-bold text-primary uppercase tracking-wide">Oral Conditions</div>
