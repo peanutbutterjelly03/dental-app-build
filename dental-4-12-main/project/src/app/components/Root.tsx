@@ -50,8 +50,8 @@ const UserMenu = ({ user, onAccountSettings }: { user: { name: string; role: str
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className={`flex items-center gap-3 rounded-2xl px-2 py-1.5 transition-all duration-200 ${
-          open ? 'border border-border bg-card shadow-sm' : 'border border-transparent bg-transparent hover:bg-card'
+        className={`flex items-center gap-3 rounded-2xl border border-black px-2 py-1.5 transition-all duration-200 ${
+          open ? 'bg-card shadow-sm' : 'bg-transparent hover:bg-card'
         }`}
       >
         <span
