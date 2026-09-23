@@ -8,6 +8,27 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { getSchoolShortName } from '../utils/schoolColors';
+
+// Acronyms for the user menu specifically -- distinct from
+// SCHOOL_SHORT_NAMES (schoolColors.ts), which other screens use for a
+// longer-form short name and must not shift just because this label wants
+// something terser.
+const SCHOOL_ACRONYMS: Record<string, string> = {
+  'Bagong Tanyag Integrated School': 'BTIS',
+  'Bagong Tanyag Elementary School Annex A': 'Annex A',
+  'South Daang Hari Elementary School Main': 'South Daanghari',
+};
+
+// The role label used to sit where this icon now does -- removed to save
+// the line, so the icon is what still tells a Dentist from a Dental Aide,
+// a School Administrator or a System Admin at a glance.
+const ROLE_ICONS: Record<string, typeof Stethoscope> = {
+  dentist: Stethoscope,
+  dental_aide: Shield,
+  school_admin: School,
+  bho_staff: FileBarChart,
+  system_admin: UserCog,
+};
 import { TOPBAR_H } from '../utils/layout';
 import { SyncStatus } from './SyncStatus';
 import { useOfflineQueue } from '../hooks/useOfflineQueue';
@@ -19,12 +40,13 @@ import { Modal } from './Modal';
 // Real working dropdown, matching RAMHIS's topbar.jsx exactly (sizes, radii,
 // the "Signed in as" panel) -- the avatar used to just open Change Password
 // directly with no menu at all.
-const UserMenu = ({ user, onAccountSettings }: { user: { name: string; role: string }; onAccountSettings: () => void }) => {
+const UserMenu = ({ user, schoolLabel, onAccountSettings }: { user: { name: string; role: string }; schoolLabel: string; onAccountSettings: () => void }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const firstLetter = user.name.charAt(0).toUpperCase();
   // Real connectivity, same source SyncStatus tracks -- not decorative.
   const { isOnline } = useOfflineQueue();
+  const RoleIcon = ROLE_ICONS[user.role] ?? UserCog;
 
   useEffect(() => {
     if (!open) return;
@@ -54,19 +76,31 @@ const UserMenu = ({ user, onAccountSettings }: { user: { name: string; role: str
           open ? 'shadow-[0_6px_18px_rgba(15,23,42,0.16)]' : 'hover:shadow-[0_4px_14px_rgba(15,23,42,0.14)]'
         }`}
       >
-        <span
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white text-sm font-bold shadow-[0_6px_18px_rgba(30,42,94,0.22)]"
-          style={{ background: 'linear-gradient(135deg, #4F63D9, #17234D)' }}
-        >
-          {firstLetter}
+        <span className="relative shrink-0">
+          <span
+            className="flex h-11 w-11 items-center justify-center rounded-2xl text-white text-sm font-bold shadow-[0_6px_18px_rgba(30,42,94,0.22)]"
+            style={{ background: 'linear-gradient(135deg, #4F63D9, #17234D)' }}
+          >
+            {firstLetter}
+          </span>
+          {/* Stands in for the role label removed below -- the only place
+              that still says Dentist vs Dental Aide vs Admin vs School Staff
+              at a glance. */}
+          <span
+            title={user.role.replace('_', ' ')}
+            aria-label={user.role.replace('_', ' ')}
+            className="absolute -bottom-1 -right-1 flex h-[18px] w-[18px] items-center justify-center rounded-full border-2 border-card bg-primary text-white"
+          >
+            <RoleIcon className="w-[10px] h-[10px]" />
+          </span>
         </span>
-        <span className="hidden md:flex flex-col items-start min-w-[100px] max-w-[180px]">
+        <span className="hidden md:flex flex-col items-start min-w-[100px] max-w-[180px] leading-tight">
           <span className="text-[13px] font-bold text-sidebar-bg truncate max-w-[180px]">{user.name}</span>
-          <span className={`mt-0.5 inline-flex items-center gap-1 text-[11px] font-semibold ${isOnline ? 'text-success' : 'text-warning'}`}>
+          <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${isOnline ? 'text-success' : 'text-warning'}`}>
             <span className={`w-[6px] h-[6px] rounded-full ${isOnline ? 'bg-success' : 'bg-warning'}`} aria-hidden="true" />
             {isOnline ? 'Online' : 'Offline'}
           </span>
-          <span className="mt-0.5 text-[11px] font-medium text-muted-foreground capitalize">{user.role.replace('_', ' ')}</span>
+          <span className="text-[11px] font-medium text-muted-foreground truncate max-w-[180px]">{schoolLabel}</span>
         </span>
         <ChevronDown className={`hidden sm:block w-[11px] h-[11px] text-muted-foreground transition-transform duration-200 ${open ? 'rotate-180' : 'rotate-0'}`} />
       </button>
@@ -479,7 +513,7 @@ export const Root = () => {
         className="fixed top-0 right-0 left-0 z-[60] flex items-center justify-end gap-3 px-6 bg-white border-b border-[#EEF2F7] leading-none"
       >
         <SyncStatus schoolLabel={selectedSchool ? getSchoolShortName(selectedSchool) : 'All Schools'} />
-        <UserMenu user={user} onAccountSettings={openChangePassword} />
+        <UserMenu user={user} schoolLabel={selectedSchool ? (SCHOOL_ACRONYMS[selectedSchool] ?? getSchoolShortName(selectedSchool)) : 'All Schools'} onAccountSettings={openChangePassword} />
       </div>
 
       {/* MOBILE TOP BAR -- below md only; the drawer's only entry point. The
