@@ -589,7 +589,7 @@ export const Root = () => {
             }`}>
               <ArrowLeftRight className={`w-3 h-3 ${collapsed ? 'md:w-3.5 md:h-3.5' : ''}`} />
             </span>
-            <span className={`${labelCls} flex-1 text-[13px] font-semibold tracking-[0.2em]`}>Switch School</span>
+            <span className={`${labelCls} flex-1 text-[11px] font-semibold uppercase tracking-[0.35em]`}>Switch School</span>
           </button>
         )}
 
