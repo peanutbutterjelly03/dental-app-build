@@ -643,11 +643,6 @@ export const Appointments = () => {
     const isOverdueUnmarked = a.date < TODAY && status === 'Scheduled';
     const blockFill = statusBlock(isOverdueUnmarked ? 'Missed' : status);
     const { clock, ampm } = formatTimeBlock(a.time);
-    // A card reads as "missing" (needs the dentist to resolve it) either
-    // because it is literally marked Missed, or because it is overdue and
-    // never got marked at all -- both get the 3-option menu instead of the
-    // single Mark Attended button a still-upcoming Scheduled card gets.
-    const needsResolution = status === 'Missed' || isOverdueUnmarked;
     const actionsOpen = openCardMenu === a.id;
     return (
       <div className="flex overflow-hidden rounded-2xl border border-border shadow-sm mb-2.5 last:mb-0">
@@ -685,13 +680,6 @@ export const Appointments = () => {
             </div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            <Link
-              to={soleStudent ? `/dental-chart/${soleStudent.id}` : '/dental-charts'}
-              className="w-7 h-7 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 flex items-center justify-center transition-colors"
-              title={soleStudent ? `Open ${soleStudent.name}'s Dental Chart` : 'Open Dental Charts'}
-            >
-              <FileText className="w-3.5 h-3.5" />
-            </Link>
             {/* Delete mode replaces the status actions with one clear choice,
                 so a stray click can't both change status and delete. */}
             {deleteMode && !a.pending ? (
@@ -701,28 +689,24 @@ export const Appointments = () => {
               </button>
             ) : (
               <>
-                {/* Still-upcoming Scheduled: one action, attend it. Marking
-                    it Missed early has no real use here — that's what the
-                    Missed tab (and this same card once it's overdue) is
-                    for. */}
-                {showActions && !a.pending && status === 'Scheduled' && !needsResolution && (
-                  <button onClick={() => setConfirmStatusAction({ session: a, status: 'Completed' })}
-                    className="w-7 h-7 rounded-full bg-green-100 hover:bg-green-200 text-green-700 flex items-center justify-center transition-colors" title="Mark Attended">
-                    <Check className="w-3.5 h-3.5" />
-                  </button>
-                )}
+                {/* In Progress is the one status still worth a single plain
+                    button (Mark Completed) -- Reschedule/No-Show make no
+                    sense mid-visit, so a 3-item menu would be two dead
+                    options. Every Scheduled card (today's or not) gets the
+                    full Actions menu below instead: a same-day appointment
+                    can still turn into a no-show before the day is over, so
+                    "not yet overdue" was never a reason to hide that option. */}
                 {showActions && !a.pending && status === 'In Progress' && (
                   <button onClick={() => setConfirmStatusAction({ session: a, status: 'Completed' })}
                     className="w-7 h-7 rounded-full bg-green-100 hover:bg-green-200 text-green-700 flex items-center justify-center transition-colors" title="Mark Completed">
                     <Check className="w-3.5 h-3.5" />
                   </button>
                 )}
-                {/* Missed / overdue-unmarked: one menu instead of a row of
-                    icons -- attended, reschedule, or confirm missed, each
-                    going through its own confirmation (the status changes
-                    reuse the existing dialog; reschedule opens its own
-                    form). */}
-                {showActions && !a.pending && needsResolution && (
+                {/* Scheduled or Missed: one menu instead of a row of icons --
+                    attended, reschedule, or confirm no-show, each going
+                    through its own confirmation (the status changes reuse
+                    the existing dialog; reschedule opens its own form). */}
+                {showActions && !a.pending && (status === 'Scheduled' || status === 'Missed') && (
                   <div className="relative">
                     <button
                       onClick={(e) => {
@@ -767,6 +751,17 @@ export const Appointments = () => {
                 )}
               </>
             )}
+            {/* Dental chart is always the rightmost icon -- it's the one
+                constant across every status, so it anchors the same spot
+                whether it's sitting next to a Delete button, an Actions
+                menu, a single check, or nothing at all. */}
+            <Link
+              to={soleStudent ? `/dental-chart/${soleStudent.id}` : '/dental-charts'}
+              className="w-7 h-7 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 flex items-center justify-center transition-colors"
+              title={soleStudent ? `Open ${soleStudent.name}'s Dental Chart` : 'Open Dental Charts'}
+            >
+              <FileText className="w-3.5 h-3.5" />
+            </Link>
           </div>
         </div>
       </div>
