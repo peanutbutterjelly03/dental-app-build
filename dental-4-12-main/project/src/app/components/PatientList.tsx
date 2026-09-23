@@ -1060,8 +1060,15 @@ export const PatientList = () => {
           </div>
         </div>
 
-        {/* Table */}
-        <div className="overflow-x-auto">
+        {/* Table
+            ⚠ `overflow-y-visible` is NOT decorative. Setting only `overflow-x`
+            makes the browser compute the unset `overflow-y` as `auto` too (a
+            CSS spec quirk) — so this div silently became its own vertical
+            scroll container. It has no fixed height, so nothing looked clipped
+            on desktop, but on a touch screen a vertical drag that starts over
+            the table gets captured by that phantom scrollport instead of the
+            page, and the pagination footer below can never be reached. */}
+        <div className="overflow-x-auto overflow-y-visible">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
