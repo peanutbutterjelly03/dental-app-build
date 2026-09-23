@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link, useSearchParams } from 'react-router';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, X, Check, FileText, Mars, Venus, MoreVertical, Trash2, StickyNote, Pencil } from 'lucide-react';
+import { Calendar as CalendarIcon, CalendarClock, ChevronDown, ChevronLeft, ChevronRight, Plus, X, Check, FileText, Mars, Venus, MoreVertical, Trash2, StickyNote, Pencil } from 'lucide-react';
 import { getGradeColor } from '../utils/gradeColors';
 import { getSchoolShortName } from '../utils/schoolColors';
 import { useAppointments, type AppointmentSession } from '../hooks/useAppointments';
@@ -260,6 +260,18 @@ export const Appointments = () => {
     </div>
   );
 
+  // Empty state, matching the reference: a light icon chip, a bold title,
+  // a muted one-line explanation. Replaces the old bare icon + <p>.
+  const EmptyState = ({ title, subtitle }: { title: string; subtitle: string }) => (
+    <div className="py-16 text-center">
+      <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
+        <CalendarIcon className="w-6 h-6 text-muted-foreground/60" />
+      </div>
+      <p className="text-base font-bold text-foreground">{title}</p>
+      <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>
+    </div>
+  );
+
   const filteredAppointments = appointments.filter(a => {
     return true;
   });
@@ -411,6 +423,53 @@ export const Appointments = () => {
     }
   };
 
+  // Reschedule — a missed/overdue appointment's real fix isn't always
+  // "attended" or "missed"; it's often "give this a new slot". Moves the
+  // underlying appointment_datetime (same PUT the create form uses) and
+  // resets status to Scheduled, since a rescheduled visit is not the old
+  // missed one anymore.
+  const [rescheduleTarget, setRescheduleTarget] = useState<AppointmentSession | null>(null);
+  const [rescheduleDate, setRescheduleDate] = useState('');
+  const [rescheduleTime, setRescheduleTime] = useState('');
+  const [rescheduling, setRescheduling] = useState(false);
+  const [rescheduleError, setRescheduleError] = useState<string | null>(null);
+
+  const openReschedule = (session: AppointmentSession) => {
+    setRescheduleTarget(session);
+    setRescheduleDate(session.date);
+    setRescheduleTime(session.time);
+    setRescheduleError(null);
+  };
+
+  const closeReschedule = () => {
+    if (rescheduling) return;
+    setRescheduleTarget(null);
+  };
+
+  const submitReschedule = async () => {
+    if (!rescheduleTarget || !rescheduleDate) {
+      setRescheduleError('Pick a date to reschedule to.');
+      return;
+    }
+    setRescheduling(true);
+    setRescheduleError(null);
+    try {
+      const appointment_datetime = new Date(`${rescheduleDate}T${rescheduleTime || '08:00'}`).toISOString();
+      await Promise.all(
+        rescheduleTarget.appointmentIds.map(id =>
+          apiClient.put(`/appointments/${id}`, { appointment_datetime, status: 'Scheduled' }),
+        ),
+      );
+      await reloadAppointments();
+      toast.success('Appointment rescheduled.');
+      setRescheduleTarget(null);
+    } catch (err) {
+      setRescheduleError(err instanceof Error ? err.message : 'Failed to reschedule appointment');
+    } finally {
+      setRescheduling(false);
+    }
+  };
+
   // Every list tab but Calendar gets the same three-dot menu → Delete, which
   // toggles a per-row delete icon rather than deleting on the spot (a stray
   // click can't remove an appointment). One menu-open/delete-mode pair
@@ -420,8 +479,16 @@ export const Appointments = () => {
   const [openTabMenu, setOpenTabMenu] = useState<string | null>(null);
   const [tabMenuAt, setTabMenuAt] = useState<{ top: number; right: number } | null>(null);
   const [deleteModeTab, setDeleteModeTab] = useState<string | null>(null);
+  // Same reasoning, one level down: which CARD's "Actions" menu (missed/
+  // overdue cards) is open, keyed by appointment id. AppointmentCard is
+  // itself declared inside this component and re-created on every render,
+  // so state local to it would reset (closing the menu) on any unrelated
+  // re-render of this page -- keeping it here, in the stable parent, avoids
+  // that.
+  const [openCardMenu, setOpenCardMenu] = useState<string | null>(null);
+  const [cardMenuAt, setCardMenuAt] = useState<{ top: number; right: number } | null>(null);
 
-  useEffect(() => { setDeleteModeTab(null); setOpenTabMenu(null); }, [activeTab]);
+  useEffect(() => { setDeleteModeTab(null); setOpenTabMenu(null); setOpenCardMenu(null); }, [activeTab]);
 
   const TabActionsMenu = ({ tabKey }: { tabKey: string }) => (
     deleteModeTab === tabKey ? (
@@ -576,6 +643,12 @@ export const Appointments = () => {
     const isOverdueUnmarked = a.date < TODAY && status === 'Scheduled';
     const blockFill = statusBlock(isOverdueUnmarked ? 'Missed' : status);
     const { clock, ampm } = formatTimeBlock(a.time);
+    // A card reads as "missing" (needs the dentist to resolve it) either
+    // because it is literally marked Missed, or because it is overdue and
+    // never got marked at all -- both get the 3-option menu instead of the
+    // single Mark Attended button a still-upcoming Scheduled card gets.
+    const needsResolution = status === 'Missed' || isOverdueUnmarked;
+    const actionsOpen = openCardMenu === a.id;
     return (
       <div className="flex overflow-hidden rounded-2xl border border-border shadow-sm mb-2.5 last:mb-0">
         {/* Time block — solid fill by status, same hue family as the text
@@ -628,23 +701,69 @@ export const Appointments = () => {
               </button>
             ) : (
               <>
-                {showActions && !a.pending && status === 'Scheduled' && (
-                  <>
-                    <button onClick={() => setConfirmStatusAction({ session: a, status: 'Completed' })}
-                      className="w-7 h-7 rounded-full bg-green-100 hover:bg-green-200 text-green-700 flex items-center justify-center transition-colors" title="Mark Attended">
-                      <Check className="w-3.5 h-3.5" />
-                    </button>
-                    <button onClick={() => setConfirmStatusAction({ session: a, status: 'Missed' })}
-                      className="w-7 h-7 rounded-full bg-red-100 hover:bg-red-200 text-red-700 flex items-center justify-center transition-colors" title="Mark Missed">
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </>
+                {/* Still-upcoming Scheduled: one action, attend it. Marking
+                    it Missed early has no real use here — that's what the
+                    Missed tab (and this same card once it's overdue) is
+                    for. */}
+                {showActions && !a.pending && status === 'Scheduled' && !needsResolution && (
+                  <button onClick={() => setConfirmStatusAction({ session: a, status: 'Completed' })}
+                    className="w-7 h-7 rounded-full bg-green-100 hover:bg-green-200 text-green-700 flex items-center justify-center transition-colors" title="Mark Attended">
+                    <Check className="w-3.5 h-3.5" />
+                  </button>
                 )}
                 {showActions && !a.pending && status === 'In Progress' && (
                   <button onClick={() => setConfirmStatusAction({ session: a, status: 'Completed' })}
                     className="w-7 h-7 rounded-full bg-green-100 hover:bg-green-200 text-green-700 flex items-center justify-center transition-colors" title="Mark Completed">
                     <Check className="w-3.5 h-3.5" />
                   </button>
+                )}
+                {/* Missed / overdue-unmarked: one menu instead of a row of
+                    icons -- attended, reschedule, or confirm missed, each
+                    going through its own confirmation (the status changes
+                    reuse the existing dialog; reschedule opens its own
+                    form). */}
+                {showActions && !a.pending && needsResolution && (
+                  <div className="relative">
+                    <button
+                      onClick={(e) => {
+                        const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                        setCardMenuAt({ top: r.bottom + 4, right: Math.max(8, window.innerWidth - r.right) });
+                        setOpenCardMenu(v => v === a.id ? null : a.id);
+                      }}
+                      className="flex items-center gap-1 h-7 pl-2.5 pr-2 rounded-full bg-gray-100 hover:bg-gray-200 text-foreground text-xs font-semibold transition-colors"
+                      title="Resolve this appointment"
+                    >
+                      Actions <ChevronDown className={`w-3 h-3 transition-transform ${actionsOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {actionsOpen && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setOpenCardMenu(null)} />
+                        <div
+                          style={cardMenuAt ? { top: cardMenuAt.top, right: cardMenuAt.right } : undefined}
+                          className="fixed z-50 bg-card border border-border rounded-lg shadow-md py-1 w-52"
+                        >
+                          <button
+                            onClick={() => { setOpenCardMenu(null); setConfirmStatusAction({ session: a, status: 'Completed' }); }}
+                            className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-gray-50 flex items-center gap-2"
+                          >
+                            <Check className="w-3.5 h-3.5 text-green-600" /> Mark Attended
+                          </button>
+                          <button
+                            onClick={() => { setOpenCardMenu(null); openReschedule(a); }}
+                            className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-gray-50 flex items-center gap-2"
+                          >
+                            <CalendarClock className="w-3.5 h-3.5 text-primary" /> Reschedule
+                          </button>
+                          <button
+                            onClick={() => { setOpenCardMenu(null); setConfirmStatusAction({ session: a, status: 'Missed' }); }}
+                            className="w-full text-left px-3 py-2 text-sm text-destructive hover:bg-danger-surface flex items-center gap-2"
+                          >
+                            <X className="w-3.5 h-3.5" /> Confirm Missed Appointment
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 )}
               </>
             )}
@@ -742,10 +861,7 @@ export const Appointments = () => {
             <TabActionsMenu tabKey="today" />
           </div>
           {todayAppts.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground">
-              <CalendarIcon className="w-8 h-8 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No appointments scheduled for today</p>
-            </div>
+            <EmptyState title="No appointments found" subtitle="There are no appointments scheduled for today." />
           ) : (
             <div className="p-3">
               {todayAppts.map(a => <AppointmentCard key={a.id} a={a} showActions deleteMode={deleteModeTab === 'today'} />)}
@@ -762,10 +878,7 @@ export const Appointments = () => {
             <TabActionsMenu tabKey="upcoming" />
           </div>
           {upcomingAppts.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground">
-              <CalendarIcon className="w-8 h-8 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No upcoming appointments</p>
-            </div>
+            <EmptyState title="No appointments found" subtitle="There are no upcoming appointments scheduled." />
           ) : (
             <DateGroupedCards list={upcomingAppts} tabKey="upcoming" />
           )}
@@ -777,10 +890,7 @@ export const Appointments = () => {
         <>
           {historyScopeBar('Completed Appointments', 'completed')}
           {completedAppts.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground">
-              <CalendarIcon className="w-8 h-8 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No completed appointments</p>
-            </div>
+            <EmptyState title="No appointments found" subtitle="There are currently no completed appointments." />
           ) : (
             <DateGroupedCards list={completedAppts} tabKey="completed" />
           )}
@@ -792,10 +902,7 @@ export const Appointments = () => {
         <>
           {historyScopeBar('Missed Appointments', 'missed')}
           {missedAppts.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground">
-              <CalendarIcon className="w-8 h-8 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No missed appointments</p>
-            </div>
+            <EmptyState title="No appointments found" subtitle="There are currently no missed appointments." />
           ) : (
             <DateGroupedCards list={missedAppts} tabKey="missed" />
           )}
@@ -810,10 +917,7 @@ export const Appointments = () => {
             <TabActionsMenu tabKey="all" />
           </div>
           {allAppts.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground">
-              <CalendarIcon className="w-8 h-8 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No appointments loaded for this window</p>
-            </div>
+            <EmptyState title="No appointments found" subtitle="No appointments are loaded for this window." />
           ) : (
             <DateGroupedCards list={allAppts} tabKey="all" />
           )}
@@ -1231,6 +1335,49 @@ export const Appointments = () => {
         onConfirm={confirmStatusChange}
         onCancel={() => setConfirmStatusAction(null)}
       />
+
+      {/* ── RESCHEDULE MODAL ── */}
+      {rescheduleTarget && (
+        <Modal onClose={closeReschedule} maxWidth="max-w-sm" closeDisabled={rescheduling}>
+          <div className="flex items-center justify-between p-5 border-b border-gray-100">
+            <h2 className="text-lg font-bold text-foreground">Reschedule Appointment</h2>
+            <button onClick={closeReschedule} disabled={rescheduling} className="p-2 hover:bg-gray-100 rounded-lg disabled:opacity-50">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="p-5 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {rescheduleTarget.studentCount === 1
+                ? rescheduleTarget.students[0]?.name ?? 'This student'
+                : `${rescheduleTarget.studentCount} students`}
+              {' — pick a new date and time. This also clears the missed status.'}
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-foreground mb-1">New Date *</label>
+                <input type="date" value={rescheduleDate} onChange={e => setRescheduleDate(e.target.value)}
+                  className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">New Time</label>
+                <input type="time" value={rescheduleTime} onChange={e => setRescheduleTime(e.target.value)}
+                  className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring" />
+              </div>
+            </div>
+            {rescheduleError && <Notice variant="error">{rescheduleError}</Notice>}
+          </div>
+          <div className="flex items-center justify-end gap-2 p-5 border-t border-gray-100">
+            <button onClick={closeReschedule} disabled={rescheduling}
+              className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground disabled:opacity-50">
+              Cancel
+            </button>
+            <button onClick={submitReschedule} disabled={rescheduling}
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-60 text-sm font-medium">
+              {rescheduling ? 'Rescheduling…' : 'Reschedule'}
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };
