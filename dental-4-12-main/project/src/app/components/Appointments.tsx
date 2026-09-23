@@ -254,7 +254,7 @@ export const Appointments = () => {
   const allAppts = [...appointments].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
 
   const historyScopeBar = (label: string, tabKey: string) => (
-    <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+    <div className="px-4 py-3 border-b border-border flex items-center justify-between">
       <span className="text-sm font-semibold text-foreground">{label}</span>
       <TabActionsMenu tabKey={tabKey} />
     </div>
@@ -500,6 +500,34 @@ export const Appointments = () => {
     return { clock: `${String(h).padStart(2, '0')}:${mStr}`, ampm };
   };
 
+  // Groups a session list into consecutive same-date runs, sorted first --
+  // Missed/Completed/All aren't guaranteed sorted like `allAppts` already is
+  // -- so a "THURSDAY, SEPTEMBER 4" caption can sit above each date's cards,
+  // matching the agreed agenda-timeline layout.
+  const groupByDate = (list: AppointmentSession[]) => {
+    const sorted = [...list].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+    const groups: { date: string; items: AppointmentSession[] }[] = [];
+    for (const a of sorted) {
+      const last = groups[groups.length - 1];
+      if (last && last.date === a.date) last.items.push(a);
+      else groups.push({ date: a.date, items: [a] });
+    }
+    return groups;
+  };
+
+  const DateGroupedCards = ({ list, tabKey }: { list: AppointmentSession[]; tabKey: string }) => (
+    <div className="p-3">
+      {groupByDate(list).map((group, gi) => (
+        <div key={group.date} className={gi > 0 ? 'mt-4' : ''}>
+          <div className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground px-1 mb-2">
+            {formatDateWithWeekday(group.date)}
+          </div>
+          {group.items.map(a => <AppointmentCard key={a.id} a={a} showActions deleteMode={deleteModeTab === tabKey} />)}
+        </div>
+      ))}
+    </div>
+  );
+
   // ⚠ `compact` exists because this card is ALSO rendered inside the day
   // dialog's left half — roughly 340px, against the ~1300px list it was drawn
   // for. At that width the chips wrap one per line, the section name truncates
@@ -666,29 +694,32 @@ export const Appointments = () => {
           row, and the rail scrolls its own short list instead of fighting
           the page for width. Below md it stacks above the content like the
           old strip did. */}
-      <div className="flex flex-col md:flex-row gap-5">
+      <div className="flex flex-col md:flex-row gap-5 md:min-h-[calc(100vh-260px)]">
         <nav className="flex md:flex-col gap-1 md:w-[200px] flex-shrink-0 overflow-x-auto md:overflow-visible">
           {[
-            { key: 'today',     label: 'Today',     count: todayAppts.length },
-            { key: 'upcoming',  label: 'Upcoming',  count: upcomingAppts.length },
-            { key: 'completed', label: 'Completed', count: completedAppts.length },
-            { key: 'missed',    label: 'Missed',    count: missedAppts.length },
-            { key: 'all',       label: 'All',       count: appointments.length },
-            { key: 'calendar',  label: 'Calendar',  count: null },
+            // Solid fill when active, colored to match what the tab means --
+            // the same hue family AppointmentCard's time block uses, so
+            // "Missed" (red) and "Completed" (green) read the same way in
+            // both places. Today/Upcoming/All/Calendar aren't a status, so
+            // they get the brand navy rather than inventing a meaning.
+            { key: 'today',     label: 'Today',     count: todayAppts.length,     fill: '#273A78' },
+            { key: 'upcoming',  label: 'Upcoming',  count: upcomingAppts.length,  fill: '#2563EB' },
+            { key: 'completed', label: 'Completed', count: completedAppts.length, fill: '#16A34A' },
+            { key: 'missed',    label: 'Missed',    count: missedAppts.length,    fill: '#DC2626' },
+            { key: 'all',       label: 'All',       count: appointments.length,   fill: '#273A78' },
+            { key: 'calendar',  label: 'Calendar',  count: null,                  fill: '#273A78' },
           ].map(tab => {
             const isActive = activeTab === tab.key;
-            const activeIsMissed = isActive && tab.key === 'missed';
             return (
               <button key={tab.key} onClick={() => setActiveTab(tab.key as any)}
+                style={isActive ? { backgroundColor: tab.fill } : undefined}
                 className={`flex-shrink-0 flex items-center justify-between gap-3 whitespace-nowrap px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
-                  activeIsMissed
-                    ? 'bg-danger-surface text-destructive'
-                    : isActive
-                      ? 'bg-primary-surface text-primary'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-gray-100'
+                  isActive
+                    ? 'text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-gray-100'
                 }`}>
                 <span>{tab.label}</span>
-                {tab.count !== null && <span className={isActive ? 'opacity-100' : 'opacity-55'}>{tab.count}</span>}
+                {tab.count !== null && <span className={isActive ? 'text-white/80' : 'opacity-55'}>{tab.count}</span>}
               </button>
             );
           })}
@@ -700,7 +731,7 @@ export const Appointments = () => {
       {/* TODAY */}
       {activeTab === 'today' && (
         <>
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+          <div className="px-4 py-3 border-b border-border flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
             <span className="text-sm font-bold text-foreground flex-1">Today, {formatDateWithWeekday(TODAY)}</span>
             <TabActionsMenu tabKey="today" />
@@ -721,7 +752,7 @@ export const Appointments = () => {
       {/* UPCOMING */}
       {activeTab === 'upcoming' && (
         <>
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+          <div className="px-4 py-3 border-b border-border flex items-center justify-between">
             <span className="text-sm font-semibold text-foreground">Upcoming Appointments</span>
             <TabActionsMenu tabKey="upcoming" />
           </div>
@@ -731,19 +762,7 @@ export const Appointments = () => {
               <p className="text-sm">No upcoming appointments</p>
             </div>
           ) : (
-            <div className="p-3">
-              {upcomingAppts.map(a => (
-                <div key={a.id} className="flex items-start gap-3 mb-2.5 last:mb-0">
-                  <div className="text-center w-11 flex-shrink-0 pt-1">
-                    <div className="text-lg font-bold text-primary leading-none">{a.date.split('-')[2]}</div>
-                    <div className="text-[10px] text-muted-foreground mt-1">{new Date(a.date + 'T00:00:00').toLocaleString('default', { month: 'short' })}</div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <AppointmentCard a={a} showActions deleteMode={deleteModeTab === 'upcoming'} />
-                  </div>
-                </div>
-              ))}
-            </div>
+            <DateGroupedCards list={upcomingAppts} tabKey="upcoming" />
           )}
         </>
       )}
@@ -758,9 +777,7 @@ export const Appointments = () => {
               <p className="text-sm">No completed appointments</p>
             </div>
           ) : (
-            <div className="p-3">
-              {completedAppts.map(a => <AppointmentCard key={a.id} a={a} showActions deleteMode={deleteModeTab === 'completed'} />)}
-            </div>
+            <DateGroupedCards list={completedAppts} tabKey="completed" />
           )}
         </>
       )}
@@ -775,9 +792,7 @@ export const Appointments = () => {
               <p className="text-sm">No missed appointments</p>
             </div>
           ) : (
-            <div className="p-3">
-              {missedAppts.map(a => <AppointmentCard key={a.id} a={a} showActions deleteMode={deleteModeTab === 'missed'} />)}
-            </div>
+            <DateGroupedCards list={missedAppts} tabKey="missed" />
           )}
         </>
       )}
@@ -785,7 +800,7 @@ export const Appointments = () => {
       {/* ALL */}
       {activeTab === 'all' && (
         <>
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+          <div className="px-4 py-3 border-b border-border flex items-center justify-between">
             <span className="text-sm font-semibold text-foreground">All Appointments</span>
             <TabActionsMenu tabKey="all" />
           </div>
@@ -795,9 +810,7 @@ export const Appointments = () => {
               <p className="text-sm">No appointments loaded for this window</p>
             </div>
           ) : (
-            <div className="p-3">
-              {allAppts.map(a => <AppointmentCard key={a.id} a={a} showActions deleteMode={deleteModeTab === 'all'} />)}
-            </div>
+            <DateGroupedCards list={allAppts} tabKey="all" />
           )}
         </>
       )}
