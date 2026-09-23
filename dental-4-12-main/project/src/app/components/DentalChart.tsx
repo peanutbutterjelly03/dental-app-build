@@ -1681,45 +1681,48 @@ export const DentalChart = () => {
           "—" beside a completed consent reads as a missing signature rather
           than a missing field. It goes in once the data is real. */}
       {activeTab === 'history' && years.length > 0 && yearIptr && (
-        <div className={`rounded-xl border p-3 ${consentComplete ? 'bg-success-surface border-green-200' : 'bg-warning-surface border-amber-200'}`}>
-          <div className="flex items-start gap-3 min-w-0">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-card ${consentComplete ? 'text-success' : 'text-warning'}`}>
-              {consentComplete ? <ShieldCheck className="w-4 h-4" /> : <ShieldAlert className="w-4 h-4" />}
-            </div>
+        <div className="flex rounded-xl overflow-hidden shadow-[0_4px_14px_rgba(15,23,42,0.06)]">
+          <div className={`w-14 flex-shrink-0 flex items-center justify-center ${consentComplete ? 'bg-[#15803D]' : 'bg-[#B45309]'}`}>
+            {consentComplete ? <ShieldCheck className="w-5 h-5 text-white" /> : <ShieldAlert className="w-5 h-5 text-white" />}
+          </div>
+          <div className="flex-1 bg-card px-4 py-3 flex items-center justify-between gap-3 min-w-0">
             <div className="min-w-0">
-              <div className={`text-sm font-bold ${consentComplete ? 'text-success' : 'text-warning'}`}>
+              <div className="text-[13.5px] font-bold text-foreground">
                 {consentComplete
                   ? `Physical copy of consent obtained for ${yearIptr.school_year}`
                   : `Consent pending for ${yearIptr.school_year}`}
               </div>
-              <div className="flex items-center gap-1.5 mt-1">
+              <div className="flex items-center gap-2 mt-1">
                 {yearGrade ? (
                   <>
                     <GradePill grade={yearGrade} />
-                    {yearSection && <span style={{ color: gc.solid }} className="text-xs font-semibold">{yearSection}</span>}
+                    {yearSection && <span style={{ color: gc.solid }} className="text-[10.5px] font-semibold">{yearSection}</span>}
                   </>
                 ) : (
-                  <span className="text-xs text-muted-foreground">Grade/section not recorded for this year</span>
+                  <span className="text-[10.5px] text-muted-foreground">Grade/section not recorded for this year</span>
                 )}
               </div>
             </div>
-          </div>
-          {/* ⚠ SHOWN IN BOTH STATES, unlike hers. Her banner hides this once
-              consent is complete, which works on her branch because she treats
-              the tick as final. Ours can be reverted — and the Consent TAB that
-              offered that is gone as of this sprint, so if the box vanished
-              when ticked, a mis-tick would be unfixable outside the database.
-              Both directions open the confirmation. */}
-          <label className={`flex items-center gap-2 mt-2 ${canEdit ? 'cursor-pointer' : 'cursor-default'}`}>
-            <input
-              type="checkbox"
-              checked={consentComplete}
-              onChange={(e) => { if (canEdit) setConfirmConsent({ schoolYear: yearIptr.school_year, revert: !e.target.checked }); }}
+            {/* ⚠ SHOWN IN BOTH STATES, unlike hers. Her banner hides this once
+                consent is complete, which works on her branch because she treats
+                the tick as final. Ours can be reverted — and the Consent TAB that
+                offered that is gone as of this sprint, so if the box vanished
+                when ticked, a mis-tick would be unfixable outside the database.
+                Both directions open the confirmation. */}
+            <button
+              type="button"
+              onClick={() => { if (canEdit) setConfirmConsent({ schoolYear: yearIptr.school_year, revert: consentComplete }); }}
               disabled={!canEdit}
-              className="w-4 h-4 rounded accent-primary disabled:opacity-60 disabled:cursor-not-allowed"
-            />
-            <span className="text-xs font-medium text-foreground">Consent has been obtained (Nakumpleto na ang pahintulot)</span>
-          </label>
+              className={`flex items-center gap-2 pl-1.5 pr-2 py-1 rounded-full flex-shrink-0 disabled:opacity-60 disabled:cursor-not-allowed ${canEdit ? 'cursor-pointer' : 'cursor-default'} ${consentComplete ? 'bg-[#F0FDF4]' : 'bg-[#F1F5F9]'}`}
+            >
+              <span className={`w-8 h-[18px] rounded-full relative inline-block ${consentComplete ? 'bg-[#15803D]' : 'bg-[#E2E8F0]'}`}>
+                <span className={`absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.15)] ${consentComplete ? 'right-0.5' : 'left-0.5'}`} />
+              </span>
+              <span className={`text-[11px] font-semibold ${consentComplete ? 'text-[#15803D]' : 'text-[#475569]'}`}>
+                {consentComplete ? 'Obtained' : 'Mark obtained'}
+              </span>
+            </button>
+          </div>
         </div>
       )}
 
