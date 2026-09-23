@@ -577,7 +577,7 @@ export const Appointments = () => {
     const blockFill = statusBlock(isOverdueUnmarked ? 'Missed' : status);
     const { clock, ampm } = formatTimeBlock(a.time);
     return (
-      <div className="flex overflow-hidden rounded-2xl border border-border mb-2.5 last:mb-0">
+      <div className="flex overflow-hidden rounded-2xl border border-border shadow-sm mb-2.5 last:mb-0">
         {/* Time block — solid fill by status, same hue family as the text
             badge below, so the card's status reads before you even get to
             the badge. */}
