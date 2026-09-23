@@ -411,7 +411,7 @@ export const Root = () => {
         </Link>
 
         {isOpen && !collapsed && (
-          <div className="mt-1.5 mx-7 flex flex-col gap-1">
+          <div className="mt-1.5 ml-[35px] mr-7 pl-3 border-l border-white/15 flex flex-col gap-1">
             {children.map((child) => {
               const childIsActive = isTabActive(child.path);
               const ChildIcon = child.icon;
@@ -421,7 +421,7 @@ export const Root = () => {
                   to={child.path}
                   onClick={() => setDrawerOpen(false)}
                   aria-current={childIsActive ? 'page' : undefined}
-                  className={`flex items-center gap-2.5 min-h-[38px] pl-9 pr-3 rounded-full text-[13px] transition-colors ${
+                  className={`flex items-center gap-2.5 min-h-[38px] pl-2.5 pr-3 rounded-full text-[13px] transition-colors ${
                     childIsActive
                       ? 'bg-card text-primary font-semibold'
                       : 'text-white/60 hover:bg-white/10 hover:text-white font-medium'
@@ -442,21 +442,25 @@ export const Root = () => {
     // flex-col below md so the mobile top bar stacks ABOVE the content as a
     // normal flow item. It is `sticky` under the fixed status strip.
     <div className="min-h-screen bg-canvas flex flex-col md:flex-row" style={{ paddingTop: TOPBAR_H }}>
-      {/* STATUS STRIP -- pinned to the very top of the viewport, above the
-          sidebar in stacking order (z-[60] vs z-50) but NOT across it: it
-          starts where the rail ends, so the rail keeps its own full-height
-          top corner instead of being covered. Full width below md, where the
-          rail is off-canvas. The user avatar is the only permanent content,
-          matching the reference topbar exactly -- SyncStatus renders nothing
-          at all while online/synced (see its own idle-return-null note) and
-          only appears as an actual alert (offline, sync failure, conflict),
-          per CLAUDE.md's "show offline banner when disconnected". `fixed`
-          (not sticky) because it must survive any scroll container on the
-          page; the wrapper's paddingTop above is what keeps it from covering
-          the first row of content. */}
+      {/* STATUS STRIP -- pinned to the very top of the viewport, full width
+          (left-0) even at desktop, so its white background extends behind
+          the floating rail instead of stopping at the rail's right edge --
+          otherwise the canvas gray showed through in the top-left corner,
+          above the rail's own rounded top edge, where nothing else paints.
+          The rail's z-[70] is still above this strip's z-[60], so it still
+          renders on top wherever the two overlap; only the content (the user
+          avatar block) stays right-aligned via `justify-end`, unaffected by
+          how far the div's own background reaches left. The user avatar is
+          the only permanent content, matching the reference topbar exactly
+          -- SyncStatus renders nothing at all while online/synced (see its
+          own idle-return-null note) and only appears as an actual alert
+          (offline, sync failure, conflict), per CLAUDE.md's "show offline
+          banner when disconnected". `fixed` (not sticky) because it must
+          survive any scroll container on the page; the wrapper's paddingTop
+          above is what keeps it from covering the first row of content. */}
       <div
         style={{ height: TOPBAR_H }}
-        className={`fixed top-0 right-0 left-0 ${collapsed ? 'md:left-[128px]' : 'md:left-[320px]'} z-[60] flex items-center justify-end gap-3 px-6 bg-white border-b border-[#EEF2F7] leading-none transition-[left] duration-200`}
+        className="fixed top-0 right-0 left-0 z-[60] flex items-center justify-end gap-3 px-6 bg-white border-b border-[#EEF2F7] leading-none"
       >
         <SyncStatus schoolLabel={selectedSchool ? getSchoolShortName(selectedSchool) : 'All Schools'} />
         <UserMenu user={user} onAccountSettings={openChangePassword} />
@@ -571,10 +575,10 @@ export const Root = () => {
             onClick={() => navigate('/select-school')}
             title="Switch School"
             aria-label="Switch School"
-            // Identical shape/size/alignment to a plain main-menu row (bold,
-            // like an always-emphasized item) -- no fill at rest, gold text
-            // instead of white, and a gold outline that only appears on hover.
-            className={`mx-7 mt-2 mb-1 rounded-2xl min-h-12 flex items-center gap-3 px-3 border-2 border-transparent text-sidebar-active font-bold hover:border-sidebar-active hover:bg-sidebar-active/10 transition-colors ${
+            // Identical shape/size/alignment to a plain main-menu row -- no
+            // fill, no border, same subtle hover as every other row -- the
+            // only difference is bold gold text/icon instead of white.
+            className={`mx-7 mt-2 mb-1 rounded-2xl min-h-12 flex items-center gap-3 px-3 text-sidebar-active font-bold hover:bg-white/10 transition-colors ${
               collapsed ? 'md:justify-center md:px-0' : ''
             }`}
           >
