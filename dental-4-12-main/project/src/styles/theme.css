@@ -7,7 +7,24 @@
    dead by grepping src/ for every corresponding utility class before deleting.
    Every token below is in active use; see DESIGN.md for what each one means. */
 :root {
-  --font-size: 16px;
+  /* App-wide scale-down (2026-09-24), replacing an earlier `zoom: 0.85` on
+     `html` that was reverted -- `zoom` desynced `100vh`/`min-h-screen` and
+     every `window.innerHeight`-based sticky/bounded-height calculation in
+     the app from the real viewport, leaving a blank gap of bare page below
+     content on every screen. Root `font-size` doesn't touch viewport-unit
+     math at all: `vh`/`vw` are defined purely by the viewport's own
+     dimensions, independent of font-size, so this shrinks every rem-based
+     Tailwind utility (padding, gaps, text, icon and avatar sizing, radii)
+     by the same ~15% without that risk.
+     ⚠ DOES NOT reach values given in raw px (TOPBAR_H, the sidebar rail's
+     w-[280px]/w-[88px] and its floating-overlap math in Root.tsx) -- those
+     stay their current size, so the topbar and rail read very slightly
+     larger relative to the now-smaller content. Left alone deliberately:
+     scaling them means re-deriving the rail's overlap arithmetic (comments
+     nearby explain why main's margin isn't simply the rail's own width),
+     not a blanket multiply, and is a separate, carefully-scoped change if
+     ever wanted. */
+  --font-size: 13.6px;
   --background: #ffffff;
   --foreground: oklch(0.145 0 0);
   --card: #ffffff;
