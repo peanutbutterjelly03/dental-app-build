@@ -1112,7 +1112,12 @@ export const DentalChart = () => {
             getting their own. Absent for teeth charted outside the visit
             flow (visitNumber null/undefined). */}
         {treat && (data?.visitNumber === 1 || data?.visitNumber === 2) && (
-          <div className="text-[6px] md:text-[8px] font-semibold text-muted-foreground leading-none">({`V${data.visitNumber}`})</div>
+          // No parentheses, smaller, colour-coded (user, 2026-09-24): V1 amber,
+          // V2 violet -- neither is used by the condition colours or the blue
+          // treatment code above, so the tag never reads as either.
+          <div className={`rounded-sm px-[3px] py-[1px] text-[5px] md:text-[7px] font-bold leading-none text-white ${data.visitNumber === 1 ? 'bg-amber-500' : 'bg-violet-600'}`}>
+            {`V${data.visitNumber}`}
+          </div>
         )}
       </button>
     );
