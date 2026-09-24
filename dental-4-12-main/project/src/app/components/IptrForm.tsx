@@ -44,17 +44,17 @@ const MEDICAL_ROWS: Row[] = [
   { label: 'Allergies (Please specify)', value: (y) => y.medicalHistory?.allergies ?? '' },
   { label: 'Hypertension / CVA', value: (y) => tick(y.medicalHistory?.hypertension) },
   { label: 'Diabetes Mellitus', value: (y) => tick(y.medicalHistory?.diabetes_mellitus) },
-  // No source: MEDICAL_HISTORY has no blood-disorder field. Printed blank.
-  { label: 'Blood Disorders', value: null },
+  { label: 'Blood Disorders', value: (y) => tick(y.medicalHistory?.blood_disorders) },
   { label: 'Cardiovascular / Heart Diseases', value: (y) => tick(y.medicalHistory?.cardiovascular_disease) },
   { label: 'Thyroid Disorders', value: (y) => tick(y.medicalHistory?.thyroid_disorders) },
-  { label: 'Hepatitis (Please specify type)', value: (y) => tick(y.medicalHistory?.hepatitis_disorders) },
-  { label: 'Malignancy (Please specify)', value: (y) => tick(y.medicalHistory?.malignancy) },
+  // "Please specify" rows print the detail when one was written, else the tick.
+  { label: 'Hepatitis (Please specify type)', value: (y) => y.medicalHistory?.hepatitis_type || tick(y.medicalHistory?.hepatitis_disorders) },
+  { label: 'Malignancy (Please specify)', value: (y) => y.medicalHistory?.malignancy_details || tick(y.medicalHistory?.malignancy) },
   { label: 'History of Previous Hospitalization', value: (y) => tick(y.medicalHistory?.previous_hospitalization) },
   // Sub-rows of the hospitalisation row on the paper form.
-  { label: 'Medical (Last Admission & Cause)', indent: true, value: null },
+  { label: 'Medical (Last Admission & Cause)', indent: true, value: (y) => y.medicalHistory?.last_admission ?? '' },
   { label: 'Surgical (Post-Operative)', indent: true, value: (y) => tick(y.medicalHistory?.previous_surgical) },
-  { label: 'Blood transfusion (Month & Year)', value: (y) => tick(y.medicalHistory?.blood_transfusion) },
+  { label: 'Blood transfusion (Month & Year)', value: (y) => y.medicalHistory?.blood_transfusion_date || tick(y.medicalHistory?.blood_transfusion) },
   { label: 'Tattoo', value: (y) => tick(y.medicalHistory?.tattoo) },
   { label: 'Others (Please specify)', value: (y) => y.medicalHistory?.others ?? '' },
 ];
@@ -102,7 +102,7 @@ const CONSENT_TEXT =
   'procedure ay maayos na ipinaliwanag sa akin, at anumang hindi kanais-nais na mga pangyayari habang o pagkatapos ng gamutan ay aking pananagutan.';
 
 const NO_SOURCE_NOTE =
-  'Blood Disorders · Medical (Last Admission & Cause) · Orally Fit · Completely Edentulous · Occupation · Temp · BP · ' +
+  'Orally Fit · Completely Edentulous · Occupation · Temp · BP · ' +
   'Chief Complaint · Signature — these are on the paper form and the system records no value for them, so they print blank.';
 
 interface Props {

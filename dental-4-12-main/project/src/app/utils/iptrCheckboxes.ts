@@ -38,15 +38,13 @@ export const IPTR_FORM_ROWS: FormRow[] = [
   { label: 'Allergies (Please specify)', section: 'medical', field: 'allergies', text: true },
   { label: 'Hypertension / CVA', section: 'medical', field: 'hypertension' },
   { label: 'Diabetes Mellitus', section: 'medical', field: 'diabetes_mellitus' },
-  // ⚠ On the form, absent from MEDICAL_HISTORY. Detected and reported, never
-  // silently dropped — see UNMAPPED_ROWS.
-  { label: 'Blood Disorders', section: 'medical', field: null },
+  { label: 'Blood Disorders', section: 'medical', field: 'blood_disorders' },
   { label: 'Cardiovascular / Heart Diseases', section: 'medical', field: 'cardiovascular_disease' },
   { label: 'Thyroid Disorders', section: 'medical', field: 'thyroid_disorders' },
   { label: 'Hepatitis (Please specify type)', section: 'medical', field: 'hepatitis_disorders' },
   { label: 'Malignancy (Please specify)', section: 'medical', field: 'malignancy' },
   { label: 'History of Previous Hospitalization:', section: 'medical', field: 'previous_hospitalization' },
-  { label: 'Medical (Last Admission & Cause)', section: 'medical', field: null, text: true },
+  { label: 'Medical (Last Admission & Cause)', section: 'medical', field: 'last_admission', text: true },
   { label: 'Surgical (Post-Operative)', section: 'medical', field: 'previous_surgical' },
   { label: 'Blood transfusion (Month & Year)', section: 'medical', field: 'blood_transfusion' },
   { label: 'Tattoo', section: 'medical', field: 'tattoo' },
@@ -76,7 +74,6 @@ export const IPTR_FORM_ROWS: FormRow[] = [
 
 /** Rows the printed form carries that the data model cannot store. Reported so
  *  a tick in one of them is visibly dropped rather than invisibly lost:
- *   - Blood Disorders          — no field on MEDICAL_HISTORY
  *   - Orally Fit               — derived elsewhere from oral status, not stored
  *   - Dental Caries            — derived from the DMF index, not a boolean
  *   - Completely Edentulous    — no field on ORAL_HEALTH_CONDITION

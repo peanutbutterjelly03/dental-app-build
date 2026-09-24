@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { computeBmi, BMI_NOTE, classifyNutritionalStatus } from '../utils/bmi';
-import type { MedicalHistoryDraft, DietDraft, MeasureDraft } from './iptrDrafts';
+import type { MedicalHistoryDraft, MedFlag, MedText, DietDraft, MeasureDraft } from './iptrDrafts';
 
 // The History tab — physical measurements, medical history, dietary/social
 // history.
@@ -40,6 +40,44 @@ function heightDraftToCm(d: HeightDraft, unit: HeightUnit): string {
   return roundStr((Number(d.main || 0) * 12 + Number(d.inches || 0)) * 2.54, 1);
 }
 
+// DOH Form 1 history questions with no IPTR chip of their own (2026-09-24),
+// verbatim from the printed form. Numbers match the form.
+const FORM1_QUESTIONS: { n: number; q: string; field: MedFlag; femaleOnly?: boolean }[] = [
+  { n: 3, q: 'Mayroon ka bang sakit sa atay?', field: 'liver_disease' },
+  { n: 4, q: 'Ikaw ba ay kulang sa dugo?', field: 'anemia' },
+  { n: 7, q: 'Mayroon ka bang allergy sa pamamanhid (anesthesia)?', field: 'anesthesia_allergy' },
+  { n: 8, q: 'Ikaw ba ay nabunutan na ng ngipin?', field: 'previous_extraction' },
+  { n: 9, q: 'Ikaw ba ay madugo kapag binubunutan ng ngipin?', field: 'extraction_bleeding' },
+  { n: 10, q: 'Naninikip ba ang iyong dibdib? / meadaling mapagod?', field: 'chest_tightness' },
+  { n: 11, q: 'Mayroon ka bang hika?', field: 'asthma' },
+  { n: 12, q: 'Mayroon ka bang regla? (para sa babae)', field: 'menstruation', femaleOnly: true },
+  { n: 13, q: 'Ikaw ba ay buntis?', field: 'pregnant', femaleOnly: true },
+  { n: 15, q: 'Ikaw ba ay may iniinom na gamot sa kasalukuyan?', field: 'current_medication' },
+  { n: 16, q: 'Ikaw ba ay may epilepsy?', field: 'epilepsy' },
+];
+
+/** A three-way answer chip: blank (not asked) → Oo → Hindi → blank. */
+function TriChip({ label, value, onChange, disabled }: {
+  label: string; value: boolean | null; onChange: (v: boolean | null) => void; disabled: boolean;
+}) {
+  const next = value === null ? true : value === true ? false : null;
+  const state = value === true ? 'Oo (yes)' : value === false ? 'Hindi (no)' : 'not asked';
+  return (
+    <button type="button" disabled={disabled} onClick={() => onChange(next)} aria-label={`${label}: ${state}`}
+      className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
+        value === true ? 'border-primary bg-primary/10 text-primary font-medium'
+        : value === false ? 'border-slate-300 bg-slate-100 text-slate-600'
+        : 'border-border text-foreground'} ${disabled ? 'cursor-not-allowed opacity-70' : 'hover:bg-canvas'}`}>
+      <span className="min-w-0">{label}</span>
+      {value !== null && (
+        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold text-white ${value ? 'bg-primary' : 'bg-slate-500'}`}>
+          {value ? 'Oo' : 'Hindi'}
+        </span>
+      )}
+    </button>
+  );
+}
+
 export function HistoryTab({
   editing,
   measure,
@@ -64,6 +102,8 @@ export function HistoryTab({
   patientAgeMonths: number | null;
   sex: string;
 }) {
+  // Form 1 Q12 (regla) and Q13 (buntis) are for girls only.
+  const isFemale = sex === 'Female';
   const [heightUnit, setHeightUnit] = useState<HeightUnit>('ftin');
   const [heightDraft, setHeightDraft] = useState<HeightDraft>(() => cmToHeightDraft(measure.height_cm, 'ftin'));
   // What the draft was last derived from — so a reload / cancel / year switch
@@ -193,31 +233,72 @@ export function HistoryTab({
           {/* Her heading: sentence case at text-base with the instruction
               under it, not a small uppercase label. */}
           <div className="text-base font-bold text-foreground">Medical History</div>
-          <p className="text-xs text-muted-foreground mb-3">Select all applicable conditions.</p>
+          <p className="text-xs text-muted-foreground mb-3">Tap once for Oo (yes), twice for Hindi (no), a third time to clear.</p>
           {/* ⚠ Sprint 165 — chips, not label-left/checkbox-right rows.
               Removing the record page's width cap stretched those rows to
               the full content width and left every checkbox a hand-span
               from the word it belonged to. Her chips keep the box against
-              its label at any width. */}
+              its label at any width.
+              TRI-STATE since 2026-09-24 (see TriChip): DOH Form 1 has both
+              an Oo and a Hindi column, and a plain checkbox could not say
+              "not asked", so Form 1 printed Hindi for questions nobody asked. */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {([
-              ['Hypertension / CVA', 'hypertension'], ['Diabetes Mellitus', 'diabetes'],
-              ['Cardiovascular / Heart Diseases', 'cardiovascular'], ['Thyroid Disorders', 'thyroid'],
-              ['Hepatitis', 'hepatitis'], ['Malignancy', 'malignancy'],
-              ['History of Hospitalization', 'hospitalization'], ['Blood Transfusion', 'bloodTransfusion'], ['Tattoo', 'tattoo'],
-            ] as [string, keyof MedicalHistoryDraft][]).map(([label, field]) => (
-              <label key={field} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors ${!!med[field] ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-border text-foreground'} ${editing ? 'cursor-pointer hover:bg-canvas' : 'cursor-not-allowed opacity-70'}`}>
-                <input type="checkbox" disabled={!editing} checked={!!med[field]}
-                  onChange={(e) => setMed((p) => ({ ...p, [field]: e.target.checked }))}
-                  className="w-4 h-4 rounded accent-primary disabled:cursor-not-allowed" />
-                {label}
-              </label>
+              ['Hypertension / CVA', 'hypertension'], ['Diabetes Mellitus', 'diabetes_mellitus'],
+              ['Blood Disorders', 'blood_disorders'], ['Cardiovascular / Heart Diseases', 'cardiovascular_disease'],
+              ['Thyroid Disorders', 'thyroid_disorders'], ['Hepatitis', 'hepatitis_disorders'], ['Malignancy', 'malignancy'],
+              ['History of Hospitalization', 'previous_hospitalization'], ['Surgical (Post-Operative)', 'previous_surgical'],
+              ['Blood Transfusion', 'blood_transfusion'], ['Tattoo', 'tattoo'],
+            ] as [string, MedFlag][]).map(([label, field]) => (
+              <TriChip key={field} label={label} value={med[field]} disabled={!editing}
+                onChange={(v) => setMed((p) => ({ ...p, [field]: v }))} />
             ))}
-            <div className="pt-1">
-              <label className="block text-xs text-muted-foreground mb-1">Allergies</label>
-              <input type="text" disabled={!editing} value={med.allergies} onChange={(e) => setMed((p) => ({ ...p, allergies: e.target.value }))}
-                placeholder="—" className="w-full text-xs border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+          </div>
+          {/* The forms' "Please specify" details. A detail box appears once its
+              condition is answered Oo, and stays while it holds text, so an
+              un-ticked condition never hides something already written. */}
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {([
+              ['Allergies (please specify)', 'allergies', null, 'e.g. penicillin, shrimp'],
+              ['Hepatitis (please specify type)', 'hepatitis_type', 'hepatitis_disorders', 'e.g. Hepatitis B'],
+              ['Malignancy (please specify)', 'malignancy_details', 'malignancy', ''],
+              ['Blood transfusion (month & year)', 'blood_transfusion_date', 'blood_transfusion', 'e.g. March 2024'],
+              ['Last admission & cause', 'last_admission', 'previous_hospitalization', 'e.g. June 2025, dengue'],
+              ['Others (please specify)', 'others', null, ''],
+            ] as [string, MedText, MedFlag | null, string][])
+              .filter(([, field, flag]) => !flag || med[flag] === true || med[field] !== '')
+              .map(([label, field, , placeholder]) => (
+                <div key={field}>
+                  <label className="block text-xs text-muted-foreground mb-1">{label}</label>
+                  <input type="text" disabled={!editing} value={med[field]} placeholder={placeholder}
+                    onChange={(e) => setMed((p) => ({ ...p, [field]: e.target.value }))}
+                    className="w-full text-xs border border-border rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+                </div>
+              ))}
+          </div>
+
+          {/* DOH Form 1's Filipino questions that the chips above do not
+              answer, verbatim from the form (its own spelling). Each prints in
+              Form 1's Oo / Hindi column. Q12 and Q13 are asked of girls only. */}
+          <div className="mt-4 border-t border-border pt-3">
+            <div className="text-sm font-bold text-foreground">Form 1 Questions</div>
+            <p className="text-[11px] text-muted-foreground mb-2">
+              Questions 1, 2, 5, 6 and 14 are answered by the chips above.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {FORM1_QUESTIONS.filter((q) => !q.femaleOnly || isFemale).map((q) => (
+                <TriChip key={q.field} label={`${q.n}. ${q.q}`} value={med[q.field]} disabled={!editing}
+                  onChange={(v) => setMed((p) => ({ ...p, [q.field]: v }))} />
+              ))}
             </div>
+            {(med.current_medication === true || med.medication_details !== '') && (
+              <div className="mt-2">
+                <label className="block text-xs text-muted-foreground mb-1">15. Anong gamot? (medicine taken)</label>
+                <input type="text" disabled={!editing} value={med.medication_details}
+                  onChange={(e) => setMed((p) => ({ ...p, medication_details: e.target.value }))}
+                  className="w-full text-xs border border-border rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+              </div>
+            )}
           </div>
         </div>
         <div className="bg-card rounded-xl border border-border p-4">

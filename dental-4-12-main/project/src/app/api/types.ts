@@ -155,17 +155,37 @@ export interface ApiMedicalHistory {
   _id: string;
   iptr_id: string;
   allergies: string;
-  diabetes_mellitus: boolean;
-  hypertension: boolean;
-  cardiovascular_disease: boolean;
-  thyroid_disorders: boolean;
-  hepatitis_disorders: boolean;
-  malignancy: boolean;
-  previous_hospitalization: boolean;
-  previous_surgical: boolean;
-  blood_transfusion: boolean;
-  tattoo: boolean;
+  /** Tri-state since 2026-09-24: true = Oo, false = Hindi, null = not asked. */
+  diabetes_mellitus: boolean | null;
+  hypertension: boolean | null;
+  cardiovascular_disease: boolean | null;
+  thyroid_disorders: boolean | null;
+  hepatitis_disorders: boolean | null;
+  malignancy: boolean | null;
+  previous_hospitalization: boolean | null;
+  previous_surgical: boolean | null;
+  blood_transfusion: boolean | null;
+  tattoo: boolean | null;
   others: string;
+  // Added 2026-09-24 (ERD deviation) -- optional because records saved
+  // before then do not carry them.
+  blood_disorders?: boolean | null;
+  liver_disease?: boolean | null;
+  anemia?: boolean | null;
+  anesthesia_allergy?: boolean | null;
+  previous_extraction?: boolean | null;
+  extraction_bleeding?: boolean | null;
+  chest_tightness?: boolean | null;
+  asthma?: boolean | null;
+  menstruation?: boolean | null;
+  pregnant?: boolean | null;
+  current_medication?: boolean | null;
+  epilepsy?: boolean | null;
+  hepatitis_type?: string;
+  malignancy_details?: string;
+  blood_transfusion_date?: string;
+  last_admission?: string;
+  medication_details?: string;
 }
 
 export interface ApiDietarySocialHabits {

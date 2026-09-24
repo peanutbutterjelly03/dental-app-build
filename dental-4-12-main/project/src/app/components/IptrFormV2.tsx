@@ -49,32 +49,36 @@ const FORM1_SECTION_B_LABELS = [
 ];
 
 /** The 16 printed questions, verbatim including the sheet's own spelling.
- *  `source` maps one to a stored field; null means the system holds no answer
- *  and the row prints EMPTY — never a guessed "Hindi", which on a medical
- *  history is a clinical claim.
+ *  `source` reads the stored answer: true prints Oo, false prints Hindi, null
+ *  prints NOTHING -- never a guessed "Hindi", which on a medical history is a
+ *  clinical claim. Every question has its own field since 2026-09-24.
  *
- *  ⚠ ONLY UNAMBIGUOUS MAPPINGS ARE MADE. "Sakit sa atay" is left unmapped even
- *  though MEDICAL_HISTORY has `hepatitis_disorders`: hepatitis is a liver
- *  disease, but "may sakit sa atay" is a broader question, and answering it
- *  from a narrower field would put a clinical assertion on a signed form.
- *  The dentist should decide those mappings, not this file. */
-const HISTORY_QUESTIONS: { n: number; q: string; source: ((y: IptrYearData) => boolean | null) | null }[] = [
-  { n: 1, q: 'Mayroon ka bang diabetes?', source: (y) => y.medicalHistory?.diabetes_mellitus ?? null },
-  { n: 2, q: 'Mayroon ka bang sakit sa puso?', source: (y) => y.medicalHistory?.cardiovascular_disease ?? null },
-  { n: 3, q: 'Mayroon ka bang sakit sa atay?', source: null },
-  { n: 4, q: 'Ikaw ba ay kulang sa dugo?', source: null },
-  { n: 5, q: 'Mataas ba ang presyon ng iyong dugo? Ano?', source: (y) => y.medicalHistory?.hypertension ?? null },
-  { n: 6, q: 'Mayroon ka bang allergy sa pagkain? Sa gamot? Ano?', source: (y) => (y.medicalHistory?.allergies ? true : null) },
-  { n: 7, q: 'Mayroon ka bang allergy sa pamamanhid (anesthesia)?', source: null },
-  { n: 8, q: 'Ikaw ba ay nabunutan na ng ngipin?', source: null },
-  { n: 9, q: 'Ikaw ba ay madugo kapag binubunutan ng ngipin?', source: null },
-  { n: 10, q: 'Naninikip ba ang iyong dibdib? / meadaling mapagod?', source: null },
-  { n: 11, q: 'Mayroon ka bang hika?', source: null },
-  { n: 12, q: 'Mayroon ka bang regla? (para sa babae)', source: null },
-  { n: 13, q: 'Ikaw ba ay buntis?', source: null },
-  { n: 14, q: 'Ikaw ba ay naospital na?', source: (y) => y.medicalHistory?.previous_hospitalization ?? null },
-  { n: 15, q: 'Ikaw ba ay may iniinom na gamot sa kasalukuyan?', source: null },
-  { n: 16, q: 'Ikaw ba ay may epilepsy?', source: null },
+ *  ⚠ Q3 and Q4 read their OWN fields (liver_disease, anemia), not the IPTR's
+ *  hepatitis / blood-disorder rows: "may sakit sa atay" is broader than
+ *  hepatitis, and "kulang sa dugo" is one kind of blood disorder, so answering
+ *  one from the other would put an assertion nobody made on a signed form.
+ *  `remark` fills the Remarks column from the matching "Ano?" detail. */
+const med = (f: keyof NonNullable<IptrYearData['medicalHistory']>) =>
+  (y: IptrYearData) => (y.medicalHistory?.[f] as boolean | null | undefined) ?? null;
+const HISTORY_QUESTIONS: { n: number; q: string; source: (y: IptrYearData) => boolean | null; remark?: (y: IptrYearData) => string }[] = [
+  { n: 1, q: 'Mayroon ka bang diabetes?', source: med('diabetes_mellitus') },
+  { n: 2, q: 'Mayroon ka bang sakit sa puso?', source: med('cardiovascular_disease') },
+  { n: 3, q: 'Mayroon ka bang sakit sa atay?', source: med('liver_disease') },
+  { n: 4, q: 'Ikaw ba ay kulang sa dugo?', source: med('anemia') },
+  { n: 5, q: 'Mataas ba ang presyon ng iyong dugo? Ano?', source: med('hypertension') },
+  // No separate yes/no on the record: an allergy is "Oo" when one is written
+  // down and unanswered otherwise.
+  { n: 6, q: 'Mayroon ka bang allergy sa pagkain? Sa gamot? Ano?', source: (y) => (y.medicalHistory?.allergies ? true : null), remark: (y) => y.medicalHistory?.allergies ?? '' },
+  { n: 7, q: 'Mayroon ka bang allergy sa pamamanhid (anesthesia)?', source: med('anesthesia_allergy') },
+  { n: 8, q: 'Ikaw ba ay nabunutan na ng ngipin?', source: med('previous_extraction') },
+  { n: 9, q: 'Ikaw ba ay madugo kapag binubunutan ng ngipin?', source: med('extraction_bleeding') },
+  { n: 10, q: 'Naninikip ba ang iyong dibdib? / meadaling mapagod?', source: med('chest_tightness') },
+  { n: 11, q: 'Mayroon ka bang hika?', source: med('asthma') },
+  { n: 12, q: 'Mayroon ka bang regla? (para sa babae)', source: med('menstruation') },
+  { n: 13, q: 'Ikaw ba ay buntis?', source: med('pregnant') },
+  { n: 14, q: 'Ikaw ba ay naospital na?', source: med('previous_hospitalization'), remark: (y) => y.medicalHistory?.last_admission ?? '' },
+  { n: 15, q: 'Ikaw ba ay may iniinom na gamot sa kasalukuyan?', source: med('current_medication'), remark: (y) => y.medicalHistory?.medication_details ?? '' },
+  { n: 16, q: 'Ikaw ba ay may epilepsy?', source: med('epilepsy') },
 ];
 
 /** Reproduced verbatim — it is what the patient or guardian signs under. */
@@ -98,9 +102,9 @@ const SERVICE_COLUMNS: { label: string; code: string | null }[] = [
 ];
 
 const NO_SOURCE_NOTE =
-  'Place of Birth · Occupation · Consultation · Others · Signature, and history questions 3, 4, 7, 8, 9, 10, 11, 12, 13, 15 and 16 — ' +
-  'these are on the printed form and the system stores no answer for them, so they print blank rather than a guessed "Hindi". ' +
-  'The unmapped questions need the dentist to decide which stored field, if any, answers each.';
+  'Place of Birth · Occupation · Consultation · Others · Signature: ' +
+  'these are on the printed form and the system stores no answer for them, so they print blank. ' +
+  'A history question left unanswered on the History tab also prints blank, never a guessed "Hindi".';
 
 interface Props {
   student: ApiStudent;
@@ -235,9 +239,8 @@ export function IptrFormV2({ student, schoolName, years }: Props) {
               {HISTORY_QUESTIONS.map((q) => {
                 // The history is asked once, so the most recent year answers it.
                 const latest = shown[shown.length - 1] ?? null;
-                const v = latest && q.source ? q.source(latest) : null;
-                const remark =
-                  q.n === 6 && latest?.medicalHistory?.allergies ? latest.medicalHistory.allergies : '';
+                const v = latest ? q.source(latest) : null;
+                const remark = latest && q.remark ? q.remark(latest) : '';
                 return (
                   <tr key={q.n}>
                     <td className={cell}>{q.n}. {q.q}</td>

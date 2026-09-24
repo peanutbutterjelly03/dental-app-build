@@ -31,15 +31,16 @@ export interface AggIptr {
 export interface AggMedical {
   iptr_id: string;
   allergies?: string;
-  hypertension?: boolean;
-  diabetes_mellitus?: boolean;
-  cardiovascular_disease?: boolean;
-  thyroid_disorders?: boolean;
-  hepatitis_disorders?: boolean;
-  malignancy?: boolean;
-  previous_hospitalization?: boolean;
-  blood_transfusion?: boolean;
-  tattoo?: boolean;
+  hypertension?: boolean | null;
+  diabetes_mellitus?: boolean | null;
+  blood_disorders?: boolean | null;
+  cardiovascular_disease?: boolean | null;
+  thyroid_disorders?: boolean | null;
+  hepatitis_disorders?: boolean | null;
+  malignancy?: boolean | null;
+  previous_hospitalization?: boolean | null;
+  blood_transfusion?: boolean | null;
+  tattoo?: boolean | null;
 }
 export interface AggDietary {
   iptr_id: string;
@@ -147,6 +148,7 @@ export const REAL_MEDICAL_FIELDS: Record<string, keyof AggMedical> = {
   allergies: 'allergies',
   hypertension: 'hypertension',
   diabetes: 'diabetes_mellitus',
+  bloodDisorders: 'blood_disorders',
   cardiovascular: 'cardiovascular_disease',
   thyroid: 'thyroid_disorders',
   hepatitis: 'hepatitis_disorders',

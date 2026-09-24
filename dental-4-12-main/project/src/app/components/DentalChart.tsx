@@ -28,7 +28,7 @@ import { AiRiskTab } from './AiRiskTab';
 import { TreatmentHistoryTab } from './TreatmentHistoryTab';
 import { ReferralsTab } from './ReferralsTab';
 import { HistoryTab } from './HistoryTab';
-import { emptyMed, emptyDiet, emptyOral, type MedicalHistoryDraft, type DietDraft, type OralDraft } from './iptrDrafts';
+import { emptyMed, medDraftFrom, emptyDiet, emptyOral, type MedicalHistoryDraft, type DietDraft, type OralDraft } from './iptrDrafts';
 import type { ReferralType } from '../api/types';
 import {
   sectionBRows,
@@ -414,12 +414,7 @@ export const DentalChart = () => {
     setDraftChart(chart);
 
     const mh = currentYearData.medicalHistory;
-    setDraftMed(mh ? {
-      allergies: mh.allergies, hypertension: mh.hypertension, diabetes: mh.diabetes_mellitus,
-      bloodDisorders: false, cardiovascular: mh.cardiovascular_disease, thyroid: mh.thyroid_disorders,
-      hepatitis: mh.hepatitis_disorders, malignancy: mh.malignancy, hospitalization: mh.previous_hospitalization,
-      bloodTransfusion: mh.blood_transfusion, tattoo: mh.tattoo, others: mh.others,
-    } : emptyMed());
+    setDraftMed(mh ? medDraftFrom(mh) : emptyMed());
 
     const dh = currentYearData.dietaryHabits;
     setDraftDiet(dh ? {
@@ -931,14 +926,9 @@ export const DentalChart = () => {
       });
       toothWrites.push(...clearedRecords.map((tr) => apiClient.patch(`/tooth-records/${tr._id}/archive`)));
 
-      const medBody = {
-        iptr_id: currentYearData.iptr._id,
-        allergies: draftMed.allergies, hypertension: draftMed.hypertension, diabetes_mellitus: draftMed.diabetes,
-        cardiovascular_disease: draftMed.cardiovascular, thyroid_disorders: draftMed.thyroid,
-        hepatitis_disorders: draftMed.hepatitis, malignancy: draftMed.malignancy,
-        previous_hospitalization: draftMed.hospitalization, previous_surgical: false,
-        blood_transfusion: draftMed.bloodTransfusion, tattoo: draftMed.tattoo, others: draftMed.others,
-      };
+      // The draft already uses MEDICAL_HISTORY's field names (2026-09-24), so
+      // it is sent as-is. `previous_surgical` used to be hard-coded false here.
+      const medBody = { iptr_id: currentYearData.iptr._id, ...draftMed };
       const medWrite = currentYearData.medicalHistory
         ? apiClient.put(`/medical-histories/${currentYearData.medicalHistory._id}`, medBody)
         : apiClient.post('/medical-histories', medBody);
