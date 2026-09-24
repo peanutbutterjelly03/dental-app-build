@@ -2389,8 +2389,10 @@ export const DentalChart = () => {
               <div className="bg-teal-50/70 rounded-xl border border-teal-200 p-4 space-y-4">
                 <div className="text-xs font-semibold text-teal-800 uppercase tracking-wide">Dental Condition Summary</div>
 
+                {/* 45% label column = Indicate Number's first column below, so
+                    the answers start on the same line as its Tooth Count. */}
                 <table className="w-full table-fixed border-collapse text-xs">
-                  <colgroup><col className="w-[63%]" /><col className="w-[37%]" /></colgroup>
+                  <colgroup><col className="w-[45%]" /><col className="w-[55%]" /></colgroup>
                   <tbody>
                     <tr>
                       <td className="border-b border-teal-200/70 px-2 py-1.5 text-foreground">Date of Oral Examination</td>
@@ -2467,8 +2469,8 @@ export const DentalChart = () => {
                   <thead>
                     <tr className="text-primary">
                       <th className="border-b border-blue-200/70 px-2 py-1.5" />
-                      <th colSpan={2} className="border-b border-blue-200/70 px-2 py-1.5 text-center font-semibold border-r border-r-blue-200/70">Visit 1</th>
-                      <th colSpan={2} className="border-b border-blue-200/70 px-2 py-1.5 text-center font-semibold">Visit 2</th>
+                      <th colSpan={2} className="border-b border-blue-200/70 px-2 py-1.5 text-left font-semibold border-r border-r-blue-200/70">Visit 1</th>
+                      <th colSpan={2} className="border-b border-blue-200/70 px-2 py-1.5 text-left font-semibold">Visit 2</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2490,14 +2492,14 @@ export const DentalChart = () => {
                           <tr>
                             <td className={`${cell} text-foreground`}>Date of Treatment</td>
                             {cols.map((c, i) => (
-                              <td key={i} colSpan={2} className={`${cell} text-center font-semibold text-primary ${i === 0 ? v1Divider : ''}`}>{c.date ? formatDate(c.date) : ''}</td>
+                              <td key={i} colSpan={2} className={`${cell} text-left font-semibold text-primary ${i === 0 ? v1Divider : ''}`}>{c.date ? formatDate(c.date) : ''}</td>
                             ))}
                           </tr>
                           {serviceChips.map(({ label, field }) => (
                             <tr key={field}>
                               <td className={`${cell} text-foreground`}>{label}</td>
                               {cols.map((c, i) => (
-                                <td key={i} colSpan={2} className={`${cell} text-center font-semibold text-primary ${i === 0 ? v1Divider : ''}`}>{c.services[field] === true ? 'Yes' : ''}</td>
+                                <td key={i} colSpan={2} className={`${cell} text-left font-semibold text-primary ${i === 0 ? v1Divider : ''}`}>{c.services[field] === true ? 'Yes' : ''}</td>
                               ))}
                             </tr>
                           ))}
