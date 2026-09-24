@@ -797,6 +797,12 @@ export const DentalChart = () => {
   };
 
   const [confirmDeleteYear, setConfirmDeleteYear] = useState<number | null>(null);
+  // "Edit date" in the School year menu (user, 2026-09-24): the date stamp
+  // under each year chip is that year's DENTAL_CHART.date_charted.
+  const [editDateYear, setEditDateYear] = useState<number | null>(null);
+  const [editDateValue, setEditDateValue] = useState('');
+  const [editDateSaving, setEditDateSaving] = useState(false);
+  const [editDateError, setEditDateError] = useState<string | null>(null);
   // Step-up check before removing a school year (Sprint 178, hers). ⚠ A random
   // field name: the literal string "password" in a name or id is what several
   // autofill engines key off, even with autocomplete overridden, and this must
@@ -819,6 +825,31 @@ export const DentalChart = () => {
       setSaveError(err instanceof ApiError ? err.message : 'Failed to remove school year');
     }
   };
+  const saveEditDate = async () => {
+    if (editDateYear === null) return;
+    const y = years[editDateYear];
+    if (!y || !editDateValue) { setEditDateError('Pick a date.'); return; }
+    setEditDateSaving(true);
+    setEditDateError(null);
+    try {
+      if (y.dentalChart) {
+        await apiClient.put(`/dental-charts/${y.dentalChart._id}`, { date_charted: editDateValue });
+      } else {
+        // No chart yet for this year ("No date stamp"): the date IS the
+        // chart's, so setting one opens it, the same way Save does.
+        if (!currentDentist) throw new ApiError(400, 'No dentist record linked to your account.');
+        await apiClient.post('/dental-charts', { iptr_id: y.iptr._id, dentist_id: currentDentist._id, date_charted: editDateValue });
+      }
+      await reload();
+      setEditDateYear(null);
+      toast.success('Date updated.');
+    } catch (err) {
+      setEditDateError(err instanceof ApiError ? err.message : 'Could not update the date.');
+    } finally {
+      setEditDateSaving(false);
+    }
+  };
+
   const confirmDeleteYearNow = async () => {
     if (confirmDeleteYear === null) return;
     if (!yearPassword) {
@@ -1903,6 +1934,20 @@ export const DentalChart = () => {
                             </>
                           );
                         })()}
+                        {/* Not while editing: saving the date reloads the record,
+                            which would discard unsaved chart edits. */}
+                        <button type="button" disabled={editMode}
+                          title={editMode ? 'Save or cancel your edits first' : undefined}
+                          onClick={() => {
+                            setYearMenuOpen(false);
+                            const dc = years[selectedYear]?.dentalChart?.date_charted;
+                            setEditDateValue(dc ? new Date(dc).toISOString().slice(0, 10) : toLocalDateString(new Date()));
+                            setEditDateError(null);
+                            setEditDateYear(selectedYear);
+                          }}
+                          className="block w-full text-left px-3 py-2 text-xs text-foreground hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed">
+                          Edit date ({years[selectedYear]?.iptr.school_year})
+                        </button>
                         {years.length > 1 && (
                           <button type="button"
                             onClick={() => { setYearMenuOpen(false); setConfirmDeleteYear(selectedYear); }}
@@ -2765,6 +2810,25 @@ export const DentalChart = () => {
         )}
       </div>
       </div>{/* end recordRef — PDF capture region */}
+      <ConfirmDialog
+        open={editDateYear !== null}
+        tone="default"
+        title={`Edit date for ${editDateYear !== null ? years[editDateYear]?.iptr.school_year ?? 'school year' : 'school year'}`}
+        message={
+          <div className="space-y-1">
+            <label htmlFor="iptr-edit-date" className="block text-xs font-medium text-foreground">Date of oral examination</label>
+            <input id="iptr-edit-date" type="date" value={editDateValue} max={toLocalDateString(new Date())}
+              onChange={(e) => { setEditDateValue(e.target.value); setEditDateError(null); }}
+              disabled={editDateSaving}
+              className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60" />
+            {editDateError && <p className="text-xs text-destructive">{editDateError}</p>}
+          </div>
+        }
+        confirmLabel="Save date"
+        busy={editDateSaving}
+        onConfirm={saveEditDate}
+        onCancel={() => setEditDateYear(null)}
+      />
       <ConfirmDialog
         open={confirmDeleteYear !== null}
         title={`Remove ${confirmDeleteYear !== null ? years[confirmDeleteYear]?.iptr.school_year ?? 'school year' : 'school year'}?`}
