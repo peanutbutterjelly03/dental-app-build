@@ -869,6 +869,10 @@ export const DentalChart = () => {
       // or a Treatments-Given-only save on a pupil's first-ever charting this
       // year would have nowhere to write the visit.
       const hasAnyService = Object.values(draftServices).some((v) => v === true);
+      // A treatment charted on a tooth also opens the active visit (user,
+      // 2026-09-24): the treatment is tagged with this visit's number, so the
+      // visit it belongs to must exist even when no service is ticked.
+      const chartsTreatment = pendingTeeth.some(([, entry]) => entry.treatment !== '');
       let chartId = currentYearData.dentalChart?._id;
       if (!chartId && (pendingTeeth.length > 0 || hasAnyService)) {
         if (!currentDentist) throw new Error('No dentist record linked to your account.');
@@ -947,7 +951,7 @@ export const DentalChart = () => {
           ...draftServices,
           ...(draftVisitDate ? { visit_date: draftVisitDate } : {}),
         }));
-      } else if (hasAnyService) {
+      } else if (hasAnyService || chartsTreatment) {
         extraWrites.push(apiClient.post('/preventive-care-records', {
           iptr_id: currentYearData.iptr._id,
           visit_date: draftVisitDate || draftChartDate || toLocalDateString(new Date()),
@@ -2185,8 +2189,8 @@ export const DentalChart = () => {
                     requiring one to already exist. Shown only pre-save so it
                     doesn't linger once the visit is real. */}
                 {!activeVisitRecord && (
-                  <p className="mt-2 text-[11px] text-muted-foreground">
-                    Recording a service here creates this school year's Visit {activeVisit} when you save.
+                  <p className="mt-2 text-[10px] text-muted-foreground">
+                    Recording a service or charting a treatment creates this school year's Visit {activeVisit} when you save.
                   </p>
                 )}
               </div>
@@ -2271,8 +2275,8 @@ export const DentalChart = () => {
                     const c = conditionCodes.find((x) => x.code === selectedCondition);
                     return (
                       <div className="mt-3 flex items-center gap-2">
-                        <span className="font-palette text-[11px] font-semibold px-2.5 py-1 rounded-full bg-teal-100 text-teal-800">
-                          {c ? conditionCodeText(c) : ''} · {c?.label}: click teeth to apply
+                        <span className="font-palette text-[10px] font-semibold px-2 py-0.5 rounded-full bg-teal-100 text-teal-800">
+                          {c ? conditionCodeText(c) : ''} · {c?.label} (Click teeth to apply)
                         </span>
                         <button onClick={() => setSelectedCondition(null)} className="text-xs text-muted-foreground hover:text-foreground underline">Clear</button>
                       </div>
@@ -2338,8 +2342,8 @@ export const DentalChart = () => {
                     const t = treatmentCodes.find((x) => x.code === selectedTreatment);
                     return (
                       <div className="mt-3 flex items-center gap-2">
-                        <span className="font-palette text-[11px] font-semibold px-2.5 py-1 rounded-full bg-blue-100 text-blue-800">
-                          {selectedTreatment} · {t?.label}: click teeth to apply
+                        <span className="font-palette text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                          {selectedTreatment} · {t?.label} (Click teeth to apply)
                         </span>
                         <button onClick={() => setSelectedTreatment(null)} className="text-xs text-muted-foreground hover:text-foreground underline">Clear</button>
                       </div>
