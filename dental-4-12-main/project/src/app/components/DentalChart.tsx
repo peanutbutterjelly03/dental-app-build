@@ -2467,7 +2467,7 @@ export const DentalChart = () => {
                   <thead>
                     <tr className="text-primary">
                       <th className="border-b border-blue-200/70 px-2 py-1.5" />
-                      <th colSpan={2} className="border-b border-blue-200/70 px-2 py-1.5 text-center font-semibold border-r border-r-blue-300">Visit 1</th>
+                      <th colSpan={2} className="border-b border-blue-200/70 px-2 py-1.5 text-center font-semibold border-r border-r-blue-200/70">Visit 1</th>
                       <th colSpan={2} className="border-b border-blue-200/70 px-2 py-1.5 text-center font-semibold">Visit 2</th>
                     </tr>
                   </thead>
@@ -2484,7 +2484,7 @@ export const DentalChart = () => {
                       const cols = [visitCol(1), visitCol(2)];
                       const cell = 'border-b border-blue-200/70 px-2 py-1.5';
                       // Vertical line closing the Visit 1 block (user, 2026-09-24).
-                      const v1Divider = 'border-r border-r-blue-300';
+                      const v1Divider = 'border-r border-r-blue-200/70';
                       return (
                         <>
                           <tr>
@@ -2501,9 +2501,10 @@ export const DentalChart = () => {
                               ))}
                             </tr>
                           ))}
-                          {/* Plain gap, no lines -- the same 16px space-y-4 puts between the
-                              Dental Condition Summary and Indicate Number tables. */}
-                          <tr aria-hidden="true"><td colSpan={5} className="h-4 p-0" /></tr>
+                          {/* Plain gap, no horizontal lines -- the same 16px space-y-4 puts
+                              between the Dental Condition Summary and Indicate Number
+                              tables. The Visit 1 divider runs through it unbroken. */}
+                          <tr aria-hidden="true"><td colSpan={3} className={`h-4 p-0 ${v1Divider}`} /><td colSpan={2} className="h-4 p-0" /></tr>
                           <tr className="text-left text-primary">
                             <th className={`${cell} font-semibold`}>Treatment</th>
                             <th className={`${cell} font-semibold`}>Tooth Count</th>
