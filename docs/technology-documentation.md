@@ -85,6 +85,7 @@ that powers it and the exact click path to see it working.
 | Offline support, installability, update prompt | **vite-plugin-pwa 1.2** + custom service worker | Only in a production build — go offline and the app still loads; the offline banner appears and submissions queue | `src/sw.ts`, `vite.config.ts` |
 | Offline write queue | **IndexedDB** (browser built-in, no library) | Submit a form while offline → it queues FIFO and syncs on reconnect | `src/app/offline/` |
 | Risk Classification (ML) | **Render FastAPI** via Express proxy | Sidebar → **AI Analytics** / Risk Classification. Dentist must validate before any clinical action. | `AIAnalytics.tsx` → `predictionRoutes.ts` |
+| Calendar date picker | **react-day-picker 8.10** (imported 2026-09-24) | Student record → **School year** menu → **Edit date**: the calendar opens already showing | `DentalChart.tsx` (styled in `theme.css`, `.iptr-date-picker`) |
 | Typography | **@fontsource-variable/public-sans** | Global — the app's typeface, self-hosted (no Google Fonts request) | `src/main.tsx` |
 | Styling system | **Tailwind CSS 4.1** + design tokens | Global. Tokens in `src/styles/theme.css`; see `DESIGN.md` for the rules | `src/styles/` |
 
@@ -167,14 +168,15 @@ Passwords come from `.env` and are never printed or committed.
 
 ## 7. Declared but unused dependencies
 
-**Finding: of 73 runtime dependencies in `package.json`, only 22 are imported
-anywhere in the codebase. 51 are never imported.**
+**Finding: of 73 runtime dependencies in `package.json`, only 23 are imported
+anywhere in the codebase. 50 are never imported.** (`react-day-picker` moved
+from unused to used on 2026-09-24.)
 
 These are residue from the original Figma Make prototype, which shipped a full
 component library that the rebuilt application does not use. The unused set
 includes all 26 `@radix-ui/*` packages, `@mui/material` and `@mui/icons-material`
 with their `@emotion` peers, and `sonner`, `motion`, `vaul`, `cmdk`,
-`react-hook-form`, `next-themes`, `react-day-picker`, `react-dnd`,
+`react-hook-form`, `next-themes`, `react-dnd`,
 `canvas-confetti`, `embla-carousel-react`, `react-slick`, `input-otp`,
 `clsx`, `tailwind-merge`, `class-variance-authority`, and others.
 

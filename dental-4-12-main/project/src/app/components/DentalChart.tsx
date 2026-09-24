@@ -13,6 +13,8 @@ import { validateStudentValues } from '../../../shared/studentValidation';
 import { useDentalChartData } from '../hooks/useDentalChartData';
 import { apiClient, ApiError } from '../api/client';
 import { toLocalDateString, formatDate } from '../utils/localDate';
+import { DayPicker } from 'react-day-picker';
+import 'react-day-picker/dist/style.css';
 import { schoolYearLabel } from '../utils/schoolYear';
 import { TOPBAR_H } from '../utils/layout';
 import { surnameFirst, surnameFirstWithInitial } from '../utils/studentName';
@@ -2816,11 +2818,18 @@ export const DentalChart = () => {
         title={`Edit date for ${editDateYear !== null ? years[editDateYear]?.iptr.school_year ?? 'school year' : 'school year'}`}
         message={
           <div className="space-y-1">
-            <label htmlFor="iptr-edit-date" className="block text-xs font-medium text-foreground">Date of oral examination</label>
-            <input id="iptr-edit-date" type="date" value={editDateValue} max={toLocalDateString(new Date())}
-              onChange={(e) => { setEditDateValue(e.target.value); setEditDateError(null); }}
-              disabled={editDateSaving}
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60" />
+            {/* An open calendar, not a date box (user, 2026-09-24): picking
+                the date should need no extra click to reveal the picker. */}
+            {(() => {
+              const [yy, mm, dd] = editDateValue.split('-').map(Number);
+              const picked = editDateValue ? new Date(yy, mm - 1, dd) : undefined;
+              return (
+                <DayPicker mode="single" selected={picked} defaultMonth={picked} disabled={{ after: new Date() }}
+                  onSelect={(d) => { if (d) { setEditDateValue(toLocalDateString(d)); setEditDateError(null); } }}
+                  className="iptr-date-picker m-0" />
+              );
+            })()}
+            <p className="text-xs text-foreground">Date of oral examination: <strong>{editDateValue ? formatDate(editDateValue) : 'none picked'}</strong></p>
             {editDateError && <p className="text-xs text-destructive">{editDateError}</p>}
           </div>
         }
