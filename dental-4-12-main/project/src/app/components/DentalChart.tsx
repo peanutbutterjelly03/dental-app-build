@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
-import { ArrowLeft, Save, ChevronLeft, ChevronRight, Shield, Users, FileText, Plus, Pencil, Trash2, X, Maximize2, Minimize2, Check, ChevronUp, ChevronDown, ShieldCheck, ShieldAlert, Shield as ShieldIcon, MoreVertical, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Save, ChevronLeft, ChevronRight, Shield, Users, FileText, Plus, Pencil, Trash2, Download, X, Maximize2, Minimize2, Check, ChevronUp, ChevronDown, ShieldCheck, ShieldAlert, Shield as ShieldIcon, MoreVertical, AlertTriangle } from 'lucide-react';
 import { buildPagesPdf } from '../utils/exportPdf';
 import { usePreviewModal } from '../hooks/usePreviewModal';
 import { PreviewModal } from './PreviewModal';
@@ -1452,6 +1452,7 @@ export const DentalChart = () => {
               aria-expanded={pdfMenuOpen}
               className="flex h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-60"
             >
+              <Download className="h-4 w-4" />
               {pdfBusy ? 'Preparing…' : 'Download PDF'}
               <ChevronDown className={`h-3.5 w-3.5 transition-transform ${pdfMenuOpen ? 'rotate-180' : ''}`} />
             </button>
