@@ -119,10 +119,9 @@ const paletteBtn = 'h-10 min-w-[52px] shrink-0 rounded-md border px-3 text-cente
 // ✓ reads the same permanent and temporary, so it shows once, not "✓/✓".
 const conditionCodeText = (c: { perm: string; temp: string }) => (c.perm === c.temp ? c.perm : `${c.perm}/${c.temp}`);
 
-// The form downloads (user, 2026-09-24): ONE solid red "Download PDF" button
-// that opens a menu of the two forms (user's pick "3", icon "F"). Red is the
-// usual PDF colour, so it reads as a file download and not as the grey
-// navigation beside it. `paper`/`letters` let the same page icon sit white on
+// The form downloads (user, 2026-09-24): ONE solid dark-blue "Download PDF"
+// button (the sidebar navy) that opens a menu of the two forms (user's pick
+// "3", icon "F"). The red PDF page icon is what marks it as a PDF. `paper`/`letters` let the same page icon sit white on
 // the red button and red on the white menu.
 const PdfPageIcon = ({ paper, fold, letters, className = 'h-5 w-5' }: { paper: string; fold: string; letters: string; className?: string }) => (
   <svg viewBox="0 0 24 24" className={`shrink-0 ${className}`} aria-hidden="true">
@@ -1451,7 +1450,7 @@ export const DentalChart = () => {
               disabled={pdfBusy}
               aria-haspopup="menu"
               aria-expanded={pdfMenuOpen}
-              className="flex h-9 items-center gap-2 rounded-lg bg-red-600 px-3 text-xs font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-60"
+              className="flex h-9 items-center gap-2 rounded-lg bg-sidebar-bg px-3 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
             >
               <PdfPageIcon paper="#fff" fold="#fecaca" letters="#dc2626" />
               {pdfBusy ? 'Preparing…' : 'Download PDF'}
@@ -1465,7 +1464,7 @@ export const DentalChart = () => {
                 ] as const).map(([which, name, desc]) => (
                   <button key={which} type="button" role="menuitem"
                     onClick={() => { setPdfMenuOpen(false); onIptrPdf(which); }}
-                    className="flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-red-50">
+                    className="flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-primary-surface">
                     <PdfPageIcon paper="#dc2626" fold="#fca5a5" letters="#fff" className="mt-0.5 h-6 w-6" />
                     <span className="min-w-0">
                       <span className="block text-xs font-bold text-foreground">{name}</span>
