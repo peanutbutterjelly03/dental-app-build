@@ -40,20 +40,33 @@ function heightDraftToCm(d: HeightDraft, unit: HeightUnit): string {
   return roundStr((Number(d.main || 0) * 12 + Number(d.inches || 0)) * 2.54, 1);
 }
 
-// DOH Form 1 history questions with no IPTR chip of their own (2026-09-24),
-// verbatim from the printed form. Numbers match the form.
-const FORM1_QUESTIONS: { n: number; q: string; field: MedFlag; femaleOnly?: boolean }[] = [
-  { n: 3, q: 'Mayroon ka bang sakit sa atay?', field: 'liver_disease' },
-  { n: 4, q: 'Ikaw ba ay kulang sa dugo?', field: 'anemia' },
-  { n: 7, q: 'Mayroon ka bang allergy sa pamamanhid (anesthesia)?', field: 'anesthesia_allergy' },
-  { n: 8, q: 'Ikaw ba ay nabunutan na ng ngipin?', field: 'previous_extraction' },
-  { n: 9, q: 'Ikaw ba ay madugo kapag binubunutan ng ngipin?', field: 'extraction_bleeding' },
-  { n: 10, q: 'Naninikip ba ang iyong dibdib? / meadaling mapagod?', field: 'chest_tightness' },
-  { n: 11, q: 'Mayroon ka bang hika?', field: 'asthma' },
-  { n: 12, q: 'Mayroon ka bang regla? (para sa babae)', field: 'menstruation', femaleOnly: true },
-  { n: 13, q: 'Ikaw ba ay buntis?', field: 'pregnant', femaleOnly: true },
-  { n: 15, q: 'Ikaw ba ay may iniinom na gamot sa kasalukuyan?', field: 'current_medication' },
-  { n: 16, q: 'Ikaw ba ay may epilepsy?', field: 'epilepsy' },
+// Every medical-history chip, in display order (user, 2026-09-24). DOH Form
+// 1's Filipino questions are chips here under short English names (Form 1
+// itself still prints them verbatim in Filipino); the longer labels sit last.
+// `femaleOnly` = Form 1 Q12/Q13, "para sa babae".
+const MED_CHIPS: { label: string; field: MedFlag; femaleOnly?: boolean }[] = [
+  { label: 'Hypertension / CVA', field: 'hypertension' },
+  { label: 'Diabetes Mellitus', field: 'diabetes_mellitus' },
+  { label: 'Blood Disorders', field: 'blood_disorders' },
+  { label: 'Anemia', field: 'anemia' },                              // Form 1 Q4
+  { label: 'Cardiovascular / Heart Diseases', field: 'cardiovascular_disease' },
+  { label: 'Thyroid Disorders', field: 'thyroid_disorders' },
+  { label: 'Hepatitis', field: 'hepatitis_disorders' },
+  { label: 'Liver Disease', field: 'liver_disease' },                // Form 1 Q3
+  { label: 'Malignancy', field: 'malignancy' },
+  { label: 'Asthma', field: 'asthma' },                              // Form 1 Q11
+  { label: 'Epilepsy', field: 'epilepsy' },                          // Form 1 Q16
+  { label: 'Anesthesia Allergy', field: 'anesthesia_allergy' },      // Form 1 Q7
+  { label: 'History of Hospitalization', field: 'previous_hospitalization' },
+  { label: 'Surgical (Post-Operative)', field: 'previous_surgical' },
+  { label: 'Blood Transfusion', field: 'blood_transfusion' },
+  { label: 'Tattoo', field: 'tattoo' },
+  { label: 'Taking Medication', field: 'current_medication' },       // Form 1 Q15
+  { label: 'Menstruating', field: 'menstruation', femaleOnly: true }, // Form 1 Q12
+  { label: 'Pregnant', field: 'pregnant', femaleOnly: true },        // Form 1 Q13
+  { label: 'Previous Tooth Extraction', field: 'previous_extraction' },     // Form 1 Q8
+  { label: 'Bleeds a Lot After Extraction', field: 'extraction_bleeding' }, // Form 1 Q9
+  { label: 'Chest Tightness / Easily Tired', field: 'chest_tightness' },    // Form 1 Q10
 ];
 
 /** The tick-box chip used across this tab. Ticked prints "Oo" on DOH Form 1,
@@ -235,13 +248,7 @@ export function HistoryTab({
               On DOH Form 1 a ticked chip prints under Oo, an unticked one
               under Hindi (user, 2026-09-24). */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {([
-              ['Hypertension / CVA', 'hypertension'], ['Diabetes Mellitus', 'diabetes_mellitus'],
-              ['Blood Disorders', 'blood_disorders'], ['Cardiovascular / Heart Diseases', 'cardiovascular_disease'],
-              ['Thyroid Disorders', 'thyroid_disorders'], ['Hepatitis', 'hepatitis_disorders'], ['Malignancy', 'malignancy'],
-              ['History of Hospitalization', 'previous_hospitalization'], ['Surgical (Post-Operative)', 'previous_surgical'],
-              ['Blood Transfusion', 'blood_transfusion'], ['Tattoo', 'tattoo'],
-            ] as [string, MedFlag][]).map(([label, field]) => (
+            {MED_CHIPS.filter((c) => !c.femaleOnly || isFemale).map(({ label, field }) => (
               <CheckChip key={field} label={label} checked={med[field]} disabled={!editing}
                 onChange={(v) => setMed((p) => ({ ...p, [field]: v }))} />
             ))}
@@ -256,6 +263,7 @@ export function HistoryTab({
               ['Malignancy (please specify)', 'malignancy_details', 'malignancy', ''],
               ['Blood transfusion (month & year)', 'blood_transfusion_date', 'blood_transfusion', 'e.g. March 2024'],
               ['Last admission & cause', 'last_admission', 'previous_hospitalization', 'e.g. June 2025, dengue'],
+              ['Medication taken', 'medication_details', 'current_medication', ''],
               ['Others (please specify)', 'others', null, ''],
             ] as [string, MedText, MedFlag | null, string][])
               .filter(([, field, flag]) => !flag || med[flag] === true || med[field] !== '')
@@ -267,30 +275,6 @@ export function HistoryTab({
                     className="w-full text-xs border border-border rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
                 </div>
               ))}
-          </div>
-
-          {/* DOH Form 1's Filipino questions that the chips above do not
-              answer, verbatim from the form (its own spelling). Ticked prints
-              under Oo, unticked under Hindi. Q12 and Q13 are for girls only. */}
-          <div className="mt-4 border-t border-border pt-3">
-            <div className="text-sm font-bold text-foreground">Form 1 Questions</div>
-            <p className="text-[11px] text-muted-foreground mb-2">
-              Questions 1, 2, 5, 6 and 14 are answered by the chips above.
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {FORM1_QUESTIONS.filter((q) => !q.femaleOnly || isFemale).map((q) => (
-                <CheckChip key={q.field} label={`${q.n}. ${q.q}`} checked={med[q.field]} disabled={!editing}
-                  onChange={(v) => setMed((p) => ({ ...p, [q.field]: v }))} />
-              ))}
-            </div>
-            {(med.current_medication === true || med.medication_details !== '') && (
-              <div className="mt-2">
-                <label className="block text-xs text-muted-foreground mb-1">15. Anong gamot? (medicine taken)</label>
-                <input type="text" disabled={!editing} value={med.medication_details}
-                  onChange={(e) => setMed((p) => ({ ...p, medication_details: e.target.value }))}
-                  className="w-full text-xs border border-border rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
-              </div>
-            )}
           </div>
         </div>
         <div className="bg-card rounded-xl border border-border p-4">
