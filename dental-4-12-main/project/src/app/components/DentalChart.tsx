@@ -52,7 +52,6 @@ import {
   conditionCodes,
   treatmentCodes,
   perToothTreatmentCodes,
-  wholeMouthTreatmentCodes,
   treatmentLabel,
   type ChartEntry,
 } from '../utils/dentalChartCodes';
@@ -357,7 +356,6 @@ export const DentalChart = () => {
   // (Sprint 169, hers). `revert` distinguishes the two directions.
   const [confirmConsent, setConfirmConsent] = useState<{ schoolYear: string; revert: boolean } | null>(null);
   const [rareConditionsOpen, setRareConditionsOpen] = useState(false);
-  const [rareTreatmentsOpen, setRareTreatmentsOpen] = useState(false);
 
   useEffect(() => {
     if (!currentYearData) {
@@ -578,18 +576,13 @@ export const DentalChart = () => {
     return Number.isFinite(first) && first > 0 ? new Date(first, 5, 1) : null;
   };
 
-  // Auto-assigns today's date to BOTH "Date examined" and "Date treated" the
-  // first time a tooth is charted (2026-09-25) -- teeth belong to the same
-  // charting session as the conditions/services chips, so both dates matter.
-  // Never overwrites a date already set -- typing or loading a real one
-  // still wins. Unlike the two sync functions below, this never CLEARS a
-  // date either: emptying the odontogram isn't the same action as
-  // unticking every condition/service, and wasn't asked to clear anything.
-  const autoFillDates = () => {
-    const today = toLocalDateString(new Date());
-    setDraftChartDate((prev) => prev || today);
-    setDraftVisitDate((prev) => prev || today);
-  };
+  // Dates follow what is painted (user, 2026-09-24, replacing the earlier
+  // "fill both dates, never overwrite" rule): applying a CONDITION code stamps
+  // today on the oral-condition "Date examined"; applying a TREATMENT code
+  // stamps today on the active visit's Treatments Given date. Toggling a code
+  // off or erasing a tooth changes no date.
+  const stampConditionDate = () => setDraftChartDate(toLocalDateString(new Date()));
+  const stampTreatmentDate = () => setDraftVisitDate(toLocalDateString(new Date()));
 
   // "Date examined" tracks whether ANY oral condition chip (Others included)
   // is currently ticked (2026-09-25) -- auto-filled with today the moment
@@ -652,7 +645,6 @@ export const DentalChart = () => {
   };
 
   const handleToothPointerDown = (toothNumber: number) => {
-    autoFillDates();
     isPaintingRef.current = true;
     if (selectedCondition) {
       const isTemp = temporaryTeeth.has(toothNumber);
@@ -662,12 +654,14 @@ export const DentalChart = () => {
       const value = current === code ? '' : selectedCondition;
       paintActionRef.current = 'condition';
       paintValueRef.current = value;
+      if (value) stampConditionDate();
       applyToothPaint(toothNumber, 'condition', value);
     } else if (selectedTreatment) {
       const current = currentChart[toothNumber]?.treatment;
       const value = current === selectedTreatment ? '' : selectedTreatment;
       paintActionRef.current = 'treatment';
       paintValueRef.current = value;
+      if (value) stampTreatmentDate();
       applyToothPaint(toothNumber, 'treatment', value);
     } else {
       paintActionRef.current = 'erase';
@@ -2300,13 +2294,12 @@ export const DentalChart = () => {
                       </button>
                     )}
                   </div>
-                  {/* The treatments that happen TO A TOOTH lead. ⚠ The three
-                      whole-mouth services are behind "More", NOT removed as
-                      they are on her branch: they are recorded on the RPC visit
-                      now (Sprint 147), but the palette has always allowed them
-                      on a tooth and old chartings carry them. Dropping them
-                      would leave an existing FV on tooth 16 with no way to
-                      change or clear it. */}
+                  {/* Per-tooth treatments ONLY (user, 2026-09-24). The whole-mouth
+                      codes (OEX, FV, OP, CONS) and their "More" button are gone:
+                      those are recorded under Treatments Given. An old tooth
+                      still carrying one shows it on the chart and in the
+                      Treatment Summary, and is cleared with the eraser (paint
+                      the tooth with no code selected). */}
                   <div className="flex flex-wrap items-center gap-1.5">
                     {perToothTreatmentCodes.map((t) => (
                       <button key={t.code} title={treatmentLabel(t)}
@@ -2315,29 +2308,7 @@ export const DentalChart = () => {
                         {t.code}
                       </button>
                     ))}
-                    <button type="button" onClick={() => setRareTreatmentsOpen((v) => !v)}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">
-                      {rareTreatmentsOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                      More ({wholeMouthTreatmentCodes.length})
-                    </button>
                   </div>
-                  {rareTreatmentsOpen && (
-                    <div className="mt-2">
-                      <div className="flex flex-wrap gap-1.5">
-                        {wholeMouthTreatmentCodes.map((t) => (
-                          <button key={t.code} title={treatmentLabel(t)}
-                            onClick={() => { setSelectedTreatment(selectedTreatment === t.code ? null : t.code); setSelectedCondition(null); }}
-                            className={`${paletteBtn} ${selectedTreatment === t.code ? 'bg-blue-600 text-white ring-2 ring-blue-300 border-blue-600' : 'bg-card border-border text-foreground hover:border-blue-400'}`}>
-                            {t.code}
-                          </button>
-                        ))}
-                      </div>
-                      <p className="mt-1.5 text-[11px] text-muted-foreground">
-                        These describe the whole mouth. Record them under <strong>Treatments Given</strong> above, which is
-                        what the DOH return counts; charting them on a tooth is kept for older records.
-                      </p>
-                    </div>
-                  )}
                   {selectedTreatment && (() => {
                     const t = treatmentCodes.find((x) => x.code === selectedTreatment);
                     return (
