@@ -2501,7 +2501,9 @@ export const DentalChart = () => {
                               ))}
                             </tr>
                           ))}
-                          <tr aria-hidden="true"><td colSpan={5} className={`${cell} h-6`} /></tr>
+                          {/* Plain gap, no lines -- the same 16px space-y-4 puts between the
+                              Dental Condition Summary and Indicate Number tables. */}
+                          <tr aria-hidden="true"><td colSpan={5} className="h-4 p-0" /></tr>
                           <tr className="text-left text-primary">
                             <th className={`${cell} font-semibold`}>Treatment</th>
                             <th className={`${cell} font-semibold`}>Tooth Count</th>
