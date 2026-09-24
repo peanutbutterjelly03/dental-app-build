@@ -120,6 +120,15 @@
 
   html {
     font-size: var(--font-size);
+    /* App-wide scale-down (2026-09-24 user request): the RAMHIS-derived
+       redesign (76px topbar, generous card padding, w-11 avatars, etc.) reads
+       oversized at real 100% browser zoom. `zoom`, not `transform: scale` --
+       it reflows layout at the scaled size (matching real browser zoom
+       behavior, including how window.innerHeight/getBoundingClientRect
+       report values), so it doesn't leave extra blank space or throw off the
+       sticky-height math elsewhere in the app that already has to tolerate a
+       user's own browser zoom. Applies to every page from this one rule. */
+    zoom: 0.85;
   }
 
   h1 {
