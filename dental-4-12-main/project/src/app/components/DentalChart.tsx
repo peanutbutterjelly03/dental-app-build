@@ -1574,12 +1574,14 @@ export const DentalChart = () => {
                     {/* Nothing when the year has no recorded grade — the detail
                         line directly above already says so, and repeating it
                         here just doubled the same sentence. */}
-                    {yearGrade && <GradePill grade={yearGrade} />}
-                    {/* Same pill design as the charting-mode header below --
-                        one design for Grade + Section wherever they appear. */}
-                    {yearSection && (
-                      <span style={{ backgroundColor: gc.light, color: gc.solid }}
-                        className="rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap">{yearSection}</span>
+                    {/* Grade pill + section as plain small black text tucked
+                        right beside it -- same design as the charting-mode
+                        header below. */}
+                    {(yearGrade || yearSection) && (
+                      <span className="flex items-center gap-1">
+                        {yearGrade && <GradePill grade={yearGrade} />}
+                        {yearSection && <span className="text-[11px] font-medium text-foreground whitespace-nowrap">{yearSection}</span>}
+                      </span>
                     )}
                     {student.is_4ps && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">4Ps</span>}
                   </div>
@@ -1968,10 +1970,11 @@ export const DentalChart = () => {
                   {/* The same coloured pills the patient card uses. Charting
                       mode is exactly where a dentist confirms they have the
                       right child, so it should not invent a new way to say it. */}
-                  {yearGrade && <GradePill grade={yearGrade} />}
-                  {yearSection && (
-                    <span style={{ backgroundColor: gc.light, color: gc.solid }}
-                      className="rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap">{yearSection}</span>
+                  {(yearGrade || yearSection) && (
+                    <span className="flex items-center gap-1">
+                      {yearGrade && <GradePill grade={yearGrade} />}
+                      {yearSection && <span className="text-[11px] font-medium text-foreground whitespace-nowrap">{yearSection}</span>}
+                    </span>
                   )}
                   <span className="h-4 w-px bg-border" aria-hidden="true" />
                   <span className="text-xs text-muted-foreground whitespace-nowrap">
