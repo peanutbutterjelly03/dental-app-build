@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
 import { useRefreshOnFocus } from './useRefreshOnFocus';
 import { useLiveNumbers } from './useLiveNumbers';
+import { useLoadPhase } from './useLoadPhase';
 import type { ApiSchool } from '../api/types';
 import type { Counts, FhsisOutput } from '../../../shared/fhsis';
 import { emptyCounts } from '../../../shared/fhsis';
@@ -24,11 +25,11 @@ export function useFhsisData(month: string, schoolName: string) {
   const [counts, setCounts] = useState<Counts>(emptyCounts);
   const [schools, setSchools] = useState<ApiSchool[]>([]);
   const [monthsWithData, setMonthsWithData] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { loading, beginLoad, endLoad } = useLoadPhase();
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    beginLoad();
     setError(null);
     try {
       // Month and school are applied SERVER-side; filtering afterwards would
@@ -46,9 +47,9 @@ export function useFhsisData(month: string, schoolName: string) {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load FHSIS data');
     } finally {
-      setLoading(false);
+      endLoad();
     }
-  }, [month, schoolName]);
+  }, [month, schoolName, beginLoad, endLoad]);
 
   useEffect(() => {
     void load();

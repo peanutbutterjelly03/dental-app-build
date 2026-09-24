@@ -85,7 +85,9 @@ export const Pagination = ({
   // phone in the field, not only on a clinic PC.
   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
     <div className="flex items-center gap-2">
-      <label htmlFor="page-size" className="whitespace-nowrap">Items per page</label>
+      {/* theme.css's base `label` rule sets its own font-weight (medium),
+          which otherwise reads bolder than the plain text next to it. */}
+      <label htmlFor="page-size" className="whitespace-nowrap font-normal">Items per page</label>
       <select
         id="page-size"
         aria-label="Items per page"

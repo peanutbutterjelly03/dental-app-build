@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiClient } from '../api/client';
 import { useRefreshOnFocus } from './useRefreshOnFocus';
 import { useLiveNumbers } from './useLiveNumbers';
+import { useLoadPhase } from './useLoadPhase';
 import type { SchoolSummaryTally, SchoolSummaryOutput } from '../../../shared/schoolSummary';
 
 export {
@@ -36,7 +37,7 @@ export function useSchoolSummary(schoolName: string | null, schoolYear: string |
   const [tally, setTally] = useState<SchoolSummaryTally>(emptyTally);
   const [years, setYears] = useState<string[]>([]);
   const [unsexed, setUnsexed] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const { loading, beginLoad, endLoad } = useLoadPhase();
   const [error, setError] = useState<string | null>(null);
   // Same guard as useDohReportData: a slow earlier run must not land on top of
   // a newer one and resurrect stale counts.
@@ -45,7 +46,7 @@ export function useSchoolSummary(schoolName: string | null, schoolYear: string |
   const load = useCallback(async () => {
     const runId = ++runIdRef.current;
     const isStale = () => runId !== runIdRef.current;
-    setLoading(true);
+    beginLoad();
     try {
       // Scoped SERVER-side; filtering after the fact would put the whole
       // population back on the wire.
@@ -63,9 +64,9 @@ export function useSchoolSummary(schoolName: string | null, schoolYear: string |
       if (isStale()) return;
       setError(err instanceof Error ? err.message : 'Could not load the school summary.');
     } finally {
-      if (!isStale()) setLoading(false);
+      if (!isStale()) endLoad();
     }
-  }, [schoolName, schoolYear]);
+  }, [schoolName, schoolYear, beginLoad, endLoad]);
 
   useEffect(() => { void load(); }, [load]);
 

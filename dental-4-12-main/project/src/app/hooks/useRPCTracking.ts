@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
+import { useLoadPhase } from './useLoadPhase';
 import type { RPCRow, RpcListPage, RpcListQuery } from '../../../shared/rpcTracking';
 
 export { SOUND_TEMPORARY, SOUND_PERMANENT } from '../../../shared/rpcTracking';
@@ -18,7 +19,7 @@ const EMPTY: RpcListPage = { rows: [], total: 0, schoolTotal: 0, sectionOptions:
 
 export function useRPCTracking(query: RpcListQuery = {}) {
   const [page, setPage] = useState<RpcListPage>(EMPTY);
-  const [loading, setLoading] = useState(true);
+  const { loading, beginLoad, endLoad } = useLoadPhase();
   const [error, setError] = useState<string | null>(null);
 
   // Serialised so a changed FILTER re-runs the effect, not a new object
@@ -26,7 +27,7 @@ export function useRPCTracking(query: RpcListQuery = {}) {
   const key = JSON.stringify(query);
 
   const reload = useCallback(async () => {
-    setLoading(true);
+    beginLoad();
     try {
       const q: RpcListQuery = JSON.parse(key);
       const params = new URLSearchParams();
@@ -49,9 +50,9 @@ export function useRPCTracking(query: RpcListQuery = {}) {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load RPC records');
     } finally {
-      setLoading(false);
+      endLoad();
     }
-  }, [key]);
+  }, [key, beginLoad, endLoad]);
 
   useEffect(() => { void reload(); }, [reload]);
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { Search, X, CheckCircle, AlertCircle, Shield, School as SchoolIcon, List, ChevronLeft, ChevronRight, Eye, Users, ChevronDown } from 'lucide-react';
@@ -100,6 +100,44 @@ export const RPCTracking = () => {
 
   // Already filtered and paged by the server (Sprint 146).
   const filtered = rpcRecords;
+
+  // Bounds the row list to whatever viewport space is left below it and
+  // above the footer, so a short page of results still fills that space
+  // (fixed height, not max-height) instead of leaving a gray gap of bare
+  // page underneath the card — same pattern as PatientList's Students table.
+  const rowsWrapRef = useRef<HTMLDivElement | null>(null);
+  const footerRef = useRef<HTMLDivElement | null>(null);
+  const [rowsHeight, setRowsHeight] = useState<number | null>(null);
+
+  useEffect(() => {
+    const measure = () => {
+      if (!rowsWrapRef.current) return;
+      const top = rowsWrapRef.current.getBoundingClientRect().top;
+      const footerH = footerRef.current?.offsetHeight ?? 0;
+      setRowsHeight(Math.max(window.innerHeight - top - footerH, 160));
+    };
+    measure();
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(measure);
+      if (footerRef.current) resizeObserver.observe(footerRef.current);
+    }
+    window.addEventListener('resize', measure);
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [filtered.length, pageCount]);
+
+  // Trims any stray page scroll the estimate above leaves behind (e.g.
+  // <main>'s own bottom padding), the same correction pass PatientList uses.
+  useLayoutEffect(() => {
+    if (rowsHeight == null) return;
+    const overflow = document.documentElement.scrollHeight - window.innerHeight;
+    if (overflow > 0) {
+      setRowsHeight((h) => (h == null ? h : Math.max(h - overflow, 160)));
+    }
+  }, [rowsHeight]);
 
 
   // sectionFilter was missing from both of these — an active section filter
@@ -209,15 +247,20 @@ export const RPCTracking = () => {
       </div>
 
       <div className="bg-card rounded-xl border border-border overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Fixed height (not max-height), so this box is the only thing that
+            scrolls and it always fills down to the footer — see rowsHeight
+            above. Column headings stick to the TOP OF THIS BOX via `sticky`
+            on each `<th>`, not the `<tr>` (a sticky `<tr>` rendered as a
+            duplicate mid-table in some browsers, see PatientList). */}
+        <div ref={rowsWrapRef} className="overflow-auto" style={{ height: rowsHeight ?? undefined }}>
           <table className="w-full text-sm">
-            <thead className="bg-gray-100 border-b border-border">
-              <tr>
+            <thead>
+              <tr className="border-b border-border">
                 {['Student','Grade / Section','Visit 1','Visit 2','Status'].map(h => (
-                  <th key={h} className="text-left px-4 py-3 font-semibold text-foreground">{h}</th>
+                  <th key={h} className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 font-semibold text-foreground">{h}</th>
                 ))}
-                <th className="text-left pl-4 pr-2 py-3 font-semibold text-foreground">Days Until Due</th>
-                <th className="text-center pl-2 pr-4 py-3 font-semibold text-foreground">Actions</th>
+                <th className="sticky top-0 z-10 bg-gray-100 text-left pl-4 pr-2 py-3 font-semibold text-foreground">Days Until Due</th>
+                <th className="sticky top-0 z-10 bg-gray-100 text-center pl-2 pr-4 py-3 font-semibold text-foreground">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -274,7 +317,7 @@ export const RPCTracking = () => {
             </tbody>
           </table>
         </div>
-        <div className="flex flex-col gap-3 border-t border-gray-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div ref={footerRef} className="flex flex-col gap-3 border-t border-gray-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-col gap-1 text-sm text-muted-foreground">
             <span>
               Showing <span className="font-semibold text-foreground">{total === 0 ? 0 : (page - 1) * pageSize + 1}</span> to{' '}
@@ -283,7 +326,11 @@ export const RPCTracking = () => {
               {selectedSchool ? ` at ${selectedSchool}` : ''}
             </span>
             <div className="flex items-center gap-2">
-              <label htmlFor="rpc-page-size" className="whitespace-nowrap">Items per page</label>
+              {/* theme.css's base `label` rule sets its own font-size/weight
+                  (medium), which otherwise overrides the ancestor's text-sm —
+                  a bare element selector always wins over inheritance, so
+                  this needs its own explicit text-sm font-normal. */}
+              <label htmlFor="rpc-page-size" className="whitespace-nowrap text-sm font-normal">Items per page</label>
               <select
                 id="rpc-page-size"
                 aria-label="Items per page"
