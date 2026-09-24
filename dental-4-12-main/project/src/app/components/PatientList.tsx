@@ -1150,7 +1150,7 @@ export const PatientList = () => {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
-                <th className="sticky top-0 z-10 bg-card text-left px-4 py-3 sm:pl-6 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <th className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 sm:pl-6 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   {/* The row-number column doubles as "select all" once select
                       mode is on — same swap as each row's own cell, scoped to
                       the current page: now that the table paginates, ticking
@@ -1169,12 +1169,12 @@ export const PatientList = () => {
                     />
                   ) : '#'}
                 </th>
-                <th className="sticky top-0 z-10 bg-card text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Student</th>
-                <th className="sticky top-0 z-10 bg-card text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Grade</th>
-                <th className="sticky top-0 z-10 bg-card text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Section</th>
-                <th className="sticky top-0 z-10 bg-card text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Gender</th>
-                <th className="sticky top-0 z-10 bg-card text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Age</th>
-                <th className="sticky top-0 z-10 bg-card text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground sm:pr-6">Actions</th>
+                <th className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Student</th>
+                <th className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Grade</th>
+                <th className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Section</th>
+                <th className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Gender</th>
+                <th className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Age</th>
+                <th className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground sm:pr-6">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
