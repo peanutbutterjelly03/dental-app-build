@@ -80,32 +80,29 @@ const MED_CHIPS: { label: string; field: MedFlag | null; femaleOnly?: boolean; d
 ];
 
 /** A medical-history tick-box chip. When ticked, its detail boxes (if any)
- *  open inside it and it widens to the full row so they have room. */
+ *  sit INSIDE the chip on the same row, after the name (user's pick "A",
+ *  2026-09-24), and the chip widens to the full row to fit them. The box's
+ *  label is its placeholder and aria-label; on a phone the boxes wrap onto
+ *  the next line inside the chip. */
 function MedChip({ label, checked, onToggle, disabled, details, med, setText }: {
   label: string; checked: boolean; onToggle: (v: boolean) => void; disabled: boolean;
   details?: MedDetail[]; med: MedicalHistoryDraft; setText: (field: MedText, v: string) => void;
 }) {
   const open = checked && !!details?.length;
   return (
-    <div className={`rounded-lg border text-xs transition-colors ${open ? 'sm:col-span-2' : ''} ${checked ? 'border-primary bg-primary/10' : 'border-border'} ${disabled ? 'opacity-70' : ''}`}>
-      <label className={`flex items-center gap-2 px-3 py-2 text-xs ${checked ? 'text-primary font-medium' : 'text-foreground'} ${disabled ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-canvas rounded-lg'}`}>
+    <div className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border px-3 py-2 text-xs transition-colors ${open ? 'sm:col-span-2' : ''} ${checked ? 'border-primary bg-primary/10' : 'border-border'} ${disabled ? 'opacity-70' : 'hover:bg-canvas'}`}>
+      <label className={`flex shrink-0 items-center gap-2 text-xs ${checked ? 'text-primary font-medium' : 'text-foreground'} ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
         <input type="checkbox" disabled={disabled} checked={checked}
           onChange={(e) => onToggle(e.target.checked)}
           className="w-4 h-4 shrink-0 rounded accent-primary disabled:cursor-not-allowed" />
         {label}
       </label>
-      {open && (
-        <div className="grid grid-cols-1 gap-2 px-3 pb-2.5 sm:grid-cols-2">
-          {details!.map((d) => (
-            <div key={d.field}>
-              <label className="block text-[11px] text-muted-foreground mb-0.5">{d.label}</label>
-              <input type="text" disabled={disabled} value={med[d.field]} placeholder={d.placeholder}
-                onChange={(e) => setText(d.field, e.target.value)}
-                className="w-full bg-card text-xs border border-border rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
-            </div>
-          ))}
-        </div>
-      )}
+      {open && details!.map((d) => (
+        <input key={d.field} type="text" disabled={disabled} value={med[d.field]}
+          placeholder={d.placeholder ? `${d.label}, ${d.placeholder}` : d.label} aria-label={`${label}: ${d.label}`} title={d.label}
+          onChange={(e) => setText(d.field, e.target.value)}
+          className="min-w-[160px] flex-1 bg-card text-xs border border-border rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+      ))}
     </div>
   );
 }
