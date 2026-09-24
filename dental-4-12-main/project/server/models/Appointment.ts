@@ -10,7 +10,12 @@ const appointmentSchema = new mongoose.Schema({
   appointment_datetime: { type: Date, required: true },
   status: { type: String, maxlength: 50, required: true },
   // Not in the original ERD — added Sprint 11, see CLAUDE.md APPOINTMENT entry.
-  appointment_type: { type: String, maxlength: 50, required: true },
+  // 200: the create form lets several type pills be picked and joins them with
+  // ", " into one string (e.g. "Regular Checkup, Screening, Bayanihan
+  // Mission..."), so 50 rejected any multi-pick submission past two short
+  // types. Longest single label ("Bayanihan Mission") is 18 chars; 200 covers
+  // all 7 types picked at once (~130 chars) with headroom.
+  appointment_type: { type: String, maxlength: 200, required: true },
   requires_followup: { type: Boolean, default: false },
   parental_supervision_required: { type: Boolean, default: false },
   // ERD deviation, added 2026-09-25. Who the clinic can actually reach about

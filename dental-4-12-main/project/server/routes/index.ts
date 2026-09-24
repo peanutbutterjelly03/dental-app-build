@@ -958,7 +958,7 @@ router.use("/risk-stratifications", createCrudRouter(RiskStratification, {
 }));
 // dateField (Sprint 56): the Completed and Missed tabs have no self-limiting
 // date the way Today and Upcoming do, so without a bound they grow forever.
-router.use("/appointments", createCrudRouter(Appointment, { writeRoles: CLINICAL_WRITE_ROLES, dateField: "appointment_datetime" }));
+router.use("/appointments", createCrudRouter(Appointment, { writeRoles: CLINICAL_WRITE_ROLES, archiveRoles: CLINICAL_WRITE_ROLES, dateField: "appointment_datetime" }));
 router.use("/dentist-rotations", createCrudRouter(DentistRotation, { writeRoles: CLINICAL_WRITE_ROLES }));
 
 // Sprint 108 — notes written against a DATE rather than a patient. `dateField`

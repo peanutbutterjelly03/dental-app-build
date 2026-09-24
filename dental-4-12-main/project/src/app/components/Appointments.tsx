@@ -535,7 +535,7 @@ export const Appointments = () => {
                 onClick={() => { setDeleteModeTab(tabKey); setOpenTabMenu(null); }}
                 className="w-full text-left px-3 py-2 text-sm text-destructive hover:bg-danger-surface flex items-center gap-2"
               >
-                <Trash2 className="w-3.5 h-3.5" /> Delete…
+                <Trash2 className="w-3.5 h-3.5" /> Delete
               </button>
             </div>
           </>
@@ -695,6 +695,7 @@ export const Appointments = () => {
                 {soleStudent ? <>{a.grade} · {a.section}</> : <>{a.studentCount} students</>}
                 {!compact && <> · {shortDate}</>}
                 {' · '}{a.type}
+                {a.guardianContactNumber && <> · Guardian: {a.guardianContactNumber}</>}
               </div>
             </div>
           </div>

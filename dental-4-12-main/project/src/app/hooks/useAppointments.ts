@@ -36,6 +36,11 @@ export interface AppointmentSession {
   dentist: string;
   students: SessionStudent[];
   pending?: boolean;
+  /** Same number on every Appointment row a submission creates (see
+   *  Appointments.tsx's create form) — one per session, not per student.
+   *  Absent on sessions built from appointments created before this field
+   *  existed. */
+  guardianContactNumber?: string;
 }
 
 function calculateAge(birthdate: string) {
@@ -80,6 +85,7 @@ function buildSessions(
         dentist: dentistNameById.get(appt.dentist_id) ?? 'Unassigned',
         students: [],
         pending: appt._id.startsWith('pending-'),
+        guardianContactNumber: appt.guardian_contact_number,
       };
       groups.set(key, group);
     }
@@ -198,6 +204,7 @@ export function useAppointments(window: AppointmentWindow) {
         appointment_type: body.appointment_type ?? 'checkup',
         requires_followup: body.requires_followup ?? false,
         parental_supervision_required: body.parental_supervision_required ?? false,
+        guardian_contact_number: body.guardian_contact_number,
         isArchived: false,
       };
     });
