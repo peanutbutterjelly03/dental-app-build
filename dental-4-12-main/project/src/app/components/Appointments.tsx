@@ -544,11 +544,11 @@ export const Appointments = () => {
                 the trigger's own rect so no ancestor can clip it. */}
             <div
               style={tabMenuAt ? { top: tabMenuAt.top, right: tabMenuAt.right } : undefined}
-              className="fixed z-50 bg-card border border-border rounded-lg shadow-md py-1 w-40"
+              className="fixed z-50 bg-card border border-border rounded-lg shadow-md py-1 w-max"
             >
               <button
                 onClick={() => { setDeleteModeTab(tabKey); setOpenTabMenu(null); }}
-                className="w-full text-left px-3 py-2 text-sm text-destructive hover:bg-danger-surface flex items-center gap-2"
+                className="text-left pl-3 pr-4 py-2 text-sm text-destructive hover:bg-danger-surface flex items-center gap-2 whitespace-nowrap"
               >
                 <Trash2 className="w-3.5 h-3.5" /> Delete
               </button>
