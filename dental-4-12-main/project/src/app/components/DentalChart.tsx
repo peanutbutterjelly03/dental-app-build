@@ -134,6 +134,20 @@ const PdfPageIcon = ({ paper, fold, letters, className = 'h-5 w-5' }: { paper: s
   </svg>
 );
 
+// Summary-card styles (option A, 2026-09-24): shared by the Dental Condition
+// and Treatment Summary tables so the two cards cannot drift apart.
+const sumCell = 'border-b border-slate-100 px-3 py-1.5 text-foreground';
+const sumHead = 'bg-slate-50 text-left text-[10.5px] font-bold uppercase tracking-wide text-slate-600';
+const yesBadge = 'inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-bold text-green-800';
+/** Tooth numbers as small tags; wraps onto more lines when there are many. */
+const ToothTags = ({ teeth, tone }: { teeth: number[]; tone: 'teal' | 'blue' }) => (
+  <span className="flex flex-wrap gap-1">
+    {teeth.map((n) => (
+      <span key={n} className={`rounded px-1.5 py-px text-[10.5px] font-semibold ${tone === 'teal' ? 'bg-teal-100 text-teal-800' : 'bg-blue-100 text-blue-900'}`}>{n}</span>
+    ))}
+  </span>
+);
+
 // Charting mode survives the remount between students (Sprint 153).
 //
 // ⚠ MODULE SCOPE ON PURPOSE. routes.tsx keys this component by `:id`, so
@@ -2492,41 +2506,41 @@ export const DentalChart = () => {
                 Hidden in charting mode for the same reason: a read-out is not
                 a charting surface. */}
             {!chartingMode && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className="bg-teal-50/70 rounded-xl border border-teal-200 p-4 space-y-4">
-                <div className="text-xs font-semibold text-teal-800 uppercase tracking-wide">Dental Condition Summary</div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 items-start gap-4">
+              {/* ── The two summaries, "option A" (user, 2026-09-24): white
+                  cards with a coloured header band, soft striped rows, bold
+                  counts, tooth numbers as small tags and "Yes" as a green
+                  badge. Visit 1 / Visit 2 headings reuse the amber / violet of
+                  the V1/V2 tooth badges. No vertical divider and no ruled
+                  filler (user): each card is as tall as its own content. ── */}
+              <div className="overflow-hidden rounded-xl border border-border bg-card">
+                <div className="bg-teal-700 px-4 py-2.5 text-sm font-bold text-white">Dental Condition Summary</div>
 
                 {/* 45% label column = Indicate Number's first column below, so
                     the answers start on the same line as its Tooth Count. */}
                 <table className="w-full table-fixed border-collapse text-xs">
                   <colgroup><col className="w-[45%]" /><col className="w-[55%]" /></colgroup>
-                  <tbody>
+                  <tbody className="[&>tr:nth-child(even)>td]:bg-slate-50/70">
                     <tr>
-                      <td className="border-b border-teal-200/70 px-2 py-1.5 text-foreground">Date of Oral Examination</td>
-                      <td className="border-b border-teal-200/70 px-2 py-1.5 font-semibold text-teal-800">
-                        {draftChartDate ? formatDate(draftChartDate) : ''}
-                      </td>
+                      <td className={sumCell}>Date of Oral Examination</td>
+                      <td className={`${sumCell} font-bold`}>{draftChartDate ? formatDate(draftChartDate) : ''}</td>
                     </tr>
                     {/* AUTOMATIC (2026-09-25) — see isOrallyFitChild above:
                         no oral condition present and no tooth carrying a
                         treatment code. */}
                     <tr>
-                      <td className="border-b border-teal-200/70 px-2 py-1.5 text-foreground">Orally Fit Child</td>
-                      <td className="border-b border-teal-200/70 px-2 py-1.5 font-semibold text-teal-800">
-                        {isOrallyFitChild ? 'Yes' : ''}
-                      </td>
+                      <td className={sumCell}>Orally Fit Child</td>
+                      <td className={sumCell}>{isOrallyFitChild && <span className={yesBadge}>✓ Yes</span>}</td>
                     </tr>
                     {presentOralConditions.map(({ label, present }) => (
                       <tr key={label}>
-                        <td className="border-b border-teal-200/70 px-2 py-1.5 text-foreground">{label}</td>
-                        <td className="border-b border-teal-200/70 px-2 py-1.5 font-semibold text-teal-800">
-                          {present ? 'Yes' : ''}
-                        </td>
+                        <td className={sumCell}>{label}</td>
+                        <td className={sumCell}>{present && <span className={yesBadge}>✓ Yes</span>}</td>
                       </tr>
                     ))}
                     <tr>
-                      <td className="border-b border-teal-200/70 px-2 py-1.5 text-foreground">Others</td>
-                      <td className="border-b border-teal-200/70 px-2 py-1.5 text-foreground break-words">{draftOral.others}</td>
+                      <td className={sumCell}>Others</td>
+                      <td className={`${sumCell} break-words`}>{draftOral.others}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -2537,134 +2551,99 @@ export const DentalChart = () => {
                 <table className="w-full table-fixed border-collapse text-xs">
                   <colgroup><col className="w-[45%]" /><col className="w-[18%]" /><col className="w-[37%]" /></colgroup>
                   <thead>
-                    <tr className="text-left text-teal-800">
-                      <th className="border-b border-teal-200/70 px-2 py-1.5 font-semibold">Indicate Number</th>
-                      <th className="border-b border-teal-200/70 px-2 py-1.5 font-semibold">Tooth Count</th>
-                      <th className="border-b border-teal-200/70 px-2 py-1.5 font-semibold">Tooth Numbers</th>
+                    <tr className={sumHead}>
+                      <th className="px-3 py-2">Indicate Number</th>
+                      <th className="px-3 py-2">Tooth Count</th>
+                      <th className="px-3 py-2">Tooth Numbers</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="[&>tr:nth-child(even)>td]:bg-slate-50/70">
                     {indicateNumberRows.map(({ label, teeth }) => (
                       <tr key={label}>
-                        <td className="border-b border-teal-200/70 px-2 py-1.5 text-foreground">{label}</td>
-                        <td className="border-b border-teal-200/70 px-2 py-1.5 font-semibold text-foreground">
-                          {teeth.length ? teeth.length : ''}
-                        </td>
-                        <td className="border-b border-teal-200/70 px-2 py-1.5 font-mono text-foreground break-words">
-                          {teeth.join(', ')}
-                        </td>
+                        <td className={sumCell}>{label}</td>
+                        <td className={`${sumCell} text-[13px] font-extrabold`}>{teeth.length ? teeth.length : ''}</td>
+                        <td className={sumCell}><ToothTags teeth={teeth} tone="teal" /></td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
 
-              <div className="flex flex-col bg-blue-50/70 rounded-xl border border-blue-200 p-4 space-y-4">
-                <div className="text-xs font-semibold text-primary uppercase tracking-wide">Treatment Summary</div>
+              <div className="overflow-hidden rounded-xl border border-border bg-card">
+                <div className="bg-primary px-4 py-2.5 text-sm font-bold text-white">Treatment Summary</div>
 
-                {/* ONE table, laid out exactly like the user's spreadsheet (2026-09-24):
+                {/* ONE table, laid out like the user's spreadsheet (2026-09-24):
                     Visit 1 | Visit 2 side by side, the date + whole-mouth
-                    services on top, a blank separator row, then the per-tooth
-                    codes with a Tooth Count / Tooth Number pair per visit.
-                    The visit being edited reads the live draft; the other
-                    visit reads its saved PREVENTIVE_CARE_RECORD. Services show
-                    "Yes" only for a real true -- null and false both blank,
-                    because the paper form has no tick for "withheld". */}
-                <div className="flex flex-1 flex-col overflow-x-auto">
+                    services on top, then the per-tooth codes with a Tooth
+                    Count / Tooth Number pair per visit. The visit being edited
+                    reads the live draft; the other visit reads its saved
+                    PREVENTIVE_CARE_RECORD. Services show "Yes" only for a real
+                    true -- null and false both blank, because the paper form
+                    has no tick for "withheld". */}
+                <div className="overflow-x-auto">
                 <table className="w-full min-w-[480px] table-fixed border-collapse text-xs">
                   <colgroup><col className="w-[30%]" /><col className="w-[15%]" /><col className="w-[20%]" /><col className="w-[15%]" /><col className="w-[20%]" /></colgroup>
                   <thead>
-                    <tr className="text-primary">
-                      <th className="border-b border-blue-200/70 px-2 py-1.5" />
-                      <th colSpan={2} className="border-b border-blue-200/70 px-2 py-1.5 text-left font-semibold border-r border-r-blue-200/70">Visit 1</th>
-                      <th colSpan={2} className="border-b border-blue-200/70 px-2 py-1.5 text-left font-semibold">Visit 2</th>
+                    <tr>
+                      <th className="px-3 py-2" />
+                      <th colSpan={2} className="bg-amber-100 px-3 py-2 text-center font-extrabold text-amber-800">Visit 1</th>
+                      <th colSpan={2} className="bg-violet-100 px-3 py-2 text-center font-extrabold text-violet-800">Visit 2</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {(() => {
-                      const visitCol = (n: 1 | 2) => {
-                        if (n === activeVisit) return { date: draftVisitDate, services: draftServices };
-                        const rec = n === 1 ? visit1 : visit2;
-                        return {
-                          date: rec ? new Date(rec.visit_date).toISOString().slice(0, 10) : '',
-                          services: Object.fromEntries(serviceChips.map(({ field }) => [field, rec?.[field] ?? null])) as Record<ServiceField, boolean | null>,
-                        };
+                  {(() => {
+                    const visitCol = (n: 1 | 2) => {
+                      if (n === activeVisit) return { date: draftVisitDate, services: draftServices };
+                      const rec = n === 1 ? visit1 : visit2;
+                      return {
+                        date: rec ? new Date(rec.visit_date).toISOString().slice(0, 10) : '',
+                        services: Object.fromEntries(serviceChips.map(({ field }) => [field, rec?.[field] ?? null])) as Record<ServiceField, boolean | null>,
                       };
-                      const cols = [visitCol(1), visitCol(2)];
-                      const cell = 'border-b border-blue-200/70 px-2 py-1.5';
-                      // Vertical line closing the Visit 1 block (user, 2026-09-24).
-                      const v1Divider = 'border-r border-r-blue-200/70';
-                      return (
-                        <>
+                    };
+                    const cols = [visitCol(1), visitCol(2)];
+                    return (
+                      <>
+                        <tbody className="[&>tr:nth-child(even)>td]:bg-slate-50/70">
                           <tr>
-                            <td className={`${cell} text-foreground`}>Date of Treatment</td>
+                            <td className={sumCell}>Date of Treatment</td>
                             {cols.map((c, i) => (
-                              <td key={i} colSpan={2} className={`${cell} text-left font-semibold text-primary ${i === 0 ? v1Divider : ''}`}>{c.date ? formatDate(c.date) : ''}</td>
+                              <td key={i} colSpan={2} className={`${sumCell} text-center font-bold`}>{c.date ? formatDate(c.date) : ''}</td>
                             ))}
                           </tr>
                           {serviceChips.map(({ label, field }) => (
                             <tr key={field}>
-                              <td className={`${cell} text-foreground`}>{label}</td>
+                              <td className={sumCell}>{label}</td>
                               {cols.map((c, i) => (
-                                <td key={i} colSpan={2} className={`${cell} text-left font-semibold text-primary ${i === 0 ? v1Divider : ''}`}>{c.services[field] === true ? 'Yes' : ''}</td>
+                                <td key={i} colSpan={2} className={`${sumCell} text-center`}>{c.services[field] === true && <span className={yesBadge}>✓ Yes</span>}</td>
                               ))}
                             </tr>
                           ))}
-                          {/* Plain gap, no horizontal lines -- the same 16px space-y-4 puts
-                              between the Dental Condition Summary and Indicate Number
-                              tables. The Visit 1 divider runs through it unbroken. */}
-                          <tr aria-hidden="true"><td colSpan={3} className={`h-4 p-0 ${v1Divider}`} /><td colSpan={2} className="h-4 p-0" /></tr>
-                          <tr className="text-left text-primary">
-                            <th className={`${cell} font-semibold`}>Treatment</th>
-                            <th className={`${cell} font-semibold`}>Tooth Count</th>
-                            <th className={`${cell} font-semibold ${v1Divider}`}>Tooth Number</th>
-                            <th className={`${cell} font-semibold`}>Tooth Count</th>
-                            <th className={`${cell} font-semibold`}>Tooth Number</th>
+                        </tbody>
+                        <tbody className="[&>tr:nth-child(even)>td]:bg-slate-50/70">
+                          <tr className={sumHead}>
+                            <th className="px-3 py-2">Treatment</th>
+                            <th className="px-3 py-2">Count</th>
+                            <th className="px-3 py-2">Teeth</th>
+                            <th className="px-3 py-2">Count</th>
+                            <th className="px-3 py-2">Teeth</th>
                           </tr>
                           {perToothTreatmentRows.map((t) => {
                             const v1 = treatmentTeethVisit1[t.code] ?? [];
                             const v2 = treatmentTeethVisit2[t.code] ?? [];
                             return (
                               <tr key={t.code}>
-                                <td className={`${cell} text-foreground`}>
-                                  <span className="font-semibold mr-1">{t.code}</span>
-                                  {t.label}
-                                </td>
-                                <td className={`${cell} font-semibold text-foreground`}>{v1.length ? v1.length : ''}</td>
-                                <td className={`${cell} font-mono text-foreground break-words ${v1Divider}`}>{v1.join(', ')}</td>
-                                <td className={`${cell} font-semibold text-foreground`}>{v2.length ? v2.length : ''}</td>
-                                <td className={`${cell} font-mono text-foreground break-words`}>{v2.join(', ')}</td>
+                                <td className={sumCell}><span className="mr-1 font-bold">{t.code}</span>{t.label}</td>
+                                <td className={`${sumCell} text-[13px] font-extrabold`}>{v1.length ? v1.length : ''}</td>
+                                <td className={sumCell}><ToothTags teeth={v1} tone="blue" /></td>
+                                <td className={`${sumCell} text-[13px] font-extrabold`}>{v2.length ? v2.length : ''}</td>
+                                <td className={sumCell}><ToothTags teeth={v2} tone="blue" /></td>
                               </tr>
                             );
                           })}
-                        </>
-                      );
-                    })()}
-                  </tbody>
+                        </tbody>
+                      </>
+                    );
+                  })()}
                 </table>
-                {/* Ruled filler (user, 2026-09-24). Beside the taller Dental
-                    Condition Summary this card is stretched, and the space
-                    under the last row read as empty. These are REAL empty rows
-                    with the same cell classes as the table above, so the pitch
-                    and line weight match exactly (a CSS gradient version drew
-                    some lines bolder than others at fractional pixel sizes).
-                    Absolutely positioned and clipped, so they fill the space
-                    without making the card any taller; zero height when the
-                    cards stack (below lg). Decoration only, hidden from screen
-                    readers. */}
-                <div aria-hidden="true" className="relative min-h-0 min-w-[480px] flex-1 overflow-hidden">
-                  <table className="absolute inset-x-0 top-0 w-full table-fixed border-collapse text-xs">
-                    <colgroup><col className="w-[30%]" /><col className="w-[15%]" /><col className="w-[20%]" /><col className="w-[15%]" /><col className="w-[20%]" /></colgroup>
-                    <tbody>
-                      {Array.from({ length: 30 }, (_, i) => (
-                        <tr key={i}>
-                          <td colSpan={3} className="border-b border-blue-200/70 border-r border-r-blue-200/70 px-2 py-1.5">&nbsp;</td>
-                          <td colSpan={2} className="border-b border-blue-200/70 px-2 py-1.5">&nbsp;</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
                 </div>
               </div>
             </div>
