@@ -136,6 +136,11 @@ type NewPatientForm = {
   grade: string; section: string; school: string; placeOfBirth: string; guardianName: string; guardianContact: string;
   guardianOccupation: string; address: string; contactNumber: string; philhealthNumber: string; philhealthStatus: string;
   is4Ps: boolean; fourPsId: string; consentStatus: string;
+  /** A person entered through this form who isn't actually enrolled (e.g. a
+   *  sibling or community member treated at a Bayanihan mission) -- Grade,
+   *  Section and Sex don't apply, so checking this clears and disables them
+   *  instead of requiring values that don't exist. */
+  isNotStudent: boolean;
 };
 
 /** One source for "what a blank Add Student form looks like" — used on
@@ -144,7 +149,7 @@ type NewPatientForm = {
 const BLANK_NEW_PATIENT: NewPatientForm = {
   firstName:'', lastName:'', middleName:'', birthdate:'', gender:'', grade:'', section:'', school:'',
   placeOfBirth:'', guardianName:'', guardianContact:'', guardianOccupation:'', address:'', contactNumber:'', philhealthNumber:'',
-  philhealthStatus:'None', is4Ps:false, fourPsId:'', consentStatus:'pending',
+  philhealthStatus:'None', is4Ps:false, fourPsId:'', consentStatus:'pending', isNotStudent:false,
 };
 
 /** Fields the Add Student form requires, and the label each one shows.
@@ -170,9 +175,9 @@ const REQUIRED_STUDENT_FIELDS: {
   { key: 'lastName', label: 'Last Name' },
   { key: 'firstName', label: 'First Name' },
   { key: 'birthdate', label: 'Birthdate' },
-  { key: 'gender', label: 'Gender' },
-  { key: 'grade', label: 'Grade' },
-  { key: 'section', label: 'Section' },
+  { key: 'gender', label: 'Gender', onlyIf: (f) => !f.isNotStudent },
+  { key: 'grade', label: 'Grade', onlyIf: (f) => !f.isNotStudent },
+  { key: 'section', label: 'Section', onlyIf: (f) => !f.isNotStudent },
   // Guardian Name/Contact are NOT required (2026-09-04, user decision) —
   // marked "(Optional)" on their labels instead of an asterisk.
   // Only meaningful for a 4Ps household — required unconditionally it would
@@ -180,9 +185,6 @@ const REQUIRED_STUDENT_FIELDS: {
   { key: 'fourPsId', label: '4Ps ID', onlyIf: (f) => f.is4Ps },
 ];
 
-const REQUIRED_KEYS = new Set(REQUIRED_STUDENT_FIELDS.map((f) => f.key));
-/** Red " *" when the field is required, so labels read from the same list. */
-const req = (key: keyof NewPatientForm) => (REQUIRED_KEYS.has(key) ? <span className="text-destructive"> *</span> : null);
 /** Gray "(Optional)" for the two fields that used to carry a (wrong) asterisk. */
 const optionalTag = <span className="text-muted-foreground font-normal"> (Optional)</span>;
 
@@ -539,6 +541,16 @@ export const PatientList = () => {
     });
   };
 
+  // Red " *" when the field is CURRENTLY required — reads onlyIf against the
+  // live form, not just the field's key, so Grade/Section/Sex lose their
+  // asterisk the moment "Not a Student" is checked instead of staying
+  // required-looking while actually disabled.
+  const req = (key: keyof NewPatientForm) => {
+    const field = REQUIRED_STUDENT_FIELDS.find((f) => f.key === key);
+    if (!field) return null;
+    return (field.onlyIf ? field.onlyIf(newPatient) : true) ? <span className="text-destructive"> *</span> : null;
+  };
+
   const fieldError = (key: keyof NewPatientForm) =>
     missingFields.has(key) ? <p className="mt-1 text-xs text-destructive">This field is required.</p> : null;
 
@@ -626,6 +638,7 @@ export const PatientList = () => {
         contact_number: newPatient.contactNumber,
         grade_level: newPatient.grade,
         section: newPatient.section,
+        is_not_student: newPatient.isNotStudent,
         place_of_birth: newPatient.placeOfBirth,
         guardian_name: newPatient.guardianName,
         guardian_contact: newPatient.guardianContact,
@@ -652,8 +665,8 @@ export const PatientList = () => {
         await apiClient.post('/student-iptrs', {
           student_id: created._id,
           school_year: schoolYearLabel(),
-          grade_level: newPatient.grade,
-          section: newPatient.section,
+          grade_level: newPatient.isNotStudent ? null : newPatient.grade,
+          section: newPatient.isNotStudent ? null : newPatient.section,
           consent_status: newPatient.consentStatus,
         });
       } catch {
@@ -1408,7 +1421,12 @@ export const PatientList = () => {
           desktop range specifically. */}
       {showAddForm && (
         <Modal onClose={closeAddForm} maxWidth="max-w-4xl" closeDisabled>
-            <div className="flex items-start justify-between gap-3 p-6 border-b">
+            {/* sticky, not just fixed at the top of the flow -- the dialog
+                itself (Modal.tsx) is the scrolling container (overflow-y-auto
+                directly on it), so `sticky top-0` pins this against ITS
+                scroll, not the page's. bg-card keeps scrolled-past content
+                from showing through underneath. */}
+            <div className="sticky top-0 z-10 flex items-start justify-between gap-3 p-6 border-b bg-card">
               <div>
                 <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-primary mb-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-primary" /> Basic Information
@@ -1418,6 +1436,34 @@ export const PatientList = () => {
               <div className="flex items-center gap-2 shrink-0">
                 <button onClick={closeAddForm} className="text-muted-foreground hover:text-muted-foreground"><X className="w-5 h-5" /></button>
               </div>
+            </div>
+            {/* "Not a Student" -- e.g. a sibling or community member treated
+                at a Bayanihan mission, not actually enrolled. Grade, Section
+                and Sex don't apply to that person, so checking this clears
+                and disables those three instead of forcing values that don't
+                exist. Placed at the very top, above every field, so it's seen
+                before Grade/Sex are ever filled in. */}
+            <div className="mx-6 mt-4 flex items-start gap-3 rounded-lg border border-border bg-canvas px-3 py-2.5">
+              <input
+                type="checkbox"
+                id="isNotStudent"
+                checked={newPatient.isNotStudent}
+                onChange={e => {
+                  const checked = e.target.checked;
+                  setNewPatient(p => ({ ...p, isNotStudent: checked, grade: checked ? '' : p.grade, section: checked ? '' : p.section, gender: checked ? '' : p.gender }));
+                  setMissingFields(prev => {
+                    if (!checked) return prev;
+                    const next = new Set(prev);
+                    next.delete('grade'); next.delete('section'); next.delete('gender');
+                    return next;
+                  });
+                }}
+                className="w-4 h-4 mt-0.5 rounded accent-primary"
+              />
+              <label htmlFor="isNotStudent" className="text-sm">
+                <span className="font-medium text-foreground">Not a Student</span>
+                <span className="ml-1 text-muted-foreground">— a sibling or community member treated at a mission, not enrolled here. Grade, Section, and Sex won&rsquo;t apply.</span>
+              </label>
             </div>
             {/* Live check against the roster already loaded in the browser —
                 a heads-up before the form is even finished, not a
@@ -1505,11 +1551,14 @@ export const PatientList = () => {
                     <button
                       key={g}
                       type="button"
+                      disabled={newPatient.isNotStudent}
                       onClick={() => updateField('gender', g)}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                        newPatient.gender === g
-                          ? 'bg-primary text-white border-primary'
-                          : 'border-border text-foreground hover:bg-canvas'
+                      className={`px-3 py-2 rounded-lg text-sm font-medium border-2 transition-colors ${
+                        newPatient.isNotStudent
+                          ? 'bg-muted text-muted-foreground border-border cursor-not-allowed'
+                          : newPatient.gender === g
+                            ? 'bg-primary text-white border-primary-hover'
+                            : 'border-border text-foreground hover:bg-canvas'
                       }`}
                     >
                       {g}
@@ -1525,7 +1574,8 @@ export const PatientList = () => {
                     that isn't on the paper. */}
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Grade{req('grade')}</label>
-                  <select value={newPatient.grade} onChange={e => updateField('grade', e.target.value)} className={plainFieldClass}>
+                  <select value={newPatient.grade} disabled={newPatient.isNotStudent} onChange={e => updateField('grade', e.target.value)}
+                    className={`${plainFieldClass} ${newPatient.isNotStudent ? 'bg-muted text-muted-foreground cursor-not-allowed' : ''}`}>
                     <option value="">Select Grade</option>{GRADES.map(g => <option key={g}>{g}</option>)}
                   </select>
                   {fieldError('grade')}
@@ -1542,14 +1592,15 @@ export const PatientList = () => {
                   <input
                     type="text"
                     value={newPatient.section}
+                    disabled={newPatient.isNotStudent}
                     onChange={e => { updateField('section', e.target.value); setSectionMenuOpen(true); }}
                     onFocus={() => setSectionMenuOpen(true)}
                     onBlur={() => setSectionMenuOpen(false)}
                     placeholder="Search or add a section"
                     autoComplete="off"
-                    className={plainFieldClass}
+                    className={`${plainFieldClass} ${newPatient.isNotStudent ? 'bg-muted text-muted-foreground cursor-not-allowed' : ''}`}
                   />
-                  {sectionMenuOpen && (
+                  {!newPatient.isNotStudent && sectionMenuOpen && (
                     <div className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto rounded-lg border border-border bg-card shadow-md">
                       {filteredSectionOptions.map(s => (
                         <button
@@ -1599,7 +1650,10 @@ export const PatientList = () => {
                   user staring at an unchanged form. */}
               {addPatientError && <Notice variant="error">{addPatientError}</Notice>}
             </div>
-            <div className="flex gap-3 p-6 border-t">
+            {/* sticky bottom-0, same reasoning as the header -- pins against
+                the dialog's own scroll so Cancel/Add Student stay reachable
+                without scrolling all the way down a long form. */}
+            <div className="sticky bottom-0 z-10 flex gap-3 p-6 border-t bg-card">
               <button onClick={closeAddForm} className="flex-1 px-4 py-2 border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium">Cancel</button>
               <button onClick={handleAddStudentClick} disabled={addingPatient} className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-60 text-sm font-medium">Add Student</button>
             </div>

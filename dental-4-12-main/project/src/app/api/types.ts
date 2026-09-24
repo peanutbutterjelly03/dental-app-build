@@ -41,11 +41,19 @@ export interface ApiStudent {
   first_name: string;
   middle_name?: string;
   birthday: string;
+  /** '' when is_not_student is true -- required otherwise. */
   sex: string;
   address: string;
   contact_number?: string;
+  /** '' when is_not_student is true -- required otherwise. */
   grade_level: string;
+  /** '' when is_not_student is true -- required otherwise. */
   section: string;
+  /** Added 2026-09-25. A person recorded through Add Student who isn't
+   *  actually enrolled (sibling/community member treated at a mission) --
+   *  sex/grade_level/section are absent for these. Optional since records
+   *  created before this field existed have no value. */
+  is_not_student?: boolean;
   place_of_birth?: string;
   guardian_occupation?: string;
   guardian_name?: string;
