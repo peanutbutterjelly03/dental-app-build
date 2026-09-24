@@ -39,6 +39,7 @@ export function useRPCTracking(query: RpcListQuery = {}) {
       if (q.status) params.set('status', q.status);
       if (q.treatment && q.treatment !== 'all') params.set('treatment', q.treatment);
       if (q.schoolYear && q.schoolYear !== 'all') params.set('school_year', q.schoolYear);
+      if (q.sort && q.sort !== 'all') params.set('sort', q.sort);
       if (q.limit) params.set('limit', String(q.limit));
       if (q.offset) params.set('offset', String(q.offset));
       const qs = params.toString();

@@ -616,7 +616,7 @@ export const Dashboard = () => {
                 <h2 className="text-sm font-bold text-foreground">RPC Two-Visit Funnel</h2>
                 <p className="text-[11px] text-muted-foreground">Preventive care progression</p>
               </div>
-              <Link to="/rpc" className="text-xs text-primary hover:underline">RPC Tracking →</Link>
+              <Link to="/rpc" className="text-xs text-primary hover:underline">RPC Monitoring →</Link>
             </div>
             <ChartBody ready={!rpcLoading}>
             {scopedRpc.length === 0 ? (

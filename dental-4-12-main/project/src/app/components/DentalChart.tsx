@@ -1910,7 +1910,7 @@ export const DentalChart = () => {
             {!linkedVisitForCard && (
               <p className="text-xs text-muted-foreground -mt-2">
                 Treatments Given is read-only here: this charting is not attached to an RPC visit, and a service is
-                recorded against the visit. Record it under <strong>RPC Tracking → Record Visit</strong>.
+                recorded against the visit. Record it under <strong>RPC Monitoring</strong>.
               </p>
             )}
 
@@ -2430,7 +2430,7 @@ export const DentalChart = () => {
                 Whole-mouth findings — gingivitis, periodontal disease, debris, calculus, abnormal growth,
                 cleft lip/palate — are recorded once per school year under <strong>History &amp; Oral</strong>.
                 The services given at a visit — oral screening, prophylaxis, fluoride varnish, hygiene
-                instruction — are recorded against that visit in <strong>RPC Tracking</strong>, which is what
+                instruction — are recorded against that visit in <strong>RPC Monitoring</strong>, which is what
                 the DOH return counts.
               </p>
             </div>

@@ -37,7 +37,7 @@ export const Notifications = () => {
       label: `overdue RPC visit${counts.overdueRpc === 1 ? '' : 's'}`,
       detail: 'Visit 1 recorded, Visit 2 still due and past the interval.',
       linkTo: '/rpc',
-      linkLabel: 'Go to RPC Tracking',
+      linkLabel: 'Go to RPC Monitoring',
     },
     {
       key: 'appointments',

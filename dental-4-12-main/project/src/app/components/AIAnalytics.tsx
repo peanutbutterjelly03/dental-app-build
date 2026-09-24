@@ -712,7 +712,7 @@ export const AIAnalytics = () => {
                         <Notice variant="warning">
                           This student has no RPC (preventive care) visit on record — a risk
                           assessment attaches to an RPC visit per the record structure. Record
-                          Visit 1 in RPC Tracking first, then validate here.
+                          Visit 1 in RPC Monitoring first, then validate here.
                         </Notice>
                       ) : (
                         <div className="space-y-3">

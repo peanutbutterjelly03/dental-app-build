@@ -311,7 +311,7 @@ export const Root = () => {
       roles: ['dentist']
     },
     {
-      id: 7, path: '/rpc', label: 'RPC Tracking', icon: Shield,
+      id: 7, path: '/rpc', label: 'RPC Monitoring', icon: Shield,
       roles: ['dentist','dental_aide','system_admin']
     },
     {

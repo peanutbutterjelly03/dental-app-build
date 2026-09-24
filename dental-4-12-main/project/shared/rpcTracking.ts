@@ -351,6 +351,10 @@ export interface RpcListQuery {
    *  pupils enrolled (had a record made) that year. 'all' or omitted = every
    *  year. */
   schoolYear?: string;
+  /** 'all' (the resting value) keeps the rows' own alphabetical-by-surname
+   *  order; 'date_asc'/'date_desc' sort by Visit 1 date instead, rows with
+   *  no Visit 1 yet sorted last either way. */
+  sort?: string;
   limit?: number;
   offset?: number;
 }
@@ -393,11 +397,26 @@ export function filterRpcRows(all: RPCRow[], query: RpcListQuery): RpcListPage {
     return true;
   });
 
+  // Sorted onto a copy — `rows` above stays in its original (alphabetical)
+  // order for anything that reads it after this point.
+  let sortedRows = rows;
+  if (query.sort === 'date_asc' || query.sort === 'date_desc') {
+    const dir = query.sort === 'date_asc' ? 1 : -1;
+    sortedRows = [...rows].sort((a, b) => {
+      const at = a.visit1Date ? new Date(a.visit1Date).getTime() : null;
+      const bt = b.visit1Date ? new Date(b.visit1Date).getTime() : null;
+      if (at === null && bt === null) return 0;
+      if (at === null) return 1; // no Visit 1 yet — always last
+      if (bt === null) return -1;
+      return (at - bt) * dir;
+    });
+  }
+
   const offset = Math.max(0, query.offset ?? 0);
   const limit = query.limit && query.limit > 0 ? query.limit : rows.length;
 
   return {
-    rows: rows.slice(offset, offset + limit),
+    rows: sortedRows.slice(offset, offset + limit),
     total: rows.length,
     schoolTotal: inSchool.length,
     // ⚠ Computed over `inSchool` — the whole school population — NOT over

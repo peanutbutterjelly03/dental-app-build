@@ -41,6 +41,10 @@ export const RPCTracking = () => {
   const [statusFilter, setStatusFilter] = useState('outstanding');
   const [treatmentFilter, setTreatmentFilter] = useState('all');
   const [schoolYearFilter, setSchoolYearFilter] = useState('all');
+  // 'all' here means "no explicit sort" — the list's own default order
+  // (alphabetical by surname) already covers "Name (A-Z)", so there is no
+  // separate 'name' value to opt into.
+  const [sortFilter, setSortFilter] = useState('all');
 
   // ── Sprint 146: FILTERED AND PAGED ON THE SERVER ────────────────────────
   //
@@ -67,6 +71,7 @@ export const RPCTracking = () => {
     status: statusFilter,
     treatment: treatmentFilter,
     schoolYear: schoolYearFilter,
+    sort: sortFilter,
     limit: pageSize,
     offset: (page - 1) * pageSize,
   });
@@ -75,7 +80,7 @@ export const RPCTracking = () => {
   // leave the user on a page that no longer exists, looking at nothing.
   useEffect(() => {
     setPage(1);
-  }, [searchTerm, selectedSchool, gradeFilter, sectionFilter, genderFilter, ageGroupFilter, statusFilter, treatmentFilter, schoolYearFilter]);
+  }, [searchTerm, selectedSchool, gradeFilter, sectionFilter, genderFilter, ageGroupFilter, statusFilter, treatmentFilter, schoolYearFilter, sortFilter]);
 
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   // Changing page size keeps you near the same records rather than dumping you
@@ -102,8 +107,8 @@ export const RPCTracking = () => {
   // statusFilter is compared against 'outstanding', not 'all': that is now its
   // resting value, so treating it like the others would light up "Clear All"
   // permanently and make Clear All widen the list instead of resetting it.
-  const hasActiveFilters = [gradeFilter, sectionFilter, genderFilter, ageGroupFilter, treatmentFilter, schoolYearFilter].some(f => f !== 'all') || statusFilter !== 'outstanding' || searchTerm !== '';
-  const clearFilters = () => { setGradeFilter('all'); setSectionFilter('all'); setGenderFilter('all'); setAgeGroupFilter('all'); setStatusFilter('outstanding'); setTreatmentFilter('all'); setSchoolYearFilter('all'); setSearchTerm(''); };
+  const hasActiveFilters = [gradeFilter, sectionFilter, genderFilter, ageGroupFilter, treatmentFilter, schoolYearFilter, sortFilter].some(f => f !== 'all') || statusFilter !== 'outstanding' || searchTerm !== '';
+  const clearFilters = () => { setGradeFilter('all'); setSectionFilter('all'); setGenderFilter('all'); setAgeGroupFilter('all'); setStatusFilter('outstanding'); setTreatmentFilter('all'); setSchoolYearFilter('all'); setSortFilter('all'); setSearchTerm(''); };
 
   const statusConfig: Record<string,{label:string;color:string;bg:string}> = {
     complete:     { label:'Complete',     color:'text-green-700', bg:'bg-green-100' },
@@ -156,12 +161,16 @@ export const RPCTracking = () => {
           {/* 'outstanding' is listed first and is the default — FS renders its
               `label` as the value-'all' option, so without an explicit entry
               here the select would have no option matching its own value. */}
-          <FS value={statusFilter} onChange={setStatusFilter} label="All Statuses (incl. complete)" opts={[{v:'outstanding',l:'Outstanding only'},{v:'complete',l:'Both Complete'},{v:'pending',l:'Visit 1 Only'},{v:'overdue',l:'Overdue'},{v:'not-started',l:'Not Started'}]} />
-          <FS value={treatmentFilter} onChange={setTreatmentFilter} label="All Treatments" opts={treatmentCodes.map(t=>({v:t.code,l:treatmentLabel(t)}))} />
+          <FS value={statusFilter} onChange={setStatusFilter} label="RPC Status" opts={[{v:'outstanding',l:'Outstanding only'},{v:'complete',l:'Both Complete'},{v:'pending',l:'Visit 1 Only'},{v:'overdue',l:'Overdue'},{v:'not-started',l:'Not Started'}]} />
+          {/* .label only, never treatmentLabel() -- that appends the Tagalog
+              local term (e.g. "Oral Prophylaxis (Linis)"), which stays on the
+              clinical legend/chart but this filter is English-only. */}
+          <FS value={treatmentFilter} onChange={setTreatmentFilter} label="All Treatments" opts={treatmentCodes.map(t=>({v:t.code,l:t.label}))} />
           {/* Narrows to pupils with an IPTR for that year — i.e. enrolled
               that year, the only school-year fact this join actually has
               (a visit isn't itself scoped to one). */}
           <FS value={schoolYearFilter} onChange={setSchoolYearFilter} label="All School Years" opts={schoolYearOptions.map(y=>({v:y,l:`SY ${y}`}))} />
+          <FS value={sortFilter} onChange={setSortFilter} label="Sort: Name (A-Z)" opts={[{v:'date_desc',l:'Visit 1 Date (Newest first)'},{v:'date_asc',l:'Visit 1 Date (Oldest first)'}]} />
           {hasActiveFilters && <button onClick={clearFilters} title="Clear all filters" aria-label="Clear all filters" className="flex items-center justify-center p-2 text-destructive border border-red-200 rounded-lg hover:bg-red-50"><X className="w-4 h-4"/></button>}
         </div>
       </div>
@@ -174,7 +183,7 @@ export const RPCTracking = () => {
                 {['Student','Grade / Section','Visit 1','Visit 2','Status','Days Until Due'].map(h => (
                   <th key={h} className="text-left px-4 py-3 font-semibold text-foreground">{h}</th>
                 ))}
-                <th className="text-right px-4 py-3 font-semibold text-foreground">Actions</th>
+                <th className="text-center px-4 py-3 font-semibold text-foreground">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -210,14 +219,14 @@ export const RPCTracking = () => {
                     <td className="px-4 py-3">
                       {dueDate ? (
                         <>
-                          <div className="text-warning font-semibold text-xs">{formatMonthYear(dueDate)}</div>
+                          <div className="text-yellow-500 font-semibold text-xs">{formatMonthYear(dueDate)}</div>
                           <div className={r.status==='overdue' ? 'text-red-600 font-semibold text-xs' : 'text-muted-foreground text-xs'}>
                             {r.status==='overdue' ? `${Math.abs(r.daysUntilDue)}d overdue` : `${r.daysUntilDue}d`}
                           </div>
                         </>
                       ) : <span className="text-muted-foreground text-xs">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-center">
                       <button
                         onClick={() => navigate(`/dental-chart/${r.id}?tab=treatments`)}
                         className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium border border-border rounded-lg hover:bg-gray-50 whitespace-nowrap"

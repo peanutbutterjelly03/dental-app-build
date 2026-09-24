@@ -528,6 +528,7 @@ router.get("/stats/rpc-rows", requireAuth, asyncHandler(async (req, res) => {
     status: typeof req.query.status === "string" ? req.query.status : "outstanding",
     treatment: typeof req.query.treatment === "string" ? req.query.treatment : "all",
     schoolYear: typeof req.query.school_year === "string" ? req.query.school_year : "all",
+    sort: typeof req.query.sort === "string" ? req.query.sort : "all",
     limit: Number(req.query.limit) > 0 ? Number(req.query.limit) : 25,
     offset: Number(req.query.offset) > 0 ? Number(req.query.offset) : 0,
   });
