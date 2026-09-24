@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
-import { ArrowLeft, Save, ChevronLeft, ChevronRight, Shield, Users, FileText, Plus, Pencil, Trash2, Download, X, Maximize2, Minimize2, Check, ChevronUp, ChevronDown, ShieldCheck, ShieldAlert, Shield as ShieldIcon, MoreVertical, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Save, ChevronLeft, ChevronRight, Shield, Users, FileText, Plus, Pencil, Trash2, X, Maximize2, Minimize2, Check, FileDown, ChevronUp, ChevronDown, ShieldCheck, ShieldAlert, Shield as ShieldIcon, MoreVertical, AlertTriangle } from 'lucide-react';
 import { buildPagesPdf } from '../utils/exportPdf';
 import { usePreviewModal } from '../hooks/usePreviewModal';
 import { PreviewModal } from './PreviewModal';
@@ -118,6 +118,12 @@ const serviceChips: { label: string; field: ServiceField }[] = [
 const paletteBtn = 'h-10 min-w-[52px] shrink-0 rounded-md border px-3 text-center font-palette text-sm font-bold leading-none transition-all inline-flex items-center justify-center';
 // ✓ reads the same permanent and temporary, so it shows once, not "✓/✓".
 const conditionCodeText = (c: { perm: string; temp: string }) => (c.perm === c.temp ? c.perm : `${c.perm}/${c.temp}`);
+
+// The two form downloads (user, 2026-09-24): red-tinted with a file icon and
+// a "PDF" tag, the usual PDF colour, so they read as file downloads and not
+// as the grey navigation buttons beside them.
+const pdfBtn = 'flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100 disabled:opacity-50';
+const pdfTag = 'rounded bg-red-600 px-1 py-px text-[9px] font-bold leading-none tracking-wide text-white';
 
 // Charting mode survives the remount between students (Sprint 153).
 //
@@ -1415,17 +1421,17 @@ export const DentalChart = () => {
               onClick={() => onIptrPdf('patient')}
               disabled={pdfBusy}
               title="Download the Individual PATIENT Treatment Record (City Health Office, 2 pages)"
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs border border-border rounded-lg hover:bg-gray-50 disabled:opacity-50"
+              className={pdfBtn}
             >
-              <Download className="w-3.5 h-3.5" />{pdfBusy ? 'Preparing…' : 'IPTR'}
+              <FileDown className="w-3.5 h-3.5" />{pdfBusy ? 'Preparing…' : 'IPTR'}{!pdfBusy && <span className={pdfTag}>PDF</span>}
             </button>
             <button
               onClick={() => onIptrPdf('form1')}
               disabled={pdfBusy}
               title="Download the Individual Treatment Record (DOH Form 1)"
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs border border-border rounded-lg hover:bg-gray-50 disabled:opacity-50"
+              className={pdfBtn}
             >
-              <Download className="w-3.5 h-3.5" />{pdfBusy ? 'Preparing…' : 'Form 1'}
+              <FileDown className="w-3.5 h-3.5" />{pdfBusy ? 'Preparing…' : 'Form 1'}{!pdfBusy && <span className={pdfTag}>PDF</span>}
             </button>
           </div>
           <div className="hidden sm:flex items-center gap-1 border border-border rounded-lg overflow-hidden">
