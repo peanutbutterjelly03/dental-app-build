@@ -2183,18 +2183,14 @@ export const DentalChart = () => {
                 expect. The `pointer-events-none` is what makes it honest. */}
             <div className={`bg-blue-50 rounded-xl p-4 ${!editingChart ? 'opacity-60 pointer-events-none select-none' : ''}`}>
               {!canEdit && (
-                <p className="flex items-center gap-1.5 text-xs text-destructive mb-2">
-                  <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border border-destructive bg-destructive">
-                    <AlertTriangle className="w-3 h-3 text-white" />
-                  </span>
+                <p className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-destructive px-3 py-1 text-xs font-medium text-white mb-2">
+                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
                   View only. Editing restricted to Dentist
                 </p>
               )}
               {canEdit && !editMode && (
-                <p className="flex items-center gap-1.5 text-xs text-destructive mb-2">
-                  <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border border-destructive bg-destructive">
-                    <AlertTriangle className="w-3 h-3 text-white" />
-                  </span>
+                <p className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-destructive px-3 py-1 text-xs font-medium text-white mb-2">
+                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
                   View mode. Click the pencil icon above to record conditions/treatments
                 </p>
               )}
