@@ -14,8 +14,7 @@ import { useToast } from './Toast';
 import { Modal } from './Modal';
 import { schoolYearLabel } from '../utils/schoolYear';
 import type { RPCRow } from '../hooks/useRPCTracking';
-import { getSchoolAcronym } from '../utils/schoolColors';
-import { formatDate, formatMonthYear } from '../utils/localDate';
+import { formatDate } from '../utils/localDate';
 
 const GRADES = ['Kinder','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10'];
 
@@ -290,7 +289,7 @@ export const RPCTracking = () => {
               that year, the only school-year fact this join actually has
               (a visit isn't itself scoped to one). */}
           <FS value={schoolYearFilter} onChange={setSchoolYearFilter} label="All School Years" opts={schoolYearOptions.map(y=>({v:y,l:`SY ${y}`}))} />
-          {hasActiveFilters && <button onClick={clearFilters} className="flex items-center gap-1 px-3 py-2 text-sm text-destructive border border-red-200 rounded-lg hover:bg-red-50"><X className="w-3 h-3"/>Clear All</button>}
+          {hasActiveFilters && <button onClick={clearFilters} title="Clear all filters" aria-label="Clear all filters" className="flex items-center justify-center p-2 text-destructive border border-red-200 rounded-lg hover:bg-red-50"><X className="w-4 h-4"/></button>}
         </div>
       </div>
 
@@ -299,7 +298,7 @@ export const RPCTracking = () => {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-border">
               <tr>
-                {['Student','School / Grade / Section','Visit 1','Visit 2','Status','Visit 2 Due'].map(h => (
+                {['Student','Grade / Section','Visit 1','Visit 2','Status','Days Until Due'].map(h => (
                   <th key={h} className="text-left px-4 py-3 font-semibold text-foreground">{h}</th>
                 ))}
                 {canRecord && <th className="text-right px-4 py-3 font-semibold text-foreground">Record</th>}
@@ -311,13 +310,10 @@ export const RPCTracking = () => {
               ) : filtered.map(r => {
                 const sc = statusConfig[r.status] || statusConfig['not-started'];
                 const gc = getGradeColor(r.grade);
-                // 4 calendar months after Visit 1 — the earliest of the DOH
-                // 4–6 month window, and the figure the user asked this column
-                // to name. Only meaningful once Visit 1 happened and Visit 2
-                // has not: everyone else gets the dash below.
-                const dueDate = r.visit1Date && !r.visit2Date
-                  ? (() => { const d = new Date(`${r.visit1Date}T00:00:00`); d.setMonth(d.getMonth() + 4); return d; })()
-                  : null;
+                // daysUntilDue only means something once Visit 1 happened and
+                // Visit 2 has not — everyone else (not started, or complete)
+                // gets the dash below.
+                const hasDueDate = !!r.visit1Date && !r.visit2Date;
                 return (
                   <tr key={r.id} {...activatable(() => navigate(`/dental-chart/${r.id}?tab=treatments`))} className={`hover:bg-gray-50 transition-colors cursor-pointer ${r.status==='overdue'?'bg-red-50':''}`}>
                     <td className="px-4 py-3">
@@ -327,7 +323,6 @@ export const RPCTracking = () => {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="inline-block px-1.5 py-0.5 rounded bg-gray-100 text-muted-foreground text-[10px] font-bold tracking-wide mr-1.5 align-middle">{getSchoolAcronym(r.school)}</span>
                       <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold align-middle" style={{backgroundColor:gc.light,color:gc.solid}}>{r.grade}</span>
                       <span className="text-muted-foreground text-xs ml-1 align-middle">{r.section}</span>
                     </td>
@@ -337,15 +332,14 @@ export const RPCTracking = () => {
                       {r.syCutoff === 'tight' && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold" title={`The 4–6 month window extends past the school year — Visit 2 must be done by ${r.syDeadline} to count for DOH/PhilHealth`}>by {r.syDeadline}</span>}
                     </span>}</td>
                     <td className="px-4 py-3"><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${sc.bg} ${sc.color}`}>{sc.label}</span></td>
-                    <td className="px-4 py-3 text-sm">
-                      {dueDate ? (
-                        <>
-                          <div className="font-semibold text-foreground">{formatMonthYear(dueDate)}</div>
-                          <div className={r.status==='overdue' ? 'text-red-600 font-semibold text-xs' : 'text-blue-600 text-xs'}>
-                            {r.status==='overdue' ? `${Math.abs(r.daysUntilDue)}d overdue` : `${r.daysUntilDue}d`}
-                          </div>
-                        </>
-                      ) : <span className="text-muted-foreground">—</span>}
+                    <td className="px-4 py-3">
+                      {hasDueDate ? (
+                        r.status === 'overdue' ? (
+                          <span className="text-red-600 text-xs flex items-center gap-1 font-semibold"><Clock className="w-3 h-3"/>{Math.abs(r.daysUntilDue)}d overdue</span>
+                        ) : (
+                          <span className="text-warning text-xs flex items-center gap-1"><Clock className="w-3 h-3"/>{r.daysUntilDue}d</span>
+                        )
+                      ) : <span className="text-muted-foreground text-xs">—</span>}
                     </td>
                     {canRecord && (
                       // stopPropagation: the whole row navigates to the dental
