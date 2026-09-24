@@ -1452,7 +1452,6 @@ export const DentalChart = () => {
               aria-expanded={pdfMenuOpen}
               className="flex h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-60"
             >
-              <PdfPageIcon paper="#fff" fold="#C7D2EE" letters="#273A78" />
               {pdfBusy ? 'Preparing…' : 'Download PDF'}
               <ChevronDown className={`h-3.5 w-3.5 transition-transform ${pdfMenuOpen ? 'rotate-180' : ''}`} />
             </button>
