@@ -378,16 +378,16 @@ export const Root = () => {
         }`}
       >
         <Icon className="w-4 h-4 flex-shrink-0" />
-        <span className={`${labelCls} text-[13px]`}>{tab.label}</span>
+        <span className={`${labelCls} text-[0.8125rem]`}>{tab.label}</span>
         {tab.path === '/ai-analytics' && highRiskCount > 0 && (
-          <span className={`${badgeCls} ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums ${
+          <span className={`${badgeCls} ml-auto text-[0.625rem] font-bold px-1.5 py-0.5 rounded-full tabular-nums ${
             isActive ? 'bg-sidebar-bg/20 text-sidebar-bg' : 'bg-danger-surface text-destructive'
           }`}>
             {highRiskCount}
           </span>
         )}
         {tab.path === '/notifications' && notifTotal > 0 && (
-          <span className={`${badgeCls} ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums ${
+          <span className={`${badgeCls} ml-auto text-[0.625rem] font-bold px-1.5 py-0.5 rounded-full tabular-nums ${
             isActive ? 'bg-sidebar-bg/20 text-sidebar-bg' : 'bg-danger-surface text-destructive'
           }`}>
             {notifTotal > 99 ? '99+' : notifTotal}
@@ -438,7 +438,7 @@ export const Root = () => {
           }`}
         >
           <Icon className="w-4 h-4 flex-shrink-0" />
-          <span className={`${labelCls} text-[13px]`}>{studentsTab.label}</span>
+          <span className={`${labelCls} text-[0.8125rem]`}>{studentsTab.label}</span>
           <button
             type="button"
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpenStudents((v) => !v); }}
@@ -461,7 +461,7 @@ export const Root = () => {
                   to={child.path}
                   onClick={() => setDrawerOpen(false)}
                   aria-current={childIsActive ? 'page' : undefined}
-                  className={`flex items-center gap-2.5 min-h-[38px] pl-2.5 pr-3 rounded-full text-[13px] transition-colors ${
+                  className={`flex items-center gap-2.5 min-h-[38px] pl-2.5 pr-3 rounded-full text-[0.8125rem] transition-colors ${
                     childIsActive
                       ? 'bg-card text-primary font-semibold'
                       : 'text-white/60 hover:bg-white/10 hover:text-white font-medium'
@@ -577,8 +577,8 @@ export const Root = () => {
               the logo regardless of whatever collapsed was left at. */}
           <img src="/logo.svg" alt="FLORAL" className={`w-8 h-8 md:w-10 md:h-10 object-contain flex-shrink-0 ${collapsed ? 'md:hidden' : ''}`} />
           <div className={`min-w-0 ${collapsed ? 'md:hidden' : ''}`}>
-            <div className="text-[19px] font-bold text-white tracking-[0.5px]">FLORAL</div>
-            <div className="text-[9px] font-semibold tracking-wide text-white/55 leading-tight uppercase">Dental Health Record Management System</div>
+            <div className="text-[1.1875rem] font-bold text-white tracking-[0.5px]">FLORAL</div>
+            <div className="text-[0.5625rem] font-semibold tracking-wide text-white/55 leading-tight uppercase">Dental Health Record Management System</div>
           </div>
           {/* On mobile (below md) this row shows the logo plus an X to close the
               drawer, matching before. At md+ it's the RAMHIS toggle instead: a
@@ -623,14 +623,14 @@ export const Root = () => {
             }`}
           >
             <ArrowLeftRight className="w-4 h-4 flex-shrink-0" />
-            <span className={`${labelCls} text-[13px]`}>Switch School</span>
+            <span className={`${labelCls} text-[0.8125rem]`}>Switch School</span>
           </button>
         )}
 
         {/* Tabs */}
         <nav className="flex-1 overflow-y-auto py-5">
           {!collapsed && (
-            <div className="px-8 pb-[9px] text-[10px] font-bold uppercase tracking-[1px] text-[#94a3b8]">Main Menu</div>
+            <div className="px-8 pb-[9px] text-[0.625rem] font-bold uppercase tracking-[1px] text-[#94a3b8]">Main Menu</div>
           )}
           {visibleTabs.map((tab) => {
             // Dental Charts (4) and Treatment (6) render nested inside the
@@ -656,19 +656,19 @@ export const Root = () => {
               conditional, so mobile (which ignores `collapsed`) still shows it
               regardless of whatever the flag was left at. */}
           <div className={`flex items-center gap-2.5 pb-[5px] pt-2.5 mb-1 ${collapsed ? 'md:hidden' : ''}`}>
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-primary-surface text-[14px] font-bold" style={{ color: '#4F63D9' }}>
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-primary-surface text-[0.875rem] font-bold" style={{ color: '#4F63D9' }}>
               {user.name.charAt(0).toUpperCase()}
             </span>
             <div className="min-w-0 flex flex-col">
-              <strong className="text-[12px] text-white truncate">{user.name}</strong>
-              <span className="mt-[3px] text-[10px] text-white/55 capitalize">{user.role.replace('_', ' ')}</span>
+              <strong className="text-[0.75rem] text-white truncate">{user.name}</strong>
+              <span className="mt-[3px] text-[0.625rem] text-white/55 capitalize">{user.role.replace('_', ' ')}</span>
             </div>
           </div>
 
           <button
             onClick={handleLogout}
             title={collapsed ? 'Logout' : undefined}
-            className={`w-full h-11 flex items-center gap-3 px-3.5 text-[14px] font-medium text-white/55 hover:text-white hover:bg-white/10 rounded-[11px] transition-colors justify-start ${collapsed ? 'md:justify-center' : 'md:justify-start'}`}
+            className={`w-full h-11 flex items-center gap-3 px-3.5 text-[0.875rem] font-medium text-white/55 hover:text-white hover:bg-white/10 rounded-[11px] transition-colors justify-start ${collapsed ? 'md:justify-center' : 'md:justify-start'}`}
           >
             <LogOut className="w-4 h-4 flex-shrink-0" />
             <span className={labelCls}>Logout</span>

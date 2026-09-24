@@ -16,14 +16,16 @@
      dimensions, independent of font-size, so this shrinks every rem-based
      Tailwind utility (padding, gaps, text, icon and avatar sizing, radii)
      by the same ~15% without that risk.
-     ⚠ DOES NOT reach values given in raw px (TOPBAR_H, the sidebar rail's
-     w-[280px]/w-[88px] and its floating-overlap math in Root.tsx) -- those
-     stay their current size, so the topbar and rail read very slightly
-     larger relative to the now-smaller content. Left alone deliberately:
-     scaling them means re-deriving the rail's overlap arithmetic (comments
-     nearby explain why main's margin isn't simply the rail's own width),
-     not a blanket multiply, and is a separate, carefully-scoped change if
-     ever wanted. */
+     ⚠ DOES NOT reach values given in raw px. The sidebar's own label/badge
+     text-[Npx] sizes were an exception to this (2026-09-25): those aren't
+     layout, just font-size expressed as px instead of Tailwind's rem scale,
+     so they were converted to the equivalent rem value (N/16rem) in
+     Root.tsx and now shrink with everything else. TOPBAR_H, the rail's own
+     w-[280px]/w-[88px], and its floating-overlap math are real layout and
+     still don't shrink -- scaling those means re-deriving the rail's overlap
+     arithmetic (comments nearby explain why main's margin isn't simply the
+     rail's own width), not a blanket multiply, and is a separate,
+     carefully-scoped change if ever wanted. */
   --font-size: 13.6px;
   --background: #ffffff;
   --foreground: oklch(0.145 0 0);
