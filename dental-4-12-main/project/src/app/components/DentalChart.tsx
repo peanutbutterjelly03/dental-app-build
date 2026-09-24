@@ -1961,13 +1961,13 @@ export const DentalChart = () => {
             {consentComplete ? <ShieldCheck className="w-5 h-5 text-white" /> : <ShieldAlert className="w-5 h-5 text-white" />}
           </div>
           <div className="flex-1 bg-card px-4 py-3 flex items-center justify-between gap-3 min-w-0">
-            <div className="min-w-0">
-              <div className="text-[13.5px] font-bold text-foreground">
+            <div className="min-w-0 flex flex-col justify-center gap-0.5 self-stretch">
+              <div className="text-[13.5px] font-bold leading-tight text-foreground">
                 {consentComplete
                   ? `Physical copy of consent obtained for ${yearIptr.school_year}`
                   : `Consent pending for ${yearIptr.school_year}`}
               </div>
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-2 leading-tight">
                 {/* Same plain "Grade 6-Rose" text as the patient card header,
                     all in the grade's colour-coding colour, no pill (user, 2026-09-24). */}
                 {yearGrade ? (
