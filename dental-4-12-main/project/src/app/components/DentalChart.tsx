@@ -1712,7 +1712,7 @@ export const DentalChart = () => {
                     <button onClick={() => setEditMode(true)}
                       title={canEdit ? 'Edit chart' : 'Edit history & oral'}
                       aria-label={canEdit ? 'Edit chart' : 'Edit history & oral'}
-                      className="flex items-center justify-center rounded-lg border border-border p-2 text-foreground transition-colors hover:bg-muted">
+                      className="flex items-center justify-center rounded-lg border border-destructive bg-destructive p-2 text-white transition-opacity hover:opacity-90">
                       <Pencil className="w-4 h-4" />
                     </button>
                   ) : (
@@ -1855,7 +1855,7 @@ export const DentalChart = () => {
                   <button
                     type="button"
                     onClick={() => setLegendOpen(true)}
-                    className="flex items-center gap-1.5 rounded-lg bg-destructive px-2.5 py-1.5 text-xs font-semibold text-white transition-colors hover:opacity-90"
+                    className="flex items-center gap-1.5 rounded-lg bg-primary px-2.5 py-1.5 text-xs font-semibold text-white transition-colors hover:opacity-90"
                   >
                     <FileText className="w-3.5 h-3.5" /> Legend
                   </button>
