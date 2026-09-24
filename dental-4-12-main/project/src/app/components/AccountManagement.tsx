@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Plus, Edit, Power, Search, KeyRound, Mail } from 'lucide-react';
+import { Plus, Edit, Power, Search, KeyRound, Mail, UserCog } from 'lucide-react';
+import { PageHeader } from './PageHeader';
 import { useUsers, ROLE_LABELS } from '../hooks/useUsers';
 import { apiClient, ApiError } from '../api/client';
 import type { ApiRole, ApiSchool } from '../api/types';
@@ -312,20 +313,21 @@ export const AccountManagement = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Account Management</h1>
-          <p className="text-muted-foreground mt-1">{filteredUsers.length} user accounts</p>
-        </div>
-
-        <button
-          onClick={() => setShowCreateForm(!showCreateForm)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Create Account
-        </button>
-      </div>
+      <PageHeader
+        icon={UserCog}
+        eyebrow="Administration"
+        title="Account Management"
+        description={`${filteredUsers.length} user accounts across every role, school assignment and status.`}
+        action={
+          <button
+            onClick={() => setShowCreateForm(!showCreateForm)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Create Account
+          </button>
+        }
+      />
 
       {error && <Notice variant="error">{error}</Notice>}
 

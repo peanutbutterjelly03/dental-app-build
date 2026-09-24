@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Search, Filter, Calendar, Download } from 'lucide-react';
+import { Search, Filter, Calendar, Download, ClipboardList } from 'lucide-react';
+import { PageHeader } from './PageHeader';
 import { useAuditTrail, windowStart, AUDIT_WINDOW_DAYS } from '../hooks/useAuditTrail';
 import { exportToCsv, type ExportColumn } from '../utils/exportCsv';
 import { buildXlsx } from '../utils/exportXlsx';
@@ -108,32 +109,28 @@ export const AuditTrail = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Audit Trail</h1>
-          {/* Says WHICH logs are counted. A bare count over a bounded window
-              reads as the whole history and would understate it silently. */}
-          <p className="text-muted-foreground mt-1">
-            {filteredLogs.length} activity {filteredLogs.length === 1 ? 'log' : 'logs'}
-            {' · '}
-            {fetchFrom === null
-              ? 'all time'
-              : `since ${fetchFrom.toLocaleDateString()}`}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {fetchFrom !== null && (
-            <button
-              onClick={() => setShowAll(true)}
-              className="px-3 py-2 text-sm font-medium border border-gray-300 rounded-lg text-foreground hover:bg-gray-50"
-            >
-              Show earlier
-            </button>
-          )}
-          <ExportMenu onExport={handleExport} />
-        </div>
-      </div>
+      {/* Header
+          Says WHICH logs are counted. A bare count over a bounded window
+          reads as the whole history and would understate it silently. */}
+      <PageHeader
+        icon={ClipboardList}
+        eyebrow="Administration"
+        title="Audit Trail"
+        description={`${filteredLogs.length} activity ${filteredLogs.length === 1 ? 'log' : 'logs'}, ${fetchFrom === null ? 'all time' : `since ${fetchFrom.toLocaleDateString()}`}.`}
+        action={
+          <div className="flex items-center gap-2">
+            {fetchFrom !== null && (
+              <button
+                onClick={() => setShowAll(true)}
+                className="px-3 py-2 text-sm font-medium border border-gray-300 rounded-lg text-foreground hover:bg-gray-50"
+              >
+                Show earlier
+              </button>
+            )}
+            <ExportMenu onExport={handleExport} />
+          </div>
+        }
+      />
 
       {/* Filters */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">

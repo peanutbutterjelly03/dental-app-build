@@ -2,6 +2,7 @@ import { Link } from 'react-router';
 import { AlertTriangle, Calendar, Brain, Bell } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications, NOTIFIED_ROLES } from '../hooks/useNotifications';
+import { PageHeader } from './PageHeader';
 
 // ─── Notifications page ──────────────────────────────────────────────────────
 // Was an inline sidebar popover; moved to its own page on request. The data is
@@ -20,8 +21,12 @@ export const Notifications = () => {
   if (!enabled) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold text-foreground">Notifications</h1>
-        <p className="text-sm text-muted-foreground mt-1">Notifications aren't shown for this role — School Administrator and Barangay Health Office staff view reports, not clinical records.</p>
+        <PageHeader
+          icon={Bell}
+          eyebrow="Alerts"
+          title="Notifications"
+          description="Notifications aren't shown for this role. School Administrator and Barangay Health Office staff view reports, not clinical records."
+        />
       </div>
     );
   }
@@ -69,12 +74,12 @@ export const Notifications = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Notifications</h1>
-        <p className="text-muted-foreground mt-1">
-          {loading ? 'Loading…' : `${total} thing${total === 1 ? '' : 's'} need${total === 1 ? 's' : ''} attention`}
-        </p>
-      </div>
+      <PageHeader
+        icon={Bell}
+        eyebrow="Alerts"
+        title="Notifications"
+        description={loading ? 'Loading…' : `${total} thing${total === 1 ? '' : 's'} need${total === 1 ? 's' : ''} attention.`}
+      />
 
       {error && (
         <div className="flex items-center gap-2 bg-danger-surface text-destructive text-sm rounded-xl border border-destructive/20 p-4">

@@ -8,6 +8,8 @@ import { treatmentCodes, treatmentLabel } from '../utils/dentalChartCodes';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
 import { PAGE_SIZE_OPTIONS } from './Pagination';
 import { formatDate, formatMonthYear } from '../utils/localDate';
+import { TOPBAR_H } from '../utils/layout';
+import { PageHeader } from './PageHeader';
 
 const GRADES = ['Kinder','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10'];
 
@@ -100,6 +102,34 @@ export const RPCTracking = () => {
 
   // Already filtered and paged by the server (Sprint 146).
   const filtered = rpcRecords;
+
+  // Pins the title and the search/filter card at the top (stacked below
+  // TOPBAR_H, the fixed status strip — same pattern as PatientList's
+  // toolbar/header), so ONLY the table below them can ever scroll, even if
+  // the filter row wraps to more lines at a narrow width. Heights are
+  // measured rather than hardcoded for that same reason.
+  const titleRef = useRef<HTMLDivElement | null>(null);
+  const filterCardRef = useRef<HTMLDivElement | null>(null);
+  const [stickyTop, setStickyTop] = useState({ title: TOPBAR_H, filters: TOPBAR_H });
+
+  useEffect(() => {
+    const measure = () => {
+      const titleH = titleRef.current?.offsetHeight ?? 0;
+      setStickyTop({ title: TOPBAR_H, filters: TOPBAR_H + titleH });
+    };
+    measure();
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(measure);
+      if (titleRef.current) resizeObserver.observe(titleRef.current);
+      if (filterCardRef.current) resizeObserver.observe(filterCardRef.current);
+    }
+    window.addEventListener('resize', measure);
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, []);
 
   // Bounds the row list to whatever viewport space is left below it and
   // above the footer, so a short page of results still fills that space
@@ -210,16 +240,19 @@ export const RPCTracking = () => {
       {error && (
         <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">{error}</div>
       )}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Routine Preventive Care</h1>
-        </div>
-        {/* No export by design (2026-09-02) — see PatientList for the reasoning:
-            a CSV of named students leaves the encrypted store as plaintext.
-            The DOH report on Reports is the official, aggregate output. */}
+      {/* No export by design (2026-09-02) — see PatientList for the reasoning:
+          a CSV of named students leaves the encrypted store as plaintext.
+          The DOH report on Reports is the official, aggregate output. */}
+      <div ref={titleRef} className="sticky z-40 bg-gray-50 pb-2" style={{ top: stickyTop.title }}>
+        <PageHeader
+          icon={Shield}
+          eyebrow="Clinical Care"
+          title="Routine Preventive Care"
+          description="Track each student's two required RPC visits per school year and flag the ones due or overdue."
+        />
       </div>
 
-      <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+      <div ref={filterCardRef} className="sticky z-40 bg-card rounded-xl border border-border p-4 space-y-3" style={{ top: stickyTop.filters }}>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input type="text" placeholder="Search student..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)}
@@ -260,7 +293,7 @@ export const RPCTracking = () => {
                   <th key={h} className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 font-semibold text-foreground">{h}</th>
                 ))}
                 <th className="sticky top-0 z-10 bg-gray-100 text-left pl-4 pr-2 py-3 font-semibold text-foreground">Days Until Due</th>
-                <th className="sticky top-0 z-10 bg-gray-100 text-center pl-2 pr-4 py-3 font-semibold text-foreground">Actions</th>
+                <th className="sticky top-0 z-10 bg-gray-100 text-left pl-2 pr-4 py-3 font-semibold text-foreground">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -303,7 +336,7 @@ export const RPCTracking = () => {
                         </>
                       ) : <span className="text-muted-foreground text-xs">—</span>}
                     </td>
-                    <td className="pl-2 pr-4 py-3 text-center">
+                    <td className="pl-2 pr-4 py-3 text-left">
                       <button
                         onClick={() => navigate(`/dental-chart/${r.id}?tab=treatments`)}
                         className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium border border-border rounded-lg hover:bg-gray-50 whitespace-nowrap"

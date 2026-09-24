@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { FileSpreadsheet, FileText, Printer, Download, AlertTriangle, AlertCircle, CheckCircle, Users, Calendar, X } from 'lucide-react';
+import { FileSpreadsheet, FileText, Printer, Download, AlertTriangle, AlertCircle, CheckCircle, Users, Calendar, X, FileBarChart } from 'lucide-react';
+import { PageHeader } from './PageHeader';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ChartTooltip } from './ChartTooltip';
 import { LiveUpdatedStamp } from './LiveUpdatedStamp';
@@ -537,38 +538,40 @@ export const Reports = () => {
   return (
     <div className="space-y-4">
       {/* Header — title left, controls right */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Reports</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">DOH Consolidated Report &amp; Internal Reports</p>
-        </div>
-        <div className="doh-report-controls flex items-center gap-2 flex-shrink-0">
-          <select value={reportMonth} onChange={e => setReportMonth(Number(e.target.value))}
-            className="text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring">
-            {MONTHS.map((m,i) => <option key={m} value={i+1}>{m}</option>)}
-          </select>
-          <select value={reportYear} onChange={e => setReportYear(Number(e.target.value))}
-            className="text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring">
-            {[2023,2024,2025,2026].map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
-          <button onClick={() => window.print()}
-            className="flex items-center gap-2 px-4 py-2 bg-card border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium whitespace-nowrap">
-            <Printer className="w-4 h-4" /> Print
-          </button>
-          {activeReportTab === 'doh' && (
-            <button onClick={handleDownloadPdf} disabled={building}
-              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-60 text-sm font-medium whitespace-nowrap">
-              <Download className="w-4 h-4" /> {building && preview.kind === 'pdf' ? 'Generating…' : 'Download PDF'}
+      <PageHeader
+        icon={FileBarChart}
+        eyebrow="Reporting"
+        title="Reports"
+        description="DOH Consolidated Report and internal reports for every school year on file."
+        action={
+          <div className="doh-report-controls flex items-center gap-2 flex-shrink-0 flex-wrap">
+            <select value={reportMonth} onChange={e => setReportMonth(Number(e.target.value))}
+              className="text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring">
+              {MONTHS.map((m,i) => <option key={m} value={i+1}>{m}</option>)}
+            </select>
+            <select value={reportYear} onChange={e => setReportYear(Number(e.target.value))}
+              className="text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring">
+              {[2023,2024,2025,2026].map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+            <button onClick={() => window.print()}
+              className="flex items-center gap-2 px-4 py-2 bg-card border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium whitespace-nowrap">
+              <Printer className="w-4 h-4" /> Print
             </button>
-          )}
-          {activeReportTab === 'doh' && (
-            <button onClick={handleDownloadExcel} disabled={building}
-              className="flex items-center gap-2 px-4 py-2 bg-green-700 text-white rounded-lg hover:bg-green-800 disabled:opacity-60 text-sm font-medium whitespace-nowrap">
-              <FileSpreadsheet className="w-4 h-4" /> {building && preview.kind === 'excel' ? 'Generating…' : 'Download Excel'}
-            </button>
-          )}
-        </div>
-      </div>
+            {activeReportTab === 'doh' && (
+              <button onClick={handleDownloadPdf} disabled={building}
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-60 text-sm font-medium whitespace-nowrap">
+                <Download className="w-4 h-4" /> {building && preview.kind === 'pdf' ? 'Generating…' : 'Download PDF'}
+              </button>
+            )}
+            {activeReportTab === 'doh' && (
+              <button onClick={handleDownloadExcel} disabled={building}
+                className="flex items-center gap-2 px-4 py-2 bg-green-700 text-white rounded-lg hover:bg-green-800 disabled:opacity-60 text-sm font-medium whitespace-nowrap">
+                <FileSpreadsheet className="w-4 h-4" /> {building && preview.kind === 'excel' ? 'Generating…' : 'Download Excel'}
+              </button>
+            )}
+          </div>
+        }
+      />
       {downloadError && (
         <div className="text-sm text-destructive bg-red-50 border border-red-200 rounded-lg px-4 py-2">{downloadError}</div>
       )}

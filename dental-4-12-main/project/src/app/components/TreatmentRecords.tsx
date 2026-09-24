@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router';
-import { X } from 'lucide-react';
+import { X, Clipboard } from 'lucide-react';
+import { PageHeader } from './PageHeader';
 import { GradeTableCell } from './GradeTableCell';
 import { ListSearchInput } from './ListSearchInput';
 import { studentListTableStyles } from './StudentListTableStyles';
@@ -112,21 +113,23 @@ export const TreatmentRecords = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Treatment</h1>
-          {/* ⚠ STUDENTS, not treatment records. The rows come from
-              `useStudents()` — this is the picker you choose a pupil from.
-              TREATMENT held ZERO rows on dev when this was checked
-              (2026-09-06) while the page announced "26 records found", which
-              is a fabricated figure on a clinical screen. */}
-          <p className="text-sm text-muted-foreground mt-0.5">{filtered.length} student{filtered.length !== 1 ? 's' : ''}</p>
-        </div>
-        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-          <button onClick={() => setViewMode('treatment')} className={`px-3 py-1.5 rounded-md text-sm font-medium ${viewMode === 'treatment' ? 'bg-white text-[#1E40AF] shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>Treatment List</button>
-          <button onClick={() => setViewMode('full')} className={`px-3 py-1.5 rounded-md text-sm font-medium ${viewMode === 'full' ? 'bg-white text-[#1E40AF] shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>Full List</button>
-        </div>
-      </div>
+      {/* ⚠ STUDENTS, not treatment records. The rows come from
+          `useStudents()` — this is the picker you choose a pupil from.
+          TREATMENT held ZERO rows on dev when this was checked
+          (2026-09-06) while the page announced "26 records found", which
+          is a fabricated figure on a clinical screen. */}
+      <PageHeader
+        icon={Clipboard}
+        eyebrow="Clinical Care"
+        title="Treatment"
+        description={`${filtered.length} student${filtered.length !== 1 ? 's' : ''} to pick a treatment record for.`}
+        action={
+          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+            <button onClick={() => setViewMode('treatment')} className={`px-3 py-1.5 rounded-md text-sm font-medium ${viewMode === 'treatment' ? 'bg-white text-[#1E40AF] shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>Treatment List</button>
+            <button onClick={() => setViewMode('full')} className={`px-3 py-1.5 rounded-md text-sm font-medium ${viewMode === 'full' ? 'bg-white text-[#1E40AF] shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>Full List</button>
+          </div>
+        }
+      />
       <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
         <div className="flex flex-wrap gap-2">
           <ListSearchInput value={searchTerm} onChange={setSearchTerm} />

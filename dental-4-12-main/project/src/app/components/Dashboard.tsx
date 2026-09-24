@@ -12,9 +12,11 @@ import {
   Clock,
   BarChart3,
   ArrowRight,
-  ChevronRight
+  ChevronRight,
+  LayoutDashboard
 } from 'lucide-react';
 import { SkeletonBlock } from './Skeleton';
+import { PageHeader } from './PageHeader';
 import { CHART, RISK_COLORS, FUNNEL_RAMP } from '../utils/chartColors';
 import { getSchoolShortName } from '../utils/schoolColors';
 import { toLocalDateString, formatDateWithWeekday } from '../utils/localDate';
@@ -475,10 +477,12 @@ export const Dashboard = () => {
     return (
       <div className="space-y-6">
         <div className="flex flex-wrap items-end gap-4 rise">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Dentist Dashboard</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Welcome back, {user?.name}!</p>
-          </div>
+          <PageHeader
+            icon={LayoutDashboard}
+            eyebrow="Overview"
+            title="Dentist Dashboard"
+            description={`Welcome back, ${user?.name}.`}
+          />
           {/* No "New Appointment" button here on purpose — removed on request.
               Booking lives on the Appointments page; the dashboard reports. The
               date and appointment count moved into the clinic summary strip
@@ -764,10 +768,12 @@ export const Dashboard = () => {
     return (
       <div className="space-y-6">
         <div className="flex flex-wrap items-end gap-4 rise">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Dental Aide Dashboard</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Welcome back, {user?.name}!</p>
-          </div>
+          <PageHeader
+            icon={LayoutDashboard}
+            eyebrow="Overview"
+            title="Dental Aide Dashboard"
+            description={`Welcome back, ${user?.name}.`}
+          />
           {/* No "New Appointment" button here on purpose — removed on request.
               Booking lives on the Appointments page; the dashboard reports. The
               date and appointment count moved into the clinic summary strip
@@ -925,10 +931,12 @@ export const Dashboard = () => {
     return (
       <div className="space-y-6">
         <div className="flex flex-wrap items-end gap-4 rise">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">School Admin Dashboard</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">{user.schools?.[0]}</p>
-          </div>
+          <PageHeader
+            icon={LayoutDashboard}
+            eyebrow="Overview"
+            title="School Admin Dashboard"
+            description={user.schools?.[0] ?? 'No school assigned yet.'}
+          />
           {/* Date + enrolled count moved into the school summary (Sprint E). */}
           <Link
             to="/reports"
@@ -1137,10 +1145,12 @@ export const Dashboard = () => {
     return (
       <div className="space-y-6">
         <div className="flex flex-wrap items-end gap-4 rise">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Barangay Health Office Dashboard</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Aggregated data across all schools</p>
-          </div>
+          <PageHeader
+            icon={LayoutDashboard}
+            eyebrow="Overview"
+            title="Barangay Health Office Dashboard"
+            description="Aggregated dental health data across all three schools."
+          />
           {/* Date + totals moved into the barangay summary (Sprint F). */}
           <Link
             to="/reports"
@@ -1371,10 +1381,12 @@ export const Dashboard = () => {
     return (
       <div className="space-y-6">
         <div className="flex flex-wrap items-end gap-4 rise">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">System Admin Dashboard</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">System monitoring and management</p>
-          </div>
+          <PageHeader
+            icon={LayoutDashboard}
+            eyebrow="Overview"
+            title="System Admin Dashboard"
+            description="System monitoring and account management across the whole app."
+          />
           {/* Date + active-user count moved into the system summary (Sprint I). */}
           <Link
             to="/accounts"
@@ -1514,10 +1526,12 @@ export const Dashboard = () => {
   // Default fallback
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Welcome back, {user?.name}</p>
-      </div>
+      <PageHeader
+        icon={LayoutDashboard}
+        eyebrow="Overview"
+        title="Dashboard"
+        description={`Welcome back, ${user?.name}.`}
+      />
       <div className="bg-card p-4 rounded-xl border border-border">
         <p className="text-muted-foreground">No dashboard configured for your role.</p>
       </div>

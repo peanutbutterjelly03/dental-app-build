@@ -6,6 +6,7 @@ import {
 import { apiClient, ApiError } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useRiskClassification, type RiskCandidate, type RiskHistoryEntry } from '../hooks/useRiskClassification';
+import { PageHeader } from './PageHeader';
 import { calculateAge, getAgeGroup, AGE_GROUPS } from '../utils/age';
 import { SkeletonStatGrid, SkeletonTable } from './Skeleton';
 import { Notice } from './Notice';
@@ -362,10 +363,12 @@ export const AIAnalytics = () => {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Risk Classification</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Predictive dental health risk classification</p>
-      </div>
+      <PageHeader
+        icon={Brain}
+        eyebrow="Clinical Care"
+        title="Risk Classification"
+        description="Review predicted caries risk per student and validate each result before it guides treatment."
+      />
 
       {/* Always-on safety disclaimer (sprint rule: show on all AI outputs) */}
       <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-800">
