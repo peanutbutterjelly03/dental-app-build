@@ -7,7 +7,6 @@ import { PreviewModal } from './PreviewModal';
 import { getGradeColor } from '../utils/gradeColors';
 import { BMI_NOTE } from '../utils/bmi';
 import { useAuth } from '../context/AuthContext';
-import { GradePill } from './GradePill';
 import { useToast } from './Toast';
 import { useStudentNav } from '../hooks/useStudentNav';
 import { validateStudentValues } from '../../../shared/studentValidation';
@@ -1591,13 +1590,15 @@ export const DentalChart = () => {
                     {/* Nothing when the year has no recorded grade — the detail
                         line directly above already says so, and repeating it
                         here just doubled the same sentence. */}
-                    {/* Grade pill + section as plain small black text tucked
-                        right beside it -- same design as the charting-mode
-                        header below. */}
+                    {/* "Grade 3-Bunga" as plain text, no pill (user, 2026-09-24):
+                        the grade in its colour-coding colour, the section in
+                        black at the same size, neither bold. Same design as the
+                        charting-mode header below. */}
                     {(yearGrade || yearSection) && (
-                      <span className="flex items-center gap-1">
-                        {yearGrade && <GradePill grade={yearGrade} />}
-                        {yearSection && <span className="text-[10px] font-medium text-foreground whitespace-nowrap">{yearSection}</span>}
+                      <span className="whitespace-nowrap text-xs font-normal">
+                        {yearGrade && <span style={{ color: getGradeColor(yearGrade).solid }}>{yearGrade}</span>}
+                        {yearGrade && yearSection && <span className="text-foreground">-</span>}
+                        {yearSection && <span className="text-foreground">{yearSection}</span>}
                       </span>
                     )}
                     {student.is_4ps && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">4Ps</span>}
@@ -1988,9 +1989,10 @@ export const DentalChart = () => {
                       mode is exactly where a dentist confirms they have the
                       right child, so it should not invent a new way to say it. */}
                   {(yearGrade || yearSection) && (
-                    <span className="flex items-center gap-1">
-                      {yearGrade && <GradePill grade={yearGrade} />}
-                      {yearSection && <span className="text-[10px] font-medium text-foreground whitespace-nowrap">{yearSection}</span>}
+                    <span className="whitespace-nowrap text-xs font-normal">
+                      {yearGrade && <span style={{ color: getGradeColor(yearGrade).solid }}>{yearGrade}</span>}
+                      {yearGrade && yearSection && <span className="text-foreground">-</span>}
+                      {yearSection && <span className="text-foreground">{yearSection}</span>}
                     </span>
                   )}
                   <span className="h-4 w-px bg-border" aria-hidden="true" />
@@ -2420,7 +2422,7 @@ export const DentalChart = () => {
                     {/* AUTOMATIC (2026-09-25) — see isOrallyFitChild above:
                         no oral condition present and no tooth carrying a
                         treatment code. */}
-                    <tr className={isOrallyFitChild ? 'bg-teal-100' : undefined}>
+                    <tr>
                       <td className="border-b border-teal-200/70 px-2 py-1.5 text-foreground">Orally Fit Child</td>
                       <td className="border-b border-teal-200/70 px-2 py-1.5 font-semibold text-teal-800">
                         {isOrallyFitChild ? 'Yes' : ''}
@@ -2554,14 +2556,27 @@ export const DentalChart = () => {
                 </table>
                 {/* Ruled filler (user, 2026-09-24). Beside the taller Dental
                     Condition Summary this card is stretched, and the space
-                    under the last row read as empty. The lines continue at the
-                    row pitch (py-1.5 + 16px line + 1px border = 29px), with the
-                    Visit 1 divider at the 65% column edge. Decoration only --
-                    no cells, nothing a screen reader or a copy-paste picks up.
-                    Zero height when the cards stack (below lg). */}
-                <div aria-hidden="true" className="min-h-0 min-w-[480px] flex-1" style={{
-                  backgroundImage: 'linear-gradient(to right, transparent calc(65% - 1px), rgb(191 219 254 / 0.7) calc(65% - 1px), rgb(191 219 254 / 0.7) 65%, transparent 65%), repeating-linear-gradient(to bottom, transparent 0, transparent 28px, rgb(191 219 254 / 0.7) 28px, rgb(191 219 254 / 0.7) 29px)',
-                }} />
+                    under the last row read as empty. These are REAL empty rows
+                    with the same cell classes as the table above, so the pitch
+                    and line weight match exactly (a CSS gradient version drew
+                    some lines bolder than others at fractional pixel sizes).
+                    Absolutely positioned and clipped, so they fill the space
+                    without making the card any taller; zero height when the
+                    cards stack (below lg). Decoration only, hidden from screen
+                    readers. */}
+                <div aria-hidden="true" className="relative min-h-0 min-w-[480px] flex-1 overflow-hidden">
+                  <table className="absolute inset-x-0 top-0 w-full table-fixed border-collapse text-xs">
+                    <colgroup><col className="w-[30%]" /><col className="w-[15%]" /><col className="w-[20%]" /><col className="w-[15%]" /><col className="w-[20%]" /></colgroup>
+                    <tbody>
+                      {Array.from({ length: 30 }, (_, i) => (
+                        <tr key={i}>
+                          <td colSpan={3} className="border-b border-blue-200/70 border-r border-r-blue-200/70 px-2 py-1.5">&nbsp;</td>
+                          <td colSpan={2} className="border-b border-blue-200/70 px-2 py-1.5">&nbsp;</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
                 </div>
               </div>
             </div>
