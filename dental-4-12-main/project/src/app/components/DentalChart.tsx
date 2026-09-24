@@ -587,14 +587,16 @@ export const DentalChart = () => {
     { label: 'Abnormal Growth', present: draftOral.abnormalGrowth },
     { label: 'Cleft Lip / Palate', present: draftOral.cleftLipPalate },
   ], [chartedTeeth, draftOral]);
-  // "Orally Fit Child" — AUTOMATIC (2026-09-25, reversing the manual chip
-  // added earlier the same day): none of the conditions above present, and
-  // no tooth carries a treatment code (a treatment means something needed
-  // doing, which is not "fit" either). Not stored anywhere; recomputed the
-  // same way the summary row itself is read, so it can never drift from
-  // what the chips and the odontogram actually say.
+  // "Orally Fit Child" — AUTOMATIC. Rule (user, 2026-09-24): Yes ONLY when
+  // teeth have been charted and EVERY charted tooth is Sound (✓), with none
+  // of the oral conditions above present. An uncharted mouth is not "fit",
+  // it is unexamined, so it stays blank. A treatment code on a sound tooth
+  // (e.g. a sealant) does not block it: ✓ is the form's "Sound/Sealed".
+  // Not stored anywhere; recomputed from the chart, so it can never drift.
   const isOrallyFitChild = useMemo(
-    () => !presentOralConditions.some((c) => c.present) && !chartedTeeth.some((t) => t.treatment),
+    () => chartedTeeth.length > 0
+      && chartedTeeth.every((t) => t.condition === '✓' || t.condition === '√')
+      && !presentOralConditions.some((c) => c.present),
     [presentOralConditions, chartedTeeth],
   );
   const dmft = computeDMFT(currentChart);
