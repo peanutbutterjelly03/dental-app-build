@@ -1125,7 +1125,8 @@ export const DentalChart = () => {
     setInfoSaving(true);
     setInfoError(null);
     try {
-      await apiClient.put(`/students/${id}`, draftInfo);
+      // No PhilHealth number means no PhilHealth status (user, 2026-09-24).
+      await apiClient.put(`/students/${id}`, (draftInfo.philhealth_number ?? '').trim() ? draftInfo : { ...draftInfo, philhealth_status: 'None' });
       // Two writes because the panel edits two records. Blank clears the
       // measurement rather than storing 0, which would read as "measured at
       // zero" and feed a nonsense BMI.
@@ -1638,7 +1639,7 @@ export const DentalChart = () => {
                   (Sprint 70). */}
               <div>
                 <label className="block text-muted-foreground font-medium mb-0.5">PhilHealth No.</label>
-                <input type="text" value={draftInfo.philhealth_number ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, philhealth_number: e.target.value }))}
+                <input type="text" value={draftInfo.philhealth_number ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, philhealth_number: e.target.value, ...(e.target.value.trim() === '' ? { philhealth_status: 'None' as const } : {}) }))}
                   className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs" />
               </div>
               <div>
@@ -1667,8 +1668,12 @@ export const DentalChart = () => {
               </div>
               <div>
                 <label className="block text-muted-foreground font-medium mb-0.5">PhilHealth Status</label>
-                <select value={draftInfo.philhealth_status ?? 'None'} onChange={(e) => setDraftInfo((p) => ({ ...p, philhealth_status: e.target.value as 'None' | 'Principal' | 'Dependent' }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs bg-card">
+                {/* Only meaningful with a number (user, 2026-09-24). */}
+                <select value={(draftInfo.philhealth_number ?? '').trim() ? (draftInfo.philhealth_status ?? 'None') : 'None'}
+                  disabled={!(draftInfo.philhealth_number ?? '').trim()}
+                  title={(draftInfo.philhealth_number ?? '').trim() ? undefined : 'Enter a PhilHealth number first'}
+                  onChange={(e) => setDraftInfo((p) => ({ ...p, philhealth_status: e.target.value as 'None' | 'Principal' | 'Dependent' }))}
+                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs bg-card disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground">
                   <option>Dependent</option><option>Principal</option><option>None</option>
                 </select>
               </div>
@@ -1778,7 +1783,7 @@ export const DentalChart = () => {
                 ['Contact', student.contact_number || '—'],
                 ['Guardian', student.guardian_name || '—'],
                 ['Guardian Contact', student.guardian_contact || '—'],
-                ['PhilHealth', `${student.philhealth_number || '—'} (${student.philhealth_status || 'None'})`],
+                ['PhilHealth', student.philhealth_number ? `${student.philhealth_number} (${student.philhealth_status || 'None'})` : '—'],
                 // ⚠ Height, Weight and BMI are NOT here any more (Sprint 173,
                 // hers). This card is identity and contact facts; a clinical
                 // measurement belongs with the rest of the measurements, on
