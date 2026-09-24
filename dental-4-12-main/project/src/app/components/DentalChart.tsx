@@ -1605,14 +1605,14 @@ export const DentalChart = () => {
                         line directly above already says so, and repeating it
                         here just doubled the same sentence. */}
                     {/* "Grade 3-Bunga" as plain text, no pill (user, 2026-09-24):
-                        the grade in its colour-coding colour, the section in
-                        black at the same size, neither bold. Same design as the
+                        grade, dash and section all in the grade's colour-coding
+                        colour (user, same day), same size, not bold. Same design as the
                         charting-mode header below. */}
                     {(yearGrade || yearSection) && (
                       <span className="whitespace-nowrap text-xs font-normal">
                         {yearGrade && <span style={{ color: getGradeColor(yearGrade).solid }}>{yearGrade}</span>}
-                        {yearGrade && yearSection && <span className="text-foreground">-</span>}
-                        {yearSection && <span className="text-foreground">{yearSection}</span>}
+                        {yearGrade && yearSection && <span style={{ color: getGradeColor(yearGrade).solid }}>-</span>}
+                        {yearSection && <span style={yearGrade ? { color: getGradeColor(yearGrade).solid } : undefined} className={yearGrade ? undefined : 'text-foreground'}>{yearSection}</span>}
                       </span>
                     )}
                     {student.is_4ps && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">4Ps</span>}
@@ -2005,8 +2005,8 @@ export const DentalChart = () => {
                   {(yearGrade || yearSection) && (
                     <span className="whitespace-nowrap text-xs font-normal">
                       {yearGrade && <span style={{ color: getGradeColor(yearGrade).solid }}>{yearGrade}</span>}
-                      {yearGrade && yearSection && <span className="text-foreground">-</span>}
-                      {yearSection && <span className="text-foreground">{yearSection}</span>}
+                      {yearGrade && yearSection && <span style={{ color: getGradeColor(yearGrade).solid }}>-</span>}
+                      {yearSection && <span style={yearGrade ? { color: getGradeColor(yearGrade).solid } : undefined} className={yearGrade ? undefined : 'text-foreground'}>{yearSection}</span>}
                     </span>
                   )}
                   <span className="h-4 w-px bg-border" aria-hidden="true" />
