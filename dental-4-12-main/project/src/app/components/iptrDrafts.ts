@@ -16,8 +16,8 @@
 // default would be mutated by the first form that edits it and then handed to
 // the next pupil.
 
-/** MEDICAL_HISTORY's yes/no questions, by their API field name. Tri-state
- *  (2026-09-24): true = Oo, false = Hindi, null = not asked. */
+/** MEDICAL_HISTORY's yes/no questions, by their API field name. Ticked =
+ *  true ("Oo" on Form 1), unticked = false ("Hindi"). */
 export const MED_FLAGS = [
   'hypertension', 'diabetes_mellitus', 'blood_disorders', 'cardiovascular_disease', 'thyroid_disorders',
   'hepatitis_disorders', 'malignancy', 'previous_hospitalization', 'previous_surgical', 'blood_transfusion', 'tattoo',
@@ -30,7 +30,7 @@ export const MED_TEXTS = [
   'allergies', 'others', 'hepatitis_type', 'malignancy_details', 'blood_transfusion_date', 'last_admission', 'medication_details',
 ] as const;
 export type MedText = typeof MED_TEXTS[number];
-export type MedicalHistoryDraft = Record<MedFlag, boolean | null> & Record<MedText, string>;
+export type MedicalHistoryDraft = Record<MedFlag, boolean> & Record<MedText, string>;
 export type DietDraft = {
   sugarSweetened: boolean; alcoholDrinker: boolean; tobaccoUser: boolean; betelNut: boolean;
   bodyPiercing: boolean; nailBiting: boolean; thumbsucking: boolean;
@@ -47,13 +47,13 @@ export type MeasureDraft = {
 };
 
 export const emptyMed = (): MedicalHistoryDraft => ({
-  ...(Object.fromEntries(MED_FLAGS.map((f) => [f, null])) as Record<MedFlag, null>),
+  ...(Object.fromEntries(MED_FLAGS.map((f) => [f, false])) as Record<MedFlag, boolean>),
   ...(Object.fromEntries(MED_TEXTS.map((f) => [f, ''])) as Record<MedText, string>),
 });
 /** Draft from a stored record: the same field names, so no translation table
- *  to drift. A field the record predates reads as not asked / empty. */
+ *  to drift. A field the record predates reads as unticked / empty. */
 export const medDraftFrom = (mh: Partial<Record<MedFlag, boolean | null> & Record<MedText, string>>): MedicalHistoryDraft => ({
-  ...(Object.fromEntries(MED_FLAGS.map((f) => [f, mh[f] ?? null])) as Record<MedFlag, boolean | null>),
+  ...(Object.fromEntries(MED_FLAGS.map((f) => [f, mh[f] === true])) as Record<MedFlag, boolean>),
   ...(Object.fromEntries(MED_TEXTS.map((f) => [f, mh[f] ?? ''])) as Record<MedText, string>),
 });
 export const emptyDiet = (): DietDraft => ({

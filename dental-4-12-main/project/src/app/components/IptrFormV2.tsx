@@ -49,9 +49,10 @@ const FORM1_SECTION_B_LABELS = [
 ];
 
 /** The 16 printed questions, verbatim including the sheet's own spelling.
- *  `source` reads the stored answer: true prints Oo, false prints Hindi, null
- *  prints NOTHING -- never a guessed "Hindi", which on a medical history is a
- *  clinical claim. Every question has its own field since 2026-09-24.
+ *  Answered from the History tab's chips (user, 2026-09-24): ticked prints
+ *  under Oo, unticked under Hindi. With no medical history saved for the
+ *  year at all, the row prints blank. Q12 and Q13 are "para sa babae" and
+ *  print blank for a male pupil.
  *
  *  ⚠ Q3 and Q4 read their OWN fields (liver_disease, anemia), not the IPTR's
  *  hepatitis / blood-disorder rows: "may sakit sa atay" is broader than
@@ -59,23 +60,22 @@ const FORM1_SECTION_B_LABELS = [
  *  one from the other would put an assertion nobody made on a signed form.
  *  `remark` fills the Remarks column from the matching "Ano?" detail. */
 const med = (f: keyof NonNullable<IptrYearData['medicalHistory']>) =>
-  (y: IptrYearData) => (y.medicalHistory?.[f] as boolean | null | undefined) ?? null;
-const HISTORY_QUESTIONS: { n: number; q: string; source: (y: IptrYearData) => boolean | null; remark?: (y: IptrYearData) => string }[] = [
+  (y: IptrYearData) => (y.medicalHistory ? y.medicalHistory[f] === true : null);
+const HISTORY_QUESTIONS: { n: number; q: string; source: (y: IptrYearData) => boolean | null; remark?: (y: IptrYearData) => string; femaleOnly?: boolean }[] = [
   { n: 1, q: 'Mayroon ka bang diabetes?', source: med('diabetes_mellitus') },
   { n: 2, q: 'Mayroon ka bang sakit sa puso?', source: med('cardiovascular_disease') },
   { n: 3, q: 'Mayroon ka bang sakit sa atay?', source: med('liver_disease') },
   { n: 4, q: 'Ikaw ba ay kulang sa dugo?', source: med('anemia') },
   { n: 5, q: 'Mataas ba ang presyon ng iyong dugo? Ano?', source: med('hypertension') },
-  // No separate yes/no on the record: an allergy is "Oo" when one is written
-  // down and unanswered otherwise.
-  { n: 6, q: 'Mayroon ka bang allergy sa pagkain? Sa gamot? Ano?', source: (y) => (y.medicalHistory?.allergies ? true : null), remark: (y) => y.medicalHistory?.allergies ?? '' },
+  // No separate tick on the record: an allergy is "Oo" when one is written down.
+  { n: 6, q: 'Mayroon ka bang allergy sa pagkain? Sa gamot? Ano?', source: (y) => (y.medicalHistory ? !!y.medicalHistory.allergies : null), remark: (y) => y.medicalHistory?.allergies ?? '' },
   { n: 7, q: 'Mayroon ka bang allergy sa pamamanhid (anesthesia)?', source: med('anesthesia_allergy') },
   { n: 8, q: 'Ikaw ba ay nabunutan na ng ngipin?', source: med('previous_extraction') },
   { n: 9, q: 'Ikaw ba ay madugo kapag binubunutan ng ngipin?', source: med('extraction_bleeding') },
   { n: 10, q: 'Naninikip ba ang iyong dibdib? / meadaling mapagod?', source: med('chest_tightness') },
   { n: 11, q: 'Mayroon ka bang hika?', source: med('asthma') },
-  { n: 12, q: 'Mayroon ka bang regla? (para sa babae)', source: med('menstruation') },
-  { n: 13, q: 'Ikaw ba ay buntis?', source: med('pregnant') },
+  { n: 12, q: 'Mayroon ka bang regla? (para sa babae)', source: med('menstruation'), femaleOnly: true },
+  { n: 13, q: 'Ikaw ba ay buntis?', source: med('pregnant'), femaleOnly: true },
   { n: 14, q: 'Ikaw ba ay naospital na?', source: med('previous_hospitalization'), remark: (y) => y.medicalHistory?.last_admission ?? '' },
   { n: 15, q: 'Ikaw ba ay may iniinom na gamot sa kasalukuyan?', source: med('current_medication'), remark: (y) => y.medicalHistory?.medication_details ?? '' },
   { n: 16, q: 'Ikaw ba ay may epilepsy?', source: med('epilepsy') },
@@ -104,7 +104,7 @@ const SERVICE_COLUMNS: { label: string; code: string | null }[] = [
 const NO_SOURCE_NOTE =
   'Place of Birth · Occupation · Consultation · Others · Signature: ' +
   'these are on the printed form and the system stores no answer for them, so they print blank. ' +
-  'A history question left unanswered on the History tab also prints blank, never a guessed "Hindi".';
+  'History questions print blank only when no medical history has been saved for the year.';
 
 interface Props {
   student: ApiStudent;
@@ -239,7 +239,7 @@ export function IptrFormV2({ student, schoolName, years }: Props) {
               {HISTORY_QUESTIONS.map((q) => {
                 // The history is asked once, so the most recent year answers it.
                 const latest = shown[shown.length - 1] ?? null;
-                const v = latest ? q.source(latest) : null;
+                const v = latest && !(q.femaleOnly && student.sex !== 'Female') ? q.source(latest) : null;
                 const remark = latest && q.remark ? q.remark(latest) : '';
                 return (
                   <tr key={q.n}>

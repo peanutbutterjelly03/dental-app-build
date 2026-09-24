@@ -56,25 +56,18 @@ const FORM1_QUESTIONS: { n: number; q: string; field: MedFlag; femaleOnly?: bool
   { n: 16, q: 'Ikaw ba ay may epilepsy?', field: 'epilepsy' },
 ];
 
-/** A three-way answer chip: blank (not asked) → Oo → Hindi → blank. */
-function TriChip({ label, value, onChange, disabled }: {
-  label: string; value: boolean | null; onChange: (v: boolean | null) => void; disabled: boolean;
+/** The tick-box chip used across this tab. Ticked prints "Oo" on DOH Form 1,
+ *  unticked prints "Hindi". */
+function CheckChip({ label, checked, onChange, disabled }: {
+  label: string; checked: boolean; onChange: (v: boolean) => void; disabled: boolean;
 }) {
-  const next = value === null ? true : value === true ? false : null;
-  const state = value === true ? 'Oo (yes)' : value === false ? 'Hindi (no)' : 'not asked';
   return (
-    <button type="button" disabled={disabled} onClick={() => onChange(next)} aria-label={`${label}: ${state}`}
-      className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
-        value === true ? 'border-primary bg-primary/10 text-primary font-medium'
-        : value === false ? 'border-slate-300 bg-slate-100 text-slate-600'
-        : 'border-border text-foreground'} ${disabled ? 'cursor-not-allowed opacity-70' : 'hover:bg-canvas'}`}>
-      <span className="min-w-0">{label}</span>
-      {value !== null && (
-        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold text-white ${value ? 'bg-primary' : 'bg-slate-500'}`}>
-          {value ? 'Oo' : 'Hindi'}
-        </span>
-      )}
-    </button>
+    <label className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors ${checked ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-border text-foreground'} ${disabled ? 'cursor-not-allowed opacity-70' : 'cursor-pointer hover:bg-canvas'}`}>
+      <input type="checkbox" disabled={disabled} checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="w-4 h-4 shrink-0 rounded accent-primary disabled:cursor-not-allowed" />
+      {label}
+    </label>
   );
 }
 
@@ -233,15 +226,14 @@ export function HistoryTab({
           {/* Her heading: sentence case at text-base with the instruction
               under it, not a small uppercase label. */}
           <div className="text-base font-bold text-foreground">Medical History</div>
-          <p className="text-xs text-muted-foreground mb-3">Tap once for Oo (yes), twice for Hindi (no), a third time to clear.</p>
+          <p className="text-xs text-muted-foreground mb-3">Select all applicable conditions.</p>
           {/* ⚠ Sprint 165 — chips, not label-left/checkbox-right rows.
               Removing the record page's width cap stretched those rows to
               the full content width and left every checkbox a hand-span
               from the word it belonged to. Her chips keep the box against
               its label at any width.
-              TRI-STATE since 2026-09-24 (see TriChip): DOH Form 1 has both
-              an Oo and a Hindi column, and a plain checkbox could not say
-              "not asked", so Form 1 printed Hindi for questions nobody asked. */}
+              On DOH Form 1 a ticked chip prints under Oo, an unticked one
+              under Hindi (user, 2026-09-24). */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {([
               ['Hypertension / CVA', 'hypertension'], ['Diabetes Mellitus', 'diabetes_mellitus'],
@@ -250,7 +242,7 @@ export function HistoryTab({
               ['History of Hospitalization', 'previous_hospitalization'], ['Surgical (Post-Operative)', 'previous_surgical'],
               ['Blood Transfusion', 'blood_transfusion'], ['Tattoo', 'tattoo'],
             ] as [string, MedFlag][]).map(([label, field]) => (
-              <TriChip key={field} label={label} value={med[field]} disabled={!editing}
+              <CheckChip key={field} label={label} checked={med[field]} disabled={!editing}
                 onChange={(v) => setMed((p) => ({ ...p, [field]: v }))} />
             ))}
           </div>
@@ -278,8 +270,8 @@ export function HistoryTab({
           </div>
 
           {/* DOH Form 1's Filipino questions that the chips above do not
-              answer, verbatim from the form (its own spelling). Each prints in
-              Form 1's Oo / Hindi column. Q12 and Q13 are asked of girls only. */}
+              answer, verbatim from the form (its own spelling). Ticked prints
+              under Oo, unticked under Hindi. Q12 and Q13 are for girls only. */}
           <div className="mt-4 border-t border-border pt-3">
             <div className="text-sm font-bold text-foreground">Form 1 Questions</div>
             <p className="text-[11px] text-muted-foreground mb-2">
@@ -287,7 +279,7 @@ export function HistoryTab({
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {FORM1_QUESTIONS.filter((q) => !q.femaleOnly || isFemale).map((q) => (
-                <TriChip key={q.field} label={`${q.n}. ${q.q}`} value={med[q.field]} disabled={!editing}
+                <CheckChip key={q.field} label={`${q.n}. ${q.q}`} checked={med[q.field]} disabled={!editing}
                   onChange={(v) => setMed((p) => ({ ...p, [q.field]: v }))} />
               ))}
             </div>

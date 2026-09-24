@@ -8,41 +8,37 @@ const medicalHistorySchema = new mongoose.Schema(
   {
     iptr_id: { type: mongoose.Schema.Types.ObjectId, ref: "StudentIptr", required: true },
     allergies: { type: String, default: "" },
-    // ⚠ Every yes/no below is TRI-STATE since 2026-09-24: true = "Oo",
-    // false = "Hindi" (asked, answered no), null = NOT ASKED. The default was
-    // `false`, which made DOH Form 1 print a Hindi tick for questions nobody
-    // asked -- a clinical claim on a signed form. Records saved before this
-    // keep their stored `false` (it cannot be told apart from a real "no"
-    // after the fact); everything new starts null.
-    diabetes_mellitus: { type: Boolean, default: null },
-    hypertension: { type: Boolean, default: null },
-    cardiovascular_disease: { type: Boolean, default: null },
-    thyroid_disorders: { type: Boolean, default: null },
-    hepatitis_disorders: { type: Boolean, default: null },
-    malignancy: { type: Boolean, default: null },
-    previous_hospitalization: { type: Boolean, default: null },
-    previous_surgical: { type: Boolean, default: null },
-    blood_transfusion: { type: Boolean, default: null },
-    tattoo: { type: Boolean, default: null },
+    // Yes/no answers are plain booleans: a ticked chip is "Oo", an unticked
+    // one "Hindi" on DOH Form 1 (user decision, 2026-09-24).
+    diabetes_mellitus: { type: Boolean, default: false },
+    hypertension: { type: Boolean, default: false },
+    cardiovascular_disease: { type: Boolean, default: false },
+    thyroid_disorders: { type: Boolean, default: false },
+    hepatitis_disorders: { type: Boolean, default: false },
+    malignancy: { type: Boolean, default: false },
+    previous_hospitalization: { type: Boolean, default: false },
+    previous_surgical: { type: Boolean, default: false },
+    blood_transfusion: { type: Boolean, default: false },
+    tattoo: { type: Boolean, default: false },
     others: { type: String, default: "" },
     // ── ERD DEVIATION (2026-09-24, user-approved) ──────────────────────────
     // The IPTR's "Blood Disorders" row, which had nowhere to be stored.
-    blood_disorders: { type: Boolean, default: null },
+    blood_disorders: { type: Boolean, default: false },
     // DOH Form 1's Filipino history questions that no field above answers.
     // Kept SEPARATE from the nearest IPTR field on purpose: "sakit sa atay"
     // is broader than hepatitis and "kulang sa dugo" is one kind of blood
     // disorder, so answering one from the other would print a claim nobody made.
-    liver_disease: { type: Boolean, default: null },        // Q3  sakit sa atay
-    anemia: { type: Boolean, default: null },               // Q4  kulang sa dugo
-    anesthesia_allergy: { type: Boolean, default: null },   // Q7  allergy sa pamamanhid
-    previous_extraction: { type: Boolean, default: null },  // Q8  nabunutan na ng ngipin
-    extraction_bleeding: { type: Boolean, default: null },  // Q9  madugo kapag binubunutan
-    chest_tightness: { type: Boolean, default: null },      // Q10 naninikip ang dibdib / madaling mapagod
-    asthma: { type: Boolean, default: null },               // Q11 hika
-    menstruation: { type: Boolean, default: null },         // Q12 regla (female only)
-    pregnant: { type: Boolean, default: null },             // Q13 buntis (female only)
-    current_medication: { type: Boolean, default: null },   // Q15 may iniinom na gamot
-    epilepsy: { type: Boolean, default: null },             // Q16 epilepsy
+    liver_disease: { type: Boolean, default: false },        // Q3  sakit sa atay
+    anemia: { type: Boolean, default: false },               // Q4  kulang sa dugo
+    anesthesia_allergy: { type: Boolean, default: false },   // Q7  allergy sa pamamanhid
+    previous_extraction: { type: Boolean, default: false },  // Q8  nabunutan na ng ngipin
+    extraction_bleeding: { type: Boolean, default: false },  // Q9  madugo kapag binubunutan
+    chest_tightness: { type: Boolean, default: false },      // Q10 naninikip ang dibdib / madaling mapagod
+    asthma: { type: Boolean, default: false },               // Q11 hika
+    menstruation: { type: Boolean, default: false },         // Q12 regla (female only)
+    pregnant: { type: Boolean, default: false },             // Q13 buntis (female only)
+    current_medication: { type: Boolean, default: false },   // Q15 may iniinom na gamot
+    epilepsy: { type: Boolean, default: false },             // Q16 epilepsy
     // The forms' "Please specify" / "Ano?" details. Encrypted, like allergies.
     hepatitis_type: { type: String, default: "" },
     malignancy_details: { type: String, default: "" },
