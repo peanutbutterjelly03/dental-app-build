@@ -108,6 +108,10 @@ export interface ApiToothRecord {
   tooth_number: number;
   condition: string;
   treatment_code?: string;
+  /** Added 2026-09-25. Which RPC visit this tooth's current treatment_code
+   *  was recorded at -- null for teeth charted before this or outside the
+   *  visit flow. */
+  visit_number?: 1 | 2 | null;
 }
 
 export interface ApiPreventiveCareRecord {
@@ -186,9 +190,6 @@ export interface ApiOralHealthCondition {
   calculus: boolean;
   abnormal_growth: boolean;
   cleft_lip_palate: boolean;
-  /** Added 2026-09-25. The dentist's own judgment call, not derived. Optional
-   *  since records created before this field existed have no value. */
-  orally_fit_child?: boolean;
   others: string;
 }
 

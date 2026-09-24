@@ -857,7 +857,7 @@ export const Appointments = () => {
           row, and the rail scrolls its own short list instead of fighting
           the page for width. Below md it stacks above the content like the
           old strip did. */}
-      <div className="flex flex-col md:flex-row gap-5 md:min-h-[calc(100vh-260px)]">
+      <div className="flex flex-col md:flex-row gap-5 md:min-h-[calc(100vh-180px)]">
         <nav className="flex md:flex-col gap-1 md:w-[200px] flex-shrink-0 overflow-x-auto md:overflow-visible">
           {[
             // Fixed brand navy for every tab's active fill -- status color
@@ -894,8 +894,10 @@ export const Appointments = () => {
             header bar (Today's date strip, historyScopeBar, etc.) is
             `sticky top-0` inside it so it stays pinned while the list
             beneath scrolls. `no-scrollbar` keeps it scrollable (wheel/touch/
-            keyboard) without drawing the OS scrollbar track. */}
-        <div className="no-scrollbar flex-1 min-w-0 bg-card rounded-xl border border-border shadow-[0_8px_24px_rgba(15,23,42,0.08)] overflow-y-auto max-h-[calc(100vh-260px)]">
+            keyboard) without drawing the OS scrollbar track.
+            180px (was 260px, 2026-09-25) -- taller, closer to the sidebar's
+            own bottom edge instead of leaving a visible gap under the card. */}
+        <div className="no-scrollbar flex-1 min-w-0 bg-card rounded-xl border border-border shadow-[0_8px_24px_rgba(15,23,42,0.08)] overflow-y-auto max-h-[calc(100vh-180px)]">
           {/* Top accent stripe, matching the reference card -- sticky and
               above every other sticky header in this box (z-20 vs their
               z-10) so it stays visible as the sole rounded band at the very

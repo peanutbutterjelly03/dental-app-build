@@ -14,7 +14,10 @@
 // ⚠ NOTHING HERE CHANGED IN THE MOVE. Comments are carried verbatim because
 // several of them record decisions that cost a sprint to make.
 
-export type ChartEntry = { condition: string; treatment: string };
+// visitNumber added 2026-09-25 -- which RPC visit this tooth's current
+// treatment was recorded at, for the "(V1)"/"(V2)" indicator. Undefined/null
+// for teeth charted outside the visit flow.
+export type ChartEntry = { condition: string; treatment: string; visitNumber?: 1 | 2 | null };
 
 // ─── FDI tooth layout ─────────────────────────────────────────────────────────
 export const upperPermanent = [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28];

@@ -46,6 +46,13 @@ export interface IptrYearData {
    *  `visitNumberByChart`: no entry means the charting has no visit attached
    *  YET -- ticking a service on this charting and saving creates one. */
   preventiveByChart: Record<string, ApiPreventiveCareRecord>;
+  /** Added 2026-09-25. Visit 1 and Visit 2 now share ONE dental chart instead
+   *  of each getting its own (see visit_number on TOOTH_RECORD), so a visit's
+   *  services can no longer be found by walking through the chart's own
+   *  preventive_id -- this is the direct lookup: THIS iptr's own Visit 1/2
+   *  record, looked up by visit_number alone, independent of which (or
+   *  whether any) chart happens to be linked to it. */
+  preventivesByVisitNumber: Partial<Record<1 | 2, ApiPreventiveCareRecord>>;
   /** The charting currently being viewed — **the LATEST by date**, which is
    *  the current state of the mouth. It used to be the OLDEST, which is what
    *  made later work invisible. */
@@ -175,9 +182,14 @@ export function useDentalChartData(studentId: string | undefined) {
             preventiveByChart[c._id] = visit;
           }
         }
+        const preventivesByVisitNumber: Partial<Record<1 | 2, ApiPreventiveCareRecord>> = {};
+        for (const v of allPreventives) {
+          if (v.iptr_id === iptr._id) preventivesByVisitNumber[v.visit_number] = v;
+        }
         return {
           visitNumberByChart,
           preventiveByChart,
+          preventivesByVisitNumber,
           charts,
           iptr,
           medicalHistory: allMedical.find((m) => m.iptr_id === iptr._id) ?? null,
