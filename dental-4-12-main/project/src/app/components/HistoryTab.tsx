@@ -88,7 +88,7 @@ function MedChip({ label, checked, onToggle, disabled, details, med, setText }: 
   const open = checked && !!details?.length;
   return (
     <div className={`rounded-lg border text-xs transition-colors ${open ? 'sm:col-span-2' : ''} ${checked ? 'border-primary bg-primary/10' : 'border-border'} ${disabled ? 'opacity-70' : ''}`}>
-      <label className={`flex items-center gap-2 px-3 py-2 ${checked ? 'text-primary font-medium' : 'text-foreground'} ${disabled ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-canvas rounded-lg'}`}>
+      <label className={`flex items-center gap-2 px-3 py-2 text-xs ${checked ? 'text-primary font-medium' : 'text-foreground'} ${disabled ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-canvas rounded-lg'}`}>
         <input type="checkbox" disabled={disabled} checked={checked}
           onChange={(e) => onToggle(e.target.checked)}
           className="w-4 h-4 shrink-0 rounded accent-primary disabled:cursor-not-allowed" />
