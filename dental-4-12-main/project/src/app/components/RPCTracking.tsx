@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
-import { Search, X, CheckCircle, AlertCircle, Shield, School as SchoolIcon, List, ChevronRight, Users, ChevronDown } from 'lucide-react';
+import { Search, X, CheckCircle, AlertCircle, Shield, School as SchoolIcon, List, ChevronLeft, ChevronRight, Eye, Users, ChevronDown } from 'lucide-react';
 import { getGradeColor } from '../utils/gradeColors';
+import { getSchoolShortName } from '../utils/schoolColors';
 import { useRPCTracking } from '../hooks/useRPCTracking';
 import { treatmentCodes, treatmentLabel } from '../utils/dentalChartCodes';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
-import { Pagination, usePagination } from './Pagination';
+import { PAGE_SIZE_OPTIONS } from './Pagination';
 import { formatDate, formatMonthYear } from '../utils/localDate';
 
 const GRADES = ['Kinder','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10'];
@@ -141,7 +142,7 @@ export const RPCTracking = () => {
     return (
       <div ref={ref} className="relative">
         <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open}
-          className="flex items-center gap-1.5 text-sm border border-border rounded-lg px-3 py-2 bg-card focus:outline-none focus:ring-2 focus:ring-ring">
+          className="flex items-center gap-1.5 text-sm font-normal border border-border rounded-lg px-3 py-2 bg-card focus:outline-none focus:ring-2 focus:ring-ring">
           {label} <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
         </button>
         {open && (
@@ -213,10 +214,11 @@ export const RPCTracking = () => {
           <table className="w-full text-sm">
             <thead className="bg-gray-100 border-b border-border">
               <tr>
-                {['Student','Grade / Section','Visit 1','Visit 2','Status','Days Until Due'].map(h => (
+                {['Student','Grade / Section','Visit 1','Visit 2','Status'].map(h => (
                   <th key={h} className="text-left px-4 py-3 font-semibold text-foreground">{h}</th>
                 ))}
-                <th className="text-center px-4 py-3 font-semibold text-foreground">Actions</th>
+                <th className="text-left pl-4 pr-2 py-3 font-semibold text-foreground">Days Until Due</th>
+                <th className="text-center pl-2 pr-4 py-3 font-semibold text-foreground">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -249,7 +251,7 @@ export const RPCTracking = () => {
                       {r.syCutoff === 'tight' && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold text-[10px]" title={`The 4–6 month window extends past the school year — Visit 2 must be done by ${r.syDeadline} to count for DOH/PhilHealth`}>by {r.syDeadline}</span>}
                     </span>}</td>
                     <td className="px-4 py-3"><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${sc.bg} ${sc.color}`}>{sc.label}</span></td>
-                    <td className="px-4 py-3">
+                    <td className="pl-4 pr-2 py-3">
                       {dueDate ? (
                         <>
                           <div className="text-yellow-500 font-semibold text-xs">{formatMonthYear(dueDate)}</div>
@@ -259,12 +261,12 @@ export const RPCTracking = () => {
                         </>
                       ) : <span className="text-muted-foreground text-xs">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="pl-2 pr-4 py-3 text-center">
                       <button
                         onClick={() => navigate(`/dental-chart/${r.id}?tab=treatments`)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium border border-border rounded-lg hover:bg-gray-50 whitespace-nowrap"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium border border-border rounded-lg hover:bg-gray-50 whitespace-nowrap"
                       >
-                        Open Chart
+                        <Eye className="w-3.5 h-3.5" /> Open chart
                       </button>
                     </td>
                   </tr>
@@ -273,19 +275,43 @@ export const RPCTracking = () => {
             </tbody>
           </table>
         </div>
-        <div className="px-4 py-3 border-t border-gray-100 text-sm text-muted-foreground">
-          <Pagination
-            page={page}
-            pageCount={pageCount}
-            pageSize={pageSize}
-            from={total === 0 ? 0 : (page - 1) * pageSize + 1}
-            to={Math.min(page * pageSize, total)}
-            total={total}
-            onPage={setPage}
-            onPageSize={changePageSize}
-            noun="records"
-            detail={total !== schoolTotal ? `(filtered from ${schoolTotal})` : ''}
-          />
+        <div className="flex flex-col gap-3 border-t border-gray-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-1 text-sm text-muted-foreground">
+            <span>
+              Showing <span className="font-semibold text-foreground">{total === 0 ? 0 : (page - 1) * pageSize + 1}</span> to{' '}
+              <span className="font-semibold text-foreground">{Math.min(page * pageSize, total)}</span> of{' '}
+              <span className="font-semibold text-foreground">{total}</span> records
+              {total !== schoolTotal ? ` (filtered from ${schoolTotal})` : ''}
+              {selectedSchool ? ` at ${getSchoolShortName(selectedSchool)}` : ''}
+            </span>
+            <select
+              aria-label="Items per page"
+              value={pageSize}
+              onChange={(e) => changePageSize(Number(e.target.value))}
+              className="w-fit rounded-full border border-border bg-canvas px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}/page</option>)}
+            </select>
+          </div>
+          {pageCount > 1 && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage(Math.max(1, page - 1))}
+                disabled={page === 1}
+                className="flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-canvas disabled:opacity-40 disabled:hover:bg-transparent"
+              >
+                <ChevronLeft className="w-4 h-4" /> Previous
+              </button>
+              <span className="rounded-full bg-primary-surface px-3 py-1.5 text-sm font-semibold text-primary tabular-nums">{page} / {pageCount}</span>
+              <button
+                onClick={() => setPage(Math.min(pageCount, page + 1))}
+                disabled={page === pageCount}
+                className="flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-canvas disabled:opacity-40 disabled:hover:bg-transparent"
+              >
+                Next <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
