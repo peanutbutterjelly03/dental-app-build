@@ -938,7 +938,11 @@ router.use("/medical-histories", createCrudRouter(MedicalHistory, { writeRoles: 
 router.use("/dietary-social-habits", createCrudRouter(DietarySocialHabits, { writeRoles: CLINICAL_WRITE_ROLES, filterable: ["iptr_id"] }));
 router.use("/oral-health-conditions", createCrudRouter(OralHealthCondition, { writeRoles: CLINICAL_WRITE_ROLES, filterable: ["iptr_id"] }));
 router.use("/dental-charts", createCrudRouter(DentalChart, { writeRoles: CLINICAL_WRITE_ROLES, filterable: ["iptr_id"] }));
-router.use("/tooth-records", createCrudRouter(ToothRecord, { writeRoles: CLINICAL_WRITE_ROLES, filterable: ["chart_id"] }));
+// archiveRoles: a dentist who clears every code off a tooth and saves retires
+// that tooth's record -- the chart's own "empty this tooth" action. Before this
+// the archive route was ADMIN_ONLY, so the chart could not persist a cleared
+// tooth at all and the old codes returned on reload. Restore stays admin-only.
+router.use("/tooth-records", createCrudRouter(ToothRecord, { writeRoles: CLINICAL_WRITE_ROLES, archiveRoles: ["system_admin", "dentist"], filterable: ["chart_id"] }));
 router.use("/treatments", createCrudRouter(Treatment, { writeRoles: CLINICAL_WRITE_ROLES, filterable: ["iptr_id"] }));
 router.use("/preventive-care-records", createCrudRouter(PreventiveCareRecord, { writeRoles: CLINICAL_WRITE_ROLES, filterable: ["iptr_id"] }));
 // The audit action records whether the dentist accepted the AI suggestion

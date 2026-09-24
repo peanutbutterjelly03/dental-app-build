@@ -826,13 +826,29 @@ export const DentalChart = () => {
       // is only created when there are real tooth changes to persist — an
       // aide saving history must not require (or fabricate) a dentist chart.
       const existingByTooth = new Map(currentYearData.toothRecords.map((tr) => [tr.tooth_number, tr]));
+      // ToothRecord.condition is required (non-empty) on the backend. A tooth
+      // emptied completely (no condition, no treatment) is RETIRED: its saved
+      // record is archived, never deleted (CLAUDE.md soft-delete rule). This
+      // used to silently skip cleared teeth, so removing every code and saving
+      // "succeeded" while the old codes came straight back on reload.
+      // A tooth left with a treatment but no condition cannot be stored, so it
+      // stops the save with a message instead of being dropped quietly.
+      if (canEdit) {
+        const orphaned = Object.entries(draftChart)
+          .filter(([, entry]) => entry.condition === '' && entry.treatment !== '')
+          .map(([toothStr]) => toothStr);
+        if (orphaned.length) {
+          throw new ApiError(400, `Tooth ${orphaned.join(', ')} has a treatment but no condition. Add a condition or remove the treatment, then save.`);
+        }
+      }
+      const clearedRecords = canEdit
+        ? Object.entries(draftChart)
+            .filter(([, entry]) => entry.condition === '' && entry.treatment === '')
+            .map(([toothStr]) => existingByTooth.get(Number(toothStr)))
+            .filter((tr): tr is NonNullable<typeof tr> => !!tr)
+        : [];
       const pendingTeeth = canEdit
         ? Object.entries(draftChart)
-            // ToothRecord.condition is required (non-empty) on the backend --
-            // a tooth toggled back to "cleared" (empty string) has nothing
-            // valid to persist. Its local draft state just won't be sent; on
-            // reload it reverts to its last real saved value, if any, rather
-            // than crashing the save with a validation error.
             .filter(([, entry]) => entry.condition !== '')
             .filter(([toothStr, entry]) => {
               const existing = existingByTooth.get(Number(toothStr));
@@ -866,6 +882,7 @@ export const DentalChart = () => {
         const body = { chart_id: chartId, tooth_number: toothNumber, condition: entry.condition, treatment_code: entry.treatment, visit_number: activeVisit };
         return existing ? apiClient.put(`/tooth-records/${existing._id}`, body) : apiClient.post('/tooth-records', body);
       });
+      toothWrites.push(...clearedRecords.map((tr) => apiClient.patch(`/tooth-records/${tr._id}/archive`)));
 
       const medBody = {
         iptr_id: currentYearData.iptr._id,
