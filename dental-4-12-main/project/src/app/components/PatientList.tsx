@@ -1275,7 +1275,7 @@ export const PatientList = () => {
               </span>
               {/* Literal glyph, not a CSS-drawn bar (2026-09-25: user wants
                   "like a normal |" -- thinner than any solid bar reads). */}
-              <span aria-hidden="true" className="hidden text-2xl font-thin text-gray-300 sm:inline-block">|</span>
+              <span aria-hidden="true" className="hidden text-3xl font-thin text-gray-300 sm:inline-block">|</span>
               <label htmlFor="patients-page-size" className="whitespace-nowrap text-sm font-normal">Items per page</label>
               <select
                 id="patients-page-size"

@@ -360,7 +360,7 @@ export const RPCTracking = () => {
             </span>
             {/* Literal glyph, not a CSS-drawn bar (2026-09-25: matches
                 Students/Dental Charts/Treatment's divider exactly). */}
-            <span aria-hidden="true" className="hidden text-2xl font-thin text-gray-300 sm:inline-block">|</span>
+            <span aria-hidden="true" className="hidden text-3xl font-thin text-gray-300 sm:inline-block">|</span>
             <div className="flex items-center gap-2">
               {/* theme.css's base `label` rule sets its own font-size/weight
                   (medium), which otherwise overrides the ancestor's text-sm —
