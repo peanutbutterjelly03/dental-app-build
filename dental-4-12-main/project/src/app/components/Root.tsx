@@ -140,12 +140,12 @@ export const Root = () => {
   // root, so a `position: fixed` overlay that isn't part of this component
   // tree (PreviewModal, rendered deep inside a page) can still centre itself
   // in the space actually left of the rail instead of the full viewport --
-  // matching `<main>`'s own `md:ml-[128px|320px]` below. 0 below `md`, where
+  // matching `<main>`'s own `md:ml-[109px|272px]` below. 0 below `md`, where
   // the rail is an off-canvas drawer and reserves no space.
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 768px)');
     const update = () => {
-      document.documentElement.style.setProperty('--content-left', mq.matches ? (collapsed ? '128px' : '320px') : '0px');
+      document.documentElement.style.setProperty('--content-left', mq.matches ? (collapsed ? '109px' : '272px') : '0px');
     };
     update();
     mq.addEventListener('change', update);
@@ -353,7 +353,7 @@ export const Root = () => {
     return location.pathname.startsWith(path);
   };
 
-  // Label visibility: always shown below md (the drawer is 280px wide and
+  // Label visibility: always shown below md (the drawer is 238px wide and
   // unlabeled icons were the whole bug), then governed by `collapsed` at md+.
   const labelCls = collapsed ? 'block md:hidden' : 'block';
   const badgeCls = collapsed ? 'inline-block md:hidden' : 'inline-block';
@@ -451,7 +451,7 @@ export const Root = () => {
         </Link>
 
         {isOpen && !collapsed && (
-          <div className="mt-1.5 ml-[35px] mr-7 pl-3 border-l border-white/15 flex flex-col gap-1">
+          <div className="mt-1.5 ml-[30px] mr-7 pl-3 border-l border-white/15 flex flex-col gap-1">
             {children.map((child) => {
               const childIsActive = isTabActive(child.path);
               const ChildIcon = child.icon;
@@ -461,7 +461,7 @@ export const Root = () => {
                   to={child.path}
                   onClick={() => setDrawerOpen(false)}
                   aria-current={childIsActive ? 'page' : undefined}
-                  className={`flex items-center gap-2.5 min-h-[38px] pl-2.5 pr-3 rounded-full text-[0.8125rem] transition-colors ${
+                  className={`flex items-center gap-2.5 min-h-[32px] pl-2.5 pr-3 rounded-full text-[0.8125rem] transition-colors ${
                     childIsActive
                       ? 'bg-card text-primary font-semibold'
                       : 'text-white/60 hover:bg-white/10 hover:text-white font-medium'
@@ -561,16 +561,16 @@ export const Root = () => {
         // does it -- its own content div's marginLeft is the sidebar's raw
         // width, not width+inset.
         className={`bg-sidebar-bg flex flex-col fixed left-0 top-0 h-screen z-[70]
-          md:left-5 md:top-5 md:bottom-5 md:h-auto md:rounded-[28px] md:border md:border-white/10 md:shadow-[0_18px_45px_rgba(15,23,42,0.22)]
-          w-[280px] transition-transform duration-200
+          md:left-5 md:top-5 md:bottom-5 md:h-auto md:rounded-[24px] md:border md:border-white/10 md:shadow-[0_15px_38px_rgba(15,23,42,0.22)]
+          w-[238px] transition-transform duration-200
           ${drawerOpen ? 'translate-x-0 visible' : '-translate-x-full invisible'}
           md:visible md:translate-x-0 md:transition-[width]
-          ${collapsed ? 'md:w-[88px]' : 'md:w-[280px]'}`}
+          ${collapsed ? 'md:w-[75px]' : 'md:w-[238px]'}`}
       >
         {/* Logo */}
-        {/* px-8 shrinks to md:px-0 when collapsed -- at 88px collapsed width,
-            32px of padding each side only leaves 24px for the 36px toggle
-            button, which doesn't fit and throws its centering off. */}
+        {/* px-8 shrinks to md:px-0 when collapsed -- at 75px collapsed width,
+            there isn't room for any side padding plus the toggle button
+            without it overflowing or losing its centering. */}
         <div className={`pt-8 px-8 pb-3 flex items-center gap-3 ${collapsed ? 'md:justify-center md:px-0' : ''}`}>
           {/* CSS-hidden (md:hidden), not JS-gated -- collapsed only means
               anything at md+; mobile always ignores it and must keep showing
@@ -597,7 +597,7 @@ export const Root = () => {
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             className={`hidden md:flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20 transition-colors ${collapsed ? '' : 'ml-auto'}`}
           >
-            <Menu className="w-[18px] h-[18px]" />
+            <Menu className="w-[15px] h-[15px]" />
           </button>
         </div>
         {/* Inset divider -- a margin on both sides instead of a full-width
@@ -630,7 +630,7 @@ export const Root = () => {
         {/* Tabs */}
         <nav className="flex-1 overflow-y-auto py-5">
           {!collapsed && (
-            <div className="px-8 pb-[9px] text-[0.625rem] font-bold uppercase tracking-[1px] text-[#94a3b8]">Main Menu</div>
+            <div className="px-8 pb-[8px] text-[0.625rem] font-bold uppercase tracking-[1px] text-[#94a3b8]">Main Menu</div>
           )}
           {visibleTabs.map((tab) => {
             // Dental Charts (4) and Treatment (6) render nested inside the
@@ -656,19 +656,19 @@ export const Root = () => {
               conditional, so mobile (which ignores `collapsed`) still shows it
               regardless of whatever the flag was left at. */}
           <div className={`flex items-center gap-2.5 pb-[5px] pt-2.5 mb-1 ${collapsed ? 'md:hidden' : ''}`}>
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-primary-surface text-[0.875rem] font-bold" style={{ color: '#4F63D9' }}>
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] bg-primary-surface text-[0.875rem] font-bold" style={{ color: '#4F63D9' }}>
               {user.name.charAt(0).toUpperCase()}
             </span>
             <div className="min-w-0 flex flex-col">
               <strong className="text-[0.75rem] text-white truncate">{user.name}</strong>
-              <span className="mt-[3px] text-[0.625rem] text-white/55 capitalize">{user.role.replace('_', ' ')}</span>
+              <span className="mt-[2.5px] text-[0.625rem] text-white/55 capitalize">{user.role.replace('_', ' ')}</span>
             </div>
           </div>
 
           <button
             onClick={handleLogout}
             title={collapsed ? 'Logout' : undefined}
-            className={`w-full h-11 flex items-center gap-3 px-3.5 text-[0.875rem] font-medium text-white/55 hover:text-white hover:bg-white/10 rounded-[11px] transition-colors justify-start ${collapsed ? 'md:justify-center' : 'md:justify-start'}`}
+            className={`w-full h-11 flex items-center gap-3 px-3.5 text-[0.875rem] font-medium text-white/55 hover:text-white hover:bg-white/10 rounded-[9px] transition-colors justify-start ${collapsed ? 'md:justify-center' : 'md:justify-start'}`}
           >
             <LogOut className="w-4 h-4 flex-shrink-0" />
             <span className={labelCls}>Logout</span>
@@ -686,7 +686,7 @@ export const Root = () => {
           header inside the page (the IPTR toolbar and tab strip) was pinning to
           a box that never scrolls, i.e. silently not sticking at all. `clip`
           clips the same overflow without becoming a scroll container. */}
-      <main className={`flex-1 ml-0 ${collapsed ? 'md:ml-[128px]' : 'md:ml-[320px]'} overflow-x-clip transition-[margin] duration-200`}>
+      <main className={`flex-1 ml-0 ${collapsed ? 'md:ml-[109px]' : 'md:ml-[272px]'} overflow-x-clip transition-[margin] duration-200`}>
         <div className="p-4 md:p-8">
           <Outlet />
         </div>

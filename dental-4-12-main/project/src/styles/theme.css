@@ -16,16 +16,23 @@
      dimensions, independent of font-size, so this shrinks every rem-based
      Tailwind utility (padding, gaps, text, icon and avatar sizing, radii)
      by the same ~15% without that risk.
-     ⚠ DOES NOT reach values given in raw px. The sidebar's own label/badge
-     text-[Npx] sizes were an exception to this (2026-09-25): those aren't
-     layout, just font-size expressed as px instead of Tailwind's rem scale,
-     so they were converted to the equivalent rem value (N/16rem) in
-     Root.tsx and now shrink with everything else. TOPBAR_H, the rail's own
-     w-[280px]/w-[88px], and its floating-overlap math are real layout and
-     still don't shrink -- scaling those means re-deriving the rail's overlap
-     arithmetic (comments nearby explain why main's margin isn't simply the
-     rail's own width), not a blanket multiply, and is a separate,
-     carefully-scoped change if ever wanted. */
+     ⚠ DOES NOT reach values given in raw px, in general. Two exceptions,
+     both in Root.tsx, done deliberately and by hand rather than a blanket
+     multiply:
+     - The sidebar's label/badge text-[Npx] sizes (2026-09-25) aren't
+       layout, just font-size expressed as px instead of Tailwind's rem
+       scale -- converted to the equivalent rem value (N/16rem) so they
+       shrink with everything else.
+     - The rail's own layout px -- w-[280px]/w-[88px], main's
+       md:ml-[320px]/[128px], --content-left, and the smaller radii/gaps
+       inside the rail -- were re-derived at the same ~0.85 ratio
+       (2026-09-25) to w-[238px]/[75px], md:ml-[272px]/[109px], etc., since
+       main's margin = rail width + (rem-based, already-shrinking) inset,
+       and multiplying the old raw margin by 0.85 reproduces that same
+       relationship rather than fighting it. TOPBAR_H (used well beyond the
+       sidebar -- five call sites per its own comment) is NOT included in
+       this and still doesn't shrink; scaling it is a separate, wider
+       change. */
   --font-size: 13.6px;
   --background: #ffffff;
   --foreground: oklch(0.145 0 0);
