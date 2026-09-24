@@ -3,7 +3,6 @@ import { useAuth } from '../context/AuthContext';
 import { Link, useSearchParams } from 'react-router';
 import { Calendar as CalendarIcon, CalendarClock, ChevronDown, ChevronLeft, ChevronRight, Plus, X, Check, FileText, Mars, Venus, MoreVertical, Trash2, StickyNote, Pencil } from 'lucide-react';
 import { getGradeColor } from '../utils/gradeColors';
-import { getSchoolShortName } from '../utils/schoolColors';
 import { useAppointments, type AppointmentSession } from '../hooks/useAppointments';
 import { useDayNotes } from '../hooks/useDayNotes';
 import { useStudents } from '../hooks/useStudents';
@@ -1268,7 +1267,7 @@ export const Appointments = () => {
                 <>
                   <div>
                     <label className="block text-xs font-medium text-muted-foreground mb-1">
-                      Search Students at {getSchoolShortName(selectedSchool)}
+                      Search Students at {selectedSchool}
                     </label>
                     <input
                       type="text"

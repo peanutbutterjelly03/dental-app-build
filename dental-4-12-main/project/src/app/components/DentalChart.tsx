@@ -172,11 +172,11 @@ export const DentalChart = () => {
   // status, which is a real screen with real data behind it. Adopting a tab
   // ORDER is not a reason to delete a feature, so it keeps the slot it had.
   const allTabs: { key: TabKey; label: string }[] = [
-    { key: 'history', label: 'History' },
+    { key: 'history', label: 'Medical History' },
     { key: 'chart', label: 'Dental Chart' },
     { key: 'ai', label: 'Caries Risk Assessment' },
-    { key: 'treatments', label: 'Treatment History' },
-    { key: 'records', label: 'DMFT History' },
+    { key: 'treatments', label: 'Treatment' },
+    { key: 'records', label: 'Dental History' },
     { key: 'referrals', label: 'Referrals' },
   ];
   const visibleTabs = (
