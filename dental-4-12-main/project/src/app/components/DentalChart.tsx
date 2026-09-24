@@ -117,9 +117,8 @@ const serviceChips: { label: string; field: ServiceField }[] = [
 // theme.css --font-palette). The meaning of the SELECTED code shows in the
 // one "click teeth to apply" line under the row; the full label is also on
 // each button's tooltip and in the Legend.
-// Regular weight: the user tried bold and a heavier stroke and preferred
-// neither (2026-09-24).
-const paletteBtn = 'h-10 min-w-[52px] shrink-0 rounded-md border px-3 text-center font-palette text-sm font-normal leading-none transition-all inline-flex items-center justify-center';
+// Plain bold (user, 2026-09-24): regular read too light, bold plus a stroke too heavy.
+const paletteBtn = 'h-10 min-w-[52px] shrink-0 rounded-md border px-3 text-center font-palette text-sm font-bold leading-none transition-all inline-flex items-center justify-center';
 // ✓ reads the same permanent and temporary, so it shows once, not "✓/✓".
 const conditionCodeText = (c: { perm: string; temp: string }) => (c.perm === c.temp ? c.perm : `${c.perm}/${c.temp}`);
 
@@ -2338,7 +2337,7 @@ export const DentalChart = () => {
                       <button key={c.code} title={c.label}
                         onClick={() => { setSelectedCondition(selectedCondition === c.code ? null : c.code); setSelectedTreatment(null); }}
                         className={`${paletteBtn} ${selectedCondition === c.code ? 'bg-teal-600 text-white ring-2 ring-teal-300 border-teal-600' : 'bg-card border-border text-foreground hover:border-teal-400'}`}>
-                        {c.perm === '✓' ? <span className="text-lg leading-none">✓</span> : conditionCodeText(c)}
+                        {c.perm === '✓' ? <span className="text-2xl leading-none">✓</span> : conditionCodeText(c)}
                       </button>
                     ))}
                     <button type="button" onClick={() => setRareConditionsOpen((v) => !v)}
@@ -2353,7 +2352,7 @@ export const DentalChart = () => {
                         <button key={c.code} title={c.label}
                           onClick={() => { setSelectedCondition(selectedCondition === c.code ? null : c.code); setSelectedTreatment(null); }}
                           className={`${paletteBtn} ${selectedCondition === c.code ? 'bg-teal-600 text-white ring-2 ring-teal-300 border-teal-600' : 'bg-card border-border text-foreground hover:border-teal-400'}`}>
-                          {c.perm === '✓' ? <span className="text-lg leading-none">✓</span> : conditionCodeText(c)}
+                          {c.perm === '✓' ? <span className="text-2xl leading-none">✓</span> : conditionCodeText(c)}
                         </button>
                       ))}
                     </div>
@@ -2812,32 +2811,47 @@ export const DentalChart = () => {
         )}
       </div>
       </div>{/* end recordRef — PDF capture region */}
-      <ConfirmDialog
-        open={editDateYear !== null}
-        tone="default"
-        title={`Edit date for ${editDateYear !== null ? years[editDateYear]?.iptr.school_year ?? 'school year' : 'school year'}`}
-        message={
-          <div className="space-y-1">
-            {/* An open calendar, not a date box (user, 2026-09-24): picking
-                the date should need no extra click to reveal the picker. */}
-            {(() => {
-              const [yy, mm, dd] = editDateValue.split('-').map(Number);
-              const picked = editDateValue ? new Date(yy, mm - 1, dd) : undefined;
-              return (
-                <DayPicker mode="single" selected={picked} defaultMonth={picked} disabled={{ after: new Date() }}
-                  onSelect={(d) => { if (d) { setEditDateValue(toLocalDateString(d)); setEditDateError(null); } }}
-                  className="iptr-date-picker m-0" />
-              );
-            })()}
-            <p className="text-xs text-foreground">Date of oral examination: <strong>{editDateValue ? formatDate(editDateValue) : 'none picked'}</strong></p>
-            {editDateError && <p className="text-xs text-destructive">{editDateError}</p>}
-          </div>
-        }
-        confirmLabel="Save date"
-        busy={editDateSaving}
-        onConfirm={saveEditDate}
-        onCancel={() => setEditDateYear(null)}
-      />
+      {/* Edit date (user, 2026-09-24). Its own compact window, sized to the
+          calendar so Save lines up with the calendar's right-hand arrow:
+          306px = the 266px calendar (7 x 38px cells) + 2 x 20px padding, in px
+          because the app's rem scale-down would shrink a rem padding. */}
+      {editDateYear !== null && (() => {
+        const y = years[editDateYear];
+        const [yy, mm, dd] = editDateValue.split('-').map(Number);
+        const picked = editDateValue ? new Date(yy, mm - 1, dd) : undefined;
+        const original = y?.dentalChart?.date_charted ? new Date(y.dentalChart.date_charted).toISOString().slice(0, 10) : '';
+        const changed = !!editDateValue && editDateValue !== original;
+        return (
+          <Modal onClose={() => setEditDateYear(null)} closeDisabled={editDateSaving} maxWidth="max-w-[306px]">
+            <div role="dialog" aria-label={`Edit date for ${y?.iptr.school_year ?? 'school year'}`} className="p-[20px]">
+              <h3 className="text-base font-bold text-sidebar-bg">Edit date for {y?.iptr.school_year}</h3>
+              <DayPicker mode="single" selected={picked} defaultMonth={picked} disabled={{ after: new Date() }}
+                onSelect={(d) => { if (d) { setEditDateValue(toLocalDateString(d)); setEditDateError(null); } }}
+                className="iptr-date-picker" />
+              {changed && (
+                <p className="flex items-start gap-1.5 rounded-lg bg-danger-surface px-2.5 py-2 text-xs font-medium text-destructive">
+                  <AlertTriangle className="mt-px h-3.5 w-3.5 flex-shrink-0" />
+                  <span>
+                    You are changing the date of oral examination for {y?.iptr.school_year}
+                    {original ? ` from ${formatDate(original)}` : ''} to {formatDate(editDateValue)}.
+                  </span>
+                </p>
+              )}
+              {editDateError && <p className="mt-1 text-xs text-destructive">{editDateError}</p>}
+              <div className="mt-4 flex justify-end gap-2">
+                <button type="button" onClick={() => setEditDateYear(null)} disabled={editDateSaving}
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-foreground hover:bg-gray-50 disabled:opacity-60">
+                  Cancel
+                </button>
+                <button type="button" onClick={saveEditDate} disabled={editDateSaving || !changed}
+                  className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-60">
+                  {editDateSaving ? 'Saving…' : 'Save date'}
+                </button>
+              </div>
+            </div>
+          </Modal>
+        );
+      })()}
       <ConfirmDialog
         open={confirmDeleteYear !== null}
         title={`Remove ${confirmDeleteYear !== null ? years[confirmDeleteYear]?.iptr.school_year ?? 'school year' : 'school year'}?`}

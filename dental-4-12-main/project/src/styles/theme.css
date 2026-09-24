@@ -217,6 +217,7 @@
    specificity: the library's own stylesheet loads later and sets the same
    variables on `.rdp`. */
 .rdp.iptr-date-picker {
+  margin: 0.75rem 0 0.5rem;
   --rdp-accent-color: #273A78;
   --rdp-background-color: #E8ECF6;
   --rdp-cell-size: 38px;
