@@ -115,7 +115,7 @@ const serviceChips: { label: string; field: ServiceField }[] = [
 // theme.css --font-palette). The meaning of the SELECTED code shows in the
 // one "click teeth to apply" line under the row; the full label is also on
 // each button's tooltip and in the Legend.
-const paletteBtn = 'h-[30px] min-w-[40px] shrink-0 rounded-md border px-2 text-center font-palette text-xs font-bold leading-none transition-all inline-flex items-center justify-center';
+const paletteBtn = 'h-10 min-w-[52px] shrink-0 rounded-md border px-3 text-center font-palette text-sm font-bold leading-none transition-all inline-flex items-center justify-center';
 // ✓ reads the same permanent and temporary, so it shows once, not "✓/✓".
 const conditionCodeText = (c: { perm: string; temp: string }) => (c.perm === c.temp ? c.perm : `${c.perm}/${c.temp}`);
 
