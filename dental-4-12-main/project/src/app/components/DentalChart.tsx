@@ -2453,74 +2453,82 @@ export const DentalChart = () => {
               <div className="bg-blue-50/70 rounded-xl border border-blue-200 p-4 space-y-4">
                 <div className="text-xs font-semibold text-primary uppercase tracking-wide">Treatment Summary</div>
 
-                {/* Per-tooth table FIRST (2026-09-25, user order) -- it is
-                    aligned with the Dental Condition Summary's Tooth
-                    Count/Tooth Numbers table on the left, so the two line up
-                    row for row. The whole-mouth services list follows. */}
-                <table className="w-full table-fixed border-collapse text-xs">
-                  <colgroup><col className="w-[32%]" /><col className="w-[12%]" /><col className="w-[28%]" /><col className="w-[28%]" /></colgroup>
+                {/* ONE table, laid out exactly like the user's spreadsheet (2026-09-24):
+                    Visit 1 | Visit 2 side by side, the date + whole-mouth
+                    services on top, a blank separator row, then the per-tooth
+                    codes with a Tooth Count / Tooth Number pair per visit.
+                    The visit being edited reads the live draft; the other
+                    visit reads its saved PREVENTIVE_CARE_RECORD. Services show
+                    "Yes" only for a real true -- null and false both blank,
+                    because the paper form has no tick for "withheld". */}
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[480px] table-fixed border-collapse text-xs">
+                  <colgroup><col className="w-[30%]" /><col className="w-[15%]" /><col className="w-[20%]" /><col className="w-[15%]" /><col className="w-[20%]" /></colgroup>
                   <thead>
-                    <tr className="text-left text-primary">
-                      <th className="border-b border-blue-200/70 px-2 py-1.5 font-semibold">Treatment</th>
-                      <th className="border-b border-blue-200/70 px-2 py-1.5 font-semibold">Tooth Count</th>
-                      <th className="border-b border-blue-200/70 px-2 py-1.5 font-semibold">Visit 1</th>
-                      <th className="border-b border-blue-200/70 px-2 py-1.5 font-semibold">Visit 2</th>
+                    <tr className="text-primary">
+                      <th className="border-b border-blue-200/70 px-2 py-1.5" />
+                      <th colSpan={2} className="border-b border-blue-200/70 px-2 py-1.5 text-center font-semibold">Visit 1</th>
+                      <th colSpan={2} className="border-b border-blue-200/70 px-2 py-1.5 text-center font-semibold">Visit 2</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {perToothTreatmentRows.map((t) => {
-                      const teeth = treatmentTeeth[t.code] ?? [];
-                      const visit1Teeth = treatmentTeethVisit1[t.code] ?? [];
-                      const visit2Teeth = treatmentTeethVisit2[t.code] ?? [];
+                    {(() => {
+                      const visitCol = (n: 1 | 2) => {
+                        if (n === activeVisit) return { date: draftVisitDate, services: draftServices };
+                        const rec = n === 1 ? visit1 : visit2;
+                        return {
+                          date: rec ? new Date(rec.visit_date).toISOString().slice(0, 10) : '',
+                          services: Object.fromEntries(serviceChips.map(({ field }) => [field, rec?.[field] ?? null])) as Record<ServiceField, boolean | null>,
+                        };
+                      };
+                      const cols = [visitCol(1), visitCol(2)];
+                      const cell = 'border-b border-blue-200/70 px-2 py-1.5';
                       return (
-                        <tr key={t.code}>
-                          <td className="border-b border-blue-200/70 px-2 py-1.5 text-foreground">
-                            <span className="font-semibold mr-1">{t.code}</span>
-                            {t.label}
-                          </td>
-                          <td className="border-b border-blue-200/70 px-2 py-1.5 font-semibold text-foreground">
-                            {teeth.length ? teeth.length : ''}
-                          </td>
-                          <td className="border-b border-blue-200/70 px-2 py-1.5 font-mono text-foreground break-words">
-                            {visit1Teeth.join(', ')}
-                          </td>
-                          <td className="border-b border-blue-200/70 px-2 py-1.5 font-mono text-foreground break-words">
-                            {visit2Teeth.join(', ')}
-                          </td>
-                        </tr>
+                        <>
+                          <tr>
+                            <td className={`${cell} text-foreground`}>Date of Treatment</td>
+                            {cols.map((c, i) => (
+                              <td key={i} colSpan={2} className={`${cell} text-center font-semibold text-primary`}>{c.date ? formatDate(c.date) : ''}</td>
+                            ))}
+                          </tr>
+                          {serviceChips.map(({ label, field }) => (
+                            <tr key={field}>
+                              <td className={`${cell} text-foreground`}>{label}</td>
+                              {cols.map((c, i) => (
+                                <td key={i} colSpan={2} className={`${cell} text-center font-semibold text-primary`}>{c.services[field] === true ? 'Yes' : ''}</td>
+                              ))}
+                            </tr>
+                          ))}
+                          <tr aria-hidden="true"><td colSpan={5} className={`${cell} h-6`} /></tr>
+                          <tr className="text-left text-primary">
+                            <th className={`${cell} font-semibold`}>Treatment</th>
+                            <th className={`${cell} font-semibold`}>Tooth Count</th>
+                            <th className={`${cell} font-semibold`}>Tooth Number</th>
+                            <th className={`${cell} font-semibold`}>Tooth Count</th>
+                            <th className={`${cell} font-semibold`}>Tooth Number</th>
+                          </tr>
+                          {perToothTreatmentRows.map((t) => {
+                            const v1 = treatmentTeethVisit1[t.code] ?? [];
+                            const v2 = treatmentTeethVisit2[t.code] ?? [];
+                            return (
+                              <tr key={t.code}>
+                                <td className={`${cell} text-foreground`}>
+                                  <span className="font-semibold mr-1">{t.code}</span>
+                                  {t.label}
+                                </td>
+                                <td className={`${cell} font-semibold text-foreground`}>{v1.length ? v1.length : ''}</td>
+                                <td className={`${cell} font-mono text-foreground break-words`}>{v1.join(', ')}</td>
+                                <td className={`${cell} font-semibold text-foreground`}>{v2.length ? v2.length : ''}</td>
+                                <td className={`${cell} font-mono text-foreground break-words`}>{v2.join(', ')}</td>
+                              </tr>
+                            );
+                          })}
+                        </>
                       );
-                    })}
+                    })()}
                   </tbody>
                 </table>
-
-                {/* The whole-mouth services, as their OWN rows below the
-                    per-tooth table — her split, adopted in full this time.
-                    Sprint 151 refused these rows because hers read fields she
-                    had added to DENTAL_CHART; they read the RPC visit here, so
-                    there is still exactly one home for "was fluoride varnish
-                    given" and it is the one the DOH return counts. */}
-                <table className="w-full table-fixed border-collapse text-xs">
-                  <colgroup><col className="w-[63%]" /><col className="w-[37%]" /></colgroup>
-                  <tbody>
-                    <tr>
-                      <td className="border-b border-blue-200/70 px-2 py-1.5 text-foreground">Date of Treatment</td>
-                      <td className="border-b border-blue-200/70 px-2 py-1.5 font-semibold text-primary">
-                        {draftVisitDate ? formatDate(draftVisitDate) : ''}
-                      </td>
-                    </tr>
-                    {serviceChips.map(({ label, field }) => (
-                      <tr key={field}>
-                        <td className="border-b border-blue-200/70 px-2 py-1.5 text-foreground">{label}</td>
-                        {/* Blank for null AND for false: null is "not recorded"
-                            and there is no tick for "withheld" on the paper
-                            form either. Only a real Yes prints. */}
-                        <td className="border-b border-blue-200/70 px-2 py-1.5 font-semibold text-primary">
-                          {draftServices[field] === true ? 'Yes' : ''}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                </div>
               </div>
             </div>
             )}
