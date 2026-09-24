@@ -2185,13 +2185,13 @@ export const DentalChart = () => {
               {!canEdit && (
                 <p className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-destructive px-3 py-1 text-xs font-medium text-white mb-2">
                   <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                  View only. Editing restricted to Dentist
+                  View only. Editing restricted to Dentist.
                 </p>
               )}
               {canEdit && !editMode && (
                 <p className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-destructive px-3 py-1 text-xs font-medium text-white mb-2">
                   <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                  View mode. Click the pencil icon above to record conditions/treatments
+                  View mode. Click the pencil icon above to record conditions/treatments.
                 </p>
               )}
               <div className={`grid grid-cols-1 ${iptrContext === 'default' ? 'lg:grid-cols-2' : ''} gap-4`}>
