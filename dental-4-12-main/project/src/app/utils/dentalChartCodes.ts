@@ -99,7 +99,12 @@ export function dmftRecordsForYear<T>(chartsOldestFirst: T[][]): T[] | null {
 // CHARTED WITH IT. The palette allows it, so filtering blindly would make a
 // charted FV vanish from the summary; a summary that hides a charted tooth is
 // worse than one row too many.
-export const WHOLE_MOUTH_TREATMENT_CODES = ['OEX', 'FV', 'OP'];
+// CONS added 2026-09-25 (user decision): consultation is whole-mouth, not a
+// per-tooth finding, same reasoning as OEX/FV/OP -- and unlike Treatments
+// Given's chips (which write to PREVENTIVE_CARE_RECORD, an RPC visit), this
+// is deliberately NOT tied to RPC. It is just another treatment code, so it
+// is charted and read back the same way as everything else in this list.
+export const WHOLE_MOUTH_TREATMENT_CODES = ['OEX', 'FV', 'OP', 'CONS'];
 
 // Base44-exact condition codes: uppercase=permanent, lowercase=temporary (auto-applied)
 //
@@ -143,6 +148,7 @@ export const treatmentCodes = [
   { code: 'TR', label: 'Tooth Restoration', local: 'Pasta' },
   { code: 'X', label: 'Extraction', local: 'Bunot' },
   { code: 'SDF', label: 'Silver Diamine Fluoride' },
+  { code: 'CONS', label: 'Consultation' },
 ];
 
 // The palette's two rows (Sprint 156). Per-tooth codes lead; the whole-mouth

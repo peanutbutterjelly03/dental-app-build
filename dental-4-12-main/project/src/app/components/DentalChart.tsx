@@ -441,8 +441,10 @@ export const DentalChart = () => {
 
   const currentChart = draftChart;
 
-  // The RPC visit this charting is attached to, if any (Sprint 154). Absent for
-  // every charting made before Sprint 149 and any made from this screen.
+  // The RPC visit this charting is attached to, if any (Sprint 154). Absent
+  // for every charting made before Sprint 149, and for one made here that has
+  // not been saved with a service ticked yet (2026-09-25: saving with a
+  // service now creates and links the visit — see handleSave).
   const linkedVisitForCard = currentYearData?.dentalChart
     ? currentYearData.preventiveByChart[currentYearData.dentalChart._id]
     : undefined;
@@ -685,8 +687,13 @@ export const DentalChart = () => {
             })
         : [];
 
+      // A service ticked with zero tooth changes (2026-09-25) must still get a
+      // chart to attach its new RPC visit to -- not only pendingTeeth.length,
+      // or a Treatments-Given-only save on a pupil's first-ever charting this
+      // year would have nowhere to write the visit.
+      const hasAnyService = Object.values(draftServices).some((v) => v === true);
       let chartId = currentYearData.dentalChart?._id;
-      if (!chartId && pendingTeeth.length > 0) {
+      if (!chartId && (pendingTeeth.length > 0 || hasAnyService)) {
         if (!currentDentist) throw new Error('No dentist record linked to your account.');
         const created = await apiClient.post<{ _id: string }>('/dental-charts', {
           iptr_id: currentYearData.iptr._id,
@@ -733,13 +740,16 @@ export const DentalChart = () => {
         ? apiClient.put(`/oral-health-conditions/${currentYearData.oralCondition._id}`, oralBody)
         : apiClient.post('/oral-health-conditions', oralBody);
 
-      // ── The visit's services and the two dates (Sprint 154) ─────────────
-      // ⚠ Written to the LINKED RPC visit only. If this charting is attached
-      // to no visit there is nowhere to record a service, and the card says so
-      // on screen rather than silently dropping the tick. Creating a visit
-      // from here is deliberately NOT done: an invented RPC visit changes the
-      // pupil's 1st/2nd application count on a return filed with the City
-      // Health Office.
+      // ── The visit's services and the two dates (Sprint 154; unlocked
+      //    2026-09-25) ──────────────────────────────────────────────────────
+      // Ticking a service here no longer requires an RPC visit to already
+      // exist — it IS what creates one now, per the user's explicit direction
+      // that RPC should be derived from the chart and never the other way
+      // around. The earlier "deliberately NOT" stance still holds in spirit
+      // (an invented visit changes the pupil's 1st/2nd application count on a
+      // return filed with the City Health Office): a visit is only ever
+      // created when a real service was ticked, never for a bare tooth-only
+      // charting with nothing given, and never past the 2 the DOH form allows.
       const linkedVisit = currentYearData.dentalChart
         ? currentYearData.preventiveByChart[currentYearData.dentalChart._id]
         : undefined;
@@ -759,6 +769,26 @@ export const DentalChart = () => {
           ...draftServices,
           ...(draftVisitDate ? { visit_date: draftVisitDate } : {}),
         }));
+      } else if (hasAnyService && chartId) {
+        // Visit number follows whichever of 1/2 this school year doesn't have
+        // yet, the same ordinal RPC Monitoring itself derives from visit_date
+        // order. Both already taken (rare — the DOH form allows only two) means
+        // there is nowhere left to put this one, so the tick is silently not
+        // persisted as a visit rather than inventing a 3rd.
+        const usedVisitNumbers = new Set(Object.values(currentYearData.preventiveByChart).map((v) => v.visit_number));
+        const nextVisitNumber: 1 | 2 | null = !usedVisitNumbers.has(1) ? 1 : !usedVisitNumbers.has(2) ? 2 : null;
+        if (nextVisitNumber) {
+          const linkChartId = chartId;
+          extraWrites.push((async () => {
+            const created = await apiClient.post<{ _id: string }>('/preventive-care-records', {
+              iptr_id: currentYearData.iptr._id,
+              visit_date: draftVisitDate || draftChartDate || toLocalDateString(new Date()),
+              visit_number: nextVisitNumber,
+              ...draftServices,
+            });
+            await apiClient.put(`/dental-charts/${linkChartId}`, { preventive_id: created._id });
+          })());
+        }
       }
       const savedChartId = currentYearData.dentalChart?._id;
       if (savedChartId && draftChartDate
@@ -1879,12 +1909,12 @@ export const DentalChart = () => {
                 )}
               </div>
 
-              <div className={`border-t border-border pt-4 lg:border-t-0 lg:pt-0 lg:border-l lg:border-border lg:pl-4 ${editingChart && linkedVisitForCard ? '' : 'opacity-60 pointer-events-none select-none'}`}>
+              <div className={`border-t border-border pt-4 lg:border-t-0 lg:pt-0 lg:border-l lg:border-border lg:pl-4 ${editingChart ? '' : 'opacity-60 pointer-events-none select-none'}`}>
                 <div className="flex flex-wrap items-center gap-3 mb-2">
                   <div className="text-sm font-bold text-primary uppercase tracking-wide">Treatments Given</div>
                   <label className="flex items-center gap-2 text-xs text-muted-foreground">
                     Date treated
-                    <input type="date" value={draftVisitDate} disabled={!linkedVisitForCard}
+                    <input type="date" value={draftVisitDate}
                       onChange={(e) => setDraftVisitDate(e.target.value)}
                       className="border border-border rounded px-2 py-1 text-xs bg-card text-foreground disabled:opacity-50 focus:outline-none focus:ring-1 focus:ring-ring" />
                   </label>
@@ -1901,18 +1931,24 @@ export const DentalChart = () => {
                     </label>
                   ))}
                 </div>
+                {/* Unlocked 2026-09-25 -- ticking a service here now creates the
+                    RPC visit on save (Visit 1 or 2, whichever this school year
+                    doesn't have yet) instead of requiring one to already exist.
+                    Shown only pre-save so it doesn't linger once the visit is
+                    real; hidden once both visits already exist elsewhere this
+                    year, since saving here would then have nowhere left to
+                    record a third. */}
+                {!linkedVisitForCard && (() => {
+                  const used = new Set(Object.values(currentYearData?.preventiveByChart ?? {}).map((v) => v.visit_number));
+                  const next = !used.has(1) ? 1 : !used.has(2) ? 2 : null;
+                  return next ? (
+                    <p className="mt-2 text-[11px] text-muted-foreground">
+                      Recording a service here creates this school year's next RPC visit (Visit {next}) when you save.
+                    </p>
+                  ) : null;
+                })()}
               </div>
             </div>
-
-            {/* ⚠ Said plainly on screen rather than left as a card that looks
-                editable and saves nothing. A charting made from this screen is
-                attached to no RPC visit, and the services belong to the visit. */}
-            {!linkedVisitForCard && (
-              <p className="text-xs text-muted-foreground -mt-2">
-                Treatments Given is read-only here: this charting is not attached to an RPC visit, and a service is
-                recorded against the visit. Record it under <strong>RPC Monitoring</strong>.
-              </p>
-            )}
 
 
             {/* Sprint 148 — one row per charting recorded this school year.

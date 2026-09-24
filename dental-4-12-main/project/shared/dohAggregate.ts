@@ -75,7 +75,8 @@ export interface AggChart {
   date_charted: string;
   /** The RPC visit this charting was done at, 1 or 2 (Sprint 150), or null for
    *  a charting attached to no visit — every chart made before Sprint 149, and
-   *  any made from the chart screen rather than from Record Visit. */
+   *  any charting saved with no service ticked in Treatments Given (2026-09-25:
+   *  ticking a service there now creates and links the visit on save). */
   visit_number?: 1 | 2 | null;
 }
 export interface AggTooth {
