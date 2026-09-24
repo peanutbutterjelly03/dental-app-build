@@ -55,6 +55,18 @@ export const SCHOOL_SHORT_NAMES: Record<string, string> = {
   'South Daang Hari Elementary School Main': 'S. Daang Hari',
 };
 
+// Terser still than SCHOOL_SHORT_NAMES above — for spots too tight for even
+// that (the topbar user menu, a table cell tag).
+export const SCHOOL_ACRONYMS: Record<string, string> = {
+  'Bagong Tanyag Integrated School': 'BTIS',
+  'Bagong Tanyag Elementary School Annex A': 'Annex A',
+  'South Daang Hari Elementary School Main': 'South Daanghari',
+};
+
+export const getSchoolAcronym = (school: string): string => {
+  return SCHOOL_ACRONYMS[school] || school;
+};
+
 export const getSchoolShortName = (school: string): string => {
   return SCHOOL_SHORT_NAMES[school] || school;
 };

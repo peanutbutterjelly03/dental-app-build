@@ -7,17 +7,7 @@ import {
   ChevronDown, Menu, X, School, Archive, Bell, ArrowLeftRight
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { getSchoolShortName } from '../utils/schoolColors';
-
-// Acronyms for the user menu specifically -- distinct from
-// SCHOOL_SHORT_NAMES (schoolColors.ts), which other screens use for a
-// longer-form short name and must not shift just because this label wants
-// something terser.
-const SCHOOL_ACRONYMS: Record<string, string> = {
-  'Bagong Tanyag Integrated School': 'BTIS',
-  'Bagong Tanyag Elementary School Annex A': 'Annex A',
-  'South Daang Hari Elementary School Main': 'South Daanghari',
-};
+import { getSchoolShortName, getSchoolAcronym } from '../utils/schoolColors';
 
 // The role label used to sit where this icon now does -- removed to save
 // the line, so the icon is what still tells a Dentist from a Dental Aide,
@@ -513,7 +503,7 @@ export const Root = () => {
         className="fixed top-0 right-0 left-0 z-[60] flex items-center justify-end gap-3 px-6 bg-white border-b border-[#EEF2F7] leading-none"
       >
         <SyncStatus schoolLabel={selectedSchool ? getSchoolShortName(selectedSchool) : 'All Schools'} />
-        <UserMenu user={user} schoolLabel={selectedSchool ? (SCHOOL_ACRONYMS[selectedSchool] ?? getSchoolShortName(selectedSchool)) : 'All Schools'} onAccountSettings={openChangePassword} />
+        <UserMenu user={user} schoolLabel={selectedSchool ? getSchoolAcronym(selectedSchool) : 'All Schools'} onAccountSettings={openChangePassword} />
       </div>
 
       {/* MOBILE TOP BAR -- below md only; the drawer's only entry point. The

@@ -347,6 +347,10 @@ export interface RpcListQuery {
   status?: string;
   /** A TOOTH_RECORD treatment code the pupil has had at some point. */
   treatment?: string;
+  /** A school year the pupil has an IPTR for, e.g. '2026-2027' — narrows to
+   *  pupils enrolled (had a record made) that year. 'all' or omitted = every
+   *  year. */
+  schoolYear?: string;
   limit?: number;
   offset?: number;
 }
@@ -362,6 +366,9 @@ export interface RpcListPage {
    *  computed over the POPULATION, never the page, or the dropdown would hide
    *  the section you need to pick next. */
   sectionOptions: string[];
+  /** School years with at least one IPTR in the school context — same
+   *  population-wide rule as sectionOptions, oldest first. */
+  schoolYearOptions: string[];
   /** Population-wide counts for the dashboard funnel — never page-scoped. */
   funnel: { enrolled: number; visit1: number; both: number; overdue: number; complete: number };
 }
@@ -381,6 +388,7 @@ export function filterRpcRows(all: RPCRow[], query: RpcListQuery): RpcListPage {
       return false;
     }
     if (query.treatment && query.treatment !== 'all' && !r.treatmentCodes.includes(query.treatment)) return false;
+    if (query.schoolYear && query.schoolYear !== 'all' && !(query.schoolYear in r.iptrIdBySchoolYear)) return false;
     if (q && !r.studentName.toLowerCase().includes(q)) return false;
     return true;
   });
@@ -408,5 +416,6 @@ export function filterRpcRows(all: RPCRow[], query: RpcListQuery): RpcListPage {
     sectionOptions: [...new Set(
       inSchool.filter((r) => !query.grade || query.grade === 'all' || r.grade === query.grade).map((r) => r.section),
     )].filter(Boolean).sort(),
+    schoolYearOptions: [...new Set(inSchool.flatMap((r) => Object.keys(r.iptrIdBySchoolYear)))].sort(),
   };
 }

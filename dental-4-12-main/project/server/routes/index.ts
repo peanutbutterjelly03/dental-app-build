@@ -527,6 +527,7 @@ router.get("/stats/rpc-rows", requireAuth, asyncHandler(async (req, res) => {
     ageGroup: typeof req.query.age_group === "string" ? req.query.age_group : "all",
     status: typeof req.query.status === "string" ? req.query.status : "outstanding",
     treatment: typeof req.query.treatment === "string" ? req.query.treatment : "all",
+    schoolYear: typeof req.query.school_year === "string" ? req.query.school_year : "all",
     limit: Number(req.query.limit) > 0 ? Number(req.query.limit) : 25,
     offset: Number(req.query.offset) > 0 ? Number(req.query.offset) : 0,
   });

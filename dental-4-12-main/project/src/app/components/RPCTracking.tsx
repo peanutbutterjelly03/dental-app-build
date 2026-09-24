@@ -14,6 +14,8 @@ import { useToast } from './Toast';
 import { Modal } from './Modal';
 import { schoolYearLabel } from '../utils/schoolYear';
 import type { RPCRow } from '../hooks/useRPCTracking';
+import { getSchoolAcronym } from '../utils/schoolColors';
+import { formatDate, formatMonthYear } from '../utils/localDate';
 
 const GRADES = ['Kinder','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10'];
 
@@ -164,6 +166,7 @@ export const RPCTracking = () => {
   // the Status filter rather than padding the list with finished work.
   const [statusFilter, setStatusFilter] = useState('outstanding');
   const [treatmentFilter, setTreatmentFilter] = useState('all');
+  const [schoolYearFilter, setSchoolYearFilter] = useState('all');
 
   // ── Sprint 146: FILTERED AND PAGED ON THE SERVER ────────────────────────
   //
@@ -177,6 +180,7 @@ export const RPCTracking = () => {
     total,
     schoolTotal,
     sectionOptions,
+    schoolYearOptions,
     loading,
     error,
     reload,
@@ -189,6 +193,7 @@ export const RPCTracking = () => {
     ageGroup: ageGroupFilter,
     status: statusFilter,
     treatment: treatmentFilter,
+    schoolYear: schoolYearFilter,
     limit: pageSize,
     offset: (page - 1) * pageSize,
   });
@@ -197,7 +202,7 @@ export const RPCTracking = () => {
   // leave the user on a page that no longer exists, looking at nothing.
   useEffect(() => {
     setPage(1);
-  }, [searchTerm, selectedSchool, gradeFilter, sectionFilter, genderFilter, ageGroupFilter, statusFilter, treatmentFilter]);
+  }, [searchTerm, selectedSchool, gradeFilter, sectionFilter, genderFilter, ageGroupFilter, statusFilter, treatmentFilter, schoolYearFilter]);
 
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   // Changing page size keeps you near the same records rather than dumping you
@@ -224,8 +229,8 @@ export const RPCTracking = () => {
   // statusFilter is compared against 'outstanding', not 'all': that is now its
   // resting value, so treating it like the others would light up "Clear All"
   // permanently and make Clear All widen the list instead of resetting it.
-  const hasActiveFilters = [gradeFilter, sectionFilter, genderFilter, ageGroupFilter, treatmentFilter].some(f => f !== 'all') || statusFilter !== 'outstanding' || searchTerm !== '';
-  const clearFilters = () => { setGradeFilter('all'); setSectionFilter('all'); setGenderFilter('all'); setAgeGroupFilter('all'); setStatusFilter('outstanding'); setTreatmentFilter('all'); setSearchTerm(''); };
+  const hasActiveFilters = [gradeFilter, sectionFilter, genderFilter, ageGroupFilter, treatmentFilter, schoolYearFilter].some(f => f !== 'all') || statusFilter !== 'outstanding' || searchTerm !== '';
+  const clearFilters = () => { setGradeFilter('all'); setSectionFilter('all'); setGenderFilter('all'); setAgeGroupFilter('all'); setStatusFilter('outstanding'); setTreatmentFilter('all'); setSchoolYearFilter('all'); setSearchTerm(''); };
 
   const statusConfig: Record<string,{label:string;color:string;bg:string}> = {
     complete:     { label:'Complete',     color:'text-green-700', bg:'bg-green-100' },
@@ -281,6 +286,10 @@ export const RPCTracking = () => {
               here the select would have no option matching its own value. */}
           <FS value={statusFilter} onChange={setStatusFilter} label="All Statuses (incl. complete)" opts={[{v:'outstanding',l:'Outstanding only'},{v:'complete',l:'Both Complete'},{v:'pending',l:'Visit 1 Only'},{v:'overdue',l:'Overdue'},{v:'not-started',l:'Not Started'}]} />
           <FS value={treatmentFilter} onChange={setTreatmentFilter} label="All Treatments" opts={treatmentCodes.map(t=>({v:t.code,l:treatmentLabel(t)}))} />
+          {/* Narrows to pupils with an IPTR for that year — i.e. enrolled
+              that year, the only school-year fact this join actually has
+              (a visit isn't itself scoped to one). */}
+          <FS value={schoolYearFilter} onChange={setSchoolYearFilter} label="All School Years" opts={schoolYearOptions.map(y=>({v:y,l:`SY ${y}`}))} />
           {hasActiveFilters && <button onClick={clearFilters} className="flex items-center gap-1 px-3 py-2 text-sm text-destructive border border-red-200 rounded-lg hover:bg-red-50"><X className="w-3 h-3"/>Clear All</button>}
         </div>
       </div>
@@ -290,7 +299,7 @@ export const RPCTracking = () => {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-border">
               <tr>
-                {['Student','School','Grade / Section','Visit 1','Visit 2','Status','Days Until Due'].map(h => (
+                {['Student','School / Grade / Section','Visit 1','Visit 2','Status','Visit 2 Due'].map(h => (
                   <th key={h} className="text-left px-4 py-3 font-semibold text-foreground">{h}</th>
                 ))}
                 {canRecord && <th className="text-right px-4 py-3 font-semibold text-foreground">Record</th>}
@@ -298,10 +307,17 @@ export const RPCTracking = () => {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filtered.length === 0 ? (
-                <tr><td colSpan={canRecord ? 8 : 7} className="text-center py-12 text-muted-foreground">{hasActiveFilters ? <>No records match your filters. <button onClick={clearFilters} className="text-primary hover:underline font-medium">Clear filters</button></> : 'No RPC records for this school yet.'}</td></tr>
+                <tr><td colSpan={canRecord ? 7 : 6} className="text-center py-12 text-muted-foreground">{hasActiveFilters ? <>No records match your filters. <button onClick={clearFilters} className="text-primary hover:underline font-medium">Clear filters</button></> : 'No RPC records for this school yet.'}</td></tr>
               ) : filtered.map(r => {
                 const sc = statusConfig[r.status] || statusConfig['not-started'];
                 const gc = getGradeColor(r.grade);
+                // 4 calendar months after Visit 1 — the earliest of the DOH
+                // 4–6 month window, and the figure the user asked this column
+                // to name. Only meaningful once Visit 1 happened and Visit 2
+                // has not: everyone else gets the dash below.
+                const dueDate = r.visit1Date && !r.visit2Date
+                  ? (() => { const d = new Date(`${r.visit1Date}T00:00:00`); d.setMonth(d.getMonth() + 4); return d; })()
+                  : null;
                 return (
                   <tr key={r.id} {...activatable(() => navigate(`/dental-chart/${r.id}?tab=treatments`))} className={`hover:bg-gray-50 transition-colors cursor-pointer ${r.status==='overdue'?'bg-red-50':''}`}>
                     <td className="px-4 py-3">
@@ -310,18 +326,27 @@ export const RPCTracking = () => {
                         <span className="font-medium text-foreground">{r.studentName}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground text-xs max-w-[130px] truncate">{r.school}</td>
                     <td className="px-4 py-3">
-                      <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold" style={{backgroundColor:gc.light,color:gc.solid}}>{r.grade}</span>
-                      <span className="text-muted-foreground text-xs ml-1">{r.section}</span>
+                      <span className="inline-block px-1.5 py-0.5 rounded bg-gray-100 text-muted-foreground text-[10px] font-bold tracking-wide mr-1.5 align-middle">{getSchoolAcronym(r.school)}</span>
+                      <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold align-middle" style={{backgroundColor:gc.light,color:gc.solid}}>{r.grade}</span>
+                      <span className="text-muted-foreground text-xs ml-1 align-middle">{r.section}</span>
                     </td>
-                    <td className="px-4 py-3">{r.visit1Date ? <span className="text-green-700 text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3"/>{r.visit1Date}</span> : <span className="text-muted-foreground text-xs">Not done</span>}</td>
-                    <td className="px-4 py-3">{r.visit2Date ? <span className="text-green-700 text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3"/>{r.visit2Date}{r.earlyVisit2 && <span className="ml-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold" title="Visit 2 recorded less than 4 months after Visit 1">early</span>}</span> : <span className="text-muted-foreground text-xs flex items-center gap-1.5 flex-wrap">Not done
+                    <td className="px-4 py-3">{r.visit1Date ? <span className="text-green-700 text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3"/>{formatDate(r.visit1Date)}</span> : <span className="text-muted-foreground text-xs">Not done</span>}</td>
+                    <td className="px-4 py-3">{r.visit2Date ? <span className="text-green-700 text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3"/>{formatDate(r.visit2Date)}{r.earlyVisit2 && <span className="ml-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold" title="Visit 2 recorded less than 4 months after Visit 1">early</span>}</span> : <span className="text-muted-foreground text-xs flex items-center gap-1.5 flex-wrap">Not done
                       {r.syCutoff === 'impossible' && <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-semibold" title={`Even the earliest allowed Visit 2 (+4 months) falls after this school year ends (${r.syDeadline}) — it can't be counted for DOH/PhilHealth this school year`}>won't fit SY</span>}
                       {r.syCutoff === 'tight' && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold" title={`The 4–6 month window extends past the school year — Visit 2 must be done by ${r.syDeadline} to count for DOH/PhilHealth`}>by {r.syDeadline}</span>}
                     </span>}</td>
                     <td className="px-4 py-3"><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${sc.bg} ${sc.color}`}>{sc.label}</span></td>
-                    <td className="px-4 py-3 text-sm">{r.status==='overdue'?<span className="text-red-600 font-semibold">{Math.abs(r.daysUntilDue)}d overdue</span>:r.daysUntilDue>0?<span className="text-blue-600">{r.daysUntilDue}d</span>:<span className="text-muted-foreground">—</span>}</td>
+                    <td className="px-4 py-3 text-sm">
+                      {dueDate ? (
+                        <>
+                          <div className="font-semibold text-foreground">{formatMonthYear(dueDate)}</div>
+                          <div className={r.status==='overdue' ? 'text-red-600 font-semibold text-xs' : 'text-blue-600 text-xs'}>
+                            {r.status==='overdue' ? `${Math.abs(r.daysUntilDue)}d overdue` : `${r.daysUntilDue}d`}
+                          </div>
+                        </>
+                      ) : <span className="text-muted-foreground">—</span>}
+                    </td>
                     {canRecord && (
                       // stopPropagation: the whole row navigates to the dental
                       // chart, so without it recording a visit would also leave
