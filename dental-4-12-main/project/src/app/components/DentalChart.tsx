@@ -1580,7 +1580,7 @@ export const DentalChart = () => {
                     {(yearGrade || yearSection) && (
                       <span className="flex items-center gap-1">
                         {yearGrade && <GradePill grade={yearGrade} />}
-                        {yearSection && <span className="text-[11px] font-medium text-foreground whitespace-nowrap">{yearSection}</span>}
+                        {yearSection && <span className="text-[10px] font-medium text-foreground whitespace-nowrap">{yearSection}</span>}
                       </span>
                     )}
                     {student.is_4ps && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">4Ps</span>}
@@ -1973,7 +1973,7 @@ export const DentalChart = () => {
                   {(yearGrade || yearSection) && (
                     <span className="flex items-center gap-1">
                       {yearGrade && <GradePill grade={yearGrade} />}
-                      {yearSection && <span className="text-[11px] font-medium text-foreground whitespace-nowrap">{yearSection}</span>}
+                      {yearSection && <span className="text-[10px] font-medium text-foreground whitespace-nowrap">{yearSection}</span>}
                     </span>
                   )}
                   <span className="h-4 w-px bg-border" aria-hidden="true" />
