@@ -1273,12 +1273,12 @@ export const PatientList = () => {
                 {filtered.length !== schoolStudents.length ? ` (filtered from ${schoolStudents.length})` : ''}
                 {selectedSchool ? ` at ${getSchoolShortName(selectedSchool)}` : ''}
               </span>
-              {/* A CSS-drawn bar reads as an emphasized, consistently-sized
-                  divider across browsers/fonts; a literal "|" glyph's height
-                  and weight varies with the font and looked thin. Straight
-                  line (no rounded-full), not a pill. Solid black (2026-09-25:
-                  briefly tried gray-300, reverted back to black). */}
-              <span aria-hidden="true" className="hidden h-7 w-px bg-black sm:inline-block" />
+              {/* A CSS-drawn bar reads as a consistently-sized divider across
+                  browsers/fonts; a literal "|" glyph's height and weight
+                  varies with the font and looked thin. Straight line (no
+                  rounded-full), not a pill. Thin gray, a little taller than
+                  the text (2026-09-25). */}
+              <span aria-hidden="true" className="hidden h-8 w-px bg-gray-300 sm:inline-block" />
               <label htmlFor="patients-page-size" className="whitespace-nowrap text-sm font-normal">Items per page</label>
               <select
                 id="patients-page-size"
