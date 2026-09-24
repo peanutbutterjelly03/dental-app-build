@@ -1264,7 +1264,7 @@ export const PatientList = () => {
                   divider across browsers/fonts; a literal "|" glyph's height
                   and weight varies with the font and looked thin. Straight
                   line (no rounded-full), not a pill. */}
-              <span aria-hidden="true" className="hidden h-7 w-px bg-border sm:inline-block" />
+              <span aria-hidden="true" className="hidden h-7 w-px bg-black sm:inline-block" />
               <label htmlFor="patients-page-size" className="whitespace-nowrap text-sm font-normal">Items per page</label>
               <select
                 id="patients-page-size"

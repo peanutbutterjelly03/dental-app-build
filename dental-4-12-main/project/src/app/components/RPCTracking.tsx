@@ -362,7 +362,7 @@ export const RPCTracking = () => {
                 divider across browsers/fonts; a literal "|" glyph's height
                 and weight varies with the font and looked thin. Straight
                 line (no rounded-full), not a pill. */}
-            <span aria-hidden="true" className="hidden h-7 w-px bg-border sm:inline-block" />
+            <span aria-hidden="true" className="hidden h-7 w-px bg-black sm:inline-block" />
             <div className="flex items-center gap-2">
               {/* theme.css's base `label` rule sets its own font-size/weight
                   (medium), which otherwise overrides the ancestor's text-sm —
