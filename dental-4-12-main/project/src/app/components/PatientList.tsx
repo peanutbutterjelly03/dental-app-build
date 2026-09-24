@@ -1002,7 +1002,7 @@ export const PatientList = () => {
     name.split(/[\s,]+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* No export here by design (2026-09-02): this list is raw patient
           PII — names, birthdays, addresses, guardians — and a CSV of it
           would leave the encrypted database as plaintext on someone's
@@ -1010,7 +1010,7 @@ export const PatientList = () => {
           DOH report on Reports, which is aggregate counts and carries no
           names. */}
       {canAddStudent && (
-        <div ref={toolbarRef} className="sticky z-40 -mt-2 flex flex-wrap items-center justify-end gap-3 bg-gray-50 pb-2" style={{ top: stickyTop.toolbar }}>
+        <div ref={toolbarRef} className="sticky z-40 -mt-3 flex flex-wrap items-center justify-end gap-3 bg-gray-50 pb-2" style={{ top: stickyTop.toolbar }}>
           {/* "Upload", not "Scan": this opens a file picker, and a scan icon
               + the verb "scan" both promised a camera the app does not have
               (backlog 0e). The OCR extraction is still described inside the
