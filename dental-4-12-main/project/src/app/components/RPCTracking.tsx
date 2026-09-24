@@ -358,13 +358,9 @@ export const RPCTracking = () => {
               <span className="font-semibold text-foreground">{total}</span> records
               {selectedSchool ? ` at ${selectedSchool}` : ''}
             </span>
-            {/* A CSS-drawn bar reads as a consistently-sized divider across
-                browsers/fonts; a literal "|" glyph's height and weight
-                varies with the font and looked thin. Straight line (no
-                rounded-full), not a pill. Light gray (2026-09-25, was solid
-                black) -- black read too bold/heavy next to the plain-weight
-                text either side of it. */}
-            <span aria-hidden="true" className="hidden h-7 w-px bg-gray-300 sm:inline-block" />
+            {/* Literal glyph, not a CSS-drawn bar (2026-09-25: matches
+                Students/Dental Charts/Treatment's divider exactly). */}
+            <span aria-hidden="true" className="hidden text-gray-300 sm:inline-block">|</span>
             <div className="flex items-center gap-2">
               {/* theme.css's base `label` rule sets its own font-size/weight
                   (medium), which otherwise overrides the ancestor's text-sm —
