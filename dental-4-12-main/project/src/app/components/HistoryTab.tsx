@@ -82,7 +82,7 @@ export function HistoryTab({
     setMeasure((p) => ({ ...p, height_cm: cm }));
   };
   const noSpin = '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';
-  const heightInput = `min-w-0 flex-1 text-sm border border-border rounded px-2 py-2 ${noSpin} focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed`;
+  const heightInput = `min-w-0 flex-1 text-sm border border-border rounded px-2 py-1.5 ${noSpin} focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed`;
 
   return (
     <div className="p-4 space-y-4">
@@ -95,11 +95,11 @@ export function HistoryTab({
           stripped it on the reasoning that the tab body is already a card
           — true, but its siblings are all nested cards inside it, so this
           was the one section sitting bare. */}
-      <div className="bg-card rounded-xl border border-border p-4">
-        <div className="text-base font-bold text-foreground mb-3">Physical Measurements</div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="bg-card rounded-xl border border-border p-3">
+        <div className="text-base font-bold text-foreground mb-2">Physical Measurements</div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-2">
           <div>
-            <label className="block text-xs text-muted-foreground mb-1">Height</label>
+            <label className="block text-xs text-muted-foreground mb-0.5">Height</label>
             <div className="flex gap-1">
               {heightUnit === 'ftin' ? (
                 <>
@@ -121,7 +121,7 @@ export function HistoryTab({
               )}
               {/* Display unit only — switching never rewrites the stored cm. */}
               <select value={heightUnit} onChange={(e) => setHeightUnit(e.target.value as HeightUnit)} aria-label="Height unit"
-                className="shrink-0 text-sm border border-border rounded bg-card px-1 py-2 focus:outline-none focus:ring-1 focus:ring-ring">
+                className="shrink-0 text-sm border border-border rounded bg-card px-1 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring">
                 <option value="ftin">ft/in</option>
                 <option value="cm">cm</option>
                 <option value="m">m</option>
@@ -129,27 +129,27 @@ export function HistoryTab({
             </div>
           </div>
           <div>
-            <label className="block text-xs text-muted-foreground mb-1">Weight (kg)</label>
+            <label className="block text-xs text-muted-foreground mb-0.5">Weight (kg)</label>
             <input type="number" min="0" max="500" step="0.1" inputMode="decimal" disabled={!editing}
               value={measure.weight_kg}
               onChange={(e) => setMeasure((p) => ({ ...p, weight_kg: e.target.value }))}
-              placeholder="e.g. 25" className="w-full text-sm border border-border rounded px-2 py-2 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+              placeholder="e.g. 25" className="w-full text-sm border border-border rounded px-2 py-1.5 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
           </div>
           <div>
-            <label className="block text-xs text-muted-foreground mb-1">Temperature (°C)</label>
+            <label className="block text-xs text-muted-foreground mb-0.5">Temperature (°C)</label>
             <input type="number" min="0" max="45" step="0.1" inputMode="decimal" disabled={!editing}
               value={measure.temperature_c}
               onChange={(e) => setMeasure((p) => ({ ...p, temperature_c: e.target.value }))}
-              placeholder="e.g. 36.5" className="w-full text-sm border border-border rounded px-2 py-2 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+              placeholder="e.g. 36.5" className="w-full text-sm border border-border rounded px-2 py-1.5 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
           </div>
           <div>
-            <label className="block text-xs text-muted-foreground mb-1">Blood Pressure</label>
+            <label className="block text-xs text-muted-foreground mb-0.5">Blood Pressure</label>
             {/* Text, not two numbers: read and written as one pair, and
                 nothing here queries systolic alone. */}
             <input type="text" disabled={!editing}
               value={measure.blood_pressure}
               onChange={(e) => setMeasure((p) => ({ ...p, blood_pressure: e.target.value }))}
-              placeholder="e.g. 110/70" className="w-full text-sm border border-border rounded px-2 py-2 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+              placeholder="e.g. 110/70" className="w-full text-sm border border-border rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
           </div>
           {(() => {
             const bmiValue = computeBmi(Number(measure.height_cm) || null, Number(measure.weight_kg) || null);
@@ -170,14 +170,14 @@ export function HistoryTab({
             return (
               <>
                 <div>
-                  <label className="block text-xs text-muted-foreground mb-1">BMI</label>
-                  <div className="w-full text-sm border border-border rounded px-2 py-2 bg-muted text-muted-foreground" title={BMI_NOTE}>
+                  <label className="block text-xs text-muted-foreground mb-0.5">BMI</label>
+                  <div className="w-full text-sm border border-border rounded px-2 py-1.5 bg-muted text-muted-foreground" title={BMI_NOTE}>
                     {bmiValue ?? 'Automatic'}
                   </div>
                 </div>
                 <div className="col-span-2 sm:col-span-1">
-                  <label className="block text-xs text-muted-foreground mb-1">Nutritional Status</label>
-                  <div className={`w-full text-sm border border-border rounded px-2 py-2 ${statusColor}`}
+                  <label className="block text-xs text-muted-foreground mb-0.5">Nutritional Status</label>
+                  <div className={`w-full text-sm border border-border rounded px-2 py-1.5 ${statusColor}`}
                     title="DOH/DepEd BMI-for-Age classification, 6-19 years old — blank outside that range.">
                     {status ?? statusFallback}
                   </div>

@@ -57,7 +57,7 @@ const UserMenu = ({ user, schoolLabel, onAccountSettings }: { user: { name: stri
   }, [open]);
 
   return (
-    <div ref={ref} className="relative hidden sm:block">
+    <div ref={ref} className="relative min-w-0">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -84,15 +84,15 @@ const UserMenu = ({ user, schoolLabel, onAccountSettings }: { user: { name: stri
             <RoleIcon className="w-[10px] h-[10px]" />
           </span>
         </span>
-        <span className="hidden md:flex flex-col items-start min-w-[100px] max-w-[180px] leading-tight">
-          <span className="text-[13px] font-bold text-sidebar-bg truncate max-w-[180px]">{user.name}</span>
+        <span className="flex min-w-0 flex-col items-start max-w-[120px] sm:min-w-[100px] sm:max-w-[180px] leading-tight">
+          <span className="text-[13px] font-bold text-sidebar-bg truncate max-w-full">{user.name}</span>
           <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${isOnline ? 'text-success' : 'text-warning'}`}>
             <span className={`w-[6px] h-[6px] rounded-full ${isOnline ? 'bg-success' : 'bg-warning'}`} aria-hidden="true" />
             {isOnline ? 'Online' : 'Offline'}
           </span>
-          <span className="text-[11px] font-medium text-muted-foreground truncate max-w-[180px]">{schoolLabel}</span>
+          <span className="text-[11px] font-medium text-muted-foreground truncate max-w-full">{schoolLabel}</span>
         </span>
-        <ChevronDown className={`hidden sm:block w-[11px] h-[11px] text-muted-foreground transition-transform duration-200 ${open ? 'rotate-180' : 'rotate-0'}`} />
+        <ChevronDown className={`shrink-0 w-[11px] h-[11px] text-muted-foreground transition-transform duration-200 ${open ? 'rotate-180' : 'rotate-0'}`} />
       </button>
 
       {open && (
@@ -500,31 +500,27 @@ export const Root = () => {
           above is what keeps it from covering the first row of content. */}
       <div
         style={{ height: TOPBAR_H }}
-        className="fixed top-0 right-0 left-0 z-[60] flex items-center justify-end gap-3 px-6 bg-white border-b border-[#EEF2F7] leading-none"
+        className="fixed top-0 right-0 left-0 z-[60] flex items-center justify-end gap-3 px-4 md:px-6 bg-white border-b border-[#EEF2F7] leading-none"
       >
+        {/* PHONE ONLY: the drawer button + wordmark share this one row with
+            the user block (was a second 56px bar under an otherwise empty
+            strip). mr-auto pushes the user block to the right edge. */}
+        <div className="md:hidden mr-auto flex min-w-0 items-center gap-3">
+          <button
+            ref={menuButtonRef}
+            onClick={() => setDrawerOpen(true)}
+            aria-label="Open navigation menu"
+            aria-expanded={drawerOpen}
+            aria-controls="main-nav"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sidebar-bg text-white hover:opacity-90 transition-opacity"
+          >
+            <Menu className="w-[18px] h-[18px]" />
+          </button>
+          <span className="truncate text-base font-bold text-primary">FLORAL</span>
+        </div>
         <SyncStatus schoolLabel={selectedSchool ? getSchoolShortName(selectedSchool) : 'All Schools'} />
         <UserMenu user={user} schoolLabel={selectedSchool ? getSchoolAcronym(selectedSchool) : 'All Schools'} onAccountSettings={openChangePassword} />
       </div>
-
-      {/* MOBILE TOP BAR -- below md only; the drawer's only entry point. The
-          old `pr-14` reserved the corner for the floating SyncStatus icon,
-          which no longer renders inside the shell. */}
-      <header style={{ top: TOPBAR_H }} className="md:hidden sticky h-14 z-30 flex items-center gap-3 px-4 bg-card border-b border-border">
-        <button
-          ref={menuButtonRef}
-          onClick={() => setDrawerOpen(true)}
-          aria-label="Open navigation menu"
-          aria-expanded={drawerOpen}
-          aria-controls="main-nav"
-          className="flex h-9 w-9 items-center justify-center rounded-xl bg-sidebar-bg text-white hover:opacity-90 transition-opacity"
-        >
-          <Menu className="w-[18px] h-[18px]" />
-        </button>
-        <span className="text-base font-bold text-primary">FLORAL</span>
-        {/* The school name used to repeat here. The status strip above now
-            carries it at every width, so this was the same label twice on a
-            phone screen. */}
-      </header>
 
       {/* DRAWER BACKDROP -- below md only */}
       {drawerOpen && (
