@@ -1475,19 +1475,19 @@ export const DentalChart = () => {
               </div>
             )}
           </div>
-          <div className="hidden sm:flex h-9 items-stretch border border-border rounded-lg overflow-hidden">
+          <div className="hidden sm:flex h-9 items-stretch rounded-lg border-2 border-sidebar-bg bg-white overflow-hidden">
             <button
               onClick={() => goToStudent(prevPatient)}
               disabled={!prevPatient}
               title={prevPatient ? `← ${prevPatient.name}` : undefined}
-              className="flex items-center gap-1.5 px-3 text-xs text-muted-foreground hover:bg-gray-100 disabled:opacity-30 disabled:cursor-default border-r border-border"
+              className="flex items-center gap-1.5 px-3 text-xs font-semibold text-sidebar-bg hover:bg-primary-surface disabled:opacity-30 disabled:cursor-default border-r-2 border-sidebar-bg"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
               {/* Surname, not the given name: the list is ordered by surname,
                   so the button must name the same thing you are stepping through. */}
               {prevPatient ? <span className="max-w-[80px] truncate">{prevPatient.lastName || prevPatient.name}</span> : 'First'}
             </button>
-            <span className="flex items-center gap-1 px-3 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1 px-3 text-xs font-semibold text-sidebar-bg">
               <Users className="w-3 h-3" />
               {navIndex >= 0 ? `${navIndex + 1}/${navList.length}` : '—'}
             </span>
@@ -1495,7 +1495,7 @@ export const DentalChart = () => {
               onClick={() => goToStudent(nextPatient)}
               disabled={!nextPatient}
               title={nextPatient ? `${nextPatient.name} →` : undefined}
-              className="flex items-center gap-1.5 px-3 text-xs text-muted-foreground hover:bg-gray-100 disabled:opacity-30 disabled:cursor-default border-l border-border"
+              className="flex items-center gap-1.5 px-3 text-xs font-semibold text-sidebar-bg hover:bg-primary-surface disabled:opacity-30 disabled:cursor-default border-l-2 border-sidebar-bg"
             >
               {nextPatient ? <span className="max-w-[80px] truncate">{nextPatient.lastName || nextPatient.name}</span> : 'Last'}
               <ChevronRight className="w-3.5 h-3.5" />
@@ -1808,7 +1808,7 @@ export const DentalChart = () => {
                       <button onClick={cancelEdit} disabled={saving} className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-60">
                         Cancel
                       </button>
-                      <button onClick={handleSave} disabled={saving} className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-60 ${saved ? 'bg-green-600 text-white' : 'bg-primary text-white hover:bg-primary-hover'}`}>
+                      <button onClick={handleSave} disabled={saving} className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-60 ${saved ? 'bg-green-600 text-white' : 'bg-destructive text-white hover:opacity-90'}`}>
                         <Save className="w-3.5 h-3.5" />
                         {saving ? 'Saving…' : saved ? 'Saved!' : 'Save'}
                       </button>
@@ -2078,7 +2078,7 @@ export const DentalChart = () => {
                         Cancel
                       </button>
                       <button onClick={handleSave} disabled={saving}
-                        className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-medium text-white disabled:opacity-60 ${saved ? 'bg-green-600' : 'bg-primary hover:bg-primary-hover'}`}>
+                        className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-medium text-white disabled:opacity-60 ${saved ? 'bg-green-600' : 'bg-destructive hover:opacity-90'}`}>
                         <Save className="w-3.5 h-3.5" /> {saving ? 'Saving…' : saved ? 'Saved' : 'Save Chart'}
                       </button>
                     </>
