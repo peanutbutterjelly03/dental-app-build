@@ -1100,7 +1100,9 @@ export const DentalChart = () => {
         className={`relative flex h-[52px] min-w-[40px] max-w-[56px] flex-1 flex-col items-center justify-between rounded-md border-2 px-0.5 py-1 text-center transition-all md:h-[64px] ${colorClass} ${hoverClass}`}
       >
         <div className="text-[8px] font-medium text-slate-500 leading-none">{num}</div>
-        {cond && <div className="text-[11px] md:text-sm font-bold text-slate-700 leading-none">{cond}</div>}
+        {/* The sound-tooth check is drawn larger (user, 2026-09-24): at the
+            letter codes' size it read as a speck next to D/M/F. */}
+        {cond && <div className={`${cond === '✓' || cond === '√' ? 'text-base md:text-xl' : 'text-[11px] md:text-sm'} font-bold text-slate-700 leading-none`}>{cond}</div>}
         {/* Blue, not teal: the palette selects conditions in teal and
             treatments in blue, but this rendered the treatment code in the
             condition colour, crossing the two vocabularies on the teeth. */}
@@ -2245,7 +2247,7 @@ export const DentalChart = () => {
                       <button key={c.code} title={c.label}
                         onClick={() => { setSelectedCondition(selectedCondition === c.code ? null : c.code); setSelectedTreatment(null); }}
                         className={`${paletteBtn} ${selectedCondition === c.code ? 'bg-teal-600 text-white ring-2 ring-teal-300 border-teal-600' : 'bg-card border-border text-foreground hover:border-teal-400'}`}>
-                        {conditionCodeText(c)}
+                        {c.perm === '✓' ? <span className="text-lg leading-none">✓</span> : conditionCodeText(c)}
                       </button>
                     ))}
                     <button type="button" onClick={() => setRareConditionsOpen((v) => !v)}
@@ -2260,7 +2262,7 @@ export const DentalChart = () => {
                         <button key={c.code} title={c.label}
                           onClick={() => { setSelectedCondition(selectedCondition === c.code ? null : c.code); setSelectedTreatment(null); }}
                           className={`${paletteBtn} ${selectedCondition === c.code ? 'bg-teal-600 text-white ring-2 ring-teal-300 border-teal-600' : 'bg-card border-border text-foreground hover:border-teal-400'}`}>
-                          {conditionCodeText(c)}
+                          {c.perm === '✓' ? <span className="text-lg leading-none">✓</span> : conditionCodeText(c)}
                         </button>
                       ))}
                     </div>
