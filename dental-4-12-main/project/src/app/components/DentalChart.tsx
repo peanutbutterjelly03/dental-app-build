@@ -593,10 +593,13 @@ export const DentalChart = () => {
   // it is unexamined, so it stays blank. A treatment code on a sound tooth
   // (e.g. a sealant) does not block it: ✓ is the form's "Sound/Sealed".
   // Not stored anywhere; recomputed from the chart, so it can never drift.
-  const isOrallyFitChild = useMemo(
-    () => chartedTeeth.length > 0
-      && chartedTeeth.every((t) => t.condition === '✓' || t.condition === '√')
-      && !presentOralConditions.some((c) => c.present),
+  const isOrallyFitChild = useMemo(() => {
+    // A tooth just emptied in the draft (no code at all) is not charted.
+    const teeth = chartedTeeth.filter((t) => t.condition || t.treatment);
+    return teeth.length > 0
+      && teeth.every((t) => t.condition === '✓' || t.condition === '√')
+      && !presentOralConditions.some((c) => c.present);
+  },
     [presentOralConditions, chartedTeeth],
   );
   const dmft = computeDMFT(currentChart);
