@@ -21,7 +21,7 @@ import { Student, DentalAide, MedicalHistory, Treatment } from "../models/index.
 const TARGETS: { name: string; model: mongoose.Model<any>; fields: string[] }[] = [
   { name: "Student", model: Student, fields: ["full_name", "last_name", "first_name", "middle_name", "address", "contact_number", "guardian_name", "guardian_contact", "philhealth_number", "fourps_id"] },
   { name: "DentalAide", model: DentalAide, fields: ["contact_number"] },
-  { name: "MedicalHistory", model: MedicalHistory, fields: ["allergies", "others", "hepatitis_type", "malignancy_details", "blood_transfusion_date", "last_admission", "medication_details"] },
+  { name: "MedicalHistory", model: MedicalHistory, fields: ["allergies", "others", "hepatitis_type", "malignancy_details", "blood_transfusion_date", "last_admission", "medication_details", "last_extraction_date", "surgical_details"] },
   { name: "Treatment", model: Treatment, fields: ["diagnosis", "treatment_done"] },
 ];
 

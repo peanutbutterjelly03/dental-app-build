@@ -185,6 +185,9 @@ export interface ApiMedicalHistory {
   blood_transfusion_date?: string;
   last_admission?: string;
   medication_details?: string;
+  high_blood_pressure?: boolean;
+  last_extraction_date?: string;
+  surgical_details?: string;
 }
 
 export interface ApiDietarySocialHabits {

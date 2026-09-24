@@ -39,12 +39,18 @@ const medicalHistorySchema = new mongoose.Schema(
     pregnant: { type: Boolean, default: false },             // Q13 buntis (female only)
     current_medication: { type: Boolean, default: false },   // Q15 may iniinom na gamot
     epilepsy: { type: Boolean, default: false },             // Q16 epilepsy
+    // Q5 "Mataas ba ang presyon?" as its own chip (user, 2026-09-24). Form 1
+    // prints Oo when this OR `hypertension` is ticked: hypertension IS high
+    // blood pressure, so a Hindi beside a ticked Hypertension would contradict it.
+    high_blood_pressure: { type: Boolean, default: false },
     // The forms' "Please specify" / "Ano?" details. Encrypted, like allergies.
     hepatitis_type: { type: String, default: "" },
     malignancy_details: { type: String, default: "" },
     blood_transfusion_date: { type: String, default: "" },  // "Month & Year", as the IPTR prints it
     last_admission: { type: String, default: "" },          // IPTR "Medical (Last Admission & Cause)"
     medication_details: { type: String, default: "" },     // Form 1 Q15 "Ano?"
+    last_extraction_date: { type: String, default: "" },   // Form 1 Q8, optional "if remembered"
+    surgical_details: { type: String, default: "" },       // IPTR "Surgical (Post-Operative)"
     ...softDeleteFields,
   },
   { timestamps: { createdAt: "created_at", updatedAt: false } },
@@ -53,6 +59,7 @@ const medicalHistorySchema = new mongoose.Schema(
 medicalHistorySchema.plugin(fieldEncryption, fieldEncryptionOptions([
   "allergies", "others",
   "hepatitis_type", "malignancy_details", "blood_transfusion_date", "last_admission", "medication_details",
+  "last_extraction_date", "surgical_details",
 ]));
 
 // Sprint 91. `filterable: ["iptr_id"]` — one IPTR's history, not the collection.

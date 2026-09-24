@@ -40,47 +40,73 @@ function heightDraftToCm(d: HeightDraft, unit: HeightUnit): string {
   return roundStr((Number(d.main || 0) * 12 + Number(d.inches || 0)) * 2.54, 1);
 }
 
-// Every medical-history chip, in display order (user, 2026-09-24). DOH Form
-// 1's Filipino questions are chips here under short English names (Form 1
-// itself still prints them verbatim in Filipino); the longer labels sit last.
-// `femaleOnly` = Form 1 Q12/Q13, "para sa babae".
-const MED_CHIPS: { label: string; field: MedFlag; femaleOnly?: boolean }[] = [
+// Every medical-history chip, in the user's order (2026-09-24). DOH Form 1's
+// Filipino questions are chips here under short English names (Form 1 itself
+// still prints them verbatim in Filipino). `details` are the forms' "Please
+// specify" boxes: they open INSIDE the chip when it is ticked, and unticking
+// clears them, so an unticked condition never prints a leftover detail.
+// `field: null` is Allergies, which has no yes/no of its own: it is "yes"
+// when an allergy is written down (that is what Form 1 Q6 and the DOH count read).
+type MedDetail = { field: MedText; label: string; placeholder?: string };
+const MED_CHIPS: { label: string; field: MedFlag | null; femaleOnly?: boolean; details?: MedDetail[] }[] = [
+  { label: 'Allergies', field: null, details: [{ field: 'allergies', label: 'Specify allergies', placeholder: 'e.g. penicillin, shrimp' }] },
+  { label: 'Anesthesia Allergy', field: 'anesthesia_allergy' },                       // Form 1 Q7
   { label: 'Hypertension / CVA', field: 'hypertension' },
   { label: 'Diabetes Mellitus', field: 'diabetes_mellitus' },
   { label: 'Blood Disorders', field: 'blood_disorders' },
-  { label: 'Anemia', field: 'anemia' },                              // Form 1 Q4
   { label: 'Cardiovascular / Heart Diseases', field: 'cardiovascular_disease' },
   { label: 'Thyroid Disorders', field: 'thyroid_disorders' },
-  { label: 'Hepatitis', field: 'hepatitis_disorders' },
-  { label: 'Liver Disease', field: 'liver_disease' },                // Form 1 Q3
-  { label: 'Malignancy', field: 'malignancy' },
-  { label: 'Asthma', field: 'asthma' },                              // Form 1 Q11
-  { label: 'Epilepsy', field: 'epilepsy' },                          // Form 1 Q16
-  { label: 'Anesthesia Allergy', field: 'anesthesia_allergy' },      // Form 1 Q7
-  { label: 'History of Hospitalization', field: 'previous_hospitalization' },
-  { label: 'Surgical (Post-Operative)', field: 'previous_surgical' },
-  { label: 'Blood Transfusion', field: 'blood_transfusion' },
+  { label: 'Hepatitis', field: 'hepatitis_disorders', details: [{ field: 'hepatitis_type', label: 'Please specify type', placeholder: 'e.g. Hepatitis B' }] },
+  { label: 'Malignancy', field: 'malignancy', details: [{ field: 'malignancy_details', label: 'Please specify' }] },
+  { label: 'Blood Transfusion', field: 'blood_transfusion', details: [{ field: 'blood_transfusion_date', label: 'Month & year', placeholder: 'e.g. March 2024' }] },
   { label: 'Tattoo', field: 'tattoo' },
-  { label: 'Taking Medication', field: 'current_medication' },       // Form 1 Q15
-  { label: 'Menstruating', field: 'menstruation', femaleOnly: true }, // Form 1 Q12
-  { label: 'Pregnant', field: 'pregnant', femaleOnly: true },        // Form 1 Q13
-  { label: 'Previous Tooth Extraction', field: 'previous_extraction' },     // Form 1 Q8
-  { label: 'Bleeds a Lot After Extraction', field: 'extraction_bleeding' }, // Form 1 Q9
-  { label: 'Chest Tightness / Easily Tired', field: 'chest_tightness' },    // Form 1 Q10
+  { label: 'Liver Disease', field: 'liver_disease' },                                 // Form 1 Q3
+  { label: 'Anemia', field: 'anemia' },                                               // Form 1 Q4
+  { label: 'High Blood Pressure', field: 'high_blood_pressure' },                     // Form 1 Q5
+  { label: 'Previous Tooth Extraction', field: 'previous_extraction',                 // Form 1 Q8
+    details: [{ field: 'last_extraction_date', label: 'When (optional)', placeholder: 'e.g. 2024' }] },
+  { label: 'Bleeds a Lot After Extraction', field: 'extraction_bleeding' },           // Form 1 Q9
+  { label: 'Chest Tightness / Easily Tired', field: 'chest_tightness' },              // Form 1 Q10
+  { label: 'Asthma', field: 'asthma' },                                               // Form 1 Q11
+  { label: 'Menstruation', field: 'menstruation', femaleOnly: true },                 // Form 1 Q12
+  { label: 'Pregnant', field: 'pregnant', femaleOnly: true },                         // Form 1 Q13
+  { label: 'Currently Taking Medication', field: 'current_medication',                // Form 1 Q15
+    details: [{ field: 'medication_details', label: 'What medication?' }] },
+  { label: 'Epilepsy', field: 'epilepsy' },                                           // Form 1 Q16
+  { label: 'History of Hospitalization', field: 'previous_hospitalization', details: [
+    { field: 'last_admission', label: 'Medical (last admission & cause)', placeholder: 'e.g. June 2025, dengue' },
+    { field: 'surgical_details', label: 'Surgical (post-operative)' },
+  ] },
 ];
 
-/** The tick-box chip used across this tab. Ticked prints "Oo" on DOH Form 1,
- *  unticked prints "Hindi". */
-function CheckChip({ label, checked, onChange, disabled }: {
-  label: string; checked: boolean; onChange: (v: boolean) => void; disabled: boolean;
+/** A medical-history tick-box chip. When ticked, its detail boxes (if any)
+ *  open inside it and it widens to the full row so they have room. */
+function MedChip({ label, checked, onToggle, disabled, details, med, setText }: {
+  label: string; checked: boolean; onToggle: (v: boolean) => void; disabled: boolean;
+  details?: MedDetail[]; med: MedicalHistoryDraft; setText: (field: MedText, v: string) => void;
 }) {
+  const open = checked && !!details?.length;
   return (
-    <label className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors ${checked ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-border text-foreground'} ${disabled ? 'cursor-not-allowed opacity-70' : 'cursor-pointer hover:bg-canvas'}`}>
-      <input type="checkbox" disabled={disabled} checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="w-4 h-4 shrink-0 rounded accent-primary disabled:cursor-not-allowed" />
-      {label}
-    </label>
+    <div className={`rounded-lg border text-xs transition-colors ${open ? 'sm:col-span-2' : ''} ${checked ? 'border-primary bg-primary/10' : 'border-border'} ${disabled ? 'opacity-70' : ''}`}>
+      <label className={`flex items-center gap-2 px-3 py-2 ${checked ? 'text-primary font-medium' : 'text-foreground'} ${disabled ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-canvas rounded-lg'}`}>
+        <input type="checkbox" disabled={disabled} checked={checked}
+          onChange={(e) => onToggle(e.target.checked)}
+          className="w-4 h-4 shrink-0 rounded accent-primary disabled:cursor-not-allowed" />
+        {label}
+      </label>
+      {open && (
+        <div className="grid grid-cols-1 gap-2 px-3 pb-2.5 sm:grid-cols-2">
+          {details!.map((d) => (
+            <div key={d.field}>
+              <label className="block text-[11px] text-muted-foreground mb-0.5">{d.label}</label>
+              <input type="text" disabled={disabled} value={med[d.field]} placeholder={d.placeholder}
+                onChange={(e) => setText(d.field, e.target.value)}
+                className="w-full bg-card text-xs border border-border rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -110,6 +136,10 @@ export function HistoryTab({
 }) {
   // Form 1 Q12 (regla) and Q13 (buntis) are for girls only.
   const isFemale = sex === 'Female';
+  // Allergies has no yes/no field: the chip is ticked while an allergy is
+  // written down, or while it has just been ticked and not yet typed.
+  const [allergiesOn, setAllergiesOn] = useState(false);
+  useEffect(() => { if (!editing) setAllergiesOn(false); }, [editing]);
   const [heightUnit, setHeightUnit] = useState<HeightUnit>('ftin');
   const [heightDraft, setHeightDraft] = useState<HeightDraft>(() => cmToHeightDraft(measure.height_cm, 'ftin'));
   // What the draft was last derived from — so a reload / cancel / year switch
@@ -248,33 +278,36 @@ export function HistoryTab({
               On DOH Form 1 a ticked chip prints under Oo, an unticked one
               under Hindi (user, 2026-09-24). */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {MED_CHIPS.filter((c) => !c.femaleOnly || isFemale).map(({ label, field }) => (
-              <CheckChip key={field} label={label} checked={med[field]} disabled={!editing}
-                onChange={(v) => setMed((p) => ({ ...p, [field]: v }))} />
-            ))}
+            {MED_CHIPS.filter((c) => !c.femaleOnly || isFemale).map(({ label, field, details }) => {
+              const checked = field ? med[field] : allergiesOn || med.allergies !== '';
+              const onToggle = (v: boolean) => {
+                if (field === null) setAllergiesOn(v);
+                setMed((p) => {
+                  const next = { ...p };
+                  if (field) next[field] = v;
+                  // Unticking clears its details (see MED_CHIPS).
+                  if (!v) for (const d of details ?? []) next[d.field] = '';
+                  if (field === 'previous_hospitalization' && !v) next.previous_surgical = false;
+                  return next;
+                });
+              };
+              const setText = (f: MedText, v: string) => setMed((p) => ({
+                ...p, [f]: v,
+                // The IPTR's Surgical (Post-Operative) row is a yes/no on the
+                // record; it is "yes" exactly when a surgery is written down.
+                ...(f === 'surgical_details' ? { previous_surgical: v.trim() !== '' } : {}),
+              }));
+              return (
+                <MedChip key={label} label={label} checked={checked} onToggle={onToggle} disabled={!editing}
+                  details={details} med={med} setText={setText} />
+              );
+            })}
           </div>
-          {/* The forms' "Please specify" details. A detail box appears once its
-              condition is answered Oo, and stays while it holds text, so an
-              un-ticked condition never hides something already written. */}
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {([
-              ['Allergies (please specify)', 'allergies', null, 'e.g. penicillin, shrimp'],
-              ['Hepatitis (please specify type)', 'hepatitis_type', 'hepatitis_disorders', 'e.g. Hepatitis B'],
-              ['Malignancy (please specify)', 'malignancy_details', 'malignancy', ''],
-              ['Blood transfusion (month & year)', 'blood_transfusion_date', 'blood_transfusion', 'e.g. March 2024'],
-              ['Last admission & cause', 'last_admission', 'previous_hospitalization', 'e.g. June 2025, dengue'],
-              ['Medication taken', 'medication_details', 'current_medication', ''],
-              ['Others (please specify)', 'others', null, ''],
-            ] as [string, MedText, MedFlag | null, string][])
-              .filter(([, field, flag]) => !flag || med[flag] === true || med[field] !== '')
-              .map(([label, field, , placeholder]) => (
-                <div key={field}>
-                  <label className="block text-xs text-muted-foreground mb-1">{label}</label>
-                  <input type="text" disabled={!editing} value={med[field]} placeholder={placeholder}
-                    onChange={(e) => setMed((p) => ({ ...p, [field]: e.target.value }))}
-                    className="w-full text-xs border border-border rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
-                </div>
-              ))}
+          <div className="mt-3">
+            <label className="block text-xs text-muted-foreground mb-1">Others (please specify)</label>
+            <input type="text" disabled={!editing} value={med.others}
+              onChange={(e) => setMed((p) => ({ ...p, others: e.target.value }))}
+              className="w-full text-xs border border-border rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
           </div>
         </div>
         <div className="bg-card rounded-xl border border-border p-4">

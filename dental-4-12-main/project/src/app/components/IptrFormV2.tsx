@@ -66,11 +66,12 @@ const HISTORY_QUESTIONS: { n: number; q: string; source: (y: IptrYearData) => bo
   { n: 2, q: 'Mayroon ka bang sakit sa puso?', source: med('cardiovascular_disease') },
   { n: 3, q: 'Mayroon ka bang sakit sa atay?', source: med('liver_disease') },
   { n: 4, q: 'Ikaw ba ay kulang sa dugo?', source: med('anemia') },
-  { n: 5, q: 'Mataas ba ang presyon ng iyong dugo? Ano?', source: med('hypertension') },
+  // Oo when either chip is ticked: Hypertension IS high blood pressure.
+  { n: 5, q: 'Mataas ba ang presyon ng iyong dugo? Ano?', source: (y) => (y.medicalHistory ? y.medicalHistory.hypertension === true || y.medicalHistory.high_blood_pressure === true : null) },
   // No separate tick on the record: an allergy is "Oo" when one is written down.
   { n: 6, q: 'Mayroon ka bang allergy sa pagkain? Sa gamot? Ano?', source: (y) => (y.medicalHistory ? !!y.medicalHistory.allergies : null), remark: (y) => y.medicalHistory?.allergies ?? '' },
   { n: 7, q: 'Mayroon ka bang allergy sa pamamanhid (anesthesia)?', source: med('anesthesia_allergy') },
-  { n: 8, q: 'Ikaw ba ay nabunutan na ng ngipin?', source: med('previous_extraction') },
+  { n: 8, q: 'Ikaw ba ay nabunutan na ng ngipin?', source: med('previous_extraction'), remark: (y) => y.medicalHistory?.last_extraction_date ?? '' },
   { n: 9, q: 'Ikaw ba ay madugo kapag binubunutan ng ngipin?', source: med('extraction_bleeding') },
   { n: 10, q: 'Naninikip ba ang iyong dibdib? / meadaling mapagod?', source: med('chest_tightness') },
   { n: 11, q: 'Mayroon ka bang hika?', source: med('asthma') },

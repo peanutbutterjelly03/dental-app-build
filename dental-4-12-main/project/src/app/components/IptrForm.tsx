@@ -53,7 +53,7 @@ const MEDICAL_ROWS: Row[] = [
   { label: 'History of Previous Hospitalization', value: (y) => tick(y.medicalHistory?.previous_hospitalization) },
   // Sub-rows of the hospitalisation row on the paper form.
   { label: 'Medical (Last Admission & Cause)', indent: true, value: (y) => y.medicalHistory?.last_admission ?? '' },
-  { label: 'Surgical (Post-Operative)', indent: true, value: (y) => tick(y.medicalHistory?.previous_surgical) },
+  { label: 'Surgical (Post-Operative)', indent: true, value: (y) => y.medicalHistory?.surgical_details || tick(y.medicalHistory?.previous_surgical) },
   { label: 'Blood transfusion (Month & Year)', value: (y) => y.medicalHistory?.blood_transfusion_date || tick(y.medicalHistory?.blood_transfusion) },
   { label: 'Tattoo', value: (y) => tick(y.medicalHistory?.tattoo) },
   { label: 'Others (Please specify)', value: (y) => y.medicalHistory?.others ?? '' },

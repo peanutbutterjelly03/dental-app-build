@@ -22,12 +22,13 @@ export const MED_FLAGS = [
   'hypertension', 'diabetes_mellitus', 'blood_disorders', 'cardiovascular_disease', 'thyroid_disorders',
   'hepatitis_disorders', 'malignancy', 'previous_hospitalization', 'previous_surgical', 'blood_transfusion', 'tattoo',
   'liver_disease', 'anemia', 'anesthesia_allergy', 'previous_extraction', 'extraction_bleeding',
-  'chest_tightness', 'asthma', 'menstruation', 'pregnant', 'current_medication', 'epilepsy',
+  'chest_tightness', 'asthma', 'menstruation', 'pregnant', 'current_medication', 'epilepsy', 'high_blood_pressure',
 ] as const;
 export type MedFlag = typeof MED_FLAGS[number];
 /** The free-text details, also by API field name. */
 export const MED_TEXTS = [
   'allergies', 'others', 'hepatitis_type', 'malignancy_details', 'blood_transfusion_date', 'last_admission', 'medication_details',
+  'last_extraction_date', 'surgical_details',
 ] as const;
 export type MedText = typeof MED_TEXTS[number];
 export type MedicalHistoryDraft = Record<MedFlag, boolean> & Record<MedText, string>;
