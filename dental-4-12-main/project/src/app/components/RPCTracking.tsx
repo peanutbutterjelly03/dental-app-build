@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
-import { Search, X, CheckCircle, AlertCircle, Clock, Shield, School as SchoolIcon, List, ChevronRight, Users } from 'lucide-react';
+import { Search, X, CheckCircle, AlertCircle, Shield, School as SchoolIcon, List, ChevronRight, Users } from 'lucide-react';
 import { getGradeColor } from '../utils/gradeColors';
 import { useRPCTracking } from '../hooks/useRPCTracking';
 import { treatmentCodes, treatmentLabel } from '../utils/dentalChartCodes';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
-import { activatable } from '../utils/a11y';
 import { Pagination, usePagination } from './Pagination';
-import { formatDate } from '../utils/localDate';
+import { formatDate, formatMonthYear } from '../utils/localDate';
 
 const GRADES = ['Kinder','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10'];
 
@@ -136,8 +135,7 @@ export const RPCTracking = () => {
       )}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">RPC Records</h1>
-          <p className="text-sm text-muted-foreground">Routine Preventive Care — Fluoride application tracking (2nd fluoride dose due 4–6 months after Visit 1; other treatments may be done anytime)</p>
+          <h1 className="text-2xl font-bold text-foreground">Routine Preventive Care</h1>
         </div>
         {/* No export by design (2026-09-02) — see PatientList for the reasoning:
             a CSV of named students leaves the encrypted store as plaintext.
@@ -176,20 +174,23 @@ export const RPCTracking = () => {
                 {['Student','Grade / Section','Visit 1','Visit 2','Status','Days Until Due'].map(h => (
                   <th key={h} className="text-left px-4 py-3 font-semibold text-foreground">{h}</th>
                 ))}
+                <th className="text-right px-4 py-3 font-semibold text-foreground">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filtered.length === 0 ? (
-                <tr><td colSpan={6} className="text-center py-12 text-muted-foreground">{hasActiveFilters ? <>No records match your filters. <button onClick={clearFilters} className="text-primary hover:underline font-medium">Clear filters</button></> : 'No RPC records for this school yet.'}</td></tr>
+                <tr><td colSpan={7} className="text-center py-12 text-muted-foreground">{hasActiveFilters ? <>No records match your filters. <button onClick={clearFilters} className="text-primary hover:underline font-medium">Clear filters</button></> : 'No RPC records for this school yet.'}</td></tr>
               ) : filtered.map(r => {
                 const sc = statusConfig[r.status] || statusConfig['not-started'];
                 const gc = getGradeColor(r.grade);
-                // daysUntilDue only means something once Visit 1 happened and
-                // Visit 2 has not — everyone else (not started, or complete)
-                // gets the dash below.
-                const hasDueDate = !!r.visit1Date && !r.visit2Date;
+                // 4 calendar months after Visit 1 — the earliest of the DOH
+                // 4–6 month window. Only meaningful once Visit 1 happened and
+                // Visit 2 has not; everyone else gets the dash below.
+                const dueDate = r.visit1Date && !r.visit2Date
+                  ? (() => { const d = new Date(`${r.visit1Date}T00:00:00`); d.setMonth(d.getMonth() + 4); return d; })()
+                  : null;
                 return (
-                  <tr key={r.id} {...activatable(() => navigate(`/dental-chart/${r.id}?tab=treatments`))} className={`hover:bg-gray-50 transition-colors cursor-pointer ${r.status==='overdue'?'bg-red-50':''}`}>
+                  <tr key={r.id} className={`hover:bg-gray-50 transition-colors ${r.status==='overdue'?'bg-red-50':''}`}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-semibold">{r.studentName.split(' ').map(n=>n[0]).join('').slice(0,2)}</div>
@@ -202,18 +203,27 @@ export const RPCTracking = () => {
                     </td>
                     <td className="px-4 py-3">{r.visit1Date ? <span className="text-green-700 text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3"/>{formatDate(r.visit1Date)}</span> : <span className="text-muted-foreground text-xs">Not done</span>}</td>
                     <td className="px-4 py-3">{r.visit2Date ? <span className="text-green-700 text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3"/>{formatDate(r.visit2Date)}{r.earlyVisit2 && <span className="ml-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold" title="Visit 2 recorded less than 4 months after Visit 1">early</span>}</span> : <span className="text-muted-foreground text-xs flex flex-col items-start gap-1">Not done
-                      {r.syCutoff === 'impossible' && <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-semibold" title={`Even the earliest allowed Visit 2 (+4 months) falls after this school year ends (${r.syDeadline}) — it can't be counted for DOH/PhilHealth this school year`}>won't fit SY</span>}
-                      {r.syCutoff === 'tight' && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold" title={`The 4–6 month window extends past the school year — Visit 2 must be done by ${r.syDeadline} to count for DOH/PhilHealth`}>by {r.syDeadline}</span>}
+                      {r.syCutoff === 'impossible' && <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-semibold text-[10px]" title={`Even the earliest allowed Visit 2 (+4 months) falls after this school year ends (${r.syDeadline}) — it can't be counted for DOH/PhilHealth this school year`}>won't fit SY</span>}
+                      {r.syCutoff === 'tight' && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold text-[10px]" title={`The 4–6 month window extends past the school year — Visit 2 must be done by ${r.syDeadline} to count for DOH/PhilHealth`}>by {r.syDeadline}</span>}
                     </span>}</td>
                     <td className="px-4 py-3"><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${sc.bg} ${sc.color}`}>{sc.label}</span></td>
                     <td className="px-4 py-3">
-                      {hasDueDate ? (
-                        r.status === 'overdue' ? (
-                          <span className="text-red-600 text-xs flex items-center gap-1 font-semibold"><Clock className="w-3 h-3"/>{Math.abs(r.daysUntilDue)}d overdue</span>
-                        ) : (
-                          <span className="text-warning text-xs flex items-center gap-1"><Clock className="w-3 h-3"/>{r.daysUntilDue}d</span>
-                        )
+                      {dueDate ? (
+                        <>
+                          <div className="text-warning font-semibold text-xs">{formatMonthYear(dueDate)}</div>
+                          <div className={r.status==='overdue' ? 'text-red-600 font-semibold text-xs' : 'text-muted-foreground text-xs'}>
+                            {r.status==='overdue' ? `${Math.abs(r.daysUntilDue)}d overdue` : `${r.daysUntilDue}d`}
+                          </div>
+                        </>
                       ) : <span className="text-muted-foreground text-xs">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => navigate(`/dental-chart/${r.id}?tab=treatments`)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium border border-border rounded-lg hover:bg-gray-50 whitespace-nowrap"
+                      >
+                        Open Chart
+                      </button>
                     </td>
                   </tr>
                 );
