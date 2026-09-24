@@ -688,14 +688,12 @@ export const Appointments = () => {
                   <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200">Pending sync</span>
                 )}
               </div>
-              {/* Plain meta line (grade/section · date · treatment), matching
-                  the chosen agenda-card layout — the chip row this replaced
-                  is a later refinement, not part of this pass. */}
+              {/* Group grade/section together and separate appointment details with pipes. */}
               <div className="text-xs text-muted-foreground mt-1 truncate">
-                {soleStudent ? <>{a.grade} · {a.section}</> : <>{a.studentCount} students</>}
-                {!compact && <> · {shortDate}</>}
-                {' · '}{a.type}
-                {a.guardianContactNumber && <> · Guardian: {a.guardianContactNumber}</>}
+                {soleStudent ? <>{a.grade} {a.section}</> : <>{a.studentCount} students</>}
+                {!compact && <> | {shortDate}</>}
+                {' | '}{a.type}
+                {a.guardianContactNumber && <> | Contact No. {a.guardianContactNumber}</>}
               </div>
             </div>
           </div>
