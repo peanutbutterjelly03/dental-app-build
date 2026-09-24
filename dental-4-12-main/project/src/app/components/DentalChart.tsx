@@ -111,24 +111,14 @@ const serviceChips: { label: string; field: ServiceField }[] = [
   { label: 'Consultation', field: 'consultation' },
 ];
 
-// Palette buttons, labeled (user's pick "A", 2026-09-24): the code on top and
-// a short meaning under it, in Inter (the app font; was monospace), so the
-// dentist does not have to open the Legend to read a code. Display-only
-// abbreviations of the labels in dentalChartCodes.ts -- the full label stays
-// in each button's tooltip and in the Legend. A code missing here falls back
-// to its full label.
-// ⚠ Two maps: X is BOTH a condition (indicated for extraction) and a
-// treatment (extraction done), and one shared map would label them the same.
-const CONDITION_SHORT: Record<string, string> = {
-  '✓': 'Sound', D: 'Decayed', M: 'Missing', F: 'Filled', X: 'For Extraction',
-  Un: 'Unerupted', S: 'Supernumerary', JC: 'Jacket Crown', P: 'Pontic',
-};
-const TREATMENT_SHORT: Record<string, string> = {
-  PFS: 'Sealant', PF: 'Perm. Filling', TF: 'Temp. Filling', TR: 'Restoration', X: 'Extraction',
-  SDF: 'Silver Diamine', OEX: 'Oral Exam', FV: 'Fluoride Varnish', OP: 'Prophylaxis', CONS: 'Consultation',
-};
-const paletteBtn = 'min-h-[44px] w-[88px] shrink-0 rounded-md border px-1 py-1.5 text-center transition-all flex flex-col items-center justify-center gap-1';
-const paletteSub = 'text-[10px] font-medium leading-tight';
+// Palette buttons (user's pick "E", 2026-09-24, replacing the taller
+// labeled "A"): small code-only buttons in the palette font (DejaVu Sans, see
+// theme.css --font-palette). The meaning of the SELECTED code shows in the
+// one "click teeth to apply" line under the row; the full label is also on
+// each button's tooltip and in the Legend.
+const paletteBtn = 'h-[30px] min-w-[40px] shrink-0 rounded-md border px-2 text-center font-palette text-xs font-bold leading-none transition-all inline-flex items-center justify-center';
+// ✓ reads the same permanent and temporary, so it shows once, not "✓/✓".
+const conditionCodeText = (c: { perm: string; temp: string }) => (c.perm === c.temp ? c.perm : `${c.perm}/${c.temp}`);
 
 // Charting mode survives the remount between students (Sprint 153).
 //
@@ -2252,8 +2242,7 @@ export const DentalChart = () => {
                       <button key={c.code} title={c.label}
                         onClick={() => { setSelectedCondition(selectedCondition === c.code ? null : c.code); setSelectedTreatment(null); }}
                         className={`${paletteBtn} ${selectedCondition === c.code ? 'bg-teal-600 text-white ring-2 ring-teal-300 border-teal-600' : 'bg-card border-border text-foreground hover:border-teal-400'}`}>
-                        <span className="text-xs font-bold leading-none">{c.perm}/{c.temp}</span>
-                        <span className={`${paletteSub} ${selectedCondition === c.code ? 'text-white/85' : 'text-muted-foreground'}`}>{CONDITION_SHORT[c.code] ?? c.label}</span>
+                        {conditionCodeText(c)}
                       </button>
                     ))}
                     <button type="button" onClick={() => setRareConditionsOpen((v) => !v)}
@@ -2268,8 +2257,7 @@ export const DentalChart = () => {
                         <button key={c.code} title={c.label}
                           onClick={() => { setSelectedCondition(selectedCondition === c.code ? null : c.code); setSelectedTreatment(null); }}
                           className={`${paletteBtn} ${selectedCondition === c.code ? 'bg-teal-600 text-white ring-2 ring-teal-300 border-teal-600' : 'bg-card border-border text-foreground hover:border-teal-400'}`}>
-                          <span className="text-xs font-bold leading-none">{c.perm}/{c.temp}</span>
-                          <span className={`${paletteSub} ${selectedCondition === c.code ? 'text-white/85' : 'text-muted-foreground'}`}>{CONDITION_SHORT[c.code] ?? c.label}</span>
+                          {conditionCodeText(c)}
                         </button>
                       ))}
                     </div>
@@ -2278,8 +2266,8 @@ export const DentalChart = () => {
                     const c = conditionCodes.find((x) => x.code === selectedCondition);
                     return (
                       <div className="mt-3 flex items-center gap-2">
-                        <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-teal-100 text-teal-800">
-                          Applying: {c?.perm}/{c?.temp} ({c?.label}). Click teeth to apply.
+                        <span className="font-palette text-[11px] font-semibold px-2.5 py-1 rounded-full bg-teal-100 text-teal-800">
+                          {c ? conditionCodeText(c) : ''} · {c?.label}: click teeth to apply
                         </span>
                         <button onClick={() => setSelectedCondition(null)} className="text-xs text-muted-foreground hover:text-foreground underline">Clear</button>
                       </div>
@@ -2315,8 +2303,7 @@ export const DentalChart = () => {
                       <button key={t.code} title={treatmentLabel(t)}
                         onClick={() => { setSelectedTreatment(selectedTreatment === t.code ? null : t.code); setSelectedCondition(null); }}
                         className={`${paletteBtn} ${selectedTreatment === t.code ? 'bg-blue-600 text-white ring-2 ring-blue-300 border-blue-600' : 'bg-card border-border text-foreground hover:border-blue-400'}`}>
-                        <span className="text-xs font-bold leading-none">{t.code}</span>
-                        <span className={`${paletteSub} ${selectedTreatment === t.code ? 'text-white/85' : 'text-muted-foreground'}`}>{TREATMENT_SHORT[t.code] ?? t.label}</span>
+                        {t.code}
                       </button>
                     ))}
                     <button type="button" onClick={() => setRareTreatmentsOpen((v) => !v)}
@@ -2332,8 +2319,7 @@ export const DentalChart = () => {
                           <button key={t.code} title={treatmentLabel(t)}
                             onClick={() => { setSelectedTreatment(selectedTreatment === t.code ? null : t.code); setSelectedCondition(null); }}
                             className={`${paletteBtn} ${selectedTreatment === t.code ? 'bg-blue-600 text-white ring-2 ring-blue-300 border-blue-600' : 'bg-card border-border text-foreground hover:border-blue-400'}`}>
-                            <span className="text-xs font-bold leading-none">{t.code}</span>
-                            <span className={`${paletteSub} ${selectedTreatment === t.code ? 'text-white/85' : 'text-muted-foreground'}`}>{TREATMENT_SHORT[t.code] ?? t.label}</span>
+                            {t.code}
                           </button>
                         ))}
                       </div>
@@ -2347,8 +2333,8 @@ export const DentalChart = () => {
                     const t = treatmentCodes.find((x) => x.code === selectedTreatment);
                     return (
                       <div className="mt-3 flex items-center gap-2">
-                        <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-blue-100 text-blue-800">
-                          Applying: {selectedTreatment} ({t?.label}). Click teeth to apply.
+                        <span className="font-palette text-[11px] font-semibold px-2.5 py-1 rounded-full bg-blue-100 text-blue-800">
+                          {selectedTreatment} · {t?.label}: click teeth to apply
                         </span>
                         <button onClick={() => setSelectedTreatment(null)} className="text-xs text-muted-foreground hover:text-foreground underline">Clear</button>
                       </div>
