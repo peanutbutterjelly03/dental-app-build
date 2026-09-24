@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 // ─── Shared list pagination ──────────────────────────────────────────────────
 // Extracted from PatientList (Sprint 53) and applied to the other list screens,
@@ -74,8 +74,13 @@ interface Props {
   detail?: string;
 }
 
-const btn =
-  'px-2 py-1 border border-border rounded-lg text-muted-foreground hover:bg-gray-50 ' +
+// Matches PatientList's/RPCTracking's own inline footer exactly (2026-09-25,
+// "apply this design for others for uniformity") -- every list screen using
+// this shared component now renders the same "Showing X to Y of Z {noun} |
+// Items per page [n]" line and the same pill Previous/Next controls, instead
+// of each page hand-rolling a slightly different footer.
+const navBtn =
+  'flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-canvas ' +
   'disabled:opacity-40 disabled:hover:bg-transparent';
 
 export const Pagination = ({
@@ -83,42 +88,44 @@ export const Pagination = ({
 }: Props) => (
   // Stacks below sm: per CLAUDE.md's three-device rule — this row is read on a
   // phone in the field, not only on a clinic PC.
-  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-    <div className="flex items-center gap-2">
-      {/* theme.css's base `label` rule sets its own font-weight (medium),
-          which otherwise reads bolder than the plain text next to it. */}
-      <label htmlFor="page-size" className="whitespace-nowrap font-normal">Items per page</label>
+  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+      <span>
+        Showing <span className="font-semibold text-foreground">{from}</span> to{' '}
+        <span className="font-semibold text-foreground">{to}</span> of{' '}
+        <span className="font-semibold text-foreground">{total}</span> {noun}
+        {detail ? ` ${detail}` : ''}
+      </span>
+      {/* A CSS-drawn bar reads as an emphasized, consistently-sized divider
+          across browsers/fonts; a literal "|" glyph's height and weight
+          varies with the font and looked thin. Straight line (no
+          rounded-full), not a pill. */}
+      <span aria-hidden="true" className="hidden h-7 w-px bg-black sm:inline-block" />
+      <label htmlFor="page-size" className="whitespace-nowrap text-sm font-normal">Items per page</label>
       <select
         id="page-size"
         aria-label="Items per page"
         value={pageSize}
         onChange={(e) => onPageSize(Number(e.target.value))}
-        className="border border-border rounded-lg px-2 py-1 bg-card focus:outline-none focus:ring-2 focus:ring-ring"
+        className="rounded-full border border-border bg-canvas px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
       >
         {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
       </select>
-      <span className="tabular-nums whitespace-nowrap">
-        {from}–{to} of {total} {noun}{detail ? ` ${detail}` : ''}
-      </span>
     </div>
 
-    {/* First/last matter once the list is long: at 8,000 students and 25 a
-        page that is 320 pages, and next-only is unusable. Hidden on a single
-        page — controls that can never do anything are just noise. */}
+    {/* Hidden on a single page — controls that can never do anything are
+        just noise. No First/Last: Previous/Next plus the "page / pageCount"
+        badge is what PatientList settled on even at the ~8,000-student
+        scale, so this stays the one pattern everywhere rather than a
+        longer-list special case. */}
     {pageCount > 1 && (
-      <div className="flex items-center gap-1">
-        <button onClick={() => onPage(1)} disabled={page === 1} className={btn} aria-label="First page">
-          <ChevronsLeft className="w-4 h-4" />
+      <div className="flex items-center gap-2">
+        <button onClick={() => onPage(Math.max(1, page - 1))} disabled={page === 1} className={navBtn} aria-label="Previous page">
+          <ChevronLeft className="w-4 h-4" /> Previous
         </button>
-        <button onClick={() => onPage(Math.max(1, page - 1))} disabled={page === 1} className={btn} aria-label="Previous page">
-          <ChevronLeft className="w-4 h-4" />
-        </button>
-        <span className="px-2 tabular-nums whitespace-nowrap">Page {page} of {pageCount}</span>
-        <button onClick={() => onPage(Math.min(pageCount, page + 1))} disabled={page === pageCount} className={btn} aria-label="Next page">
-          <ChevronRight className="w-4 h-4" />
-        </button>
-        <button onClick={() => onPage(pageCount)} disabled={page === pageCount} className={btn} aria-label="Last page">
-          <ChevronsRight className="w-4 h-4" />
+        <span className="rounded-full bg-primary-surface px-3 py-1.5 text-sm font-semibold text-primary tabular-nums">{page} / {pageCount}</span>
+        <button onClick={() => onPage(Math.min(pageCount, page + 1))} disabled={page === pageCount} className={navBtn} aria-label="Next page">
+          Next <ChevronRight className="w-4 h-4" />
         </button>
       </div>
     )}

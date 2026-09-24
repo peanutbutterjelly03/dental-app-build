@@ -175,7 +175,7 @@ const REQUIRED_STUDENT_FIELDS: {
   { key: 'lastName', label: 'Last Name' },
   { key: 'firstName', label: 'First Name' },
   { key: 'birthdate', label: 'Birthdate' },
-  { key: 'gender', label: 'Gender', onlyIf: (f) => !f.isNotStudent },
+  { key: 'gender', label: 'Gender' },
   { key: 'grade', label: 'Grade', onlyIf: (f) => !f.isNotStudent },
   { key: 'section', label: 'Section', onlyIf: (f) => !f.isNotStudent },
   // Guardian Name/Contact are NOT required (2026-09-04, user decision) —
@@ -1438,32 +1438,29 @@ export const PatientList = () => {
               </div>
             </div>
             {/* "Not a Student" -- e.g. a sibling or community member treated
-                at a Bayanihan mission, not actually enrolled. Grade, Section
-                and Sex don't apply to that person, so checking this clears
-                and disables those three instead of forcing values that don't
-                exist. Placed at the very top, above every field, so it's seen
-                before Grade/Sex are ever filled in. */}
-            <div className="mx-6 mt-4 flex items-start gap-3 rounded-lg border border-border bg-canvas px-3 py-2.5">
+                at a Bayanihan mission, not actually enrolled. Grade and
+                Section don't apply to that person, so checking this clears
+                and disables those two. Sex still applies regardless and stays
+                enabled/required either way. Placed at the very top, above
+                every field, so it's seen before Grade is ever filled in. */}
+            <div className="mx-6 mt-4 flex items-center gap-2">
               <input
                 type="checkbox"
                 id="isNotStudent"
                 checked={newPatient.isNotStudent}
                 onChange={e => {
                   const checked = e.target.checked;
-                  setNewPatient(p => ({ ...p, isNotStudent: checked, grade: checked ? '' : p.grade, section: checked ? '' : p.section, gender: checked ? '' : p.gender }));
+                  setNewPatient(p => ({ ...p, isNotStudent: checked, grade: checked ? '' : p.grade, section: checked ? '' : p.section }));
                   setMissingFields(prev => {
                     if (!checked) return prev;
                     const next = new Set(prev);
-                    next.delete('grade'); next.delete('section'); next.delete('gender');
+                    next.delete('grade'); next.delete('section');
                     return next;
                   });
                 }}
-                className="w-4 h-4 mt-0.5 rounded accent-primary"
+                className="w-4 h-4 rounded accent-primary"
               />
-              <label htmlFor="isNotStudent" className="text-sm">
-                <span className="font-medium text-foreground">Not a Student</span>
-                <span className="ml-1 text-muted-foreground">— a sibling or community member treated at a mission, not enrolled here. Grade, Section, and Sex won&rsquo;t apply.</span>
-              </label>
+              <label htmlFor="isNotStudent" className="text-sm font-medium text-foreground">Not a Student</label>
             </div>
             {/* Live check against the roster already loaded in the browser —
                 a heads-up before the form is even finished, not a
@@ -1551,14 +1548,11 @@ export const PatientList = () => {
                     <button
                       key={g}
                       type="button"
-                      disabled={newPatient.isNotStudent}
                       onClick={() => updateField('gender', g)}
                       className={`px-3 py-2 rounded-lg text-sm font-medium border-2 transition-colors ${
-                        newPatient.isNotStudent
-                          ? 'bg-muted text-muted-foreground border-border cursor-not-allowed'
-                          : newPatient.gender === g
-                            ? 'bg-primary text-white border-primary-hover'
-                            : 'border-border text-foreground hover:bg-canvas'
+                        newPatient.gender === g
+                          ? 'bg-primary text-white border-primary-hover'
+                          : 'border-border text-foreground hover:bg-canvas'
                       }`}
                     >
                       {g}
