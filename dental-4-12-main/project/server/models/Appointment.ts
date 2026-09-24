@@ -1,6 +1,8 @@
 import mongoose from "mongoose";
+import { fieldEncryption } from "mongoose-field-encryption";
 import { getModel } from "./shared/getModel.js";
 import { softDeleteFields } from "./shared/softDelete.js";
+import { fieldEncryptionOptions } from "./shared/fieldEncryption.js";
 
 const appointmentSchema = new mongoose.Schema({
   student_id: { type: mongoose.Schema.Types.ObjectId, ref: "Student", required: true },
@@ -11,6 +13,13 @@ const appointmentSchema = new mongoose.Schema({
   appointment_type: { type: String, maxlength: 50, required: true },
   requires_followup: { type: Boolean, default: false },
   parental_supervision_required: { type: Boolean, default: false },
+  // ERD deviation, added 2026-09-25. Who the clinic can actually reach about
+  // THIS booking — required, since an appointment nobody can be reached about
+  // is exactly the "parental supervision" gap module 4 exists to flag.
+  // Encrypted like STUDENT.guardian_contact and .contact_number: it is the
+  // same class of PII (a phone number), just recorded per-visit instead of
+  // per-pupil.
+  guardian_contact_number: { type: String, maxlength: 30, required: true },
   // ERD deviation (Sprint 109). A remark about THIS pupil's slot — "bring
   // guardian", "reschedule, absent". Distinct from a DAY_NOTE, which is about
   // the date itself: the user confirmed the two are different things, so a
@@ -19,6 +28,8 @@ const appointmentSchema = new mongoose.Schema({
   notes: { type: String, maxlength: 500, default: "" },
   ...softDeleteFields,
 });
+
+appointmentSchema.plugin(fieldEncryption, fieldEncryptionOptions(["guardian_contact_number"]));
 
 // Sprint 56 — the first index in this codebase. Every GET filters
 // `isArchived: false` first and the appointments list now bounds by date, so

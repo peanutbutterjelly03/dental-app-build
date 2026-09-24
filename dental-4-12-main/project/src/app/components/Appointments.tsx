@@ -89,6 +89,12 @@ export const Appointments = () => {
   // server — so multiple picks are joined with ", " on submit.
   const [appointmentTypes, setAppointmentTypes] = useState<string[]>([]);
   const [appointmentTypeOther, setAppointmentTypeOther] = useState('');
+  // Who the clinic can actually reach about this booking — required, since an
+  // appointment nobody can be reached about is exactly the "parental
+  // supervision" gap module 4 exists to flag. One number per submission,
+  // written to every Appointment row the submission creates (one per
+  // selected student), not a separate pick per student.
+  const [guardianContactNumber, setGuardianContactNumber] = useState('');
   const [appointmentDentistId, setAppointmentDentistId] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -136,6 +142,7 @@ export const Appointments = () => {
     setAppointmentTime('');
     setAppointmentTypes([]);
     setAppointmentTypeOther('');
+    setGuardianContactNumber('');
     setCreateError(null);
   };
 
@@ -180,6 +187,10 @@ export const Appointments = () => {
       setCreateError('No dentist is set up for this clinic yet.');
       return;
     }
+    if (!guardianContactNumber.trim()) {
+      setCreateError('Guardian contact number is required.');
+      return;
+    }
     setCreating(true);
     try {
       // Left blank, time defaults to the clinic's usual opening rather than
@@ -193,6 +204,7 @@ export const Appointments = () => {
             appointment_datetime,
             status: 'Scheduled',
             appointment_type: resolvedType,
+            guardian_contact_number: guardianContactNumber.trim(),
           }),
         ),
       );
@@ -819,7 +831,7 @@ export const Appointments = () => {
         action={
           // No export by design (2026-09-02) — see PatientList for the
           // reasoning. The DOH report on Reports is the official output.
-          <button onClick={() => setShowCreateModal(true)}
+          <button onClick={() => { resetCreateAppointmentForm(); setShowCreateModal(true); }}
             className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover text-sm font-medium">
             <Plus className="w-4 h-4" /> New Appointment
           </button>
@@ -1295,6 +1307,16 @@ export const Appointments = () => {
                     placeholder="Defaults to 8:00 AM"
                     className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring" />
                   <p className="text-[11px] text-muted-foreground mt-1">Defaults to 8:00 AM if left blank.</p>
+                </div>
+                <div className="col-span-2">
+                  <label htmlFor="guardian-contact-number" className="block text-xs font-medium text-muted-foreground mb-1">
+                    Guardian Contact Number <span className="text-destructive">*</span>
+                  </label>
+                  <input id="guardian-contact-number" type="tel" required value={guardianContactNumber}
+                    onChange={e => setGuardianContactNumber(e.target.value)}
+                    placeholder="09XX XXX XXXX"
+                    className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring" />
+                  <p className="text-[11px] text-muted-foreground mt-1">Who the clinic can reach about this booking.</p>
                 </div>
                 <div className="col-span-2">
                   <label className="block text-xs font-medium text-muted-foreground mb-2">

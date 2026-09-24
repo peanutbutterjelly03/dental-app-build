@@ -229,6 +229,8 @@ export interface ApiAppointment {
   appointment_type: string;
   requires_followup: boolean;
   parental_supervision_required: boolean;
+  /** Added 2026-09-25. Required on new bookings; absent on records created before then. */
+  guardian_contact_number?: string;
   /** Per-appointment remark (Sprint 109). Empty string when unset. */
   notes?: string;
   isArchived: boolean;

@@ -216,7 +216,12 @@ export function createCrudRouter(model: Model<any>, options: CrudOptions = {}) {
       // pupil's — one child's record rendered under another's name.
       const scope = await scopeFilter(modelName, req);
       const docs = await model.find(scope ? { $and: [filter, scope] } : filter);
-      res.json(docs.map((d) => redactFor(req.user!.role, d)));
+      // decryptForResponse first, while `d` is still a real Mongoose document
+      // (decryptFieldsSync only exists on that, not the plain object
+      // redactFor's .toObject() produces) -- otherwise any encrypted field
+      // came back as raw ciphertext on this list route. Harmless no-op for a
+      // model with no encrypted fields.
+      res.json(docs.map((d) => redactFor(req.user!.role, decryptForResponse(d))));
     }),
   );
 
@@ -246,7 +251,7 @@ export function createCrudRouter(model: Model<any>, options: CrudOptions = {}) {
         res.status(404).json({ error: "Not found" });
         return;
       }
-      res.json(redactFor(req.user!.role, doc));
+      res.json(redactFor(req.user!.role, decryptForResponse(doc)));
     }),
   );
 
