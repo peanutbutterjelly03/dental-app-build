@@ -55,21 +55,21 @@ export function HistoryTab({
             <input type="number" min="0" max="300" step="0.1" inputMode="decimal" disabled={!editing}
               value={measure.height_cm}
               onChange={(e) => setMeasure((p) => ({ ...p, height_cm: e.target.value }))}
-              placeholder="e.g. 120" className="w-full text-xs border border-border rounded px-2 py-2 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+              placeholder="e.g. 120" className="w-full text-sm border border-border rounded px-2 py-3 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
           </div>
           <div>
             <label className="block text-xs text-muted-foreground mb-1">Weight (kg)</label>
             <input type="number" min="0" max="500" step="0.1" inputMode="decimal" disabled={!editing}
               value={measure.weight_kg}
               onChange={(e) => setMeasure((p) => ({ ...p, weight_kg: e.target.value }))}
-              placeholder="e.g. 25" className="w-full text-xs border border-border rounded px-2 py-2 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+              placeholder="e.g. 25" className="w-full text-sm border border-border rounded px-2 py-3 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
           </div>
           <div>
             <label className="block text-xs text-muted-foreground mb-1">Temperature (°C)</label>
             <input type="number" min="0" max="45" step="0.1" inputMode="decimal" disabled={!editing}
               value={measure.temperature_c}
               onChange={(e) => setMeasure((p) => ({ ...p, temperature_c: e.target.value }))}
-              placeholder="e.g. 36.5" className="w-full text-xs border border-border rounded px-2 py-2 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+              placeholder="e.g. 36.5" className="w-full text-sm border border-border rounded px-2 py-3 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
           </div>
           <div>
             <label className="block text-xs text-muted-foreground mb-1">Blood Pressure</label>
@@ -78,7 +78,7 @@ export function HistoryTab({
             <input type="text" disabled={!editing}
               value={measure.blood_pressure}
               onChange={(e) => setMeasure((p) => ({ ...p, blood_pressure: e.target.value }))}
-              placeholder="e.g. 110/70" className="w-full text-xs border border-border rounded px-2 py-2 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+              placeholder="e.g. 110/70" className="w-full text-sm border border-border rounded px-2 py-3 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
           </div>
           {(() => {
             const bmiValue = computeBmi(Number(measure.height_cm) || null, Number(measure.weight_kg) || null);
@@ -100,13 +100,13 @@ export function HistoryTab({
               <>
                 <div>
                   <label className="block text-xs text-muted-foreground mb-1">BMI</label>
-                  <div className="w-full text-xs border border-border rounded px-2 py-2 bg-muted text-muted-foreground" title={BMI_NOTE}>
+                  <div className="w-full text-sm border border-border rounded px-2 py-3 bg-muted text-muted-foreground" title={BMI_NOTE}>
                     {bmiValue ?? 'Automatic'}
                   </div>
                 </div>
                 <div className="col-span-2 sm:col-span-1">
                   <label className="block text-xs text-muted-foreground mb-1">Nutritional Status</label>
-                  <div className={`w-full text-xs border border-border rounded px-2 py-2 ${statusColor}`}
+                  <div className={`w-full text-sm border border-border rounded px-2 py-3 ${statusColor}`}
                     title="DOH/DepEd BMI-for-Age classification, 6-19 years old — blank outside that range.">
                     {status ?? statusFallback}
                   </div>

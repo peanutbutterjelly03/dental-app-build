@@ -62,7 +62,11 @@ import {
 // (Sprint 162c). ⚠ A second copy still lives in Reports.tsx and the two have
 // DRIFTED — see BUG-14.
 
-const ALL_SCHOOL_YEARS = ['2023-2024', '2024-2025', '2025-2026', '2026-2027', '2027-2028', '2028-2029', '2029-2030'];
+// Capped at 11 (2026-09-25) -- matching GRADES' own 11 levels (Kinder
+// through Grade 10), the longest a pupil is ever enrolled here. Add Year
+// naturally stops once ALL_SCHOOL_YEARS is exhausted (see getNextSchoolYear),
+// so extending this list is also how the cap would ever need to move.
+const ALL_SCHOOL_YEARS = ['2023-2024', '2024-2025', '2025-2026', '2026-2027', '2027-2028', '2028-2029', '2029-2030', '2030-2031', '2031-2032', '2032-2033', '2033-2034'];
 const GRADES = ['Kinder', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'];
 
 // The draft shapes and their empty factories moved to `iptrDrafts.ts` in
@@ -180,7 +184,7 @@ export const DentalChart = () => {
     { key: 'ai', label: 'Caries Risk Assessment' },
     { key: 'treatments', label: 'Treatment' },
     { key: 'records', label: 'Dental History' },
-    { key: 'referrals', label: 'Referrals' },
+    { key: 'referrals', label: 'Notes & Referrals' },
   ];
   const visibleTabs = (
     iptrContext === 'dental-queue'
@@ -566,7 +570,21 @@ export const DentalChart = () => {
     return Number.isFinite(first) && first > 0 ? new Date(first, 5, 1) : null;
   };
 
+  // Auto-assigns today's date to BOTH "Date examined" and "Date treated"
+  // the first time the dentist touches anything on this tab -- an oral
+  // condition chip, a service chip, or a tooth (2026-09-25). Whichever of
+  // the two was clicked, both dates matter to the summary below (Section B
+  // and Treatment Summary both read them), so both get set together rather
+  // than only the one the click technically belonged to. Never overwrites a
+  // date already set -- typing or loading a real one still wins.
+  const autoFillDates = () => {
+    const today = toLocalDateString(new Date());
+    setDraftChartDate((prev) => prev || today);
+    setDraftVisitDate((prev) => prev || today);
+  };
+
   const handleToothClick = (toothNumber: number) => {
+    autoFillDates();
     const isTemp = temporaryTeeth.has(toothNumber);
     if (selectedCondition) {
       const codeObj = conditionCodes.find((c) => c.code === selectedCondition);
@@ -1930,7 +1948,7 @@ export const DentalChart = () => {
                     <label key={field}
                       className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs cursor-pointer transition-colors ${draftOral[field] ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-blue-200 text-foreground hover:bg-canvas'}`}>
                       <input type="checkbox" checked={!!draftOral[field]}
-                        onChange={(e) => setDraftOral((prev) => ({ ...prev, [field]: e.target.checked }))}
+                        onChange={(e) => { setDraftOral((prev) => ({ ...prev, [field]: e.target.checked })); autoFillDates(); }}
                         className="w-4 h-4 rounded accent-primary" />
                       {label}
                     </label>
@@ -1944,6 +1962,7 @@ export const DentalChart = () => {
                       const next = !othersOralOpen;
                       setOthersOralOpen(next);
                       if (!next) setDraftOral((prev) => ({ ...prev, others: '' }));
+                      else autoFillDates();
                     }}
                     className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs text-left transition-colors ${othersOralOpen ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-blue-200 text-foreground hover:bg-canvas'}`}>
                     <span className={`w-4 h-4 rounded border shrink-0 flex items-center justify-center ${othersOralOpen ? 'bg-primary border-primary' : 'border-gray-600'}`}>
@@ -2005,7 +2024,7 @@ export const DentalChart = () => {
                       className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs cursor-pointer transition-colors ${draftServices[field] ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-blue-200 text-foreground hover:bg-canvas'}`}>
                       {/* Unticking writes null, not false — see the state above. */}
                       <input type="checkbox" checked={draftServices[field] === true}
-                        onChange={(e) => setDraftServices((prev) => ({ ...prev, [field]: e.target.checked ? true : null }))}
+                        onChange={(e) => { setDraftServices((prev) => ({ ...prev, [field]: e.target.checked ? true : null })); autoFillDates(); }}
                         className="w-4 h-4 rounded accent-primary" />
                       {label}
                     </label>
