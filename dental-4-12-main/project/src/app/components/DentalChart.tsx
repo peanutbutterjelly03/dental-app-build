@@ -1968,16 +1968,12 @@ export const DentalChart = () => {
                   : `Consent pending for ${yearIptr.school_year}`}
               </div>
               <div className="flex items-center gap-2 mt-1">
+                {/* Same plain "Grade 6-Rose" text as the patient card header,
+                    all in the grade's colour-coding colour, no pill (user, 2026-09-24). */}
                 {yearGrade ? (
-                  <>
-                    <span
-                      style={{ backgroundColor: gc.light, color: gc.solid, borderColor: gc.solid + '40' }}
-                      className="inline-flex items-center whitespace-nowrap rounded-md border px-2 py-0.5 text-[10.5px] font-semibold leading-none"
-                    >
-                      {yearGrade}
-                    </span>
-                    {yearSection && <span className="text-[10.5px] font-medium text-muted-foreground">{yearSection}</span>}
-                  </>
+                  <span className="whitespace-nowrap text-xs font-normal" style={{ color: getGradeColor(yearGrade).solid }}>
+                    {yearGrade}{yearSection ? `-${yearSection}` : ''}
+                  </span>
                 ) : (
                   <span className="text-[10.5px] text-muted-foreground">Grade/section not recorded for this year</span>
                 )}
