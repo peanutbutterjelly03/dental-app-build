@@ -235,7 +235,7 @@ export const DentalChartNav = () => {
               noun={viewMode === 'queued' ? 'queued students' : 'students'}
               detail={[
                 filtered.length !== sourcePatients.length ? `(filtered from ${sourcePatients.length})` : '',
-                selectedSchool ? `at ${getSchoolShortName(selectedSchool)}` : '',
+                selectedSchool ? `at ${selectedSchool}` : '',
               ].filter(Boolean).join(' ')}
             />
           </div>

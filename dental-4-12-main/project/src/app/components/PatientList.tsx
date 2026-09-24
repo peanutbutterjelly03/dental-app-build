@@ -1271,11 +1271,11 @@ export const PatientList = () => {
                 <span className="font-semibold text-foreground">{pager.to}</span> of{' '}
                 <span className="font-semibold text-foreground">{pager.total}</span> students
                 {filtered.length !== schoolStudents.length ? ` (filtered from ${schoolStudents.length})` : ''}
-                {selectedSchool ? ` at ${getSchoolShortName(selectedSchool)}` : ''}
+                {selectedSchool ? ` at ${selectedSchool}` : ''}
               </span>
               {/* Literal glyph, not a CSS-drawn bar (2026-09-25: user wants
                   "like a normal |" -- thinner than any solid bar reads). */}
-              <span aria-hidden="true" className="hidden text-3xl font-thin text-gray-300 sm:inline-block">|</span>
+              <span aria-hidden="true" className="hidden text-3xl font-thin leading-none align-middle text-gray-300 sm:inline-block">|</span>
               <label htmlFor="patients-page-size" className="whitespace-nowrap text-sm font-normal">Items per page</label>
               <select
                 id="patients-page-size"

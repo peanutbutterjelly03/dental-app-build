@@ -8,7 +8,6 @@ import { studentListTableStyles } from './StudentListTableStyles';
 import { useStudents } from '../hooks/useStudents';
 import { useAuth } from '../context/AuthContext';
 import { apiClient } from '../api/client';
-import { getSchoolShortName } from '../utils/schoolColors';
 import type { ApiStudentIptr, ApiTreatment } from '../api/types';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
 import { activatable } from '../utils/a11y';
@@ -185,7 +184,7 @@ export const TreatmentRecords = () => {
               noun="students"
               detail={[
                 filtered.length !== sourcePatients.length ? `(filtered from ${sourcePatients.length})` : '',
-                selectedSchool ? `at ${getSchoolShortName(selectedSchool)}` : '',
+                selectedSchool ? `at ${selectedSchool}` : '',
               ].filter(Boolean).join(' ')}
             />
           </div>
