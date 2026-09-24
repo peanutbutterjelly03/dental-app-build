@@ -14,10 +14,10 @@ interface PageHeaderProps {
 }
 
 export const PageHeader = ({ icon: Icon, eyebrow, title, description, action }: PageHeaderProps) => (
-  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-    <div className="flex items-start gap-3">
-      <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-primary-surface">
-        <Icon className="h-5 w-5 text-primary" />
+  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex items-center gap-3">
+      <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-xl bg-primary-surface">
+        <Icon className="h-8 w-8 text-primary" />
       </div>
       <div className="min-w-0">
         <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{eyebrow}</div>

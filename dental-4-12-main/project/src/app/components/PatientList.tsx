@@ -1252,7 +1252,7 @@ export const PatientList = () => {
             positioning; its height feeds back into rowsMaxHeight. */}
         {filtered.length > 0 && (
           <div ref={footerRef} className="flex flex-col gap-3 border-t border-border bg-card px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
               <span>
                 Showing <span className="font-semibold text-foreground">{pager.from}</span> to{' '}
                 <span className="font-semibold text-foreground">{pager.to}</span> of{' '}
@@ -1260,13 +1260,19 @@ export const PatientList = () => {
                 {filtered.length !== schoolStudents.length ? ` (filtered from ${schoolStudents.length})` : ''}
                 {selectedSchool ? ` at ${getSchoolShortName(selectedSchool)}` : ''}
               </span>
+              {/* A CSS-drawn bar reads as an emphasized, consistently-sized
+                  divider across browsers/fonts; a literal "|" glyph's height
+                  and weight varies with the font and looked thin. */}
+              <span aria-hidden="true" className="hidden h-5 w-[3px] rounded-full bg-border sm:inline-block" />
+              <label htmlFor="patients-page-size" className="whitespace-nowrap text-sm font-normal">Items per page</label>
               <select
+                id="patients-page-size"
                 aria-label="Items per page"
                 value={pager.pageSize}
                 onChange={(e) => pager.changePageSize(Number(e.target.value))}
                 className="rounded-full border border-border bg-canvas px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
               >
-                {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}/page</option>)}
+                {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
               </select>
             </div>
             {pager.pageCount > 1 && (

@@ -351,13 +351,17 @@ export const RPCTracking = () => {
           </table>
         </div>
         <div ref={footerRef} className="flex flex-col gap-3 border-t border-gray-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-col gap-1 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
             <span>
               Showing <span className="font-semibold text-foreground">{total === 0 ? 0 : (page - 1) * pageSize + 1}</span> to{' '}
               <span className="font-semibold text-foreground">{Math.min(page * pageSize, total)}</span> of{' '}
               <span className="font-semibold text-foreground">{total}</span> records
               {selectedSchool ? ` at ${selectedSchool}` : ''}
             </span>
+            {/* A CSS-drawn bar reads as an emphasized, consistently-sized
+                divider across browsers/fonts; a literal "|" glyph's height
+                and weight varies with the font and looked thin. */}
+            <span aria-hidden="true" className="hidden h-5 w-[3px] rounded-full bg-border sm:inline-block" />
             <div className="flex items-center gap-2">
               {/* theme.css's base `label` rule sets its own font-size/weight
                   (medium), which otherwise overrides the ancestor's text-sm —
