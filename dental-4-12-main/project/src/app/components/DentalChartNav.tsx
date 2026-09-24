@@ -227,13 +227,16 @@ export const DentalChartNav = () => {
         </div>
 
         {filtered.length > 0 && (
-          <div className="border-t border-border px-4 py-3 sm:px-6">
+          <div className="border-t border-border bg-card px-5 py-4 sm:px-6">
             <Pagination
               {...pager}
               onPage={pager.setPage}
               onPageSize={pager.changePageSize}
               noun={viewMode === 'queued' ? 'queued students' : 'students'}
-              detail={filtered.length !== sourcePatients.length ? `(filtered from ${sourcePatients.length})` : ''}
+              detail={[
+                filtered.length !== sourcePatients.length ? `(filtered from ${sourcePatients.length})` : '',
+                selectedSchool ? `at ${getSchoolShortName(selectedSchool)}` : '',
+              ].filter(Boolean).join(' ')}
             />
           </div>
         )}

@@ -290,10 +290,10 @@ export const RPCTracking = () => {
             <thead>
               <tr className="border-b border-border">
                 {['Student','Grade / Section','Visit 1','Visit 2','Status'].map(h => (
-                  <th key={h} className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 font-semibold text-foreground">{h}</th>
+                  <th key={h} className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{h}</th>
                 ))}
-                <th className="sticky top-0 z-10 bg-gray-100 text-left pl-4 pr-2 py-3 font-semibold text-foreground">Days Until Due</th>
-                <th className="sticky top-0 z-10 bg-gray-100 text-left pl-2 pr-4 py-3 font-semibold text-foreground">Actions</th>
+                <th className="sticky top-0 z-10 bg-gray-100 text-left pl-4 pr-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Days Until Due</th>
+                <th className="sticky top-0 z-10 bg-gray-100 text-left pl-2 pr-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">

@@ -427,6 +427,13 @@ export const Appointments = () => {
     setConfirmStatusAction(null);
   };
 
+  // Confirmed before it happens (2026-09-25) -- the trash icon used to delete
+  // on the spot, same "a stray click can't remove an appointment" reasoning
+  // the delete-mode toggle itself already carries, just one step earlier than
+  // where it stopped short.
+  const [deleteTarget, setDeleteTarget] = useState<AppointmentSession | null>(null);
+  const [deletingAppointment, setDeletingAppointment] = useState(false);
+
   const removeAppointment = async (session: AppointmentSession) => {
     try {
       await deleteSession(session);
@@ -434,6 +441,14 @@ export const Appointments = () => {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete appointment');
     }
+  };
+
+  const confirmDeleteAppointment = async () => {
+    if (!deleteTarget) return;
+    setDeletingAppointment(true);
+    await removeAppointment(deleteTarget);
+    setDeletingAppointment(false);
+    setDeleteTarget(null);
   };
 
   // Reschedule — a missed/overdue appointment's real fix isn't always
@@ -701,7 +716,7 @@ export const Appointments = () => {
             {/* Delete mode replaces the status actions with one clear choice,
                 so a stray click can't both change status and delete. */}
             {deleteMode && !a.pending ? (
-              <button onClick={() => removeAppointment(a)}
+              <button onClick={() => setDeleteTarget(a)}
                 className="w-7 h-7 rounded-full bg-red-100 hover:bg-red-200 text-red-700 flex items-center justify-center transition-colors" title="Delete this appointment">
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -1380,6 +1395,21 @@ export const Appointments = () => {
         busy={confirmingStatus}
         onConfirm={confirmStatusChange}
         onCancel={() => setConfirmStatusAction(null)}
+      />
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete this appointment?"
+        message={
+          deleteTarget
+            ? `This permanently removes ${deleteTarget.studentCount === 1 ? deleteTarget.students[0]?.name ?? 'this student' : `${deleteTarget.studentCount} students`}' appointment. This cannot be undone.`
+            : ''
+        }
+        confirmLabel="Delete"
+        tone="danger"
+        busy={deletingAppointment}
+        onConfirm={confirmDeleteAppointment}
+        onCancel={() => setDeleteTarget(null)}
       />
 
       {/* ── RESCHEDULE MODAL ── */}
