@@ -2469,7 +2469,7 @@ export const DentalChart = () => {
                 </table>
               </div>
 
-              <div className="bg-blue-50/70 rounded-xl border border-blue-200 p-4 space-y-4">
+              <div className="flex flex-col bg-blue-50/70 rounded-xl border border-blue-200 p-4 space-y-4">
                 <div className="text-xs font-semibold text-primary uppercase tracking-wide">Treatment Summary</div>
 
                 {/* ONE table, laid out exactly like the user's spreadsheet (2026-09-24):
@@ -2480,7 +2480,7 @@ export const DentalChart = () => {
                     visit reads its saved PREVENTIVE_CARE_RECORD. Services show
                     "Yes" only for a real true -- null and false both blank,
                     because the paper form has no tick for "withheld". */}
-                <div className="overflow-x-auto">
+                <div className="flex flex-1 flex-col overflow-x-auto">
                 <table className="w-full min-w-[480px] table-fixed border-collapse text-xs">
                   <colgroup><col className="w-[30%]" /><col className="w-[15%]" /><col className="w-[20%]" /><col className="w-[15%]" /><col className="w-[20%]" /></colgroup>
                   <thead>
@@ -2552,6 +2552,16 @@ export const DentalChart = () => {
                     })()}
                   </tbody>
                 </table>
+                {/* Ruled filler (user, 2026-09-24). Beside the taller Dental
+                    Condition Summary this card is stretched, and the space
+                    under the last row read as empty. The lines continue at the
+                    row pitch (py-1.5 + 16px line + 1px border = 29px), with the
+                    Visit 1 divider at the 65% column edge. Decoration only --
+                    no cells, nothing a screen reader or a copy-paste picks up.
+                    Zero height when the cards stack (below lg). */}
+                <div aria-hidden="true" className="min-h-0 min-w-[480px] flex-1" style={{
+                  backgroundImage: 'linear-gradient(to right, transparent calc(65% - 1px), rgb(191 219 254 / 0.7) calc(65% - 1px), rgb(191 219 254 / 0.7) 65%, transparent 65%), repeating-linear-gradient(to bottom, transparent 0, transparent 28px, rgb(191 219 254 / 0.7) 28px, rgb(191 219 254 / 0.7) 29px)',
+                }} />
                 </div>
               </div>
             </div>
