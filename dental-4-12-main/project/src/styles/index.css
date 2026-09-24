@@ -2,6 +2,33 @@
 @import './tailwind.css';
 @import './theme.css';
 
+/* Shared field borders, outside Tailwind's layers so individual form utility
+   classes cannot override the system-wide appearance. An inset outline makes
+   focus bolder without resizing the field or shifting the surrounding layout.
+   Keep native toggles, buttons, disabled fields and validation errors distinct. */
+@media screen {
+  :is(
+    input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="hidden"], [type="submit"], [type="reset"], [type="button"], [type="image"]),
+    textarea,
+    select,
+    [role="combobox"]
+  ):not(:disabled, [aria-disabled="true"], [aria-invalid="true"]) {
+    border: 1px solid #3b82f6;
+  }
+
+  :is(
+    input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="hidden"], [type="submit"], [type="reset"], [type="button"], [type="image"]),
+    textarea,
+    select,
+    [role="combobox"]
+  ):not(:disabled, [aria-disabled="true"], [aria-invalid="true"]):focus {
+    border-color: var(--primary-hover);
+    outline: 2px solid var(--primary-hover);
+    outline-offset: -1px;
+    box-shadow: none;
+  }
+}
+
 /* Edge/IE add their own built-in reveal/clear icons inside <input
    type="password">, which visually stacks on top of our custom show/hide
    toggle (Login.tsx). Suppress the native ones so only ours shows. */
