@@ -570,52 +570,136 @@ export const DentalChart = () => {
     return Number.isFinite(first) && first > 0 ? new Date(first, 5, 1) : null;
   };
 
-  // Auto-assigns today's date to BOTH "Date examined" and "Date treated"
-  // the first time the dentist touches anything on this tab -- an oral
-  // condition chip, a service chip, or a tooth (2026-09-25). Whichever of
-  // the two was clicked, both dates matter to the summary below (Section B
-  // and Treatment Summary both read them), so both get set together rather
-  // than only the one the click technically belonged to. Never overwrites a
-  // date already set -- typing or loading a real one still wins.
+  // Auto-assigns today's date to BOTH "Date examined" and "Date treated" the
+  // first time a tooth is charted (2026-09-25) -- teeth belong to the same
+  // charting session as the conditions/services chips, so both dates matter.
+  // Never overwrites a date already set -- typing or loading a real one
+  // still wins. Unlike the two sync functions below, this never CLEARS a
+  // date either: emptying the odontogram isn't the same action as
+  // unticking every condition/service, and wasn't asked to clear anything.
   const autoFillDates = () => {
     const today = toLocalDateString(new Date());
     setDraftChartDate((prev) => prev || today);
     setDraftVisitDate((prev) => prev || today);
   };
 
-  const handleToothClick = (toothNumber: number) => {
-    autoFillDates();
+  // "Date examined" tracks whether ANY oral condition chip (Others included)
+  // is currently ticked (2026-09-25) -- auto-filled with today the moment
+  // the first one is, cleared back to blank the moment the last one is
+  // unticked. Takes the post-toggle values directly rather than reading
+  // state back after setDraftOral/setOthersOralOpen, which would still be
+  // last render's values inside the same event handler.
+  const syncChartDateFromConditions = (oral: OralDraft, othersOpen: boolean) => {
+    const anyTicked = oralConditionChips.some(({ field }) => oral[field]) || othersOpen;
+    setDraftChartDate(anyTicked ? (draftChartDate || toLocalDateString(new Date())) : '');
+  };
+  // Same rule for "Date treated" against the Treatments Given chips.
+  const syncVisitDateFromServices = (services: Record<ServiceField, boolean | null>) => {
+    const anyTicked = serviceChips.some(({ field }) => services[field] === true);
+    setDraftVisitDate(anyTicked ? (draftVisitDate || toLocalDateString(new Date())) : '');
+  };
+
+  // Paint-stroke state (2026-09-25) -- "hold and continuously mark": pressing
+  // down on a tooth and dragging applies the same action to every tooth the
+  // pointer passes over, like a paint tool, instead of one click per tooth.
+  // The action (apply this code, or clear) is decided ONCE, from the tooth
+  // the stroke started on -- exactly what a single click already decided --
+  // and reapplied verbatim to every tooth the drag enters afterward. A later
+  // tooth is never independently re-toggled, or half a stroke would paint on
+  // and the other half paint off.
+  const isPaintingRef = useRef(false);
+  const paintActionRef = useRef<'condition' | 'treatment' | 'erase' | null>(null);
+  const paintValueRef = useRef('');
+
+  const applyToothPaint = (toothNumber: number, action: 'condition' | 'treatment' | 'erase', value: string) => {
     const isTemp = temporaryTeeth.has(toothNumber);
-    if (selectedCondition) {
-      const codeObj = conditionCodes.find((c) => c.code === selectedCondition);
-      const code = codeObj ? (isTemp ? codeObj.temp : codeObj.perm) : selectedCondition;
-      const current = currentChart[toothNumber]?.condition;
+    if (action === 'condition') {
+      const codeObj = conditionCodes.find((c) => c.code === value);
+      const code = value ? (codeObj ? (isTemp ? codeObj.temp : codeObj.perm) : value) : '';
       setDraftChart((prev) => ({
         ...prev,
-        [toothNumber]: { condition: current === code ? '' : code, treatment: prev[toothNumber]?.treatment || '', visitNumber: activeVisit },
+        [toothNumber]: { condition: code, treatment: prev[toothNumber]?.treatment || '', visitNumber: activeVisit },
       }));
-    } else if (selectedTreatment) {
-      const current = currentChart[toothNumber]?.treatment;
+    } else if (action === 'treatment') {
       setDraftChart((prev) => ({
         ...prev,
-        [toothNumber]: { condition: prev[toothNumber]?.condition || '', treatment: current === selectedTreatment ? '' : selectedTreatment, visitNumber: activeVisit },
+        [toothNumber]: { condition: prev[toothNumber]?.condition || '', treatment: value, visitNumber: activeVisit },
       }));
     } else {
-      // No code selected: clicking a tooth empties it. This used to be a dead
+      // No code selected: painting a tooth empties it. This used to be a dead
       // click, which meant the ONLY way to remove a code was to first hunt down
       // the matching code in the palette and click the tooth again — you had to
       // know what was already there to get rid of it.
       //
       // Clears BOTH condition and treatment on purpose: with neither brush
       // active the intent is "empty this tooth". Removing just one is still
-      // possible the precise way — select that exact code and click to toggle
-      // it off. Nothing persists until Save Chart, and Cancel Edit discards it.
+      // possible the precise way — select that exact code and paint the tooth
+      // to toggle it off. Nothing persists until Save Chart, and Cancel Edit
+      // discards it.
       setDraftChart((prev) => ({
         ...prev,
         [toothNumber]: { condition: '', treatment: '', visitNumber: null },
       }));
     }
   };
+
+  const handleToothPointerDown = (toothNumber: number) => {
+    autoFillDates();
+    isPaintingRef.current = true;
+    if (selectedCondition) {
+      const isTemp = temporaryTeeth.has(toothNumber);
+      const codeObj = conditionCodes.find((c) => c.code === selectedCondition);
+      const code = codeObj ? (isTemp ? codeObj.temp : codeObj.perm) : selectedCondition;
+      const current = currentChart[toothNumber]?.condition;
+      const value = current === code ? '' : selectedCondition;
+      paintActionRef.current = 'condition';
+      paintValueRef.current = value;
+      applyToothPaint(toothNumber, 'condition', value);
+    } else if (selectedTreatment) {
+      const current = currentChart[toothNumber]?.treatment;
+      const value = current === selectedTreatment ? '' : selectedTreatment;
+      paintActionRef.current = 'treatment';
+      paintValueRef.current = value;
+      applyToothPaint(toothNumber, 'treatment', value);
+    } else {
+      paintActionRef.current = 'erase';
+      paintValueRef.current = '';
+      applyToothPaint(toothNumber, 'erase', '');
+    }
+  };
+
+  const handleToothPointerEnter = (toothNumber: number) => {
+    if (!isPaintingRef.current || !paintActionRef.current) return;
+    applyToothPaint(toothNumber, paintActionRef.current, paintValueRef.current);
+  };
+
+  // Drag continuation needs a WINDOW-level listener, not onPointerEnter on
+  // each tooth: touch does not fire pointerenter on the elements a finger
+  // passes over (the browser keeps touch pointer events implicitly targeted
+  // at the element the touch started on), so elementFromPoint at the
+  // pointer's live position is what makes the drag itself work at a tablet or
+  // phone width, not only with a mouse.
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      if (!isPaintingRef.current) return;
+      const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+      const toothEl = el?.closest<HTMLElement>('[data-tooth]');
+      const num = toothEl ? Number(toothEl.dataset.tooth) : NaN;
+      if (!Number.isNaN(num)) handleToothPointerEnter(num);
+    };
+    const onUp = () => {
+      isPaintingRef.current = false;
+      paintActionRef.current = null;
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+  }, [activeVisit]);
 
   useEffect(() => {
     const measureStickyOffsets = () => {
@@ -973,7 +1057,19 @@ export const DentalChart = () => {
       : 'cursor-default';
     return (
       <button
-        onClick={() => editingChart && handleToothClick(num)}
+        data-tooth={num}
+        onPointerDown={() => editingChart && handleToothPointerDown(num)}
+        // Keyboard activation only (Enter/Space on a focused tooth) -- a real
+        // mouse/touch press is already fully handled by onPointerDown above,
+        // and a plain click always follows a mouse's own pointerdown, so
+        // acting on it here too would toggle the tooth right back. detail===0
+        // is the standard tell for a keyboard-triggered click (no mouse click
+        // count behind it) versus a pointer-triggered one.
+        onClick={(e) => { if (e.detail === 0 && editingChart) handleToothPointerDown(num); }}
+        // touch-action: none stops the browser from treating a chairside drag
+        // across teeth as a page scroll, which is exactly what a paint stroke
+        // looks like to a touchscreen otherwise.
+        style={{ touchAction: 'none' }}
         // Grows to fill the card instead of leaving ~100px of slack on each
         // side, capped so the boxes stay tooth-shaped rather than becoming wide
         // rectangles on a large screen. flex-1 is also what keeps the primary
@@ -1331,7 +1427,7 @@ export const DentalChart = () => {
           the PDF captures. */}
       <div ref={recordRef} className="space-y-4">
       {/* Patient Info Card */}
-      <div className="bg-card rounded-xl border-2 border-primary shadow-[0_8px_24px_rgba(15,23,42,0.08)] p-4">
+      <div className={`bg-card rounded-xl border-2 border-primary shadow-[0_8px_24px_rgba(15,23,42,0.08)] ${!editingInfo && !basicInfoExpanded ? 'py-2 px-4' : 'p-4'}`}>
         {editingInfo ? (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
@@ -1467,7 +1563,7 @@ export const DentalChart = () => {
           </div>
         ) : (
           <>
-            <div className="flex items-start justify-between mb-3">
+            <div className={`flex items-start justify-between ${basicInfoExpanded ? 'mb-3' : ''}`}>
               <div className="flex items-center gap-3">
                 <div style={{ backgroundColor: gc.light, color: gc.solid }} className="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg">
                   {[student.first_name?.[0], student.last_name?.[0]].filter(Boolean).join('') || student.full_name?.[0]}
@@ -1479,7 +1575,12 @@ export const DentalChart = () => {
                         line directly above already says so, and repeating it
                         here just doubled the same sentence. */}
                     {yearGrade && <GradePill grade={yearGrade} />}
-                    {yearSection && <span style={{ color: gc.solid }} className="text-xs font-medium">{yearSection}</span>}
+                    {/* Same pill design as the charting-mode header below --
+                        one design for Grade + Section wherever they appear. */}
+                    {yearSection && (
+                      <span style={{ backgroundColor: gc.light, color: gc.solid }}
+                        className="rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap">{yearSection}</span>
+                    )}
                     {student.is_4ps && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">4Ps</span>}
                   </div>
                 </div>
@@ -1948,7 +2049,11 @@ export const DentalChart = () => {
                     <label key={field}
                       className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs cursor-pointer transition-colors ${draftOral[field] ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-blue-200 text-foreground hover:bg-canvas'}`}>
                       <input type="checkbox" checked={!!draftOral[field]}
-                        onChange={(e) => { setDraftOral((prev) => ({ ...prev, [field]: e.target.checked })); autoFillDates(); }}
+                        onChange={(e) => {
+                          const next = { ...draftOral, [field]: e.target.checked };
+                          setDraftOral(next);
+                          syncChartDateFromConditions(next, othersOralOpen);
+                        }}
                         className="w-4 h-4 rounded accent-primary" />
                       {label}
                     </label>
@@ -1961,8 +2066,13 @@ export const DentalChart = () => {
                   <button type="button" onClick={() => {
                       const next = !othersOralOpen;
                       setOthersOralOpen(next);
-                      if (!next) setDraftOral((prev) => ({ ...prev, others: '' }));
-                      else autoFillDates();
+                      if (!next) {
+                        const nextOral = { ...draftOral, others: '' };
+                        setDraftOral(nextOral);
+                        syncChartDateFromConditions(nextOral, false);
+                      } else {
+                        syncChartDateFromConditions(draftOral, true);
+                      }
                     }}
                     className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs text-left transition-colors ${othersOralOpen ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-blue-200 text-foreground hover:bg-canvas'}`}>
                     <span className={`w-4 h-4 rounded border shrink-0 flex items-center justify-center ${othersOralOpen ? 'bg-primary border-primary' : 'border-gray-600'}`}>
@@ -2024,7 +2134,11 @@ export const DentalChart = () => {
                       className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs cursor-pointer transition-colors ${draftServices[field] ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-blue-200 text-foreground hover:bg-canvas'}`}>
                       {/* Unticking writes null, not false — see the state above. */}
                       <input type="checkbox" checked={draftServices[field] === true}
-                        onChange={(e) => { setDraftServices((prev) => ({ ...prev, [field]: e.target.checked ? true : null })); autoFillDates(); }}
+                        onChange={(e) => {
+                          const next = { ...draftServices, [field]: e.target.checked ? true : null };
+                          setDraftServices(next);
+                          syncVisitDateFromServices(next);
+                        }}
                         className="w-4 h-4 rounded accent-primary" />
                       {label}
                     </label>
@@ -2065,8 +2179,22 @@ export const DentalChart = () => {
                 palette that only exists after a click they have no reason to
                 expect. The `pointer-events-none` is what makes it honest. */}
             <div className={`bg-blue-50 rounded-xl p-4 ${!editingChart ? 'opacity-60 pointer-events-none select-none' : ''}`}>
-              {!canEdit && <p className="flex items-center gap-1.5 text-xs text-destructive mb-2"><AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" /> View only. Editing restricted to Dentist</p>}
-              {canEdit && !editMode && <p className="flex items-center gap-1.5 text-xs text-destructive mb-2"><AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" /> View mode. Click the pencil icon above to record conditions/treatments</p>}
+              {!canEdit && (
+                <p className="flex items-center gap-1.5 text-xs text-destructive mb-2">
+                  <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border border-destructive bg-destructive">
+                    <AlertTriangle className="w-3 h-3 text-white" />
+                  </span>
+                  View only. Editing restricted to Dentist
+                </p>
+              )}
+              {canEdit && !editMode && (
+                <p className="flex items-center gap-1.5 text-xs text-destructive mb-2">
+                  <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border border-destructive bg-destructive">
+                    <AlertTriangle className="w-3 h-3 text-white" />
+                  </span>
+                  View mode. Click the pencil icon above to record conditions/treatments
+                </p>
+              )}
               <div className={`grid grid-cols-1 ${iptrContext === 'default' ? 'lg:grid-cols-2' : ''} gap-4`}>
                 {iptrContext !== 'treatment' && (
                 <div className={iptrContext === 'default' ? 'lg:pr-4' : undefined}>
@@ -2274,7 +2402,7 @@ export const DentalChart = () => {
                     {/* AUTOMATIC (2026-09-25) — see isOrallyFitChild above:
                         no oral condition present and no tooth carrying a
                         treatment code. */}
-                    <tr>
+                    <tr className={isOrallyFitChild ? 'bg-teal-100' : undefined}>
                       <td className="border-b border-teal-200/70 px-2 py-1.5 text-foreground">Orally Fit Child</td>
                       <td className="border-b border-teal-200/70 px-2 py-1.5 font-semibold text-teal-800">
                         {isOrallyFitChild ? 'Yes' : ''}
@@ -2326,35 +2454,10 @@ export const DentalChart = () => {
               <div className="bg-blue-50/70 rounded-xl border border-blue-200 p-4 space-y-4">
                 <div className="text-xs font-semibold text-primary uppercase tracking-wide">Treatment Summary</div>
 
-                {/* The whole-mouth services, as their OWN rows above the
-                    per-tooth table — her split, adopted in full this time.
-                    Sprint 151 refused these rows because hers read fields she
-                    had added to DENTAL_CHART; they read the RPC visit here, so
-                    there is still exactly one home for "was fluoride varnish
-                    given" and it is the one the DOH return counts. */}
-                <table className="w-full table-fixed border-collapse text-xs">
-                  <colgroup><col className="w-[63%]" /><col className="w-[37%]" /></colgroup>
-                  <tbody>
-                    <tr>
-                      <td className="border-b border-blue-200/70 px-2 py-1.5 text-foreground">Date of Treatment</td>
-                      <td className="border-b border-blue-200/70 px-2 py-1.5 font-semibold text-primary">
-                        {draftVisitDate ? formatDate(draftVisitDate) : ''}
-                      </td>
-                    </tr>
-                    {serviceChips.map(({ label, field }) => (
-                      <tr key={field}>
-                        <td className="border-b border-blue-200/70 px-2 py-1.5 text-foreground">{label}</td>
-                        {/* Blank for null AND for false: null is "not recorded"
-                            and there is no tick for "withheld" on the paper
-                            form either. Only a real Yes prints. */}
-                        <td className="border-b border-blue-200/70 px-2 py-1.5 font-semibold text-primary">
-                          {draftServices[field] === true ? 'Yes' : ''}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-
+                {/* Per-tooth table FIRST (2026-09-25, user order) -- it is
+                    aligned with the Dental Condition Summary's Tooth
+                    Count/Tooth Numbers table on the left, so the two line up
+                    row for row. The whole-mouth services list follows. */}
                 <table className="w-full table-fixed border-collapse text-xs">
                   <colgroup><col className="w-[32%]" /><col className="w-[12%]" /><col className="w-[28%]" /><col className="w-[28%]" /></colgroup>
                   <thead>
@@ -2388,6 +2491,35 @@ export const DentalChart = () => {
                         </tr>
                       );
                     })}
+                  </tbody>
+                </table>
+
+                {/* The whole-mouth services, as their OWN rows below the
+                    per-tooth table — her split, adopted in full this time.
+                    Sprint 151 refused these rows because hers read fields she
+                    had added to DENTAL_CHART; they read the RPC visit here, so
+                    there is still exactly one home for "was fluoride varnish
+                    given" and it is the one the DOH return counts. */}
+                <table className="w-full table-fixed border-collapse text-xs">
+                  <colgroup><col className="w-[63%]" /><col className="w-[37%]" /></colgroup>
+                  <tbody>
+                    <tr>
+                      <td className="border-b border-blue-200/70 px-2 py-1.5 text-foreground">Date of Treatment</td>
+                      <td className="border-b border-blue-200/70 px-2 py-1.5 font-semibold text-primary">
+                        {draftVisitDate ? formatDate(draftVisitDate) : ''}
+                      </td>
+                    </tr>
+                    {serviceChips.map(({ label, field }) => (
+                      <tr key={field}>
+                        <td className="border-b border-blue-200/70 px-2 py-1.5 text-foreground">{label}</td>
+                        {/* Blank for null AND for false: null is "not recorded"
+                            and there is no tick for "withheld" on the paper
+                            form either. Only a real Yes prints. */}
+                        <td className="border-b border-blue-200/70 px-2 py-1.5 font-semibold text-primary">
+                          {draftServices[field] === true ? 'Yes' : ''}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>

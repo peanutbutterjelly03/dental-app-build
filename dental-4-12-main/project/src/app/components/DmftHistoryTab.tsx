@@ -1,5 +1,31 @@
 import { computeDMFT, type ChartEntry } from '../utils/dentalChartCodes';
+import { hasCaries, type ChartedTooth } from '../../../shared/iptrSectionB';
 import type { IptrYearData } from '../hooks/useDentalChartData';
+
+// "Orally Fit Child" per year (2026-09-25) — same rule DentalChart.tsx's live
+// derivation uses, read from the SAVED data instead of the draft being
+// edited: no oral condition present (dental caries included, derived from the
+// teeth same as there) and no tooth carrying a treatment code. A year with no
+// charting is never OFC -- there is nothing to call fit.
+function isYearOrallyFitChild(y: IptrYearData): boolean {
+  const rows = y.dmftToothRecords;
+  if (!rows) return false;
+  const charted: ChartedTooth[] = rows.map((t) => ({
+    tooth: t.tooth_number,
+    condition: t.condition,
+    treatment: t.treatment_code,
+  }));
+  const oc = y.oralCondition;
+  const anyCondition =
+    hasCaries(charted) ||
+    !!oc?.gingivitis ||
+    !!oc?.periodontal_disease ||
+    !!oc?.debris ||
+    !!oc?.calculus ||
+    !!oc?.abnormal_growth ||
+    !!oc?.cleft_lip_palate;
+  return !anyCondition && !charted.some((t) => t.treatment);
+}
 
 // The Dental Records tab — DMFT progression across a pupil's school years.
 //
@@ -21,7 +47,7 @@ export function DmftHistoryTab({ years }: { years: IptrYearData[] }) {
     if (!rows) return { year: y.iptr.school_year, recorded: false as const };
     const chart: Record<number, ChartEntry> = {};
     for (const tr of rows) chart[tr.tooth_number] = { condition: tr.condition, treatment: tr.treatment_code ?? '' };
-    return { year: y.iptr.school_year, recorded: true as const, ...computeDMFT(chart) };
+    return { year: y.iptr.school_year, recorded: true as const, ofc: isYearOrallyFitChild(y), ...computeDMFT(chart) };
   });
   /** Years that actually have a charting — the only ones the KPI tiles can speak
    *  for. The type predicate is load-bearing: a plain `.filter(r => r.recorded)`
@@ -53,7 +79,16 @@ export function DmftHistoryTab({ years }: { years: IptrYearData[] }) {
           <tbody className="divide-y divide-gray-100">
             {dmftByYear.map((row, idx) => (
               <tr key={idx} className={idx % 2 === 0 ? 'bg-card' : 'bg-gray-50/50'}>
-                <td className="px-4 py-2 font-medium text-foreground text-xs">{row.year}</td>
+                <td className="px-4 py-2 font-medium text-foreground text-xs">
+                  <span className="flex items-center gap-1.5">
+                    {row.year}
+                    {row.recorded && row.ofc && (
+                      <span className="rounded-full bg-teal-100 px-1.5 py-0.5 text-[10px] font-bold text-teal-800" title="Orally Fit Child">
+                        OFC
+                      </span>
+                    )}
+                  </span>
+                </td>
                 {row.recorded ? (
                   <>
                     <td className="px-2 py-2 text-center text-xs text-red-700">{row.d || ''}</td>
