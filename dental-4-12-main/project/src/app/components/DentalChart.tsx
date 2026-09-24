@@ -115,9 +115,9 @@ const serviceChips: { label: string; field: ServiceField }[] = [
 // theme.css --font-palette). The meaning of the SELECTED code shows in the
 // one "click teeth to apply" line under the row; the full label is also on
 // each button's tooltip and in the Legend.
-// The 0.5px same-colour stroke makes the codes heavier than DejaVu's Bold,
-// its heaviest weight (user asked for bolder, 2026-09-24).
-const paletteBtn = 'h-10 min-w-[52px] shrink-0 rounded-md border px-3 text-center font-palette text-sm font-bold [-webkit-text-stroke:0.5px_currentColor] leading-none transition-all inline-flex items-center justify-center';
+// Regular weight: the user tried bold and a heavier stroke and preferred
+// neither (2026-09-24).
+const paletteBtn = 'h-10 min-w-[52px] shrink-0 rounded-md border px-3 text-center font-palette text-sm font-normal leading-none transition-all inline-flex items-center justify-center';
 // ✓ reads the same permanent and temporary, so it shows once, not "✓/✓".
 const conditionCodeText = (c: { perm: string; temp: string }) => (c.perm === c.temp ? c.perm : `${c.perm}/${c.temp}`);
 
