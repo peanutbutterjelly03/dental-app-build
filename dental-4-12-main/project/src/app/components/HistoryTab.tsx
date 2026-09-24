@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { computeBmi, BMI_NOTE, classifyNutritionalStatus } from '../utils/bmi';
 import type { MedicalHistoryDraft, DietDraft, MeasureDraft } from './iptrDrafts';
 
@@ -11,6 +12,33 @@ import type { MedicalHistoryDraft, DietDraft, MeasureDraft } from './iptrDrafts'
 // Chart tab edits — two editors for one record, on adjacent tabs, is how a
 // screen ends up disagreeing with itself. It lives beside the odontogram now,
 // because that is where a clinician is looking when they notice calculus.
+
+// Height is typed in any of three units but STORED in cm only (height_cm) —
+// BMI, the DOH forms and the DB never see anything else. Feet + inches is the
+// default: it is what the clinic reads first, and the tab returns to it every
+// time the record leaves edit mode (saved or cancelled).
+type HeightUnit = 'ftin' | 'cm' | 'm';
+type HeightDraft = { main: string; inches: string };
+const roundStr = (n: number, d: number) => String(Math.round(n * 10 ** d) / 10 ** d);
+
+function cmToHeightDraft(cmStr: string, unit: HeightUnit): HeightDraft {
+  const cm = Number(cmStr);
+  if (cmStr === '' || !Number.isFinite(cm) || cm <= 0) return { main: '', inches: '' };
+  if (unit === 'cm') return { main: cmStr, inches: '' };
+  if (unit === 'm') return { main: roundStr(cm / 100, 3), inches: '' };
+  const totalIn = cm / 2.54;
+  let ft = Math.floor(totalIn / 12);
+  let inches = Math.round((totalIn - ft * 12) * 10) / 10;
+  if (inches >= 12) { ft += 1; inches = 0; }
+  return { main: String(ft), inches: String(inches) };
+}
+
+function heightDraftToCm(d: HeightDraft, unit: HeightUnit): string {
+  if (unit === 'cm') return d.main;
+  if (unit === 'm') return d.main === '' ? '' : roundStr(Number(d.main) * 100, 1);
+  if (d.main === '' && d.inches === '') return '';
+  return roundStr((Number(d.main || 0) * 12 + Number(d.inches || 0)) * 2.54, 1);
+}
 
 export function HistoryTab({
   editing,
@@ -36,6 +64,26 @@ export function HistoryTab({
   patientAgeMonths: number | null;
   sex: string;
 }) {
+  const [heightUnit, setHeightUnit] = useState<HeightUnit>('ftin');
+  const [heightDraft, setHeightDraft] = useState<HeightDraft>(() => cmToHeightDraft(measure.height_cm, 'ftin'));
+  // What the draft was last derived from — so a reload / cancel / year switch
+  // re-derives it, but the user's own keystrokes are never reformatted mid-type.
+  const heightSynced = useRef({ cm: measure.height_cm, unit: heightUnit });
+  useEffect(() => { if (!editing) setHeightUnit('ftin'); }, [editing]);
+  useEffect(() => {
+    if (heightSynced.current.cm === measure.height_cm && heightSynced.current.unit === heightUnit) return;
+    heightSynced.current = { cm: measure.height_cm, unit: heightUnit };
+    setHeightDraft(cmToHeightDraft(measure.height_cm, heightUnit));
+  }, [measure.height_cm, heightUnit]);
+  const updateHeight = (next: HeightDraft) => {
+    setHeightDraft(next);
+    const cm = heightDraftToCm(next, heightUnit);
+    heightSynced.current = { cm, unit: heightUnit };
+    setMeasure((p) => ({ ...p, height_cm: cm }));
+  };
+  const noSpin = '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';
+  const heightInput = `min-w-0 flex-1 text-sm border border-border rounded px-2 py-2 ${noSpin} focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed`;
+
   return (
     <div className="p-4 space-y-4">
       {/* Physical Measurements — first on the tab, hers (Sprint 173).
@@ -51,11 +99,34 @@ export function HistoryTab({
         <div className="text-base font-bold text-foreground mb-3">Physical Measurements</div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div>
-            <label className="block text-xs text-muted-foreground mb-1">Height (cm)</label>
-            <input type="number" min="0" max="300" step="0.1" inputMode="decimal" disabled={!editing}
-              value={measure.height_cm}
-              onChange={(e) => setMeasure((p) => ({ ...p, height_cm: e.target.value }))}
-              placeholder="e.g. 120" className="w-full text-sm border border-border rounded px-2 py-2 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+            <label className="block text-xs text-muted-foreground mb-1">Height</label>
+            <div className="flex gap-1">
+              {heightUnit === 'ftin' ? (
+                <>
+                  <input type="number" min="0" max="9" step="1" inputMode="numeric" disabled={!editing} aria-label="Height, feet"
+                    value={heightDraft.main}
+                    onChange={(e) => updateHeight({ ...heightDraft, main: e.target.value })}
+                    placeholder="ft" className={heightInput} />
+                  <input type="number" min="0" max="11.9" step="0.1" inputMode="decimal" disabled={!editing} aria-label="Height, inches"
+                    value={heightDraft.inches}
+                    onChange={(e) => updateHeight({ ...heightDraft, inches: e.target.value })}
+                    placeholder="in" className={heightInput} />
+                </>
+              ) : (
+                <input type="number" min="0" max={heightUnit === 'm' ? '3' : '300'} step={heightUnit === 'm' ? '0.01' : '0.1'} inputMode="decimal" disabled={!editing}
+                  aria-label={heightUnit === 'm' ? 'Height, meters' : 'Height, centimeters'}
+                  value={heightDraft.main}
+                  onChange={(e) => updateHeight({ main: e.target.value, inches: '' })}
+                  placeholder={heightUnit === 'm' ? 'e.g. 1.20' : 'e.g. 120'} className={heightInput} />
+              )}
+              {/* Display unit only — switching never rewrites the stored cm. */}
+              <select value={heightUnit} onChange={(e) => setHeightUnit(e.target.value as HeightUnit)} aria-label="Height unit"
+                className="shrink-0 text-sm border border-border rounded bg-card px-1 py-2 focus:outline-none focus:ring-1 focus:ring-ring">
+                <option value="ftin">ft/in</option>
+                <option value="cm">cm</option>
+                <option value="m">m</option>
+              </select>
+            </div>
           </div>
           <div>
             <label className="block text-xs text-muted-foreground mb-1">Weight (kg)</label>
