@@ -208,7 +208,7 @@ export const RPCTracking = () => {
     }, [open]);
     return (
       <div ref={ref} className="relative">
-        <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open}
+        <button type="button" role="combobox" aria-haspopup="listbox" onClick={() => setOpen(o => !o)} aria-expanded={open}
           className="flex items-center gap-1.5 text-sm font-normal border border-border rounded-lg px-3 py-2 bg-card focus:outline-none focus:ring-2 focus:ring-ring">
           {label} <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
         </button>
