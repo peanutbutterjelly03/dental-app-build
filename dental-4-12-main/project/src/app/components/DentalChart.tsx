@@ -219,6 +219,10 @@ export const DentalChart = () => {
   // longer flip a medical flag. A brand-new/empty year auto-enters edit mode.
   const [editMode, setEditMode] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // Chart-specific save blocker (a tooth with a treatment but no condition).
+  // Shown between the code palette and the odontogram, where the fix is made,
+  // instead of in the header strip far above it (user, 2026-09-24).
+  const [chartError, setChartError] = useState<string | null>(null);
   const [editingInfo, setEditingInfo] = useState(false);
   const [draftInfo, setDraftInfo] = useState<Partial<typeof student>>({});
   // Height and weight live on the SELECTED YEAR's IPTR, not on STUDENT, so they
@@ -646,6 +650,7 @@ export const DentalChart = () => {
 
   const handleToothPointerDown = (toothNumber: number) => {
     isPaintingRef.current = true;
+    setChartError(null);
     if (selectedCondition) {
       const isTemp = temporaryTeeth.has(toothNumber);
       const codeObj = conditionCodes.find((c) => c.code === selectedCondition);
@@ -823,6 +828,7 @@ export const DentalChart = () => {
     if (!currentYearData || !id) return;
     setSaving(true);
     setSaveError(null);
+    setChartError(null);
     try {
       // Teeth are dentist-only (aides save History & Oral); the chart record
       // is only created when there are real tooth changes to persist — an
@@ -840,7 +846,10 @@ export const DentalChart = () => {
           .filter(([, entry]) => entry.condition === '' && entry.treatment !== '')
           .map(([toothStr]) => toothStr);
         if (orphaned.length) {
-          throw new ApiError(400, `Tooth ${orphaned.join(', ')} has a treatment but no condition. Add a condition or remove the treatment, then save.`);
+          const message = `Tooth ${orphaned.join(', ')} has a treatment but no condition. Add a condition or remove the treatment, then save.`;
+          setChartError(message);
+          toast.error(message);
+          return;
         }
       }
       const clearedRecords = canEdit
@@ -2326,6 +2335,13 @@ export const DentalChart = () => {
                 )}
               </div>
             </div>
+
+            {chartError && (
+              <div role="alert" className="flex items-start gap-2 rounded-xl border border-destructive/40 bg-danger-surface px-3 py-2 text-xs font-medium text-destructive">
+                <AlertTriangle className="mt-px h-3.5 w-3.5 flex-shrink-0" />
+                <span>{chartError}</span>
+              </div>
+            )}
 
             <div className="relative bg-card rounded-xl border border-border shadow-[0_8px_24px_rgba(15,23,42,0.08)] p-4 overflow-x-auto">
               <div className="absolute top-0 left-0 right-0 h-1 bg-amber-600 z-10 rounded-t-xl" />
