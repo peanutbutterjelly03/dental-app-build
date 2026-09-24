@@ -1010,7 +1010,7 @@ export const PatientList = () => {
           DOH report on Reports, which is aggregate counts and carries no
           names. */}
       {canAddStudent && (
-        <div ref={toolbarRef} className="sticky z-40 flex flex-wrap items-center justify-end gap-3 bg-gray-50 pb-2" style={{ top: stickyTop.toolbar }}>
+        <div ref={toolbarRef} className="sticky z-40 -mt-2 flex flex-wrap items-center justify-end gap-3 bg-gray-50 pb-2" style={{ top: stickyTop.toolbar }}>
           {/* "Upload", not "Scan": this opens a file picker, and a scan icon
               + the verb "scan" both promised a camera the app does not have
               (backlog 0e). The OCR extraction is still described inside the
@@ -1138,12 +1138,15 @@ export const PatientList = () => {
           </div>
         </div>
 
-        {/* Table — bounded height, so this box (not the page) is what
-            scrolls; see rowsMaxHeight above. The column headings stick to
+        {/* Table — fixed height (not max-height), so this box (not the page)
+            is what scrolls AND always fills the space left below the header
+            down to the footer, even when there are only a few rows — a
+            max-height instead left a visible gray gap of empty page under a
+            short list. See rowsMaxHeight above. The column headings stick to
             the TOP OF THIS BOX via `sticky` on each `<th>`, not the `<tr>` —
             a sticky `<tr>` rendered as a visual duplicate mid-table in some
             browsers. */}
-        <div ref={rowsWrapRef} className="overflow-auto" style={{ maxHeight: rowsMaxHeight ?? undefined }}>
+        <div ref={rowsWrapRef} className="overflow-auto" style={{ height: rowsMaxHeight ?? undefined }}>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">

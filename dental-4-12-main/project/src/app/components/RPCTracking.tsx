@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { Search, X, CheckCircle, AlertCircle, Shield, School as SchoolIcon, List, ChevronLeft, ChevronRight, Eye, Users, ChevronDown } from 'lucide-react';
 import { getGradeColor } from '../utils/gradeColors';
-import { getSchoolShortName } from '../utils/schoolColors';
 import { useRPCTracking } from '../hooks/useRPCTracking';
 import { treatmentCodes, treatmentLabel } from '../utils/dentalChartCodes';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
@@ -254,7 +253,7 @@ export const RPCTracking = () => {
                     <td className="pl-4 pr-2 py-3">
                       {dueDate ? (
                         <>
-                          <div className="text-yellow-500 font-semibold text-xs">{formatMonthYear(dueDate)}</div>
+                          <div className="text-fuchsia-600 font-semibold text-xs">{formatMonthYear(dueDate)}</div>
                           <div className={r.status==='overdue' ? 'text-red-600 font-semibold text-xs' : 'text-muted-foreground text-xs'}>
                             {r.status==='overdue' ? `${Math.abs(r.daysUntilDue)}d overdue` : `${r.daysUntilDue}d`}
                           </div>
@@ -281,17 +280,20 @@ export const RPCTracking = () => {
               Showing <span className="font-semibold text-foreground">{total === 0 ? 0 : (page - 1) * pageSize + 1}</span> to{' '}
               <span className="font-semibold text-foreground">{Math.min(page * pageSize, total)}</span> of{' '}
               <span className="font-semibold text-foreground">{total}</span> records
-              {total !== schoolTotal ? ` (filtered from ${schoolTotal})` : ''}
-              {selectedSchool ? ` at ${getSchoolShortName(selectedSchool)}` : ''}
+              {selectedSchool ? ` at ${selectedSchool}` : ''}
             </span>
-            <select
-              aria-label="Items per page"
-              value={pageSize}
-              onChange={(e) => changePageSize(Number(e.target.value))}
-              className="w-fit rounded-full border border-border bg-canvas px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}/page</option>)}
-            </select>
+            <div className="flex items-center gap-2">
+              <label htmlFor="rpc-page-size" className="whitespace-nowrap">Items per page</label>
+              <select
+                id="rpc-page-size"
+                aria-label="Items per page"
+                value={pageSize}
+                onChange={(e) => changePageSize(Number(e.target.value))}
+                className="w-fit rounded-full border border-border bg-canvas px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
           </div>
           {pageCount > 1 && (
             <div className="flex items-center gap-2">
