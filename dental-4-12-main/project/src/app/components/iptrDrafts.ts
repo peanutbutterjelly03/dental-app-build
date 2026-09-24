@@ -27,7 +27,7 @@ export type DietDraft = {
 };
 export type OralDraft = {
   gingivitis: boolean; periodontal: boolean; debris: boolean; calculus: boolean;
-  abnormalGrowth: boolean; cleftLipPalate: boolean; oralHygiene: string; others: string;
+  abnormalGrowth: boolean; cleftLipPalate: boolean; orallyFitChild: boolean; oralHygiene: string; others: string;
 };
 
 /** Physical measurements, held as STRINGS while being typed — an empty input is
@@ -47,5 +47,5 @@ export const emptyDiet = (): DietDraft => ({
 });
 export const emptyOral = (): OralDraft => ({
   gingivitis: false, periodontal: false, debris: false, calculus: false,
-  abnormalGrowth: false, cleftLipPalate: false, oralHygiene: '', others: '',
+  abnormalGrowth: false, cleftLipPalate: false, orallyFitChild: false, oralHygiene: '', others: '',
 });

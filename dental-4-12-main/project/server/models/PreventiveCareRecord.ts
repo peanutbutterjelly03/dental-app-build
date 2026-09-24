@@ -38,6 +38,12 @@ const preventiveCareRecordSchema = new mongoose.Schema(
     oral_prophylaxis: { type: Boolean, default: null },
     fluoride_varnish: { type: Boolean, default: null },
     oral_hygiene_instruction: { type: Boolean, default: null },
+    // Added 2026-09-25, same null-default reasoning as the four above. Not a
+    // DOH Target Client List column -- the paper form has no Consultation
+    // tick box, so this is tracked here for the clinic's own record without
+    // being printed on the DOH-facing report (per CLAUDE.md's "copy official
+    // forms exactly": a field not on the form does not get added to it).
+    consultation: { type: Boolean, default: null },
     // The form prints Low / Moderate / High. ⚠ "Moderate" is the FORM's word;
     // RISK_STRATIFICATION calls the same band "Medium". The form wins on the
     // form, so the value stored here is the form's.

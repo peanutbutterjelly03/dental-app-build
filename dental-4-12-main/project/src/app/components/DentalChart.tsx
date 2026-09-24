@@ -83,6 +83,12 @@ const oralConditionChips: { label: string; field: keyof OralDraft }[] = [
   { label: 'Periodontal Disease', field: 'periodontal' },
   { label: 'Cleft Lip / Palate', field: 'cleftLipPalate' },
   { label: 'Abnormal Growth', field: 'abnormalGrowth' },
+  // Added 2026-09-25 -- the dentist's own explicit "no findings" judgment
+  // call, not derived from the other chips (see orally_fit_child on the
+  // model for why deriving it would be dishonest). A tick here is what
+  // finally fills the IPTR summary's "Orally Fit Child" row below, which
+  // used to be permanently blank for lack of anywhere to record it.
+  { label: 'Orally Fit Child', field: 'orallyFitChild' },
 ];
 
 // ─── Services given AT a visit (Sprint 154) ──────────────────────────────────
@@ -92,17 +98,20 @@ const oralConditionChips: { label: string; field: keyof OralDraft }[] = [
 // by that — she draws these apart from the per-tooth codes for the same reason
 // we store them apart.
 //
-// ⚠ Two of her chips are NOT here: "Consultation" and a free-text "Others".
-// Neither has a field on PREVENTIVE_CARE_RECORD, and a checkbox that saves
-// nowhere is exactly the placeholder CLAUDE.md forbids. Adding them is a model
-// change and needs the dentist's word on what Consultation means for the
-// return. `oral_hygiene_instruction` is ours and hers has no chip for it.
-type ServiceField = 'oral_screening' | 'oral_prophylaxis' | 'fluoride_varnish' | 'oral_hygiene_instruction';
+// ⚠ One of her chips is still NOT here: a free-text "Others". No field on
+// PREVENTIVE_CARE_RECORD, and a checkbox that saves nowhere is exactly the
+// placeholder CLAUDE.md forbids. `oral_hygiene_instruction` is ours and hers
+// has no chip for it. "Consultation" WAS in this category too (needed the
+// dentist's word on what it means for the DOH return) -- added 2026-09-25 per
+// the user, tracked on the visit record but deliberately not printed on the
+// Target Client List, whose paper form has no Consultation column.
+type ServiceField = 'oral_screening' | 'oral_prophylaxis' | 'fluoride_varnish' | 'oral_hygiene_instruction' | 'consultation';
 const serviceChips: { label: string; field: ServiceField }[] = [
   { label: 'Oral Examination', field: 'oral_screening' },
   { label: 'Fluoride Varnish', field: 'fluoride_varnish' },
   { label: 'Oral Prophylaxis', field: 'oral_prophylaxis' },
   { label: 'Oral Hygiene Instruction', field: 'oral_hygiene_instruction' },
+  { label: 'Consultation', field: 'consultation' },
 ];
 
 // Charting mode survives the remount between students (Sprint 153).
@@ -264,8 +273,35 @@ export const DentalChart = () => {
   const [stickyOffsets, setStickyOffsets] = useState({ tabsTop: 0, yearTop: 0 });
 
   const currentYearDataRaw = years[selectedYear];
+  // Visit 1 / Visit 2 tabs on Treatments Given (2026-09-25). Which CHARTING
+  // (if any) is already linked to each visit number this school year —
+  // looked up from the raw, unoverridden data so the tabs stay visible even
+  // while `startingNewCharting` below is blanking `currentYearData` itself.
+  const visit1ChartId = currentYearDataRaw
+    ? Object.entries(currentYearDataRaw.visitNumberByChart).find(([, n]) => n === 1)?.[0] ?? null
+    : null;
+  const visit2ChartId = currentYearDataRaw
+    ? Object.entries(currentYearDataRaw.visitNumberByChart).find(([, n]) => n === 2)?.[0] ?? null
+    : null;
+  // True once the dentist has explicitly clicked "Visit 2" (or it opened
+  // this way by default, below) while Visit 2 has no charting yet — the
+  // signal to `currentYearData` to present a genuinely blank charting rather
+  // than the latest existing one, and to `handleSave` to create a NEW
+  // DENTAL_CHART rather than update one. Reset to false once that save
+  // lands (Visit 2 then has a real chart and is shown normally, like any
+  // other charting).
+  const [startingNewCharting, setStartingNewCharting] = useState(false);
+  // No explicit pick yet this page view (no `?chart=`, no tab clicked, no
+  // year just switched to) — the DEFAULT is Visit 2 once Visit 1 exists and
+  // Visit 2 doesn't: the next thing to do, not a re-read of what's already
+  // recorded. A pure computation, not an effect, so it can never race the
+  // `?chart=` deep link the way an effect keyed on load timing already once
+  // did (see the comment above).
+  const showingNewVisit2Draft = startingNewCharting
+    || (selectedChartId === null && !!visit1ChartId && !visit2ChartId);
   // The hook defaults to the latest charting; this swaps in whichever one the
-  // dentist picked, with its own tooth records.
+  // dentist picked, with its own tooth records — or, in showingNewVisit2Draft,
+  // a genuinely blank slate for a charting that doesn't exist yet.
   //
   // ⚠ useMemo IS LOAD-BEARING, not a micro-optimisation (Sprint 154). The
   // spread built a NEW OBJECT on every render, and the draft-sync effect below
@@ -278,16 +314,18 @@ export const DentalChart = () => {
   //
   // It typechecked, it built, and the page LOOKED right — the loop is invisible
   // until you count renders or try to edit.
-  const currentYearData = useMemo(
-    () => (currentYearDataRaw && selectedChartId
-      ? {
-          ...currentYearDataRaw,
-          dentalChart: currentYearDataRaw.charts.find((c) => c._id === selectedChartId) ?? currentYearDataRaw.dentalChart,
-          toothRecords: currentYearDataRaw.toothRecordsByChart[selectedChartId] ?? currentYearDataRaw.toothRecords,
-        }
-      : currentYearDataRaw),
-    [currentYearDataRaw, selectedChartId],
-  );
+  const currentYearData = useMemo(() => {
+    if (!currentYearDataRaw) return currentYearDataRaw;
+    if (showingNewVisit2Draft) return { ...currentYearDataRaw, dentalChart: null, toothRecords: [] };
+    if (selectedChartId) {
+      return {
+        ...currentYearDataRaw,
+        dentalChart: currentYearDataRaw.charts.find((c) => c._id === selectedChartId) ?? currentYearDataRaw.dentalChart,
+        toothRecords: currentYearDataRaw.toothRecordsByChart[selectedChartId] ?? currentYearDataRaw.toothRecords,
+      };
+    }
+    return currentYearDataRaw;
+  }, [currentYearDataRaw, selectedChartId, showingNewVisit2Draft]);
 
   // Draft (editable) copies of the current year's real data -- initialized
   // from real records when the selected year changes, persisted for real on
@@ -308,7 +346,7 @@ export const DentalChart = () => {
   // on the patient card — two different places for one record. One editor now.
   const [draftMeasure, setDraftMeasure] = useState({ height_cm: '', weight_kg: '', temperature_c: '', blood_pressure: '' });
   const [draftServices, setDraftServices] = useState<Record<ServiceField, boolean | null>>({
-    oral_screening: null, oral_prophylaxis: null, fluoride_varnish: null, oral_hygiene_instruction: null,
+    oral_screening: null, oral_prophylaxis: null, fluoride_varnish: null, oral_hygiene_instruction: null, consultation: null,
   });
   const [draftVisitDate, setDraftVisitDate] = useState('');
   const [draftChartDate, setDraftChartDate] = useState('');
@@ -336,7 +374,7 @@ export const DentalChart = () => {
       setDraftDiet(emptyDiet());
       setDraftOral(emptyOral());
       setDraftMeasure({ height_cm: '', weight_kg: '', temperature_c: '', blood_pressure: '' });
-      setDraftServices({ oral_screening: null, oral_prophylaxis: null, fluoride_varnish: null, oral_hygiene_instruction: null });
+      setDraftServices({ oral_screening: null, oral_prophylaxis: null, fluoride_varnish: null, oral_hygiene_instruction: null, consultation: null });
       setDraftVisitDate('');
       setDraftChartDate('');
       setEditMode(false);
@@ -380,12 +418,14 @@ export const DentalChart = () => {
       oral_prophylaxis: visit?.oral_prophylaxis ?? null,
       fluoride_varnish: visit?.fluoride_varnish ?? null,
       oral_hygiene_instruction: visit?.oral_hygiene_instruction ?? null,
+      consultation: visit?.consultation ?? null,
     });
 
     const oc = currentYearData.oralCondition;
     setDraftOral(oc ? {
       gingivitis: oc.gingivitis, periodontal: oc.periodontal_disease, debris: oc.debris, calculus: oc.calculus,
-      abnormalGrowth: oc.abnormal_growth, cleftLipPalate: oc.cleft_lip_palate, oralHygiene: oc.oral_hygiene, others: oc.others,
+      abnormalGrowth: oc.abnormal_growth, cleftLipPalate: oc.cleft_lip_palate, orallyFitChild: oc.orally_fit_child ?? false,
+      oralHygiene: oc.oral_hygiene, others: oc.others,
     } : emptyOral());
 
     // Empty year (nothing recorded yet) exists to be filled — drop clinical
@@ -734,7 +774,8 @@ export const DentalChart = () => {
       const oralBody = {
         iptr_id: currentYearData.iptr._id, oral_hygiene: draftOral.oralHygiene || 'Not assessed', gingivitis: draftOral.gingivitis,
         periodontal_disease: draftOral.periodontal, debris: draftOral.debris, calculus: draftOral.calculus,
-        abnormal_growth: draftOral.abnormalGrowth, cleft_lip_palate: draftOral.cleftLipPalate, others: draftOral.others,
+        abnormal_growth: draftOral.abnormalGrowth, cleft_lip_palate: draftOral.cleftLipPalate,
+        orally_fit_child: draftOral.orallyFitChild, others: draftOral.others,
       };
       const oralWrite = currentYearData.oralCondition
         ? apiClient.put(`/oral-health-conditions/${currentYearData.oralCondition._id}`, oralBody)
@@ -798,6 +839,12 @@ export const DentalChart = () => {
 
       await Promise.all([...toothWrites, medWrite, dietWrite, oralWrite, ...extraWrites]);
       await reload();
+      // A blank Visit 2 draft is now a real charting -- stop presenting it as
+      // blank so it renders like any other charting after its own save.
+      // `selectedChartId` is left alone: saving an edit to a specific
+      // existing charting (via the picker further down) should keep showing
+      // that same charting afterward, same as before this change.
+      setStartingNewCharting(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
       // The "Saved!" button label is an in-place echo for whoever is still
@@ -1581,7 +1628,7 @@ export const DentalChart = () => {
                 const isActive = selectedYear === idx;
                 return (
                   <div key={y.iptr._id} className={`mr-1 flex flex-shrink-0 items-stretch border-b-2 ${isActive ? 'border-blue-700 bg-blue-50 text-blue-700' : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
-                    <button type="button" onClick={() => setSelectedYear(idx)} className="px-4 py-2.5 text-left text-xs font-medium transition-all">
+                    <button type="button" onClick={() => { setSelectedYear(idx); setSelectedChartId(null); setStartingNewCharting(false); }} className="px-4 py-2.5 text-left text-xs font-medium transition-all">
                       <div>{y.iptr.school_year}</div>
                       {activeTab === 'chart' && (
                         <div style={{ fontSize: '10px', marginTop: '2px' }} className={isActive ? 'text-blue-600' : 'text-muted-foreground'} title={y.dmftToothRecords ? undefined : 'No charting this school year recorded a tooth'}>DMFT: {yrDmftLabel}</div>
@@ -1910,6 +1957,35 @@ export const DentalChart = () => {
               </div>
 
               <div className={`border-t border-border pt-4 lg:border-t-0 lg:pt-0 lg:border-l lg:border-border lg:pl-4 ${editingChart ? '' : 'opacity-60 pointer-events-none select-none'}`}>
+                {/* Visit 1 / Visit 2 (2026-09-25). Only appears once Visit 1
+                    has actually been recorded -- before that there is only
+                    one working charting, and a picker with one real option
+                    plus a hypothetical second is noise. Visit 1 stays
+                    editable via its own tab; the default view (see
+                    showingNewVisit2Draft above) is Visit 2, since recording
+                    Visit 1 makes Visit 2 the next thing to do. */}
+                {visit1ChartId && (
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <button type="button"
+                      onClick={() => { setSelectedChartId(visit1ChartId); setStartingNewCharting(false); }}
+                      className={`px-2.5 py-1 text-xs font-semibold rounded-full border transition-colors ${
+                        currentYearData?.dentalChart?._id === visit1ChartId
+                          ? 'border-primary bg-primary text-white'
+                          : 'border-border text-muted-foreground hover:bg-canvas'
+                      }`}>
+                      Visit 1
+                    </button>
+                    <button type="button"
+                      onClick={() => { setSelectedChartId(visit2ChartId); setStartingNewCharting(!visit2ChartId); }}
+                      className={`px-2.5 py-1 text-xs font-semibold rounded-full border transition-colors ${
+                        showingNewVisit2Draft || currentYearData?.dentalChart?._id === visit2ChartId
+                          ? 'border-primary bg-primary text-white'
+                          : 'border-border text-muted-foreground hover:bg-canvas'
+                      }`}>
+                      {visit2ChartId ? 'Visit 2' : '+ Visit 2'}
+                    </button>
+                  </div>
+                )}
                 <div className="flex flex-wrap items-center gap-3 mb-2">
                   <div className="text-sm font-bold text-primary uppercase tracking-wide">Treatments Given</div>
                   <label className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -2223,20 +2299,17 @@ export const DentalChart = () => {
                         {draftChartDate ? formatDate(draftChartDate) : ''}
                       </td>
                     </tr>
-                    {/* ⚠ BLANK ON PURPOSE, and it is her row, kept. "Orally Fit
-                        Child" is a DOH IPTR field with a clinical definition —
-                        caries-free or every caries treated, no debris, no gum
-                        pathology — and the last of those is a judgement no
-                        field of ours records. Deriving it from the teeth would
-                        publish a clinical verdict the dentist never gave. The
-                        row stays because a missing row is a different form; the
-                        cell stays empty until there is something real in it. */}
+                    {/* Was permanently blank ("no field of ours records the
+                        judgement") until orally_fit_child was added
+                        2026-09-25 as the Orally Fit Child chip in Oral
+                        Conditions — the dentist's own explicit call, not a
+                        derivation from the other findings. Still blank/"not
+                        recorded" until that chip is actually ticked. */}
                     <tr>
-                      <td className="border-b border-teal-200/70 px-2 py-1.5 text-foreground">
-                        Orally Fit Child
-                        <span className="ml-1 text-muted-foreground">— not recorded</span>
+                      <td className="border-b border-teal-200/70 px-2 py-1.5 text-foreground">Orally Fit Child</td>
+                      <td className="border-b border-teal-200/70 px-2 py-1.5 font-semibold text-teal-800">
+                        {draftOral.orallyFitChild ? 'Yes' : <span className="font-normal text-muted-foreground">not recorded</span>}
                       </td>
-                      <td className="border-b border-teal-200/70 px-2 py-1.5" />
                     </tr>
                     {presentOralConditions.map(({ label, present }) => (
                       <tr key={label}>

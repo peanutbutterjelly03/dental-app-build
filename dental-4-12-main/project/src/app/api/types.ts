@@ -127,6 +127,10 @@ export interface ApiPreventiveCareRecord {
   oral_prophylaxis?: boolean | null;
   fluoride_varnish?: boolean | null;
   oral_hygiene_instruction?: boolean | null;
+  /** Added 2026-09-25, same null-means-not-recorded rule as the four above.
+   *  Not a DOH Target Client List column -- tracked for the clinic's own
+   *  record only. */
+  consultation?: boolean | null;
   /** The form's own words — it prints Moderate where RISK_STRATIFICATION says
    *  Medium. On the form, the form wins. */
   caries_risk?: 'Low' | 'Moderate' | 'High' | null;
@@ -182,6 +186,9 @@ export interface ApiOralHealthCondition {
   calculus: boolean;
   abnormal_growth: boolean;
   cleft_lip_palate: boolean;
+  /** Added 2026-09-25. The dentist's own judgment call, not derived. Optional
+   *  since records created before this field existed have no value. */
+  orally_fit_child?: boolean;
   others: string;
 }
 
