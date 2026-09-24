@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
-import { Search, X, CheckCircle, AlertCircle, Shield, School as SchoolIcon, List, ChevronRight, Users } from 'lucide-react';
+import { Search, X, CheckCircle, AlertCircle, Shield, School as SchoolIcon, List, ChevronRight, Users, ChevronDown } from 'lucide-react';
 import { getGradeColor } from '../utils/gradeColors';
 import { useRPCTracking } from '../hooks/useRPCTracking';
 import { treatmentCodes, treatmentLabel } from '../utils/dentalChartCodes';
@@ -124,6 +124,40 @@ export const RPCTracking = () => {
     </select>
   );
 
+  // A native <select> always shows the CURRENT selection as its own text,
+  // which is right for "All Grades" etc. RPC Status and Sort Order need the
+  // opposite: the button always reads the filter's NAME, and the chosen
+  // option shows only inside the open menu (checked) — so it needs its own
+  // little menu rather than FS above.
+  const PinnedLabelSelect = ({ value, onChange, opts, label }: { value: string; onChange: (v: string) => void; opts: { v: string; l: string }[]; label: string }) => {
+    const [open, setOpen] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+      if (!open) return;
+      const onDown = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+      document.addEventListener('mousedown', onDown);
+      return () => document.removeEventListener('mousedown', onDown);
+    }, [open]);
+    return (
+      <div ref={ref} className="relative">
+        <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open}
+          className="flex items-center gap-1.5 text-sm border border-border rounded-lg px-3 py-2 bg-card focus:outline-none focus:ring-2 focus:ring-ring">
+          {label} <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+        </button>
+        {open && (
+          <div className="absolute z-20 mt-1 min-w-[190px] rounded-lg border border-border bg-card shadow-md py-1">
+            {opts.map(o => (
+              <button key={o.v} type="button" onClick={() => { onChange(o.v); setOpen(false); }}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-canvas ${value === o.v ? 'text-primary font-semibold' : 'text-foreground'}`}>
+                {o.l}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -158,10 +192,9 @@ export const RPCTracking = () => {
           <FS value={sectionFilter} onChange={setSectionFilter} label="All Sections" opts={sectionOptions.map(sec => ({ v: sec, l: sec }))} />
           <FS value={genderFilter} onChange={setGenderFilter} label="All Genders" opts={[{v:'Male',l:'Male'},{v:'Female',l:'Female'}]} />
           <FS value={ageGroupFilter} onChange={setAgeGroupFilter} label="All Age Groups" opts={[{v:'4 & below',l:'4 & below'},{v:'5-9',l:'5-9'},{v:'10-14',l:'10-14'},{v:'15-19',l:'15-19'},{v:'20 & above',l:'20 & above'}]} />
-          {/* 'outstanding' is listed first and is the default — FS renders its
-              `label` as the value-'all' option, so without an explicit entry
-              here the select would have no option matching its own value. */}
-          <FS value={statusFilter} onChange={setStatusFilter} label="RPC Status" opts={[{v:'outstanding',l:'Outstanding only'},{v:'complete',l:'Both Complete'},{v:'pending',l:'Visit 1 Only'},{v:'overdue',l:'Overdue'},{v:'not-started',l:'Not Started'}]} />
+          {/* Button always reads "RPC Status"; the chosen option only shows
+              inside the open menu (see PinnedLabelSelect above FS). */}
+          <PinnedLabelSelect value={statusFilter} onChange={setStatusFilter} label="RPC Status" opts={[{v:'all',l:'All Statuses'},{v:'outstanding',l:'Outstanding only'},{v:'complete',l:'Both Complete'},{v:'pending',l:'Visit 1 Only'},{v:'overdue',l:'Overdue'},{v:'not-started',l:'Not Started'}]} />
           {/* .label only, never treatmentLabel() -- that appends the Tagalog
               local term (e.g. "Oral Prophylaxis (Linis)"), which stays on the
               clinical legend/chart but this filter is English-only. */}
@@ -170,7 +203,7 @@ export const RPCTracking = () => {
               that year, the only school-year fact this join actually has
               (a visit isn't itself scoped to one). */}
           <FS value={schoolYearFilter} onChange={setSchoolYearFilter} label="All School Years" opts={schoolYearOptions.map(y=>({v:y,l:`SY ${y}`}))} />
-          <FS value={sortFilter} onChange={setSortFilter} label="Sort: Name (A-Z)" opts={[{v:'date_desc',l:'Visit 1 Date (Newest first)'},{v:'date_asc',l:'Visit 1 Date (Oldest first)'}]} />
+          <PinnedLabelSelect value={sortFilter} onChange={setSortFilter} label="Sort Order" opts={[{v:'all',l:'Name (A-Z)'},{v:'date_asc',l:'Ascending Date'},{v:'date_desc',l:'Descending Date'}]} />
           {hasActiveFilters && <button onClick={clearFilters} title="Clear all filters" aria-label="Clear all filters" className="flex items-center justify-center p-2 text-destructive border border-red-200 rounded-lg hover:bg-red-50"><X className="w-4 h-4"/></button>}
         </div>
       </div>
@@ -178,7 +211,7 @@ export const RPCTracking = () => {
       <div className="bg-card rounded-xl border border-border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-border">
+            <thead className="bg-gray-100 border-b border-border">
               <tr>
                 {['Student','Grade / Section','Visit 1','Visit 2','Status','Days Until Due'].map(h => (
                   <th key={h} className="text-left px-4 py-3 font-semibold text-foreground">{h}</th>
