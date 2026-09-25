@@ -10,8 +10,18 @@ import { PAGE_SIZE_OPTIONS } from './Pagination';
 import { formatDate, formatMonthYear } from '../utils/localDate';
 import { TOPBAR_H } from '../utils/layout';
 import { PageHeader } from './PageHeader';
+import { schoolYearLabel } from '../utils/schoolYear';
 
 const GRADES = ['Kinder','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10'];
+
+// The "resting" school year for this page's default view (user, 2026-09-25):
+// a pupil whose Visit 2 just got recorded was disappearing from the default
+// list because the OLD default combined 'outstanding' status with 'all'
+// years, and 'outstanding' hides a completed pair. The fix scopes the
+// default to the CURRENT school year instead -- that is what "School Year"
+// filter is actually for, going BACK to see other years -- and shows every
+// status within it, completed pairs included.
+const CURRENT_SCHOOL_YEAR = schoolYearLabel();
 
 
 const ViewToggle = ({ mode, onChange }: { mode: 'school' | 'list'; onChange: (m: 'school' | 'list') => void }) => (
@@ -37,12 +47,12 @@ export const RPCTracking = () => {
   const [sectionFilter, setSectionFilter] = useState('all');
   const [genderFilter, setGenderFilter] = useState('all');
   const [ageGroupFilter, setAgeGroupFilter] = useState('all');
-  // Defaults to 'outstanding', not 'all': this page is a worklist, so it opens
-  // on the students who still need a visit. Completed records are opt-in via
-  // the Status filter rather than padding the list with finished work.
-  const [statusFilter, setStatusFilter] = useState('outstanding');
+  // Defaults to 'all', not 'outstanding' (user, 2026-09-25): see
+  // CURRENT_SCHOOL_YEAR above -- a completed Visit 1 + Visit 2 pair stays
+  // visible in the default view instead of vanishing the moment it's done.
+  const [statusFilter, setStatusFilter] = useState('all');
   const [treatmentFilter, setTreatmentFilter] = useState('all');
-  const [schoolYearFilter, setSchoolYearFilter] = useState('all');
+  const [schoolYearFilter, setSchoolYearFilter] = useState(CURRENT_SCHOOL_YEAR);
   // Defaults to 'date_desc', not 'all' (user, 2026-09-25): a worklist reads
   // newest activity first, so the most recently treated pupils lead. 'all'
   // stays selectable from the dropdown for the plain alphabetical order.
@@ -172,11 +182,13 @@ export const RPCTracking = () => {
 
   // sectionFilter was missing from both of these — an active section filter
   // neither lit up "Clear All" nor got cleared by it.
-  // statusFilter is compared against 'outstanding', not 'all': that is now its
-  // resting value, so treating it like the others would light up "Clear All"
-  // permanently and make Clear All widen the list instead of resetting it.
-  const hasActiveFilters = [gradeFilter, sectionFilter, genderFilter, ageGroupFilter, treatmentFilter, schoolYearFilter].some(f => f !== 'all') || statusFilter !== 'outstanding' || sortFilter !== 'date_desc' || searchTerm !== '';
-  const clearFilters = () => { setGradeFilter('all'); setSectionFilter('all'); setGenderFilter('all'); setAgeGroupFilter('all'); setStatusFilter('outstanding'); setTreatmentFilter('all'); setSchoolYearFilter('all'); setSortFilter('date_desc'); setSearchTerm(''); };
+  // statusFilter and schoolYearFilter are each compared against their OWN
+  // resting value ('all' and CURRENT_SCHOOL_YEAR), not the shared array's
+  // 'all' check — treating them like the others would light up "Clear All"
+  // permanently on page load and make Clear All widen the list instead of
+  // resetting it.
+  const hasActiveFilters = [gradeFilter, sectionFilter, genderFilter, ageGroupFilter, treatmentFilter].some(f => f !== 'all') || statusFilter !== 'all' || schoolYearFilter !== CURRENT_SCHOOL_YEAR || sortFilter !== 'date_desc' || searchTerm !== '';
+  const clearFilters = () => { setGradeFilter('all'); setSectionFilter('all'); setGenderFilter('all'); setAgeGroupFilter('all'); setStatusFilter('all'); setTreatmentFilter('all'); setSchoolYearFilter(CURRENT_SCHOOL_YEAR); setSortFilter('date_desc'); setSearchTerm(''); };
 
   const statusConfig: Record<string,{label:string;color:string;bg:string}> = {
     complete:     { label:'Complete',     color:'text-green-700', bg:'bg-green-100' },
