@@ -424,21 +424,19 @@ export const Root = () => {
     const highlighted = isActive || childActive;
     const isOpen = openStudents || childActive;
     const Icon = studentsTab.icon;
-    // A single click anywhere on the row opens the group (or is a no-op if
-    // already open); closing it takes two consecutive clicks -- user,
-    // 2026-09-25. `onDoubleClick` fires after the browser's own two `click`
-    // events, so the single-click handler below never closes on its own.
+    // Plain toggle on the row click -- user, 2026-09-25: two clicks close
+    // it, but there's no time limit between them (onDoubleClick's browser
+    // double-click window was wrong here: a slow second click has to close
+    // it too).
     const onRowClick = () => {
       setDrawerOpen(false);
-      setOpenStudents(true);
+      setOpenStudents((v) => !v);
     };
-    const onRowDoubleClick = () => setOpenStudents(false);
     return (
       <div>
         <Link
           to={studentsTab.path}
           onClick={onRowClick}
-          onDoubleClick={onRowDoubleClick}
           title={collapsed ? studentsTab.label : undefined}
           aria-current={isActive ? 'page' : undefined}
           className={`mx-7 rounded-full min-h-12 flex items-center gap-3 px-4 transition-colors ${
