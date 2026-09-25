@@ -13,8 +13,6 @@ import { validateStudentValues } from '../../../shared/studentValidation';
 import { useDentalChartData } from '../hooks/useDentalChartData';
 import { apiClient, ApiError } from '../api/client';
 import { toLocalDateString, formatDate } from '../utils/localDate';
-import { DayPicker } from 'react-day-picker';
-import 'react-day-picker/dist/style.css';
 import { schoolYearLabel } from '../utils/schoolYear';
 import { TOPBAR_H } from '../utils/layout';
 import { surnameFirst, surnameFirstWithInitial } from '../utils/studentName';
@@ -73,6 +71,18 @@ const GRADES = ['Kinder', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5',
 // Sprint 162c — shared by this host, the History tab and the Dental Chart tab.
 
 const formatDateStamp = (dateString?: string | null) => formatDate(dateString, 'No date stamp');
+
+// A school year's date stamp IS its Oral Conditions "Date examined" (user,
+// 2026-09-25): DENTAL_CHART.date_charted, shown only while an oral condition
+// is recorded, so the chip and the field can never disagree. Replaces the
+// separate "Edit date" menu item.
+const examinedDate = (
+  oc: { debris?: boolean; gingivitis?: boolean; calculus?: boolean; periodontal_disease?: boolean; cleft_lip_palate?: boolean; abnormal_growth?: boolean; others?: string } | null | undefined,
+  chart: { date_charted?: string } | null | undefined,
+): string | null => {
+  const examined = !!oc && (oc.debris || oc.gingivitis || oc.calculus || oc.periodontal_disease || oc.cleft_lip_palate || oc.abnormal_growth || !!oc.others?.trim());
+  return examined && chart?.date_charted ? chart.date_charted : null;
+};
 
 // ─── Whole-mouth findings, as CHIPS (Sprint 154) ─────────────────────────────
 // Layout and wording adopted from the collaborator's `majorUpdates` branch.
@@ -448,8 +458,8 @@ export const DentalChart = () => {
       betelNut: dh.betel_nut_chewer, bodyPiercing: dh.body_piercing, nailBiting: dh.nail_biting, thumbsucking: dh.thumb_sucking,
     } : emptyDiet());
 
-    const selectedChartRec = currentYearData.dentalChart;
-    setDraftChartDate(selectedChartRec ? new Date(selectedChartRec.date_charted).toISOString().slice(0, 10) : '');
+    const examined = examinedDate(currentYearData.oralCondition, currentYearData.dentalChart);
+    setDraftChartDate(examined ? new Date(examined).toISOString().slice(0, 10) : '');
     setDraftMeasure({
       height_cm: currentYearData.iptr.height_cm != null ? String(currentYearData.iptr.height_cm) : '',
       weight_kg: currentYearData.iptr.weight_kg != null ? String(currentYearData.iptr.weight_kg) : '',
@@ -832,8 +842,6 @@ export const DentalChart = () => {
   };
 
   const [confirmDeleteYear, setConfirmDeleteYear] = useState<number | null>(null);
-  // "Edit date" in the School year menu (user, 2026-09-24): the date stamp
-  // under each year chip is that year's DENTAL_CHART.date_charted.
   const [confirmSaveInfo, setConfirmSaveInfo] = useState(false);
   // Save Changes is only live once something actually differs from the
   // record (user, 2026-09-25). Blank and missing count as the same value.
@@ -842,10 +850,6 @@ export const DentalChart = () => {
     || draftYear.grade_level !== (years[selectedYear]?.iptr.grade_level ?? '')
     || draftYear.section !== (years[selectedYear]?.iptr.section ?? '')
   );
-  const [editDateYear, setEditDateYear] = useState<number | null>(null);
-  const [editDateValue, setEditDateValue] = useState('');
-  const [editDateSaving, setEditDateSaving] = useState(false);
-  const [editDateError, setEditDateError] = useState<string | null>(null);
   // Step-up check before removing a school year (Sprint 178, hers). ⚠ A random
   // field name: the literal string "password" in a name or id is what several
   // autofill engines key off, even with autocomplete overridden, and this must
@@ -866,30 +870,6 @@ export const DentalChart = () => {
       toast.success('School year removed.');
     } catch (err) {
       setSaveError(err instanceof ApiError ? err.message : 'Failed to remove school year');
-    }
-  };
-  const saveEditDate = async () => {
-    if (editDateYear === null) return;
-    const y = years[editDateYear];
-    if (!y || !editDateValue) { setEditDateError('Pick a date.'); return; }
-    setEditDateSaving(true);
-    setEditDateError(null);
-    try {
-      if (y.dentalChart) {
-        await apiClient.put(`/dental-charts/${y.dentalChart._id}`, { date_charted: editDateValue });
-      } else {
-        // No chart yet for this year ("No date stamp"): the date IS the
-        // chart's, so setting one opens it, the same way Save does.
-        if (!currentDentist) throw new ApiError(400, 'No dentist record linked to your account.');
-        await apiClient.post('/dental-charts', { iptr_id: y.iptr._id, dentist_id: currentDentist._id, date_charted: editDateValue });
-      }
-      await reload();
-      setEditDateYear(null);
-      toast.success('Date updated.');
-    } catch (err) {
-      setEditDateError(err instanceof ApiError ? err.message : 'Could not update the date.');
-    } finally {
-      setEditDateSaving(false);
     }
   };
 
@@ -980,12 +960,14 @@ export const DentalChart = () => {
       // visit it belongs to must exist even when no service is ticked.
       const chartsTreatment = pendingTeeth.some(([, entry]) => entry.treatment !== '');
       let chartId = currentYearData.dentalChart?._id;
-      if (!chartId && (pendingTeeth.length > 0 || hasAnyService)) {
+      // A Date examined alone also opens the chart, since that is where the
+      // date lives (and what the school-year stamp reads).
+      if (!chartId && (pendingTeeth.length > 0 || hasAnyService || (!!draftChartDate && !!currentDentist))) {
         if (!currentDentist) throw new Error('No dentist record linked to your account.');
         const created = await apiClient.post<{ _id: string }>('/dental-charts', {
           iptr_id: currentYearData.iptr._id,
           dentist_id: currentDentist._id,
-          date_charted: toLocalDateString(new Date()),
+          date_charted: draftChartDate || toLocalDateString(new Date()),
         });
         chartId = created._id;
       }
@@ -1790,21 +1772,21 @@ export const DentalChart = () => {
                 // BUG-12: the year's DMFT comes from the latest charting that
                 // HAS records, not from whichever charting is newest. An empty
                 // charting made this read "DMFT: 0" for a pupil with 14 decayed
-                // teeth recorded a day earlier. Null prints "—", not 0.
+                // teeth recorded a day earlier. No records at all prints 0 (user, 2026-09-25; was "—").
                 const yrChart: Record<number, ChartEntry> = {};
                 for (const tr of y.dmftToothRecords ?? []) yrChart[tr.tooth_number] = { condition: tr.condition, treatment: tr.treatment_code ?? '' };
                 const yrDmft = computeDMFT(yrChart);
-                const yrDmftLabel = y.dmftToothRecords ? `${yrDmft.T + yrDmft.t}` : '—';
+                const yrDmftLabel = `${yrDmft.T + yrDmft.t}`; // 0 when nothing is charted (user, 2026-09-25)
                 const isActive = selectedYear === idx;
                 return (
                   <div key={y.iptr._id} className={`mr-1 flex flex-shrink-0 items-stretch border-b-2 ${isActive ? 'border-blue-700 bg-blue-50 text-blue-700' : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
                     <button type="button" onClick={() => { setSelectedYear(idx); setSelectedChartId(null); setExplicitVisit(null); }} className="px-4 py-2.5 text-left text-xs font-medium transition-all">
                       <div>{y.iptr.school_year}</div>
                       {activeTab === 'chart' && (
-                        <div style={{ fontSize: '10px', marginTop: '2px' }} className={isActive ? 'text-blue-600' : 'text-muted-foreground'} title={y.dmftToothRecords ? undefined : 'No charting this school year recorded a tooth'}>DMFT: {yrDmftLabel}</div>
+                        <div style={{ fontSize: '10px', marginTop: '2px' }} className={isActive ? 'text-blue-600' : 'text-muted-foreground'} >DMFT: {yrDmftLabel}</div>
                       )}
                       <div style={{ fontSize: '10px', marginTop: '2px' }} className={isActive ? 'text-blue-600' : 'text-muted-foreground'}>
-                        {formatDateStamp(y.dentalChart?.date_charted)}
+                        {formatDateStamp(examinedDate(y.oralCondition, y.dentalChart))}
                       </div>
                     </button>
                     {false && (
@@ -1874,20 +1856,6 @@ export const DentalChart = () => {
                             </>
                           );
                         })()}
-                        {/* Not while editing: saving the date reloads the record,
-                            which would discard unsaved chart edits. */}
-                        <button type="button" disabled={editMode}
-                          title={editMode ? 'Save or cancel your edits first' : undefined}
-                          onClick={() => {
-                            setYearMenuOpen(false);
-                            const dc = years[selectedYear]?.dentalChart?.date_charted;
-                            setEditDateValue(dc ? new Date(dc).toISOString().slice(0, 10) : toLocalDateString(new Date()));
-                            setEditDateError(null);
-                            setEditDateYear(selectedYear);
-                          }}
-                          className="block w-full text-left px-3 py-2 text-xs text-foreground hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed">
-                          Edit date ({years[selectedYear]?.iptr.school_year})
-                        </button>
                         {years.length > 1 && (
                           <button type="button"
                             onClick={() => { setYearMenuOpen(false); setConfirmDeleteYear(selectedYear); }}
@@ -2108,9 +2076,9 @@ export const DentalChart = () => {
                   <div className="text-sm font-bold text-primary uppercase tracking-wide">Oral Conditions</div>
                   <label className="flex items-center gap-2 text-xs text-muted-foreground">
                     Date examined
-                    <input type="date" value={draftChartDate} disabled={!currentYearData?.dentalChart}
+                    <input type="date" value={draftChartDate} disabled={!(oralConditionChips.some(({ field }) => draftOral[field]) || othersOralOpen)}
                       onChange={(e) => setDraftChartDate(e.target.value)}
-                      title={currentYearData?.dentalChart ? undefined : 'No charting recorded for this school year yet'}
+                      title="Filled in when an oral condition is ticked"
                       className="border border-border rounded px-2 py-1 text-xs bg-card text-foreground disabled:opacity-50 focus:outline-none focus:ring-1 focus:ring-ring" />
                   </label>
                 </div>
@@ -2708,8 +2676,8 @@ export const DentalChart = () => {
             <div>
               <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Scores</div>
               <div className="space-y-1 text-sm text-muted-foreground">
-                <div><span className="font-mono font-bold text-foreground">DMFT</span> — permanent teeth Decayed + Missing + Filled</div>
-                <div><span className="font-mono font-bold text-foreground">dmft</span> — primary teeth decayed + missing + filled</div>
+                <div><span className="font-mono font-bold text-foreground">DMFT</span>: permanent teeth Decayed + Missing + Filled</div>
+                <div><span className="font-mono font-bold text-foreground">dmft</span>: primary teeth decayed + missing + filled</div>
               </div>
             </div>
           </div>
@@ -2845,47 +2813,6 @@ export const DentalChart = () => {
         onConfirm={async () => { setConfirmSaveInfo(false); await handleSaveInfo(); }}
         onCancel={() => setConfirmSaveInfo(false)}
       />
-      {/* Edit date (user, 2026-09-24). Its own compact window, sized to the
-          calendar so Save lines up with the calendar's right-hand arrow:
-          306px = the 266px calendar (7 x 38px cells) + 2 x 20px padding, in px
-          because the app's rem scale-down would shrink a rem padding. */}
-      {editDateYear !== null && (() => {
-        const y = years[editDateYear];
-        const [yy, mm, dd] = editDateValue.split('-').map(Number);
-        const picked = editDateValue ? new Date(yy, mm - 1, dd) : undefined;
-        const original = y?.dentalChart?.date_charted ? new Date(y.dentalChart.date_charted).toISOString().slice(0, 10) : '';
-        const changed = !!editDateValue && editDateValue !== original;
-        return (
-          <Modal onClose={() => setEditDateYear(null)} closeDisabled={editDateSaving} maxWidth="max-w-[306px]">
-            <div role="dialog" aria-label={`Edit date for ${y?.iptr.school_year ?? 'school year'}`} className="p-[20px]">
-              <h3 className="text-base font-bold text-sidebar-bg">Edit date for {y?.iptr.school_year}</h3>
-              <DayPicker mode="single" selected={picked} defaultMonth={picked} disabled={{ after: new Date() }}
-                onSelect={(d) => { if (d) { setEditDateValue(toLocalDateString(d)); setEditDateError(null); } }}
-                className="iptr-date-picker" />
-              {changed && (
-                <p className="flex items-start gap-1.5 rounded-lg bg-danger-surface px-2.5 py-2 text-xs font-medium text-destructive">
-                  <AlertTriangle className="mt-px h-3.5 w-3.5 flex-shrink-0" />
-                  <span>
-                    You are changing the date of oral examination for {y?.iptr.school_year}
-                    {original ? ` from ${formatDate(original)}` : ''} to {formatDate(editDateValue)}.
-                  </span>
-                </p>
-              )}
-              {editDateError && <p className="mt-1 text-xs text-destructive">{editDateError}</p>}
-              <div className="mt-4 flex justify-end gap-2">
-                <button type="button" onClick={() => setEditDateYear(null)} disabled={editDateSaving}
-                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-foreground hover:bg-gray-50 disabled:opacity-60">
-                  Cancel
-                </button>
-                <button type="button" onClick={saveEditDate} disabled={editDateSaving || !changed}
-                  className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-60">
-                  {editDateSaving ? 'Saving…' : 'Save date'}
-                </button>
-              </div>
-            </div>
-          </Modal>
-        );
-      })()}
       <ConfirmDialog
         open={confirmDeleteYear !== null}
         title={`Remove ${confirmDeleteYear !== null ? years[confirmDeleteYear]?.iptr.school_year ?? 'school year' : 'school year'}?`}

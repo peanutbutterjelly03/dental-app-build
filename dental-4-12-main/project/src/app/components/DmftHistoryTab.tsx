@@ -120,8 +120,8 @@ export function DmftHistoryTab({ years }: { years: IptrYearData[] }) {
           // BUG-12: every tile reads the RECORDED years only. Before this they
           // indexed the last row whatever it held, so a year with no charting
           // made "Latest DMFT" read 0 and the Trend read "Stable".
-          { label: 'Latest dmft (primary)', value: recorded.length ? recorded[recorded.length - 1].t : '—', color: 'text-red-700 bg-red-50' },
-          { label: 'Latest DMFT (permanent)', value: recorded.length ? recorded[recorded.length - 1].T : '—', color: 'text-blue-700 bg-blue-50' },
+          { label: 'Latest dmft (primary)', value: recorded.length ? recorded[recorded.length - 1].t : 0, color: 'text-red-700 bg-red-50' },
+          { label: 'Latest DMFT (permanent)', value: recorded.length ? recorded[recorded.length - 1].T : 0, color: 'text-blue-700 bg-blue-50' },
           // Counts the years with a charting, not the years on file — "tracked"
           // means measured, and a year with nothing charted was not.
           { label: 'Years tracked', value: recorded.length, color: 'text-foreground bg-gray-100' },
