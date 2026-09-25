@@ -367,10 +367,10 @@ export interface RpcListQuery {
    *  first) and 'date_asc' sort by the LATEST of Visit 1/Visit 2 date, not
    *  just Visit 1 -- a pupil with a recent Visit 2 leads a pupil whose only
    *  visit was older, rows with no visit yet sorted last either way.
-   *  'due_this_month' brings rows whose Visit 2 falls due within the
-   *  CURRENT calendar month to the top, soonest first; everyone else keeps
-   *  'date_desc' order below them. 'all' keeps the rows' own
-   *  alphabetical-by-surname order. */
+   *  'due_this_month' FILTERS to rows whose Visit 2 falls due within the
+   *  CURRENT calendar month, soonest due first -- a worklist, unlike
+   *  'date_asc'/'date_desc'/'all', which only reorder. 'all' keeps the
+   *  rows' own alphabetical-by-surname order. */
   sort?: string;
   /** Fixed "now" for 'due_this_month', ms since epoch — same testability
    *  pattern as `buildRpcRows`'s own `input.now`. Defaults to Date.now(). */
@@ -400,6 +400,17 @@ export interface RpcListPage {
 export function filterRpcRows(all: RPCRow[], query: RpcListQuery): RpcListPage {
   const inSchool = query.school ? all.filter((r) => r.school === query.school) : all;
   const q = (query.q ?? '').toLowerCase();
+  // 'due_this_month' FILTERS to rows whose Visit 2 falls due within the
+  // CURRENT calendar month (user, 2026-09-25 -- it was a pure sort at
+  // first, leaving everyone else visible below; now it narrows the list,
+  // like the other Sort Order/RPC Status controls that also gate rows).
+  const now = new Date(query.now ?? Date.now());
+  const dueMonth = now.getMonth();
+  const dueYear = now.getFullYear();
+  const isDueThisMonth = (r: RPCRow) => {
+    const d = dueDateOf(r);
+    return d != null && d.getMonth() === dueMonth && d.getFullYear() === dueYear;
+  };
 
   const rows = inSchool.filter((r) => {
     if (query.grade && query.grade !== 'all' && r.grade !== query.grade) return false;
@@ -413,6 +424,7 @@ export function filterRpcRows(all: RPCRow[], query: RpcListQuery): RpcListPage {
     }
     if (query.treatment && query.treatment !== 'all' && !r.treatmentCodes.includes(query.treatment)) return false;
     if (query.schoolYear && query.schoolYear !== 'all' && !(query.schoolYear in r.iptrIdBySchoolYear)) return false;
+    if (query.sort === 'due_this_month' && !isDueThisMonth(r)) return false;
     if (q && !r.studentName.toLowerCase().includes(q)) return false;
     return true;
   });
@@ -435,34 +447,9 @@ export function filterRpcRows(all: RPCRow[], query: RpcListQuery): RpcListPage {
       return (at - bt) * dir;
     });
   } else if (query.sort === 'due_this_month') {
-    // Rows due within the CURRENT calendar month rise to the top, soonest
-    // first -- a worklist for "what needs doing before the month is out",
-    // not a filter: everyone else stays visible, in the normal date_desc
-    // order, below the due group.
-    const now = new Date(query.now ?? Date.now());
-    const month = now.getMonth();
-    const year = now.getFullYear();
-    const dueThisMonth = (r: RPCRow) => {
-      const d = dueDateOf(r);
-      return d != null && d.getMonth() === month && d.getFullYear() === year;
-    };
-    const latestVisit = (r: RPCRow) => {
-      const dates = [r.visit1Date, r.visit2Date].filter((d): d is string => !!d).map((d) => new Date(d).getTime());
-      return dates.length ? Math.max(...dates) : null;
-    };
-    sortedRows = [...rows].sort((a, b) => {
-      const aDue = dueThisMonth(a);
-      const bDue = dueThisMonth(b);
-      if (aDue !== bDue) return aDue ? -1 : 1; // due-this-month group first
-      if (aDue && bDue) return (dueDateOf(a) as Date).getTime() - (dueDateOf(b) as Date).getTime(); // soonest first
-      // Below the group: same date_desc order 'date_desc' itself uses.
-      const at = latestVisit(a);
-      const bt = latestVisit(b);
-      if (at === null && bt === null) return 0;
-      if (at === null) return 1;
-      if (bt === null) return -1;
-      return bt - at;
-    });
+    // `rows` is already narrowed to due-this-month above; soonest due date
+    // first is the only ordering that makes sense for what's left.
+    sortedRows = [...rows].sort((a, b) => (dueDateOf(a) as Date).getTime() - (dueDateOf(b) as Date).getTime());
   }
 
   const offset = Math.max(0, query.offset ?? 0);
