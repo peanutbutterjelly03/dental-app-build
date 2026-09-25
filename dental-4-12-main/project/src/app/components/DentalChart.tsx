@@ -1911,16 +1911,18 @@ export const DentalChart = () => {
           "—" beside a completed consent reads as a missing signature rather
           than a missing field. It goes in once the data is real. */}
       {activeTab === 'history' && years.length > 0 && yearIptr && (
-        // Navy "Consent" title bar like the Dental Chart panels (user pick "D",
-        // 2026-09-25), keeping the coloured icon block below it.
+        // Navy "Consent" title bar like the Dental Chart panels, applied in
+        // full (user pick "D", 2026-09-25 — no separate coloured icon block;
+        // the shield moves into a status pill next to the text).
         <div className="overflow-hidden rounded-xl border border-slate-300 bg-card">
         <div className="bg-primary px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-white">Consent</div>
-        <div className="flex">
-          <div className={`w-14 flex-shrink-0 flex items-center justify-center ${consentComplete ? 'bg-[#15803D]' : 'bg-[#B45309]'}`}>
-            {consentComplete ? <ShieldCheck className="w-5 h-5 text-white" /> : <ShieldAlert className="w-5 h-5 text-white" />}
-          </div>
-          <div className="flex-1 bg-card px-4 py-3 flex items-center justify-between gap-3 min-w-0">
-            <div className="min-w-0 flex flex-col justify-center gap-0.5 self-stretch">
+        <div className="flex items-center gap-3 px-4 py-3 min-w-0">
+          <span className={`inline-flex flex-shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${consentComplete ? 'border-[#86EFAC] bg-[#F0FDF4] text-[#15803D]' : 'border-[#FCD34D] bg-[#FFFBEB] text-[#B45309]'}`}>
+            {consentComplete ? <ShieldCheck className="h-3.5 w-3.5" /> : <ShieldAlert className="h-3.5 w-3.5" />}
+            {consentComplete ? 'Obtained' : 'Pending'}
+          </span>
+          <div className="flex-1 flex items-center justify-between gap-3 min-w-0">
+            <div className="min-w-0 flex flex-col justify-center gap-0.5">
               <div className="text-[13.5px] font-bold leading-tight text-foreground">
                 {consentComplete
                   ? `Physical copy of consent obtained for ${yearIptr.school_year}`
