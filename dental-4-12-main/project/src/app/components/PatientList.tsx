@@ -921,8 +921,14 @@ export const PatientList = () => {
     measure();
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
-    // studentsLoading: same reason as the stickyTop effect above.
-  }, [canAddStudent, studentsLoading]);
+    // studentsLoading: same reason as the stickyTop effect above. hidePagination
+    // (missed when this was first ported -- RPC Monitoring's own measure
+    // effect has the equivalent `pageSize`): without it, toggling Hide never
+    // re-measures a fresh baseline, so the card kept the DEFAULT view's
+    // already-shrunk cardHeight (correction only ever shrinks, never grows
+    // it back), and the negative margin that should let it reach the true
+    // edge had nothing left to cancel.
+  }, [canAddStudent, studentsLoading, hidePagination]);
 
   // The estimate above can leave a few stray pixels of page scroll (e.g.
   // `<main>`'s own bottom padding, which this component has no clean way to
