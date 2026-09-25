@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router';
-import { X, Eye, Users, Calendar, Clipboard, Shield, Stethoscope } from 'lucide-react';
+import { Eye, Users, Calendar, Clipboard, Shield, Stethoscope, SlidersHorizontal } from 'lucide-react';
 import { GradePill } from './GradePill';
 import { getSchoolColor, getSchoolShortName } from '../utils/schoolColors';
 import { getGradeColor } from '../utils/gradeColors';
@@ -15,8 +15,6 @@ import { toLocalDateString } from '../utils/localDate';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
 import { activatable } from '../utils/a11y';
 import { Pagination, usePagination } from './Pagination';
-
-const GRADES = ['Kinder','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10'];
 
 /** Two-letter initials for the row avatar. Same derivation her Student
  *  Records rows use, so a pupil is recognised by the same mark on both
@@ -33,22 +31,10 @@ const calculateAge = (birthdate: string) => {
   return age;
 };
 
-const getAgeGroup = (age: number) => {
-  if (age <= 4) return '4 & below';
-  if (age <= 9) return '5-9';
-  if (age <= 14) return '10-14';
-  if (age <= 19) return '15-19';
-  return '20 & above';
-};
-
 export const DentalChartNav = () => {
   const navigate = useNavigate();
   // Open on Full List when nothing is queued — an empty default view reads as a dead page
   const [viewMode, setViewMode] = useState<'queued' | 'full'>(() => (getQueuedStudentIds().length ? 'queued' : 'full'));
-  const [gradeFilter, setGradeFilter] = useState('all');
-  const [sectionFilter, setSectionFilter] = useState('all');
-  const [genderFilter, setGenderFilter] = useState('all');
-  const [ageGroupFilter, setAgeGroupFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const queuedStudentIds = useMemo(() => getQueuedStudentIds(), []);
   const { selectedSchool } = useAuth();
@@ -114,40 +100,30 @@ export const DentalChartNav = () => {
   // limit: 1 -- only `.total` is read, not the rows themselves.
   const { total: rpcOutstandingCount } = useRPCTracking({ school: selectedSchool ?? undefined, status: 'outstanding', limit: 1 });
 
-  const allSections = useMemo(() => {
-    const base = gradeFilter !== 'all' ? sourcePatients.filter((p) => p.grade === gradeFilter) : sourcePatients;
-    return [...new Set(base.map(p => p.section))].sort();
-  }, [gradeFilter, sourcePatients]);
-
-  const filtered = useMemo(() => sourcePatients.filter(p => {
-    const age = calculateAge(p.birthdate);
-    const ag = getAgeGroup(age);
-    if (gradeFilter !== 'all' && p.grade !== gradeFilter) return false;
-    if (sectionFilter !== 'all' && p.section !== sectionFilter) return false;
-    if (genderFilter !== 'all' && p.gender !== genderFilter) return false;
-    if (ageGroupFilter !== 'all' && ag !== ageGroupFilter) return false;
-    if (searchTerm) {
+  // No grade/section/gender/age filters (user, 2026-09-25 — removed in
+  // favor of a single, fixed sort). Search only; order is always by queue
+  // position, with un-queued students (Full List only) pushed after the
+  // queued ones and broken by name.
+  const filtered = useMemo(() => {
+    const rows = sourcePatients.filter((p) => {
+      if (!searchTerm) return true;
       const query = searchTerm.toLowerCase();
       const formattedName = p.name.toLowerCase();
-      if (!formattedName.includes(query) && !p.grade.toLowerCase().includes(query) && !p.section.toLowerCase().includes(query)) return false;
-    }
-    return true;
-  }), [sourcePatients, gradeFilter, sectionFilter, genderFilter, ageGroupFilter, searchTerm]);
+      return formattedName.includes(query) || p.grade.toLowerCase().includes(query) || p.section.toLowerCase().includes(query);
+    });
+    return [...rows].sort((a, b) => {
+      const qa = queuedStudentIds.indexOf(a.id);
+      const qb = queuedStudentIds.indexOf(b.id);
+      const posA = qa >= 0 ? qa : Infinity;
+      const posB = qb >= 0 ? qb : Infinity;
+      return posA !== posB ? posA - posB : a.name.localeCompare(b.name);
+    });
+  }, [sourcePatients, searchTerm, queuedStudentIds]);
 
   // Paged (Sprint 58). This is the real Dental Charts list page — it rendered
   // every filtered row, which is thousands at ~8,000 students. Reset keys are
   // the filter inputs, never `filtered` — see Pagination.tsx.
-  const pager = usePagination(filtered, [gradeFilter, sectionFilter, genderFilter, ageGroupFilter, searchTerm, viewMode]);
-
-  const hasActiveFilters = gradeFilter !== 'all' || sectionFilter !== 'all' || genderFilter !== 'all' || ageGroupFilter !== 'all' || searchTerm !== '';
-  const clearFilters = () => { setGradeFilter('all'); setSectionFilter('all'); setGenderFilter('all'); setAgeGroupFilter('all'); setSearchTerm(''); };
-
-  const FS = ({ value, onChange, opts, label }: { value: string; onChange: (v: string) => void; opts: {v:string;l:string}[]; label: string }) => (
-    <select value={value} onChange={e => onChange(e.target.value)} className="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-      <option value="all">{label}</option>
-      {opts.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
-    </select>
-  );
+  const pager = usePagination(filtered, [searchTerm, viewMode]);
 
   if (studentsLoading) {
     return (
@@ -176,8 +152,33 @@ export const DentalChartNav = () => {
     { label: 'RPC', value: rpcOutstandingCount, icon: Shield, bg: '#FDF2F8', fg: '#BE185D' },
   ];
 
+  const queueCount = filtered.length;
+
   return (
     <div className="space-y-4">
+      {/* Page-level identity header, above the stat row and the queue itself
+          (user, 2026-09-25) -- was nested inside the queue card, which read
+          as buried. */}
+      <div className="flex items-start gap-4 rounded-2xl border border-border bg-gray-50/70 p-5 sm:p-6">
+        <span style={{ backgroundColor: kickerColor.light }} className="w-12 h-12 rounded-2xl grid place-items-center flex-shrink-0">
+          <Stethoscope style={{ color: kickerColor.solid }} className="w-6 h-6" />
+        </span>
+        <div className="min-w-0">
+          <div style={{ color: kickerColor.solid }} className="text-xs font-bold uppercase tracking-wider">{kickerLabel}</div>
+          <h1 className="text-2xl font-bold text-foreground mt-0.5">Dental Charts</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {viewMode === 'queued'
+              ? `${queueCount} queued student${queueCount !== 1 ? 's' : ''}`
+              // ⚠ STUDENTS, not charts. This list is one row per pupil,
+              // drawn from `useStudents()`; DENTAL_CHART held 54 rows for
+              // these 26 pupils when this was checked (2026-09-06), and a
+              // pupil with no chart at all is still a row here. "charts
+              // found" named a number the page never counted.
+              : `${queueCount} student${queueCount !== 1 ? 's' : ''}`}
+          </p>
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map(({ label, value, icon: Icon, bg, fg }) => (
           <div key={label} className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6">
@@ -215,8 +216,10 @@ export const DentalChartNav = () => {
             </>
           ) : (
             <>
-              <span className="w-12 h-12 rounded-full bg-gray-100 grid place-items-center">
-                <Users className="w-5 h-5 text-muted-foreground" />
+              {/* Blue fill, matching the populated avatar above (user,
+                  2026-09-25) -- was a plain gray circle. */}
+              <span style={{ backgroundColor: '#E8ECF6', color: '#273A78' }} className="w-12 h-12 rounded-full grid place-items-center">
+                <Users className="w-5 h-5" />
               </span>
               <div className="font-bold text-foreground">No Students Queued</div>
               <div className="text-xs text-muted-foreground">Use "Queue for Charting" on the Students page.</div>
@@ -225,58 +228,46 @@ export const DentalChartNav = () => {
         </div>
 
       <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
-        {/* Light banner tint on the identity block only, matching the
-            RAMHIS reference's off-white header strip (user, 2026-09-25) --
-            distinct from the white card body (search/filters/table) below. */}
-        <div className="p-5 sm:p-6 space-y-4 border-b border-border bg-gray-50/70 rounded-t-2xl">
+        {/* Queue card's own header, restyled after the RAMHIS "Patient
+            Queue" reference exactly -- icon badge, gray eyebrow, title with
+            a count pill, one-line description, search + view toggle at the
+            top right (user, 2026-09-25). No grade/section/gender/age
+            filters any more -- order is fixed to queue position (see
+            `filtered` above), so those controls had nothing left to do. */}
+        <div className="p-5 sm:p-6 border-b border-border">
           <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="min-w-0 flex items-start gap-4">
-              <span style={{ backgroundColor: kickerColor.light }} className="w-12 h-12 rounded-2xl grid place-items-center flex-shrink-0">
-                <Stethoscope style={{ color: kickerColor.solid }} className="w-6 h-6" />
+            <div className="min-w-0 flex items-start gap-3">
+              <span className="w-10 h-10 rounded-xl bg-gray-100 grid place-items-center flex-shrink-0">
+                <SlidersHorizontal className="w-4.5 h-4.5 text-muted-foreground" />
               </span>
               <div className="min-w-0">
-                <div style={{ color: kickerColor.solid }} className="text-xs font-bold uppercase tracking-wider">{kickerLabel}</div>
-                <h1 className="text-2xl font-bold text-foreground mt-0.5">Dental Charts</h1>
-                <p className="text-sm text-muted-foreground mt-0.5">
-                  {viewMode === 'queued'
-                    ? `${filtered.length} queued student${filtered.length !== 1 ? 's' : ''}`
-                    // ⚠ STUDENTS, not charts. This list is one row per pupil,
-                    // drawn from `useStudents()`; DENTAL_CHART held 54 rows for
-                    // these 26 pupils when this was checked (2026-09-06), and a
-                    // pupil with no chart at all is still a row here. "charts
-                    // found" named a number the page never counted.
-                    : `${filtered.length} student${filtered.length !== 1 ? 's' : ''}`}
-                </p>
+                <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Queue</div>
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                  <h2 className="text-lg font-bold text-foreground">Charting Queue</h2>
+                  <span style={{ backgroundColor: kickerColor.light, color: kickerColor.solid }} className="text-[11px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">
+                    {queueCount} {queueCount === 1 ? 'STUDENT' : 'STUDENTS'}
+                  </span>
+                </div>
+                <p className="text-sm text-muted-foreground mt-0.5">Students in queue order, ready for dental charting.</p>
               </div>
             </div>
-            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 shrink-0">
-              <button
-                onClick={() => setViewMode('queued')}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium ${viewMode === 'queued' ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-              >
-                Queued
-              </button>
-              <button
-                onClick={() => setViewMode('full')}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium ${viewMode === 'full' ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-              >
-                Full List
-              </button>
+            <div className="flex items-center gap-3 flex-wrap">
+              <ListSearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search student, grade, or section" />
+              <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 shrink-0">
+                <button
+                  onClick={() => setViewMode('queued')}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium ${viewMode === 'queued' ? 'bg-primary text-white' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  Queued
+                </button>
+                <button
+                  onClick={() => setViewMode('full')}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium ${viewMode === 'full' ? 'bg-primary text-white' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  Full List
+                </button>
+              </div>
             </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <ListSearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search student, grade, or section" />
-            <FS value={gradeFilter} onChange={g => { setGradeFilter(g); setSectionFilter('all'); }} label="All Grades" opts={GRADES.map(g => ({ v: g, l: g }))} />
-            <FS value={sectionFilter} onChange={setSectionFilter} label="All Sections" opts={allSections.map(s => ({ v: s, l: s }))} />
-            <FS value={genderFilter} onChange={setGenderFilter} label="All Genders" opts={[{ v:'Male', l:'Male' }, { v:'Female', l:'Female' }]} />
-            <FS value={ageGroupFilter} onChange={setAgeGroupFilter} label="All Age Groups"
-              opts={[{ v:'4 & below', l:'4 & below' }, { v:'5-9', l:'5-9' }, { v:'10-14', l:'10-14' }, { v:'15-19', l:'15-19' }, { v:'20 & above', l:'20 & above' }]} />
-            {hasActiveFilters && (
-              <button onClick={clearFilters} className="flex items-center gap-1 px-3 py-2 text-sm text-destructive border border-destructive/30 rounded-lg hover:bg-danger-surface">
-                <X className="w-3 h-3" /> Clear All
-              </button>
-            )}
           </div>
         </div>
 
@@ -304,7 +295,7 @@ export const DentalChartNav = () => {
                   <td colSpan={8} className="px-4 py-10 text-center text-sm text-muted-foreground">
                     {viewMode === 'queued' && queuedStudentIds.length === 0
                       ? 'No students queued for charting yet — use "Queue for Charting" on the Students page, or switch to Full List.'
-                      : 'No dental charts match the selected filters.'}
+                      : 'No students match your search.'}
                   </td>
                 </tr>
               ) : pager.paged.map((p, i) => {
