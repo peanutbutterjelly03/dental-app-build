@@ -137,7 +137,15 @@ const PdfPageIcon = ({ paper, fold, letters, className = 'h-5 w-5' }: { paper: s
 // Summary-card styles (option A, 2026-09-24): shared by the Dental Condition
 // and Treatment Summary tables so the two cards cannot drift apart.
 const sumCell = 'border-b border-slate-100 px-3 py-1.5 text-foreground';
-const sumHead = 'bg-slate-50 text-left text-[10.5px] font-bold uppercase tracking-wide text-slate-600';
+const sumHead = 'bg-slate-50 text-left text-[10.5px] uppercase tracking-wide text-slate-600 [&>th]:font-normal';
+/** A two-word column heading: one line on wide screens (xl, 1280px+), and on narrower
+ *  ones always the SAME two-line break ("Tooth" / "Count"), so every such
+ *  heading wraps alike instead of wherever the width happens to cut it.
+ *  xl, not lg: at 1024-1279px the narrower Dental Condition card has too
+ *  little room for "TOOTH COUNT" on one line. */
+const TwoWord = ({ a, b }: { a: string; b: string }) => (
+  <><span className="block xl:inline">{a}</span>{' '}<span className="block xl:inline">{b}</span></>
+);
 const yesBadge = 'inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-bold text-green-800';
 /** Tooth numbers as small tags; wraps onto more lines when there are many. */
 const ToothTags = ({ teeth, tone }: { teeth: number[]; tone: 'teal' | 'blue' }) => (
@@ -2403,10 +2411,10 @@ export const DentalChart = () => {
               <div className="overflow-hidden rounded-xl border border-border bg-card">
                 <div className="bg-teal-700 px-4 py-2.5 text-sm font-bold text-white">Dental Condition Summary</div>
 
-                {/* 45% label column = Indicate Number's first column below, so
+                {/* 42% label column = Indicate Number's first column below, so
                     the answers start on the same line as its Tooth Count. */}
                 <table className="w-full table-fixed border-collapse text-xs">
-                  <colgroup><col className="w-[45%]" /><col className="w-[55%]" /></colgroup>
+                  <colgroup><col className="w-[42%]" /><col className="w-[58%]" /></colgroup>
                   <tbody className="[&>tr:nth-child(even)>td]:bg-slate-50/70">
                     <tr>
                       <td className={sumCell}>Date of Oral Examination</td>
@@ -2436,12 +2444,12 @@ export const DentalChart = () => {
                     figure is DERIVED from the teeth above — none of it is
                     typed, so it cannot disagree with the odontogram. */}
                 <table className="w-full table-fixed border-collapse text-xs">
-                  <colgroup><col className="w-[45%]" /><col className="w-[18%]" /><col className="w-[37%]" /></colgroup>
+                  <colgroup><col className="w-[42%]" /><col className="w-[23%]" /><col className="w-[35%]" /></colgroup>
                   <thead>
                     <tr className={sumHead}>
-                      <th className="px-3 py-2">Indicate Number</th>
-                      <th className="px-3 py-2">Tooth Count</th>
-                      <th className="px-3 py-2">Tooth Numbers</th>
+                      <th className="px-3 py-2 align-bottom">Indicate Number</th>
+                      <th className="px-3 py-2 align-bottom xl:whitespace-nowrap"><TwoWord a="Tooth" b="Count" /></th>
+                      <th className="px-3 py-2 align-bottom xl:whitespace-nowrap"><TwoWord a="Tooth" b="Numbers" /></th>
                     </tr>
                   </thead>
                   <tbody className="[&>tr:nth-child(even)>td]:bg-slate-50/70">
@@ -2475,8 +2483,8 @@ export const DentalChart = () => {
                       {/* Greys only, darkest to lightest from the empty corner cell
                           (slate-300, 200, 100), headings in capitals (user, 2026-09-25). */}
                       <th className="bg-slate-300 px-3 py-2" />
-                      <th colSpan={2} className="bg-slate-200 px-3 py-2 text-center text-[11px] font-extrabold uppercase tracking-wider text-slate-700">Visit 1</th>
-                      <th colSpan={2} className="bg-slate-100 px-3 py-2 text-center text-[11px] font-extrabold uppercase tracking-wider text-slate-700">Visit 2</th>
+                      <th colSpan={2} className="bg-slate-200 px-3 py-2 text-center text-[11px] font-normal uppercase tracking-wider text-slate-700">Visit 1</th>
+                      <th colSpan={2} className="bg-slate-100 px-3 py-2 text-center text-[11px] font-normal uppercase tracking-wider text-slate-700">Visit 2</th>
                     </tr>
                   </thead>
                   {(() => {
@@ -2509,11 +2517,11 @@ export const DentalChart = () => {
                         </tbody>
                         <tbody className="[&>tr:nth-child(even)>td]:bg-slate-50/70">
                           <tr className={sumHead}>
-                            <th className="px-3 py-2">Treatment</th>
-                            <th className="px-3 py-2">Tooth Count</th>
-                            <th className="px-3 py-2">Tooth Numbers</th>
-                            <th className="px-3 py-2">Tooth Count</th>
-                            <th className="px-3 py-2">Tooth Numbers</th>
+                            <th className="px-3 py-2 align-bottom">Treatment</th>
+                            <th className="px-3 py-2 align-bottom xl:whitespace-nowrap"><TwoWord a="Tooth" b="Count" /></th>
+                            <th className="px-3 py-2 align-bottom xl:whitespace-nowrap"><TwoWord a="Tooth" b="Numbers" /></th>
+                            <th className="px-3 py-2 align-bottom xl:whitespace-nowrap"><TwoWord a="Tooth" b="Count" /></th>
+                            <th className="px-3 py-2 align-bottom xl:whitespace-nowrap"><TwoWord a="Tooth" b="Numbers" /></th>
                           </tr>
                           {perToothTreatmentRows.map((t) => {
                             const v1 = treatmentTeethVisit1[t.code] ?? [];
