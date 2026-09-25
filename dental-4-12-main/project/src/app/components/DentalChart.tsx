@@ -2331,7 +2331,6 @@ export const DentalChart = () => {
             )}
 
             <div className="relative bg-card rounded-xl border border-border shadow-[0_8px_24px_rgba(15,23,42,0.08)] p-4 overflow-x-auto">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-amber-600 z-10 rounded-t-xl" />
               {/* Every row is 16 equal slots, so a primary tooth sits directly
                   under the permanent tooth it will replace: 55↔15, 54↔14 …
                   51↔11, 61↔21 … 65↔25 (FDI). The primary rows previously used
