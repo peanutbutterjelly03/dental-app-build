@@ -1958,6 +1958,8 @@ export const DentalChart = () => {
 
       {/* Tab Content */}
       <div className="relative overflow-hidden bg-card rounded-xl border border-border shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+        {/* Teal strip on every tab except Dental Chart, whose panels carry their own navy bars. */}
+        {activeTab !== 'chart' && <div className="absolute top-0 left-0 right-0 h-1 bg-teal-600 z-10" />}
 
         {years.length === 0 ? (
           <div className="p-12 text-center text-muted-foreground">
