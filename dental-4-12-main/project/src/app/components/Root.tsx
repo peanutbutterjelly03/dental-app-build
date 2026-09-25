@@ -406,8 +406,16 @@ export const Root = () => {
   // only the chevron toggles the group, via stopPropagation so it doesn't
   // also trigger the Link.
   const StudentsGroup = ({ studentsTab, children }: { studentsTab: typeof allTabs[0]; children: typeof allTabs }) => {
-    const isActive = isTabActive(studentsTab.path);
-    const childActive = children.some((c) => isTabActive(c.path));
+    // ⚠ `/dental-chart/:id` (singular, an individual pupil's chart) and
+    // `/students/…` (e.g. update-school-year) are NOT prefixes of any tab's
+    // own path (`/patients`, `/dental-charts` plural, `/treatment-records`),
+    // so `isTabActive` alone lost the highlight and closed the group the
+    // moment a dentist opened a student from the queue (user, 2026-09-25).
+    // These extra prefixes are the family the group actually covers.
+    const familyActive = (path: string) => location.pathname.startsWith(path);
+    const inDentalChart = familyActive('/dental-chart/');
+    const isActive = isTabActive(studentsTab.path) || familyActive('/students/');
+    const childActive = children.some((c) => isTabActive(c.path)) || inDentalChart;
     // Highlight tracks the REAL route only -- never the manual expand/collapse
     // state. Using `isOpen` here was the bug: toggle the group open, then
     // navigate to an unrelated page, and the gold pill stayed lit because
@@ -416,12 +424,14 @@ export const Root = () => {
     const highlighted = isActive || childActive;
     const isOpen = openStudents || childActive;
     const Icon = studentsTab.icon;
-    // Every click toggles, in addition to navigating -- first click from
-    // elsewhere opens it (and lands on Students), a second click while
-    // already there closes it, a third reopens it, and so on.
+    // ⚠ Click-to-navigate never closes the group (user, 2026-09-25): it used
+    // to toggle on every click, so returning to Students while already
+    // inside the family collapsed it as a side effect of just navigating.
+    // Only the chevron (below) opens OR closes on click; this row always
+    // ensures the group is open, whichever way you arrived.
     const onRowClick = () => {
       setDrawerOpen(false);
-      setOpenStudents((v) => !v);
+      setOpenStudents(true);
     };
     return (
       <div>
@@ -454,7 +464,9 @@ export const Root = () => {
         {isOpen && !collapsed && (
           <div className="mt-1.5 ml-[30px] mr-7 pl-3 border-l border-white/15 flex flex-col gap-1">
             {children.map((child) => {
-              const childIsActive = isTabActive(child.path);
+              // Dental Charts also covers `/dental-chart/:id`, an individual
+              // pupil's chart -- see inDentalChart above.
+              const childIsActive = isTabActive(child.path) || (child.path === '/dental-charts' && inDentalChart);
               const ChildIcon = child.icon;
               return (
                 <Link

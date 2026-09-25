@@ -177,19 +177,25 @@ export const DentalChartNav = () => {
                 <th className="text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Section</th>
                 <th className="text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Gender</th>
                 <th className="text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Age</th>
+                {/* Position in the actual queue (queueStorage's stored order,
+                    user 2026-09-25) — NOT the row index in `#`, which follows
+                    this list's own alphabetical sort and can disagree with
+                    who was queued first. Blank for a student never queued. */}
+                <th className="text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Queue #</th>
                 <th className="text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground sm:pr-6">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                  <td colSpan={8} className="px-4 py-10 text-center text-sm text-muted-foreground">
                     {viewMode === 'queued' && queuedStudentIds.length === 0
                       ? 'No students queued for charting yet — use "Queue for Charting" on the Students page, or switch to Full List.'
                       : 'No dental charts match the selected filters.'}
                   </td>
                 </tr>
               ) : pager.paged.map((p, i) => {
+                const queuePosition = queuedStudentIds.indexOf(p.id);
                 const age = calculateAge(p.birthdate);
                 const gc = getGradeColor(p.grade);
                 const open = () => navigate(`/dental-chart/${p.id}?tab=history&context=dental-queue`);
@@ -208,6 +214,7 @@ export const DentalChartNav = () => {
                     <td className="px-4 py-2.5 text-muted-foreground">{p.section}</td>
                     <td className="px-4 py-2.5 text-muted-foreground">{p.gender}</td>
                     <td className="px-4 py-2.5 text-muted-foreground">{age}</td>
+                    <td className="px-4 py-2.5 text-muted-foreground">{queuePosition >= 0 ? queuePosition + 1 : '—'}</td>
                     <td className="px-4 py-2.5 sm:pr-6">
                       {/* The row was already clickable; the button makes that
                           visible rather than folklore, and matches the Actions
