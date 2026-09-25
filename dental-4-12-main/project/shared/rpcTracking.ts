@@ -162,6 +162,18 @@ export interface RPCRow {
   nextVisitNumber: 1 | 2 | null;
 }
 
+/** Visit 2's due date -- 4 calendar months after Visit 1, the earliest of
+ *  the DOH 4-6 month window -- or null when there is nothing to be due
+ *  (Visit 1 hasn't happened, or Visit 2 already has). One definition shared
+ *  by the RPC list's own "Dec 2026 / 97d" column and 'due_this_month'
+ *  sorting below, so they cannot disagree about what "due" means. */
+export function dueDateOf(r: Pick<RPCRow, 'visit1Date' | 'visit2Date'>): Date | null {
+  if (!r.visit1Date || r.visit2Date) return null;
+  const d = new Date(`${r.visit1Date}T00:00:00`);
+  d.setMonth(d.getMonth() + 4);
+  return d;
+}
+
 
 export function buildRpcRows(input: RpcInput): RPCRow[] {
   const { students, schools, iptrs, preventives, charts, toothRecords } = input;
@@ -354,9 +366,15 @@ export interface RpcListQuery {
   /** 'date_desc' (the resting value, user 2026-09-25 -- newest activity
    *  first) and 'date_asc' sort by the LATEST of Visit 1/Visit 2 date, not
    *  just Visit 1 -- a pupil with a recent Visit 2 leads a pupil whose only
-   *  visit was older, rows with no visit yet sorted last either way. 'all'
-   *  keeps the rows' own alphabetical-by-surname order. */
+   *  visit was older, rows with no visit yet sorted last either way.
+   *  'due_this_month' brings rows whose Visit 2 falls due within the
+   *  CURRENT calendar month to the top, soonest first; everyone else keeps
+   *  'date_desc' order below them. 'all' keeps the rows' own
+   *  alphabetical-by-surname order. */
   sort?: string;
+  /** Fixed "now" for 'due_this_month', ms since epoch — same testability
+   *  pattern as `buildRpcRows`'s own `input.now`. Defaults to Date.now(). */
+  now?: number;
   limit?: number;
   offset?: number;
 }
@@ -415,6 +433,35 @@ export function filterRpcRows(all: RPCRow[], query: RpcListQuery): RpcListPage {
       if (at === null) return 1; // no visit yet — always last
       if (bt === null) return -1;
       return (at - bt) * dir;
+    });
+  } else if (query.sort === 'due_this_month') {
+    // Rows due within the CURRENT calendar month rise to the top, soonest
+    // first -- a worklist for "what needs doing before the month is out",
+    // not a filter: everyone else stays visible, in the normal date_desc
+    // order, below the due group.
+    const now = new Date(query.now ?? Date.now());
+    const month = now.getMonth();
+    const year = now.getFullYear();
+    const dueThisMonth = (r: RPCRow) => {
+      const d = dueDateOf(r);
+      return d != null && d.getMonth() === month && d.getFullYear() === year;
+    };
+    const latestVisit = (r: RPCRow) => {
+      const dates = [r.visit1Date, r.visit2Date].filter((d): d is string => !!d).map((d) => new Date(d).getTime());
+      return dates.length ? Math.max(...dates) : null;
+    };
+    sortedRows = [...rows].sort((a, b) => {
+      const aDue = dueThisMonth(a);
+      const bDue = dueThisMonth(b);
+      if (aDue !== bDue) return aDue ? -1 : 1; // due-this-month group first
+      if (aDue && bDue) return (dueDateOf(a) as Date).getTime() - (dueDateOf(b) as Date).getTime(); // soonest first
+      // Below the group: same date_desc order 'date_desc' itself uses.
+      const at = latestVisit(a);
+      const bt = latestVisit(b);
+      if (at === null && bt === null) return 0;
+      if (at === null) return 1;
+      if (bt === null) return -1;
+      return bt - at;
     });
   }
 

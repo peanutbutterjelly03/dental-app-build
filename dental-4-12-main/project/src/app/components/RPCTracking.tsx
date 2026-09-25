@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { Search, X, CheckCircle, AlertCircle, Shield, School as SchoolIcon, List, ChevronLeft, ChevronRight, ChevronUp, Eye, Users, ChevronDown } from 'lucide-react';
 import { getGradeColor } from '../utils/gradeColors';
-import { useRPCTracking } from '../hooks/useRPCTracking';
+import { useRPCTracking, dueDateOf } from '../hooks/useRPCTracking';
 import { treatmentCodes, treatmentLabel } from '../utils/dentalChartCodes';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
 import { PAGE_SIZE_OPTIONS } from './Pagination';
@@ -339,7 +339,7 @@ export const RPCTracking = () => {
               that year, the only school-year fact this join actually has
               (a visit isn't itself scoped to one). */}
           <FS value={schoolYearFilter} onChange={setSchoolYearFilter} label="All School Years" opts={schoolYearOptions.map(y=>({v:y,l:`SY ${y}`}))} />
-          <PinnedLabelSelect value={sortFilter} onChange={setSortFilter} label="Sort Order" opts={[{v:'date_desc',l:'Latest Treatment First'},{v:'date_asc',l:'Oldest Treatment First'},{v:'all',l:'Name (A-Z)'}]} />
+          <PinnedLabelSelect value={sortFilter} onChange={setSortFilter} label="Sort Order" opts={[{v:'date_desc',l:'Latest Treatment First'},{v:'date_asc',l:'Oldest Treatment First'},{v:'due_this_month',l:'Due This Month'},{v:'all',l:'Name (A-Z)'}]} />
           {hasActiveFilters && <button onClick={clearFilters} title="Clear all filters" aria-label="Clear all filters" className="flex items-center justify-center p-2 text-destructive border border-red-200 rounded-lg hover:bg-red-50"><X className="w-4 h-4"/></button>}
         </div>
       </div>
@@ -395,12 +395,10 @@ export const RPCTracking = () => {
               ) : filtered.map(r => {
                 const sc = statusConfig[r.status] || statusConfig['not-started'];
                 const gc = getGradeColor(r.grade);
-                // 4 calendar months after Visit 1 — the earliest of the DOH
-                // 4–6 month window. Only meaningful once Visit 1 happened and
-                // Visit 2 has not; everyone else gets the dash below.
-                const dueDate = r.visit1Date && !r.visit2Date
-                  ? (() => { const d = new Date(`${r.visit1Date}T00:00:00`); d.setMonth(d.getMonth() + 4); return d; })()
-                  : null;
+                // Shared with 'due_this_month' sorting (shared/rpcTracking.ts)
+                // so the column and the sort can never disagree about what
+                // "due" means.
+                const dueDate = dueDateOf(r);
                 return (
                   <tr key={r.id} className={`hover:bg-gray-50 transition-colors ${r.status==='overdue'?'bg-red-50':''}`}>
                     <td className="px-4 py-3">

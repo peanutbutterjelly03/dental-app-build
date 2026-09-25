@@ -3,7 +3,7 @@ import { apiClient } from '../api/client';
 import { useLoadPhase } from './useLoadPhase';
 import type { RPCRow, RpcListPage, RpcListQuery } from '../../../shared/rpcTracking';
 
-export { SOUND_TEMPORARY, SOUND_PERMANENT } from '../../../shared/rpcTracking';
+export { SOUND_TEMPORARY, SOUND_PERMANENT, dueDateOf } from '../../../shared/rpcTracking';
 export type { RPCRow, RpcListQuery } from '../../../shared/rpcTracking';
 
 // ⚠ Sprint 140 moved this join to the server; Sprint 146 moved the FILTERS and
