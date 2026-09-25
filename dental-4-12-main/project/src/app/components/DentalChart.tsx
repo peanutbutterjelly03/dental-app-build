@@ -2234,7 +2234,7 @@ export const DentalChart = () => {
                 <div className={iptrContext === 'default' ? 'lg:pr-4' : undefined}>
                   <div className="flex items-center justify-between gap-2 mb-2 min-h-[26px]">
                     <div className="text-sm font-bold text-primary uppercase tracking-wide">Condition Codes</div>
-                    {chartedConditionCount > 0 && (
+                    {editingChart && chartedConditionCount > 0 && (
                       <button onClick={() => setConfirmClear('condition')}
                         className="flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1 text-[11px] font-semibold text-foreground transition-all hover:border-red-400 hover:text-destructive">
                         <Trash2 className="h-3 w-3" /> Clear All ({chartedConditionCount})
@@ -2291,7 +2291,7 @@ export const DentalChart = () => {
                 <div className={iptrContext === 'default' ? 'border-t border-border pt-4 lg:border-t-0 lg:pt-0 lg:border-l lg:pl-4' : undefined}>
                   <div className="flex items-center justify-between gap-2 mb-2 min-h-[26px]">
                     <div className="text-sm font-bold text-primary uppercase tracking-wide">Treatment Codes</div>
-                    {chartedTreatmentCount > 0 && (
+                    {editingChart && chartedTreatmentCount > 0 && (
                       <button onClick={() => setConfirmClear('treatment')}
                         className="flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1 text-[11px] font-semibold text-foreground transition-all hover:border-red-400 hover:text-destructive">
                         <Trash2 className="h-3 w-3" /> Clear All ({chartedTreatmentCount})
