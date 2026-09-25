@@ -288,6 +288,7 @@ export const DentalChart = () => {
   const [draftYear, setDraftYear] = useState<{ height_cm: string; weight_kg: string; grade_level: string; section: string }>({ height_cm: '', weight_kg: '', grade_level: '', section: '' });
   const [infoSaving, setInfoSaving] = useState(false);
   const [infoError, setInfoError] = useState<string | null>(null);
+  const [infoMissing, setInfoMissing] = useState<Set<string>>(new Set());
   const [yearMenuOpen, setYearMenuOpen] = useState(false);
   // ⚠ The menu is rendered FIXED, positioned from the button, because the year
   // strip is `overflow-x-auto` — and once overflow applies on one axis the
@@ -1121,7 +1122,33 @@ export const DentalChart = () => {
       section: iptr?.section ?? '',
     });
     setInfoError(null);
+    setInfoMissing(new Set());
     setEditingInfo(true);
+  };
+
+  // Same required fields as Add New Student (PatientList REQUIRED_STUDENT_FIELDS,
+  // user 2026-09-25): checked BEFORE the confirm step, so the dialog never
+  // asks to save a form that would be refused.
+  const requiredInfo = (d: typeof draftInfo) => [
+    { key: 'last_name', label: 'Last Name', on: true },
+    { key: 'first_name', label: 'First Name', on: true },
+    { key: 'birthday', label: 'Birthdate', on: true },
+    { key: 'sex', label: 'Sex', on: true },
+    { key: 'grade_level', label: 'Grade', on: !d.is_not_student },
+    { key: 'section', label: 'Section', on: !d.is_not_student },
+    { key: 'fourps_id', label: '4Ps ID', on: !!d.is_4ps },
+  ].filter((f) => f.on);
+  // Red " *" only while the field is required right now (Grade/Section drop
+  // it under "Not a Student"), and the per-field line after a refused save.
+  const infoReq = (key: string) => requiredInfo(draftInfo).some((f) => f.key === key) ? <span className="text-destructive"> *</span> : null;
+  const infoMiss = (key: string) => infoMissing.has(key) ? <p className="mt-1 text-xs text-destructive">This field is required.</p> : null;
+  const handleSaveInfoClick = () => {
+    if (!draftInfo) return;
+    const missing = requiredInfo(draftInfo).filter(({ key }) => !String((draftInfo as Record<string, unknown>)[key] ?? '').trim());
+    setInfoMissing(new Set(missing.map((m) => m.key)));
+    if (missing.length) { setInfoError(`Please fill in: ${missing.map((m) => m.label).join(', ')}.`); return; }
+    setInfoError(null);
+    setConfirmSaveInfo(true);
   };
 
   const handleSaveInfo = async () => {
@@ -2222,19 +2249,15 @@ export const DentalChart = () => {
                 expect. The `pointer-events-none` is what makes it honest. */}
             <div className="overflow-hidden rounded-xl border border-slate-300 bg-card">
             <div className="bg-primary px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-white">Charting Codes</div>
+            {/* View-mode warning (user pick "C", 2026-09-25): a soft red strip
+                under the bar, OUTSIDE the faded body so it reads at full strength. */}
+            {!editingChart && (
+              <p className="flex items-center gap-2 border-l-4 border-destructive bg-red-50 px-3.5 py-2 text-xs font-medium text-red-700">
+                <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+                {canEdit ? 'View mode. Click the pencil icon above to record conditions/treatments.' : 'View only. Editing restricted to Dentist.'}
+              </p>
+            )}
             <div className={`p-4 ${!editingChart ? 'opacity-60 pointer-events-none select-none' : ''}`}>
-              {!canEdit && (
-                <p className="inline-flex max-w-full items-center gap-1 rounded-full bg-destructive px-3 py-1.5 text-xs font-medium leading-none text-white mb-2">
-                  <AlertTriangle className="block w-3.5 h-3.5 flex-shrink-0 self-center" />
-                  View only. Editing restricted to Dentist.
-                </p>
-              )}
-              {canEdit && !editMode && (
-                <p className="inline-flex max-w-full items-center gap-1 rounded-full bg-destructive px-3 py-1.5 text-xs font-medium leading-none text-white mb-2">
-                  <AlertTriangle className="block w-3.5 h-3.5 flex-shrink-0 self-center" />
-                  View mode. Click the pencil icon above to record conditions/treatments.
-                </p>
-              )}
               <div className={`grid grid-cols-1 ${iptrContext === 'default' ? 'lg:grid-cols-2' : ''} gap-4`}>
                 {iptrContext !== 'treatment' && (
                 <div className={iptrContext === 'default' ? 'lg:pr-4' : undefined}>
@@ -2732,36 +2755,39 @@ export const DentalChart = () => {
           </div>
           <div className="space-y-4 p-6">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div><label className="block text-sm font-medium text-foreground mb-1">Last Name</label><input type="text" value={draftInfo.last_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, last_name: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
-              <div><label className="block text-sm font-medium text-foreground mb-1">First Name</label><input type="text" value={draftInfo.first_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, first_name: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+              <div><label className="block text-sm font-medium text-foreground mb-1">Last Name{infoReq('last_name')}</label><input type="text" value={draftInfo.last_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, last_name: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />{infoMiss('last_name')}</div>
+              <div><label className="block text-sm font-medium text-foreground mb-1">First Name{infoReq('first_name')}</label><input type="text" value={draftInfo.first_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, first_name: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />{infoMiss('first_name')}</div>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div><label className="block text-sm font-medium text-foreground mb-1">Middle Name</label><input type="text" value={draftInfo.middle_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, middle_name: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
-              <div><label className="block text-sm font-medium text-foreground mb-1">Birthdate</label><input type="date" value={draftInfo.birthday ? String(draftInfo.birthday).slice(0, 10) : ''} onChange={(e) => setDraftInfo((p) => ({ ...p, birthday: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+              <div><label className="block text-sm font-medium text-foreground mb-1">Birthdate{infoReq('birthday')}</label><input type="date" value={draftInfo.birthday ? String(draftInfo.birthday).slice(0, 10) : ''} onChange={(e) => setDraftInfo((p) => ({ ...p, birthday: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />{infoMiss('birthday')}</div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Age</label>
                 <input type="text" readOnly disabled value={draftInfo.birthday ? computeAge(String(draftInfo.birthday).slice(0, 10), new Date()) : ''} placeholder="Automatically calculated" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring cursor-not-allowed bg-muted text-muted-foreground" />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Sex</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Sex{infoReq('sex')}</label>
               <div className="grid grid-cols-2 gap-2">
                 {(['Male', 'Female'] as const).map((g) => (
                   <button key={g} type="button" onClick={() => setDraftInfo((p) => ({ ...p, sex: g }))}
                     className={`rounded-lg border-2 px-3 py-2 text-sm font-medium transition-colors ${draftInfo.sex === g ? 'border-primary-hover bg-primary text-white' : 'border-border text-foreground hover:bg-canvas'}`}>{g}</button>
                 ))}
               </div>
+              {infoMiss('sex')}
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Grade</label>
+                <label className="block text-sm font-medium text-foreground mb-1">Grade{infoReq('grade_level')}</label>
                 <select value={draftInfo.grade_level ?? ''} disabled={!!draftInfo.is_not_student} onChange={(e) => setDraftInfo((p) => ({ ...p, grade_level: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-card disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground">
                   <option value="">Select Grade</option>{GRADES.map((g) => <option key={g}>{g}</option>)}
                 </select>
+                {infoMiss('grade_level')}
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Section</label>
+                <label className="block text-sm font-medium text-foreground mb-1">Section{infoReq('section')}</label>
                 <input type="text" value={draftInfo.section ?? ''} disabled={!!draftInfo.is_not_student} onChange={(e) => setDraftInfo((p) => ({ ...p, section: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground" />
+                {infoMiss('section')}
               </div>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -2793,7 +2819,7 @@ export const DentalChart = () => {
               <label htmlFor="edit-is4ps" className="text-sm font-medium text-foreground">4Ps / NHTS Member</label>
             </div>
             {draftInfo.is_4ps && (
-              <div><label className="block text-sm font-medium text-foreground mb-1">4Ps ID</label><input type="text" value={draftInfo.fourps_id ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, fourps_id: e.target.value }))} placeholder="4PS-XXXXXXXX" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+              <div><label className="block text-sm font-medium text-foreground mb-1">4Ps ID{infoReq('fourps_id')}</label><input type="text" value={draftInfo.fourps_id ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, fourps_id: e.target.value }))} placeholder="4PS-XXXXXXXX" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />{infoMiss('fourps_id')}</div>
             )}
           </div>
           <div className="sticky bottom-0 z-10 border-t bg-card p-6">
@@ -2802,7 +2828,7 @@ export const DentalChart = () => {
             {infoError && <p role="alert" className="mb-3 rounded-lg border border-destructive/20 bg-danger-surface px-3 py-2 text-sm text-destructive">{infoError}</p>}
             <div className="flex gap-3">
             <button type="button" onClick={() => setEditingInfo(false)} disabled={infoSaving} className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-gray-50 disabled:opacity-60">Cancel</button>
-            <button type="button" onClick={() => setConfirmSaveInfo(true)} disabled={infoSaving || !infoDirty}
+            <button type="button" onClick={handleSaveInfoClick} disabled={infoSaving || !infoDirty}
               title={infoDirty ? undefined : 'No changes to save'} className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-60">{infoSaving ? 'Saving…' : 'Save Changes'}</button>
             </div>
           </div>
