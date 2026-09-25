@@ -193,13 +193,21 @@ export const RPCTracking = () => {
 
   // Trims any stray page scroll the estimate above leaves behind (e.g.
   // <main>'s own bottom padding), the same correction pass PatientList uses.
+  //
+  // ⚠ `pageSize` is ALSO a dep, not just `cardHeight` (user, 2026-09-25):
+  // leaving Hide can remeasure to the EXACT SAME cardHeight value Hide was
+  // already using (both are `window.innerHeight - top`, and `top` doesn't
+  // move between states) -- React bails out of the resulting setCardHeight
+  // as a no-op since the value didn't change, so this effect never got a
+  // second look at the DEFAULT view's real overflow (Hide's negative margin,
+  // which cancels it, is gone once you're back in the default view).
   useLayoutEffect(() => {
     if (cardHeight == null) return;
     const overflow = document.documentElement.scrollHeight - window.innerHeight;
     if (overflow > 0) {
       setCardHeight((h) => (h == null ? h : Math.max(h - overflow, 160)));
     }
-  }, [cardHeight]);
+  }, [cardHeight, pageSize]);
 
 
   // sectionFilter was missing from both of these — an active section filter
@@ -331,10 +339,19 @@ export const RPCTracking = () => {
           scrollHeight, and the overflow-correction pass above shrank the
           card by exactly that much to keep the page from scrolling -- a gap
           between the card and the true bottom of the screen. Cancelling the
-          padding removes the overflow at its source, so the card settles at
-          its full `window.innerHeight - top` height and actually reaches
-          the edge. Only in Hide: the default view keeps that breathing room. */}
-      <div ref={cardRef} className={`flex flex-col bg-card rounded-xl border border-border overflow-hidden ${pageSize === HIDE_FOOTER ? '-mb-4 md:-mb-8' : ''}`} style={{ height: cardHeight ?? undefined }}>
+          padding removes the overflow at its source, so the card can settle
+          at its full `window.innerHeight - top` CAP when it needs to.
+          Only in Hide: the default view keeps that breathing room. */}
+      {/* Hide also uses `maxHeight`, not `height` (user, 2026-09-25): a FEW
+          rows should let the card end right after the reveal tab -- its
+          natural content height, rounded corner and all -- not stretch to
+          the cap and leave dead white space (with no border closing it off)
+          below the tab. MANY rows still hit the cap and scroll inside the
+          rows box exactly as before; only which CSS property does the
+          capping changes, not the cap's value or how it is measured. The
+          default view keeps `height` -- it deliberately always fills the
+          space (see the box's own comment above), unlike Hide. */}
+      <div ref={cardRef} className={`flex flex-col bg-card rounded-xl border border-border overflow-hidden ${pageSize === HIDE_FOOTER ? '-mb-4 md:-mb-8' : ''}`} style={pageSize === HIDE_FOOTER ? { maxHeight: cardHeight ?? undefined } : { height: cardHeight ?? undefined }}>
         {/* Column headings stick to the TOP OF THIS BOX via `sticky` on each
             `<th>`, not the `<tr>` (a sticky `<tr>` rendered as a duplicate
             mid-table in some browsers, see PatientList). */}
