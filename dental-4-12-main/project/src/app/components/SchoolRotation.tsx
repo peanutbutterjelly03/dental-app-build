@@ -195,7 +195,12 @@ export function SchoolRotationTab() {
               <span className={`mt-1 block text-xs ${sch ? (big ? 'text-white/85' : 'text-muted-foreground') : 'font-semibold text-primary'}`}>
                 {sch ? sch.school_name : canEdit ? 'Set school ›' : 'No school set'}
               </span>
-              {rowFor(d)?.notes && <span className={`mt-1 block text-xs italic ${big && sch ? 'text-white/85' : 'text-muted-foreground'}`}>{rowFor(d)!.notes}</span>}
+              {rowFor(d)?.notes && (
+                <span className={`relative z-10 mt-2 block self-start rounded-lg px-2.5 py-1.5 text-xs ${big && sch ? 'bg-white/15 text-white' : 'border border-slate-200 bg-slate-50 text-slate-700'}`}>
+                  <span className={`mr-1.5 text-[9.5px] font-bold uppercase tracking-wider ${big && sch ? 'text-white/70' : 'text-slate-400'}`}>Note</span>
+                  {rowFor(d)!.notes}
+                </span>
+              )}
               {big && sch && <span aria-hidden="true" className="pointer-events-none absolute -right-8 -top-8 h-36 w-36 rounded-full bg-white/10" />}
             </>
           );
@@ -236,12 +241,20 @@ export function SchoolRotationTab() {
                   <span>{WEEKDAY[d.getDay()]}{isToday ? ' · Today' : ''}</span>
                   <span className="normal-case">{MONTH[d.getMonth()]} {d.getDate()}</span>
                 </span>
-                <span className="block px-3 py-3">
+                <span className="block px-3 pt-3 pb-2.5">
                   <span className={`block font-extrabold leading-tight ${sch && getSchoolAcronym(sch.school_name).length > 8 ? 'text-[16px]' : 'text-[19px]'}`}
                     style={{ color: c?.solid ?? '#94a3b8' }}>{sch ? getSchoolAcronym(sch.school_name) : 'Not set'}</span>
                   {sch && <span className="mt-0.5 block text-[11px] text-muted-foreground">{getSchoolShortName(sch.school_name)}</span>}
-                  {note && <span className="mt-1 block text-[11px] italic text-muted-foreground">{note}</span>}
                   {canEdit && <span className="mt-2.5 block text-xs font-semibold text-primary">{sch ? 'Change ›' : 'Set school ›'}</span>}
+                </span>
+                {/* Note space on EVERY card (user's pick "C", 2026-09-25): a grey
+                    box with a small NOTE caption, pinned to the bottom so the
+                    five boxes line up; empty when the day has no note. */}
+                <span className="mx-3 mb-3 mt-auto block h-[62px] overflow-hidden rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5" title={note || undefined}>
+                  <span className="block text-[9.5px] font-bold uppercase tracking-wider text-slate-400">Note</span>
+                  {/* Fixed height so the five boxes match; a long note shows two
+                      lines and the rest on hover. */}
+                  {note && <span className="mt-0.5 line-clamp-2 break-words text-[11.5px] leading-snug text-slate-700">{note}</span>}
                 </span>
               </>
             );
