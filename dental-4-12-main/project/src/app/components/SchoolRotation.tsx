@@ -244,7 +244,7 @@ export function SchoolRotationTab() {
             <button type="button" onClick={() => setWeekStart(mondayOf(new Date()))} className="text-xs font-semibold text-primary hover:underline">This week</button>
           )}
           <button type="button" onClick={toggleNotes} aria-pressed={showNotes}
-            className="ml-auto text-xs font-semibold text-primary underline underline-offset-2 hover:text-primary-hover">
+            className="ml-auto -mb-2 self-end text-xs font-normal leading-none text-primary underline underline-offset-2 hover:text-primary-hover">
             {showNotes ? 'Hide notes' : 'Show notes'}
           </button>
         </div>
