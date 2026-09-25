@@ -820,6 +820,13 @@ export const DentalChart = () => {
   // "Edit date" in the School year menu (user, 2026-09-24): the date stamp
   // under each year chip is that year's DENTAL_CHART.date_charted.
   const [confirmSaveInfo, setConfirmSaveInfo] = useState(false);
+  // Save Changes is only live once something actually differs from the
+  // record (user, 2026-09-25). Blank and missing count as the same value.
+  const infoDirty = !!draftInfo && !!student && (
+    (Object.keys(draftInfo) as (keyof typeof draftInfo)[]).some((k) => String(draftInfo[k] ?? '') !== String((student as any)[k] ?? ''))
+    || draftYear.grade_level !== (years[selectedYear]?.iptr.grade_level ?? '')
+    || draftYear.section !== (years[selectedYear]?.iptr.section ?? '')
+  );
   const [editDateYear, setEditDateYear] = useState<number | null>(null);
   const [editDateValue, setEditDateValue] = useState('');
   const [editDateSaving, setEditDateSaving] = useState(false);
@@ -2383,7 +2390,10 @@ export const DentalChart = () => {
                 Hidden in charting mode for the same reason: a read-out is not
                 a charting surface. */}
             {!chartingMode && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 items-start gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-[2fr_3fr] items-start gap-4">
+              {/* Side by side from lg: Dental Condition Summary narrower (2fr),
+                  Treatment Summary wider (3fr), user 2026-09-25. Stacked below
+                  lg, both are full width, so the same size. */}
               {/* ── The two summaries, "option A" (user, 2026-09-24): white
                   cards with a coloured header band, soft striped rows, bold
                   counts, tooth numbers as small tags and "Yes" as a green
@@ -2772,7 +2782,8 @@ export const DentalChart = () => {
             {infoError && <p role="alert" className="mb-3 rounded-lg border border-destructive/20 bg-danger-surface px-3 py-2 text-sm text-destructive">{infoError}</p>}
             <div className="flex gap-3">
             <button type="button" onClick={() => setEditingInfo(false)} disabled={infoSaving} className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-gray-50 disabled:opacity-60">Cancel</button>
-            <button type="button" onClick={() => setConfirmSaveInfo(true)} disabled={infoSaving} className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-60">{infoSaving ? 'Saving…' : 'Save Changes'}</button>
+            <button type="button" onClick={() => setConfirmSaveInfo(true)} disabled={infoSaving || !infoDirty}
+              title={infoDirty ? undefined : 'No changes to save'} className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-60">{infoSaving ? 'Saving…' : 'Save Changes'}</button>
             </div>
           </div>
         </Modal>
