@@ -1,13 +1,17 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router';
-import { X, School as SchoolIcon, Eye } from 'lucide-react';
+import { X, School as SchoolIcon, Eye, Users, Calendar, Clipboard, Shield } from 'lucide-react';
 import { GradePill } from './GradePill';
 import { getSchoolColor, getSchoolShortName } from '../utils/schoolColors';
 import { getGradeColor } from '../utils/gradeColors';
 import { ListSearchInput } from './ListSearchInput';
 import { getQueuedStudentIds } from '../utils/queueStorage';
 import { useStudents } from '../hooks/useStudents';
+import { useRPCTracking } from '../hooks/useRPCTracking';
 import { useAuth } from '../context/AuthContext';
+import { apiClient } from '../api/client';
+import type { ApiAppointment, ApiStudentIptr, ApiTreatment } from '../api/types';
+import { toLocalDateString } from '../utils/localDate';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
 import { activatable } from '../utils/a11y';
 import { Pagination, usePagination } from './Pagination';
@@ -59,6 +63,56 @@ export const DentalChartNav = () => {
     () => (viewMode === 'queued' ? allPatients.filter((p) => queuedStudentIds.includes(p.id)) : allPatients),
     [viewMode, queuedStudentIds, allPatients],
   );
+
+  // ── Stat row + "Up Next" spotlight (user, 2026-09-25) ───────────────────
+  // Whoever is first in the ACTUAL queue order (queueStorage), not the
+  // table's own alphabetical sort — same distinction as the Queue # column.
+  const upNext = useMemo(
+    () => (queuedStudentIds.length ? allPatients.find((p) => p.id === queuedStudentIds[0]) ?? null : null),
+    [queuedStudentIds, allPatients],
+  );
+
+  // For Treatment: students at this school with at least one TREATMENT
+  // record — same query TreatmentRecords.tsx runs for its own "Treatment
+  // List" view, so the two counts can't disagree.
+  const [treatmentStudentIds, setTreatmentStudentIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const [iptrs, treatments] = await Promise.all([
+        apiClient.get<ApiStudentIptr[]>('/student-iptrs'),
+        apiClient.get<ApiTreatment[]>('/treatments'),
+      ]);
+      const studentIdByIptr = new Map(iptrs.map((i) => [i._id, i.student_id]));
+      const ids = new Set(treatments.map((t) => studentIdByIptr.get(t.iptr_id)).filter((id): id is string => !!id));
+      if (!cancelled) setTreatmentStudentIds(ids);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  const forTreatmentCount = useMemo(
+    () => allPatients.filter((p) => treatmentStudentIds.has(p.id)).length,
+    [allPatients, treatmentStudentIds],
+  );
+
+  // Appointments Today: this school's pupils with a non-archived
+  // appointment on today's LOCAL calendar date.
+  const [appointmentsToday, setAppointmentsToday] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const appts = await apiClient.get<ApiAppointment[]>('/appointments');
+      const today = toLocalDateString(new Date());
+      const schoolIds = new Set(allPatients.map((p) => p.id));
+      const count = appts.filter((a) => !a.isArchived && schoolIds.has(a.student_id) && toLocalDateString(new Date(a.appointment_datetime)) === today).length;
+      if (!cancelled) setAppointmentsToday(count);
+    })();
+    return () => { cancelled = true; };
+  }, [allPatients]);
+
+  // RPC: outstanding (pending or overdue Visit 2) rows at this school --
+  // same 'outstanding' meaning RPC Monitoring's own default view uses.
+  // limit: 1 -- only `.total` is read, not the rows themselves.
+  const { total: rpcOutstandingCount } = useRPCTracking({ school: selectedSchool ?? undefined, status: 'outstanding', limit: 1 });
 
   const allSections = useMemo(() => {
     const base = gradeFilter !== 'all' ? sourcePatients.filter((p) => p.grade === gradeFilter) : sourcePatients;
@@ -112,8 +166,64 @@ export const DentalChartNav = () => {
   const kickerColor = getSchoolColor(selectedSchool || '');
   const kickerLabel = selectedSchool ? getSchoolShortName(selectedSchool) : 'All schools';
 
+  // Four cards, styled after RAMHIS's Doctor Queue stat row (user,
+  // 2026-09-25), each tied to a real, already-computed count above --
+  // nothing here is a placeholder number.
+  const statCards = [
+    { label: 'Students Queue', value: allPatients.filter((p) => queuedStudentIds.includes(p.id)).length, icon: Users, bg: '#E8ECF6', fg: '#273A78' },
+    { label: 'Appointments Today', value: appointmentsToday, icon: Calendar, bg: '#FFFBEB', fg: '#B45309' },
+    { label: 'For Treatment', value: forTreatmentCount, icon: Clipboard, bg: '#EFF6FF', fg: '#1D4ED8' },
+    { label: 'RPC', value: rpcOutstandingCount, icon: Shield, bg: '#FDF2F8', fg: '#BE185D' },
+  ];
+
   return (
     <div className="space-y-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {statCards.map(({ label, value, icon: Icon, bg, fg }) => (
+          <div key={label} className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">
+            <span style={{ backgroundColor: bg, color: fg }} className="w-9 h-9 flex-shrink-0 rounded-lg grid place-items-center">
+              <Icon className="w-4 h-4" />
+            </span>
+            <div className="min-w-0">
+              <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground truncate">{label}</div>
+              <div className="text-xl font-bold text-foreground">{value}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid lg:grid-cols-[280px_1fr] gap-4 items-start">
+        {/* "Up Next": shorter than the queue table beside it (user,
+            2026-09-25 -- option B of the design review), not stretched to
+            match its full height. Mirrors RAMHIS's own empty state when
+            nothing is queued. */}
+        <div className="bg-card rounded-2xl border border-border shadow-sm p-5 flex flex-col items-center justify-center text-center gap-2 min-h-[200px]">
+          {upNext ? (
+            <>
+              <span style={{ backgroundColor: getGradeColor(upNext.grade).light, color: getGradeColor(upNext.grade).solid }} className="w-12 h-12 rounded-full grid place-items-center text-sm font-bold">
+                {initials(upNext.name)}
+              </span>
+              <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Up Next</div>
+              <div className="font-bold text-foreground">{upNext.name}</div>
+              <div className="text-xs text-muted-foreground">{upNext.grade} · {upNext.section} · Queue #1</div>
+              <button
+                onClick={() => navigate(`/dental-chart/${upNext.id}?tab=history&context=dental-queue`)}
+                className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted"
+              >
+                <Eye className="w-3.5 h-3.5" /> Open chart
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="w-12 h-12 rounded-full bg-gray-100 grid place-items-center">
+                <Users className="w-5 h-5 text-muted-foreground" />
+              </span>
+              <div className="font-bold text-foreground">No Students Queued</div>
+              <div className="text-xs text-muted-foreground">Use "Queue for Charting" on the Students page.</div>
+            </>
+          )}
+        </div>
+
       <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
         <div className="p-5 sm:p-6 space-y-4 border-b border-border">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -247,6 +357,7 @@ export const DentalChartNav = () => {
             />
           </div>
         )}
+      </div>
       </div>
     </div>
   );
