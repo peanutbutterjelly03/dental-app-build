@@ -225,7 +225,10 @@ export const DentalChartNav = () => {
         </div>
 
       <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
-        <div className="p-5 sm:p-6 space-y-4 border-b border-border">
+        {/* Light banner tint on the identity block only, matching the
+            RAMHIS reference's off-white header strip (user, 2026-09-25) --
+            distinct from the white card body (search/filters/table) below. */}
+        <div className="p-5 sm:p-6 space-y-4 border-b border-border bg-gray-50/70 rounded-t-2xl">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0 flex items-start gap-4">
               <span style={{ backgroundColor: kickerColor.light }} className="w-12 h-12 rounded-2xl grid place-items-center flex-shrink-0">
