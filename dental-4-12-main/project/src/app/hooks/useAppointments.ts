@@ -20,6 +20,9 @@ export interface SessionStudent {
   appointmentId: string;
   /** Remark on that appointment; '' when unset. */
   notes: string;
+  /** APPOINTMENT flags, shown in the details panel (2026-09-25). */
+  requiresFollowup: boolean;
+  parentalSupervision: boolean;
 }
 
 export interface AppointmentSession {
@@ -100,6 +103,8 @@ function buildSessions(
       riskLevel: null,
       appointmentId: appt._id,
       notes: appt.notes ?? '',
+      requiresFollowup: !!appt.requires_followup,
+      parentalSupervision: !!appt.parental_supervision_required,
     });
   }
   return Array.from(groups.values());

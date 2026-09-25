@@ -456,6 +456,15 @@ export const Appointments = () => {
   // underlying appointment_datetime (same PUT the create form uses) and
   // resets status to Scheduled, since a rescheduled visit is not the old
   // missed one anymore.
+  // Details side panel (user's pick "B", 2026-09-25). Held by id and looked up
+  // fresh each render, so a status change made from the panel shows at once.
+  const [detailId, setDetailId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!detailId) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setDetailId(null); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [detailId]);
   const [rescheduleTarget, setRescheduleTarget] = useState<AppointmentSession | null>(null);
   const [rescheduleDate, setRescheduleDate] = useState('');
   const [rescheduleTime, setRescheduleTime] = useState('');
@@ -689,7 +698,12 @@ export const Appointments = () => {
         </div>
 
         <div className="flex-1 min-w-0 bg-card flex items-center justify-between gap-3 px-4 py-3">
-          <div className="min-w-0 flex-1 flex items-center gap-3">
+          {/* Click (or Enter) opens the details side panel. The action
+              buttons on the right sit outside this area, so they keep
+              working exactly as before. */}
+          <div role="button" tabIndex={0} onClick={() => setDetailId(a.id)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDetailId(a.id); } }}
+            title="Show details" className="min-w-0 flex-1 flex items-center gap-3 cursor-pointer rounded-lg focus-visible:outline-2 focus-visible:outline-primary">
             <div style={{ backgroundColor: iconBg, color: iconColor }} className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0">
               {genderIcon}
             </div>
@@ -1390,6 +1404,113 @@ export const Appointments = () => {
         </Modal>
       )}
 
+      {/* ── Appointment details side panel (option B, 2026-09-25) ── */}
+      {(() => {
+        const d = detailId ? appointments.find((x) => x.id === detailId) : null;
+        if (!d) return null;
+        const status = getStatus(d);
+        const sole = d.studentCount === 1 ? d.students[0] : null;
+        const when = new Date(`${d.date}T${d.time}`);
+        const whenText = `${when.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })} · ${formatTimeBlock(d.time).clock} ${formatTimeBlock(d.time).ampm}`;
+        const flags = sole ? [sole.requiresFollowup && 'Follow-up', sole.parentalSupervision && 'Parent present'].filter(Boolean) as string[] : [];
+        const canResolve = !d.pending && (status === 'Scheduled' || status === 'Missed' || status === 'In Progress');
+        const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
+          <div className="min-w-0">
+            <div className="text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground">{label}</div>
+            <div className="mt-0.5 break-words text-sm font-semibold text-foreground">{children}</div>
+          </div>
+        );
+        const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
+          <div className="border-b border-border px-5 py-4">
+            <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{title}</div>
+            {children}
+          </div>
+        );
+        return (
+          <div className="fixed inset-0 z-[80] flex justify-end">
+            <div className="absolute inset-0 bg-black/30" onClick={() => setDetailId(null)} aria-hidden="true" />
+            <aside role="dialog" aria-modal="true" aria-label="Appointment details"
+              className="relative flex h-full w-full flex-col bg-card shadow-[-20px_0_50px_rgba(15,23,42,0.25)] sm:w-[420px]">
+              <div className="flex items-center gap-3 border-b border-border px-5 py-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+                  style={{ backgroundColor: sole?.gender === 'Female' ? '#FCE7F3' : '#DBEAFE', color: sole?.gender === 'Female' ? '#DB2777' : '#1E40AF' }}>
+                  {sole?.gender === 'Female' ? <Venus className="h-5 w-5" /> : sole?.gender === 'Male' ? <Mars className="h-5 w-5" /> : <span className="text-sm font-bold">{d.grade.replace('Grade ', 'G')}</span>}
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate text-base font-extrabold text-foreground">{sole ? sole.name : `${d.grade}-${d.section}`}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {sole ? `${sole.gender} · ${sole.age} years · ${d.grade}-${d.section}` : `${d.studentCount} students`}
+                  </div>
+                </div>
+                <button type="button" onClick={() => setDetailId(null)} aria-label="Close details"
+                  className="ml-auto rounded-lg p-1.5 text-muted-foreground hover:bg-gray-100"><X className="h-4 w-4" /></button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto">
+                <Section title="Appointment">
+                  <div className="grid grid-cols-2 gap-x-5 gap-y-3">
+                    <Field label="When">{whenText}</Field>
+                    <Field label="Status"><span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${statusBadge(status)}`}>{status}</span></Field>
+                    <Field label="Type">{d.type}</Field>
+                    <Field label="Dentist">{d.dentist}</Field>
+                  </div>
+                </Section>
+                <Section title="Patient">
+                  <div className="grid grid-cols-2 gap-x-5 gap-y-3">
+                    <Field label="School">{d.school}</Field>
+                    <Field label="Guardian contact">{d.guardianContactNumber || 'Not recorded'}</Field>
+                    <Field label="Flags">
+                      {flags.length
+                        ? <span className="flex flex-wrap gap-1">{flags.map((f) => <span key={f} className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">{f}</span>)}</span>
+                        : <span className="font-normal text-muted-foreground">None</span>}
+                    </Field>
+                    {sole && (
+                      <Field label="Record">
+                        <Link to={`/dental-chart/${sole.id}`} className="text-primary hover:underline">Open dental chart ›</Link>
+                      </Field>
+                    )}
+                  </div>
+                  {!sole && (
+                    <ul className="mt-3 space-y-1.5">
+                      {d.students.map((st) => (
+                        <li key={st.appointmentId} className="flex items-center justify-between gap-2 text-sm">
+                          <span className="truncate">{st.name} <span className="text-xs text-muted-foreground">· {st.gender} · {st.age}</span></span>
+                          <Link to={`/dental-chart/${st.id}`} className="shrink-0 text-xs font-semibold text-primary hover:underline">Chart ›</Link>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </Section>
+                <Section title="Note">
+                  <div className="min-h-[44px] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                    {sole ? (sole.notes || <span className="text-muted-foreground">No note</span>)
+                      : d.students.some((st) => st.notes)
+                        ? d.students.filter((st) => st.notes).map((st) => <div key={st.appointmentId}><b>{st.name}:</b> {st.notes}</div>)
+                        : <span className="text-muted-foreground">No note</span>}
+                  </div>
+                </Section>
+              </div>
+
+              {/* Same rules as the row's Actions menu: In Progress can only be
+                  completed; a future date cannot be a no-show yet. */}
+              {canResolve && (
+                <div className="flex flex-wrap gap-2 border-t border-border px-5 py-4">
+                  <button type="button" onClick={() => setConfirmStatusAction({ session: d, status: 'Completed' })}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-700"><Check className="h-4 w-4" /> Completed</button>
+                  {status !== 'In Progress' && d.date <= TODAY && (
+                    <button type="button" onClick={() => setConfirmStatusAction({ session: d, status: 'Missed' })}
+                      className="rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-destructive hover:bg-danger-surface">Missed</button>
+                  )}
+                  {status !== 'In Progress' && (
+                    <button type="button" onClick={() => { setDetailId(null); openReschedule(d); }}
+                      className="rounded-lg border border-border px-3 py-2 text-sm font-semibold text-foreground hover:bg-gray-50">Reschedule</button>
+                  )}
+                </div>
+              )}
+            </aside>
+          </div>
+        );
+      })()}
       <ConfirmDialog
         open={!!confirmStatusAction}
         title={confirmStatusAction?.status === 'Missed' ? 'Mark as missed?' : 'Mark as attended?'}
