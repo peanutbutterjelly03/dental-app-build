@@ -424,18 +424,21 @@ export const Root = () => {
     const highlighted = isActive || childActive;
     const isOpen = openStudents || childActive;
     const Icon = studentsTab.icon;
-    // Row click toggles the group open/closed same as the chevron -- user,
-    // 2026-09-25: expand/collapse should work from anywhere on the row, not
-    // just two clicks on the small chevron button.
+    // A single click anywhere on the row opens the group (or is a no-op if
+    // already open); closing it takes two consecutive clicks -- user,
+    // 2026-09-25. `onDoubleClick` fires after the browser's own two `click`
+    // events, so the single-click handler below never closes on its own.
     const onRowClick = () => {
       setDrawerOpen(false);
-      setOpenStudents((v) => !v);
+      setOpenStudents(true);
     };
+    const onRowDoubleClick = () => setOpenStudents(false);
     return (
       <div>
         <Link
           to={studentsTab.path}
           onClick={onRowClick}
+          onDoubleClick={onRowDoubleClick}
           title={collapsed ? studentsTab.label : undefined}
           aria-current={isActive ? 'page' : undefined}
           className={`mx-7 rounded-full min-h-12 flex items-center gap-3 px-4 transition-colors ${
