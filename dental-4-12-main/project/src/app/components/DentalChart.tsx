@@ -2472,9 +2472,9 @@ export const DentalChart = () => {
                   <colgroup><col className="w-[30%]" /><col className="w-[15%]" /><col className="w-[20%]" /><col className="w-[15%]" /><col className="w-[20%]" /></colgroup>
                   <thead>
                     <tr>
-                      {/* Greys only, a different shade per cell, headings in capitals
-                          (user, 2026-09-25). */}
-                      <th className="bg-slate-50 px-3 py-2" />
+                      {/* Greys only, darkest to lightest from the empty corner cell
+                          (slate-300, 200, 100), headings in capitals (user, 2026-09-25). */}
+                      <th className="bg-slate-300 px-3 py-2" />
                       <th colSpan={2} className="bg-slate-200 px-3 py-2 text-center text-[11px] font-extrabold uppercase tracking-wider text-slate-700">Visit 1</th>
                       <th colSpan={2} className="bg-slate-100 px-3 py-2 text-center text-[11px] font-extrabold uppercase tracking-wider text-slate-700">Visit 2</th>
                     </tr>
