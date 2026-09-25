@@ -315,28 +315,24 @@ export const RPCTracking = () => {
       </div>
 
       <div className="bg-card rounded-xl border border-border overflow-hidden">
-        {/* Fixed height (not max-height), so this box is the only thing that
-            scrolls and it always fills down to the footer — see rowsHeight
-            above. Column headings stick to the TOP OF THIS BOX via `sticky`
-            on each `<th>`, not the `<tr>` (a sticky `<tr>` rendered as a
-            duplicate mid-table in some browsers, see PatientList). */}
-        {/* "Hide" (pageSize === HIDE_FOOTER) drops the fixed viewport-height
-            box entirely -- height auto, no internal scrollbar -- so every
-            row renders and the rows box, no longer sharing space with a
-            visible footer, flows all the way down to the reveal tab below. */}
-        <div ref={rowsWrapRef} className={pageSize === HIDE_FOOTER ? '' : 'overflow-auto'} style={{ height: pageSize === HIDE_FOOTER ? undefined : (rowsHeight ?? undefined) }}>
+        {/* Fixed height (not max-height), so THIS BOX is the only thing that
+            ever scrolls -- the page itself never does, in either state (user,
+            2026-09-25) -- and it always fills down to the footer. Column
+            headings stick to the TOP OF THIS BOX via `sticky` on each `<th>`,
+            not the `<tr>` (a sticky `<tr>` rendered as a duplicate mid-table
+            in some browsers, see PatientList). "Hide" (pageSize ===
+            HIDE_FOOTER) reuses this exact box: it just grows taller, because
+            rowsHeight below measures against the short reveal tab instead of
+            the full Showing/Items-per-page bar. */}
+        <div ref={rowsWrapRef} className="overflow-auto" style={{ height: rowsHeight ?? undefined }}>
           <table className="w-full text-sm">
-            {/* Sticky only while the rows box itself scrolls -- with HIDE_FOOTER
-                there is no scrolling ancestor here (the page scrolls
-                instead), so a sticky th would pin to the viewport's very
-                top, behind the topbar. */}
             <thead>
               <tr className="border-b border-border">
                 {['Student','Grade / Section','Visit 1','Visit 2','Status'].map(h => (
-                  <th key={h} className={`${pageSize === HIDE_FOOTER ? '' : 'sticky top-0 z-10'} bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground`}>{h}</th>
+                  <th key={h} className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{h}</th>
                 ))}
-                <th className={`${pageSize === HIDE_FOOTER ? '' : 'sticky top-0 z-10'} bg-gray-100 text-left pl-4 pr-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground`}>Days Until Due</th>
-                <th className={`${pageSize === HIDE_FOOTER ? '' : 'sticky top-0 z-10'} bg-gray-100 text-left pl-2 pr-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground`}>Actions</th>
+                <th className="sticky top-0 z-10 bg-gray-100 text-left pl-4 pr-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Days Until Due</th>
+                <th className="sticky top-0 z-10 bg-gray-100 text-left pl-2 pr-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -395,25 +391,24 @@ export const RPCTracking = () => {
             </tbody>
           </table>
         </div>
-        {/* "Hide" collapses this whole bar to the thin reveal tab, STICKY to
-            the bottom of the viewport (user, 2026-09-25) -- the page scrolls
-            through every row underneath it, but the tab itself never scrolls
-            away, so it stays reachable from anywhere in a long list. `sticky`
-            over `fixed`: it then respects <main>'s own margin, so it never
-            draws over the sidebar the way a viewport-wide fixed bar would.
-            Clicking it goes back to the original paginated design
-            (changePageSize(25)) -- the default view, not a third state.
-            footerRef only mounts with the full bar, which the rowsHeight
-            effect above already tolerates (a null ref reads as 0 height). */}
+        {/* "Hide" collapses the full Showing/Items-per-page bar to this thin
+            reveal tab -- footerRef stays attached either way (on this div, or
+            on the full footer below), so rowsHeight always measures against
+            whichever one is actually mounted and the rows box (the only
+            thing that ever scrolls) grows to fill the rest. Clicking it goes
+            back to the original paginated design (changePageSize(25)) -- the
+            default view, not a third state. */}
         {pageSize === HIDE_FOOTER ? (
-          <button
-            type="button"
-            onClick={() => changePageSize(25)}
-            title="Show pagination controls"
-            className="sticky inset-x-0 bottom-0 z-20 flex w-full items-center justify-center gap-1.5 border-t border-gray-200 bg-card py-1.5 text-[11px] font-medium text-muted-foreground shadow-[0_-2px_8px_rgba(15,23,42,0.06)] transition-colors hover:bg-canvas hover:text-foreground"
-          >
-            <ChevronUp className="h-3 w-3" /> Show pagination controls
-          </button>
+          <div ref={footerRef}>
+            <button
+              type="button"
+              onClick={() => changePageSize(25)}
+              title="Show pagination controls"
+              className="flex w-full items-center justify-center gap-1.5 border-t border-gray-100 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-canvas hover:text-foreground"
+            >
+              <ChevronUp className="h-3 w-3" /> Show pagination controls
+            </button>
+          </div>
         ) : (
         <div ref={footerRef} className="flex flex-col gap-3 border-t border-gray-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
