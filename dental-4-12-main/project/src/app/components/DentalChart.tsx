@@ -1911,7 +1911,11 @@ export const DentalChart = () => {
           "—" beside a completed consent reads as a missing signature rather
           than a missing field. It goes in once the data is real. */}
       {activeTab === 'history' && years.length > 0 && yearIptr && (
-        <div className="flex rounded-xl overflow-hidden border border-border shadow-[0_4px_14px_rgba(15,23,42,0.08)]">
+        // Navy "Consent" title bar like the Dental Chart panels (user pick "D",
+        // 2026-09-25), keeping the coloured icon block below it.
+        <div className="overflow-hidden rounded-xl border border-slate-300 bg-card">
+        <div className="bg-primary px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-white">Consent</div>
+        <div className="flex">
           <div className={`w-14 flex-shrink-0 flex items-center justify-center ${consentComplete ? 'bg-[#15803D]' : 'bg-[#B45309]'}`}>
             {consentComplete ? <ShieldCheck className="w-5 h-5 text-white" /> : <ShieldAlert className="w-5 h-5 text-white" />}
           </div>
@@ -1954,6 +1958,7 @@ export const DentalChart = () => {
               </span>
             </button>
           </div>
+        </div>
         </div>
       )}
 
@@ -2069,7 +2074,8 @@ export const DentalChart = () => {
             {/* Navy title bar panels (user pick "G", 2026-09-25); the
                 odontogram card below deliberately gets no bar. */}
             <div className="overflow-hidden rounded-xl border border-slate-300 bg-card">
-            <div className="bg-primary px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-white">Oral Conditions &amp; Treatments Given</div>
+            {/* Grey while not editable (user, 2026-09-25): navy means "you can change this". */}
+            <div className={`${editingHistory ? 'bg-primary' : 'bg-slate-400'} px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-white`}>Oral Conditions &amp; Treatments Given</div>
             <div className="p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className={editingHistory ? '' : 'opacity-60 pointer-events-none select-none'}>
                 <div className="flex flex-wrap items-center gap-3 mb-2">
@@ -2216,7 +2222,7 @@ export const DentalChart = () => {
                 palette that only exists after a click they have no reason to
                 expect. The `pointer-events-none` is what makes it honest. */}
             <div className="overflow-hidden rounded-xl border border-slate-300 bg-card">
-            <div className="bg-primary px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-white">Charting Codes</div>
+            <div className={`${editingChart ? 'bg-primary' : 'bg-slate-400'} px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-white`}>Charting Codes</div>
             {/* View-mode warning (user pick "C", 2026-09-25): a soft red strip
                 under the bar, OUTSIDE the faded body so it reads at full strength. */}
             {!editingChart && (
