@@ -249,6 +249,18 @@ export interface ApiReferral {
   isArchived: boolean;
 }
 
+/** DENTIST_ROTATION, used by the School Rotation tab as one row per DAY:
+ *  week_start = week_end = that day (the model's original weekly span still
+ *  reads correctly, see rotationByDay). */
+export interface ApiDentistRotation {
+  _id: string;
+  school_id: string;
+  dentist_id: string;
+  week_start: string;
+  week_end: string;
+  notes: string;
+}
+
 export interface ApiDentist {
   _id: string;
   school_id: string;

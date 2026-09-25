@@ -60,5 +60,6 @@ Exact from ERD Chapter 3. **Read this before touching any schema, model, or migr
 - **ISSUE-ONLY by design (2026-09-05).** `status` and `follow_up_date` exist but nothing drives a follow-up workflow: whether the clinic closes a referral out is unconfirmed with the dentist. Ask before building on them.
 
 **DENTIST_ROTATION** (NEW — not in original ERD, added Sprint 11) — rotation_id, school_id (FK), dentist_id (FK), week_start (DATE), week_end (DATE), notes (TEXT), isArchived, archivedAt, archivedBy
+- **Used again from 2026-09-24 (user-approved) by the Appointments → School Rotation tab, ONE ROW PER DAY:** week_start = week_end = that day (local midnight). Older multi-day rows still read correctly (a single-day row overrides a wider one on the same day). Route: `dateField: week_start`, `filterable: [dentist_id]`, archive allowed for dentist/aide ("Clear day"), restore admin-only. The Dashboard and the top bar show TODAY and TOMORROW only, to the dentist and the dental aide. ⚠ Still an ERD deviation; Chapter 3 must describe it.
 
 **AUDIT_TRAIL** — audit_id, user_id (FK), action (VARCHAR 100), timestamp (DATETIME), affected_record_id, affected_model (VARCHAR 50)

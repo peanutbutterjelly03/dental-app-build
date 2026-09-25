@@ -19,6 +19,7 @@ import { SkeletonBlock } from './Skeleton';
 import { PageHeader } from './PageHeader';
 import { CHART, RISK_COLORS, FUNNEL_RAMP } from '../utils/chartColors';
 import { getSchoolShortName } from '../utils/schoolColors';
+import { RotationDashboardCards } from './SchoolRotation';
 import { toLocalDateString, formatDateWithWeekday } from '../utils/localDate';
 import { 
   BarChart, 
@@ -501,6 +502,8 @@ export const Dashboard = () => {
           {/* 1 column stacked with horizontal rules, 4 columns with vertical
               rules from lg. No 2-column middle step: at that width the context
               lines wrap and the ledger stops reading as a single row. */}
+          {/* School rotation: where the dentist is today and tomorrow. */}
+          <RotationDashboardCards />
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <SummaryCell
               icon={Users}
@@ -789,6 +792,8 @@ export const Dashboard = () => {
             </span>
           </div>
 
+          {/* School rotation: where the dentist is today and tomorrow. */}
+          <RotationDashboardCards />
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <SummaryCell
               icon={Calendar}

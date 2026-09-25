@@ -20,6 +20,7 @@ const ROLE_ICONS: Record<string, typeof Stethoscope> = {
   system_admin: UserCog,
 };
 import { TOPBAR_H } from '../utils/layout';
+import { RotationTopBar } from './SchoolRotation';
 import { SyncStatus } from './SyncStatus';
 import { useOfflineQueue } from '../hooks/useOfflineQueue';
 import { useNotifications, NOTIFIED_ROLES } from '../hooks/useNotifications';
@@ -516,8 +517,12 @@ export const Root = () => {
           >
             <Menu className="w-[18px] h-[18px]" />
           </button>
-          <span className="truncate text-base font-bold text-primary">FLORAL</span>
+          {/* Hidden on the narrowest phones so the rotation reminder fits; the
+              drawer this button opens carries the FLORAL logo too. */}
+          <span className="truncate text-base font-bold text-primary max-[420px]:hidden">FLORAL</span>
         </div>
+        {/* Today / tomorrow school rotation reminder (dentist + aide only). */}
+        <RotationTopBar />
         <SyncStatus schoolLabel={selectedSchool ? getSchoolShortName(selectedSchool) : 'All Schools'} />
         <UserMenu user={user} schoolLabel={selectedSchool ? getSchoolAcronym(selectedSchool) : 'All Schools'} onAccountSettings={openChangePassword} />
       </div>

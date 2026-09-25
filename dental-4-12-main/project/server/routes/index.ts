@@ -963,7 +963,17 @@ router.use("/risk-stratifications", createCrudRouter(RiskStratification, {
 // dateField (Sprint 56): the Completed and Missed tabs have no self-limiting
 // date the way Today and Upcoming do, so without a bound they grow forever.
 router.use("/appointments", createCrudRouter(Appointment, { writeRoles: CLINICAL_WRITE_ROLES, archiveRoles: CLINICAL_WRITE_ROLES, dateField: "appointment_datetime" }));
-router.use("/dentist-rotations", createCrudRouter(DentistRotation, { writeRoles: CLINICAL_WRITE_ROLES }));
+// School Rotation tab (2026-09-24, user-approved; ERD DEVIATION — see
+// docs/DATA-MODEL.md). One record per DAY (week_start = week_end = that day).
+// `dateField` bounds the tab's week/month reads; `dentist_id` narrows to one
+// dentist. archiveRoles: the tab's "Clear day" is a dentist/aide action on a
+// schedule they keep, not a clinical record; restore stays admin-only.
+router.use("/dentist-rotations", createCrudRouter(DentistRotation, {
+  writeRoles: CLINICAL_WRITE_ROLES,
+  archiveRoles: CLINICAL_WRITE_ROLES,
+  dateField: "week_start",
+  filterable: ["dentist_id"],
+}));
 
 // Sprint 108 — notes written against a DATE rather than a patient. `dateField`
 // bounds the read to the month the calendar is showing, the same treatment

@@ -16,6 +16,7 @@ import { useToast } from './Toast';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
 import { PageHeader } from './PageHeader';
+import { SchoolRotationTab } from './SchoolRotation';
 
 /** Fixed options plus a free-text escape hatch — the clinic's actual visit
  *  types are not a closed set, and forcing everything into these six used to
@@ -36,7 +37,7 @@ export const Appointments = () => {
   const toast = useToast();
 
   // Tabs
-  const [activeTab, setActiveTab] = useState<'today' | 'upcoming' | 'completed' | 'missed' | 'all' | 'calendar'>('today');
+  const [activeTab, setActiveTab] = useState<'today' | 'upcoming' | 'completed' | 'missed' | 'all' | 'calendar' | 'rotation'>('today');
   // Filters
   // ⚠ The grade/status/type/search filters that used to sit here are gone
   // (Sprint 175). Their setters were never called — not on her branch and NOT
@@ -869,6 +870,8 @@ export const Appointments = () => {
             { key: 'missed',    label: 'Missed',    count: missedAppts.length,    fill: '#273A78' },
             { key: 'all',       label: 'All',       count: appointments.length,   fill: '#273A78' },
             { key: 'calendar',  label: 'Calendar',  count: null,                  fill: '#273A78' },
+            // School Rotation (2026-09-24, user-approved): where the dentist is each weekday.
+            { key: 'rotation',  label: 'School Rotation', count: null,            fill: '#273A78' },
           ].map(tab => {
             const isActive = activeTab === tab.key;
             return (
@@ -985,6 +988,7 @@ export const Appointments = () => {
           here is more useful than a week-range picker nobody was filling in,
           and no objective or ERD entity asked for the schedule. If it is ever
           wanted back, the answer is a cross-school week view, not this. */}
+      {activeTab === 'rotation' && <SchoolRotationTab />}
       {activeTab === 'calendar' && (
         <>
           <div className="sticky top-1 z-10 bg-card px-4 py-3 border-b border-gray-100 flex items-center justify-between">
