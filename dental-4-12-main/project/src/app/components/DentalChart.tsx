@@ -2462,7 +2462,7 @@ export const DentalChart = () => {
                     {indicateNumberRows.map(({ label, teeth }) => (
                       <tr key={label}>
                         <td className={sumCell}>{label}</td>
-                        <td className={`${sumCell} text-[13px]`}>{teeth.length ? teeth.length : ''}</td>
+                        <td className={`${sumCell}`}>{teeth.length ? teeth.length : ''}</td>
                         <td className={sumCell}><ToothTags teeth={teeth} tone="teal" /></td>
                       </tr>
                     ))}
@@ -2535,9 +2535,9 @@ export const DentalChart = () => {
                             return (
                               <tr key={t.code}>
                                 <td className={sumCell}><span className="mr-1 font-bold">{t.code}</span>{t.label}</td>
-                                <td className={`${sumCell} text-[13px]`}>{v1.length ? v1.length : ''}</td>
+                                <td className={`${sumCell}`}>{v1.length ? v1.length : ''}</td>
                                 <td className={sumCell}><ToothTags teeth={v1} tone="blue" /></td>
-                                <td className={`${sumCell} text-[13px]`}>{v2.length ? v2.length : ''}</td>
+                                <td className={`${sumCell}`}>{v2.length ? v2.length : ''}</td>
                                 <td className={sumCell}><ToothTags teeth={v2} tone="blue" /></td>
                               </tr>
                             );
