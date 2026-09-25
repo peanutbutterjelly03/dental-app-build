@@ -164,43 +164,37 @@ export const RPCTracking = () => {
     };
   }, [loading]);
 
-  // Bounds the row list to whatever viewport space is left below it and
-  // above the footer, so a short page of results still fills that space
-  // (fixed height, not max-height) instead of leaving a gray gap of bare
-  // page underneath the card — same pattern as PatientList's Students table.
-  const rowsWrapRef = useRef<HTMLDivElement | null>(null);
-  const footerRef = useRef<HTMLDivElement | null>(null);
-  const [rowsHeight, setRowsHeight] = useState<number | null>(null);
+  // The card fills whatever viewport space is left below it (fixed height,
+  // not max-height, so a short page of results still fills that space
+  // instead of leaving a grey gap of bare page underneath) -- same pattern
+  // as PatientList's Students table, EXCEPT only the card's own `top` is
+  // measured here; the split between the rows box and the footer/reveal-tab
+  // beneath it is plain CSS flexbox on the card (see the JSX), not a second
+  // JS measurement. That is what makes Hide "adaptive": nothing has to know
+  // the footer's height, because there IS no separate footer measurement.
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const [cardHeight, setCardHeight] = useState<number | null>(null);
 
   useEffect(() => {
     const measure = () => {
-      if (!rowsWrapRef.current) return;
-      const top = rowsWrapRef.current.getBoundingClientRect().top;
-      const footerH = footerRef.current?.offsetHeight ?? 0;
-      setRowsHeight(Math.max(window.innerHeight - top - footerH, 160));
+      if (!cardRef.current) return;
+      const top = cardRef.current.getBoundingClientRect().top;
+      setCardHeight(Math.max(window.innerHeight - top, 160));
     };
     measure();
-    let resizeObserver: ResizeObserver | null = null;
-    if (typeof ResizeObserver !== 'undefined') {
-      resizeObserver = new ResizeObserver(measure);
-      if (footerRef.current) resizeObserver.observe(footerRef.current);
-    }
     window.addEventListener('resize', measure);
-    return () => {
-      resizeObserver?.disconnect();
-      window.removeEventListener('resize', measure);
-    };
-  }, [filtered.length, pageCount, pageSize]);
+    return () => window.removeEventListener('resize', measure);
+  }, [loading]);
 
   // Trims any stray page scroll the estimate above leaves behind (e.g.
   // <main>'s own bottom padding), the same correction pass PatientList uses.
   useLayoutEffect(() => {
-    if (rowsHeight == null) return;
+    if (cardHeight == null) return;
     const overflow = document.documentElement.scrollHeight - window.innerHeight;
     if (overflow > 0) {
-      setRowsHeight((h) => (h == null ? h : Math.max(h - overflow, 160)));
+      setCardHeight((h) => (h == null ? h : Math.max(h - overflow, 160)));
     }
-  }, [rowsHeight]);
+  }, [cardHeight]);
 
 
   // sectionFilter was missing from both of these — an active section filter
@@ -314,17 +308,23 @@ export const RPCTracking = () => {
         </div>
       </div>
 
-      <div className="bg-card rounded-xl border border-border overflow-hidden">
-        {/* Fixed height (not max-height), so THIS BOX is the only thing that
-            ever scrolls -- the page itself never does, in either state (user,
-            2026-09-25) -- and it always fills down to the footer. Column
-            headings stick to the TOP OF THIS BOX via `sticky` on each `<th>`,
-            not the `<tr>` (a sticky `<tr>` rendered as a duplicate mid-table
-            in some browsers, see PatientList). "Hide" (pageSize ===
-            HIDE_FOOTER) reuses this exact box: it just grows taller, because
-            rowsHeight below measures against the short reveal tab instead of
-            the full Showing/Items-per-page bar. */}
-        <div ref={rowsWrapRef} className="overflow-auto" style={{ height: rowsHeight ?? undefined }}>
+      {/* ⚠ ADAPTIVE, not JS pixel math (user, 2026-09-25, after three failed
+          attempts at computing an exact height for the rows box AND the
+          footer separately): the CARD itself is measured ONCE (its own `top`
+          — the one thing genuine CSS can't express here, since it depends on
+          the title/filter row's rendered height) and given that much of the
+          viewport as a real `height`. Everything below that split is plain
+          CSS flexbox: the card is `flex flex-col`, the rows box is `flex-1
+          min-h-0 overflow-auto` and the footer/reveal-tab is an ordinary flex
+          item sized by its own content. The browser recomputes that split on
+          every layout pass, so a short footer, a tall footer, or no footer
+          (Hide) all just work — nothing to remeasure, nothing to fall out of
+          sync, no stale height left over from switching states. */}
+      <div ref={cardRef} className="flex flex-col bg-card rounded-xl border border-border overflow-hidden" style={{ height: cardHeight ?? undefined }}>
+        {/* Column headings stick to the TOP OF THIS BOX via `sticky` on each
+            `<th>`, not the `<tr>` (a sticky `<tr>` rendered as a duplicate
+            mid-table in some browsers, see PatientList). */}
+        <div className="min-h-0 flex-1 overflow-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
@@ -394,9 +394,10 @@ export const RPCTracking = () => {
               thin reveal tab -- placed INSIDE the scrollable box, as the
               last row of its content, not pinned below it (user, 2026-09-25):
               it only comes into view once you've scrolled to the end of the
-              list, same as any other row would. Not measured by rowsHeight
-              either -- nothing sits below the box to reserve space for once
-              Hide is on, so the box just fills the whole remaining viewport. */}
+              list, same as any other row would. It also means the rows box
+              (flex-1) has no footer sibling to share space with in this
+              state, so it fills the whole card automatically -- CSS, not a
+              JS height calculation that has to know Hide is active. */}
           {pageSize === HIDE_FOOTER && (
             <button
               type="button"
@@ -409,7 +410,7 @@ export const RPCTracking = () => {
           )}
         </div>
         {pageSize !== HIDE_FOOTER && (
-        <div ref={footerRef} className="flex flex-col gap-3 border-t border-gray-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-shrink-0 flex-col gap-3 border-t border-gray-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
             <span>
               Showing <span className="font-semibold text-foreground">{total === 0 ? 0 : (page - 1) * pageSize + 1}</span> to{' '}
