@@ -351,9 +351,11 @@ export interface RpcListQuery {
    *  pupils enrolled (had a record made) that year. 'all' or omitted = every
    *  year. */
   schoolYear?: string;
-  /** 'all' (the resting value) keeps the rows' own alphabetical-by-surname
-   *  order; 'date_asc'/'date_desc' sort by Visit 1 date instead, rows with
-   *  no Visit 1 yet sorted last either way. */
+  /** 'date_desc' (the resting value, user 2026-09-25 -- newest activity
+   *  first) and 'date_asc' sort by the LATEST of Visit 1/Visit 2 date, not
+   *  just Visit 1 -- a pupil with a recent Visit 2 leads a pupil whose only
+   *  visit was older, rows with no visit yet sorted last either way. 'all'
+   *  keeps the rows' own alphabetical-by-surname order. */
   sort?: string;
   limit?: number;
   offset?: number;
@@ -402,11 +404,15 @@ export function filterRpcRows(all: RPCRow[], query: RpcListQuery): RpcListPage {
   let sortedRows = rows;
   if (query.sort === 'date_asc' || query.sort === 'date_desc') {
     const dir = query.sort === 'date_asc' ? 1 : -1;
+    const latestVisit = (r: RPCRow) => {
+      const dates = [r.visit1Date, r.visit2Date].filter((d): d is string => !!d).map((d) => new Date(d).getTime());
+      return dates.length ? Math.max(...dates) : null;
+    };
     sortedRows = [...rows].sort((a, b) => {
-      const at = a.visit1Date ? new Date(a.visit1Date).getTime() : null;
-      const bt = b.visit1Date ? new Date(b.visit1Date).getTime() : null;
+      const at = latestVisit(a);
+      const bt = latestVisit(b);
       if (at === null && bt === null) return 0;
-      if (at === null) return 1; // no Visit 1 yet — always last
+      if (at === null) return 1; // no visit yet — always last
       if (bt === null) return -1;
       return (at - bt) * dir;
     });

@@ -43,10 +43,10 @@ export const RPCTracking = () => {
   const [statusFilter, setStatusFilter] = useState('outstanding');
   const [treatmentFilter, setTreatmentFilter] = useState('all');
   const [schoolYearFilter, setSchoolYearFilter] = useState('all');
-  // 'all' here means "no explicit sort" — the list's own default order
-  // (alphabetical by surname) already covers "Name (A-Z)", so there is no
-  // separate 'name' value to opt into.
-  const [sortFilter, setSortFilter] = useState('all');
+  // Defaults to 'date_desc', not 'all' (user, 2026-09-25): a worklist reads
+  // newest activity first, so the most recently treated pupils lead. 'all'
+  // stays selectable from the dropdown for the plain alphabetical order.
+  const [sortFilter, setSortFilter] = useState('date_desc');
 
   // ── Sprint 146: FILTERED AND PAGED ON THE SERVER ────────────────────────
   //
@@ -175,8 +175,8 @@ export const RPCTracking = () => {
   // statusFilter is compared against 'outstanding', not 'all': that is now its
   // resting value, so treating it like the others would light up "Clear All"
   // permanently and make Clear All widen the list instead of resetting it.
-  const hasActiveFilters = [gradeFilter, sectionFilter, genderFilter, ageGroupFilter, treatmentFilter, schoolYearFilter, sortFilter].some(f => f !== 'all') || statusFilter !== 'outstanding' || searchTerm !== '';
-  const clearFilters = () => { setGradeFilter('all'); setSectionFilter('all'); setGenderFilter('all'); setAgeGroupFilter('all'); setStatusFilter('outstanding'); setTreatmentFilter('all'); setSchoolYearFilter('all'); setSortFilter('all'); setSearchTerm(''); };
+  const hasActiveFilters = [gradeFilter, sectionFilter, genderFilter, ageGroupFilter, treatmentFilter, schoolYearFilter].some(f => f !== 'all') || statusFilter !== 'outstanding' || sortFilter !== 'date_desc' || searchTerm !== '';
+  const clearFilters = () => { setGradeFilter('all'); setSectionFilter('all'); setGenderFilter('all'); setAgeGroupFilter('all'); setStatusFilter('outstanding'); setTreatmentFilter('all'); setSchoolYearFilter('all'); setSortFilter('date_desc'); setSearchTerm(''); };
 
   const statusConfig: Record<string,{label:string;color:string;bg:string}> = {
     complete:     { label:'Complete',     color:'text-green-700', bg:'bg-green-100' },
@@ -274,7 +274,7 @@ export const RPCTracking = () => {
               that year, the only school-year fact this join actually has
               (a visit isn't itself scoped to one). */}
           <FS value={schoolYearFilter} onChange={setSchoolYearFilter} label="All School Years" opts={schoolYearOptions.map(y=>({v:y,l:`SY ${y}`}))} />
-          <PinnedLabelSelect value={sortFilter} onChange={setSortFilter} label="Sort Order" opts={[{v:'all',l:'Name (A-Z)'},{v:'date_asc',l:'Ascending Date'},{v:'date_desc',l:'Descending Date'}]} />
+          <PinnedLabelSelect value={sortFilter} onChange={setSortFilter} label="Sort Order" opts={[{v:'date_desc',l:'Latest Treatment First'},{v:'date_asc',l:'Oldest Treatment First'},{v:'all',l:'Name (A-Z)'}]} />
           {hasActiveFilters && <button onClick={clearFilters} title="Clear all filters" aria-label="Clear all filters" className="flex items-center justify-center p-2 text-destructive border border-red-200 rounded-lg hover:bg-red-50"><X className="w-4 h-4"/></button>}
         </div>
       </div>
