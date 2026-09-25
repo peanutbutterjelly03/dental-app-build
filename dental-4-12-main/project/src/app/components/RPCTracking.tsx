@@ -390,16 +390,14 @@ export const RPCTracking = () => {
               })}
             </tbody>
           </table>
-        </div>
-        {/* "Hide" collapses the full Showing/Items-per-page bar to this thin
-            reveal tab -- footerRef stays attached either way (on this div, or
-            on the full footer below), so rowsHeight always measures against
-            whichever one is actually mounted and the rows box (the only
-            thing that ever scrolls) grows to fill the rest. Clicking it goes
-            back to the original paginated design (changePageSize(25)) -- the
-            default view, not a third state. */}
-        {pageSize === HIDE_FOOTER ? (
-          <div ref={footerRef}>
+          {/* "Hide" collapses the full Showing/Items-per-page bar to this
+              thin reveal tab -- placed INSIDE the scrollable box, as the
+              last row of its content, not pinned below it (user, 2026-09-25):
+              it only comes into view once you've scrolled to the end of the
+              list, same as any other row would. Not measured by rowsHeight
+              either -- nothing sits below the box to reserve space for once
+              Hide is on, so the box just fills the whole remaining viewport. */}
+          {pageSize === HIDE_FOOTER && (
             <button
               type="button"
               onClick={() => changePageSize(25)}
@@ -408,8 +406,9 @@ export const RPCTracking = () => {
             >
               <ChevronUp className="h-3 w-3" /> Show pagination controls
             </button>
-          </div>
-        ) : (
+          )}
+        </div>
+        {pageSize !== HIDE_FOOTER && (
         <div ref={footerRef} className="flex flex-col gap-3 border-t border-gray-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
             <span>
