@@ -459,6 +459,14 @@ export const Appointments = () => {
   // Details side panel (user's pick "B", 2026-09-25). Held by id and looked up
   // fresh each render, so a status change made from the panel shows at once.
   const [detailId, setDetailId] = useState<string | null>(null);
+  // The panel's editable note (one-pupil bookings). Seeded when the panel
+  // opens; saved through the same PUT the day view's "Edit note" uses.
+  const [panelNote, setPanelNote] = useState('');
+  const [panelNoteSaving, setPanelNoteSaving] = useState(false);
+  const openDetail = (a: AppointmentSession) => {
+    setPanelNote(a.studentCount === 1 ? a.students[0].notes : '');
+    setDetailId(a.id);
+  };
   useEffect(() => {
     if (!detailId) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setDetailId(null); };
@@ -701,8 +709,8 @@ export const Appointments = () => {
           {/* Click (or Enter) opens the details side panel. The action
               buttons on the right sit outside this area, so they keep
               working exactly as before. */}
-          <div role="button" tabIndex={0} onClick={() => setDetailId(a.id)}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDetailId(a.id); } }}
+          <div role="button" tabIndex={0} onClick={() => openDetail(a)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail(a); } }}
             title="Show details" className="min-w-0 flex-1 flex items-center gap-3 cursor-pointer rounded-lg focus-visible:outline-2 focus-visible:outline-primary">
             <div style={{ backgroundColor: iconBg, color: iconColor }} className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0">
               {genderIcon}
@@ -1422,7 +1430,7 @@ export const Appointments = () => {
         );
         const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
           <div className="border-b border-border px-5 py-4">
-            <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{title}</div>
+            <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-primary">{title}</div>
             {children}
           </div>
         );
@@ -1466,7 +1474,7 @@ export const Appointments = () => {
                     </Field>
                     {sole && (
                       <Field label="Record">
-                        <Link to={`/dental-chart/${sole.id}`} className="text-primary hover:underline">Open dental chart ›</Link>
+                        <Link to={`/dental-chart/${sole.id}`} className="text-primary underline underline-offset-2 hover:text-primary-hover">Open dental chart ›</Link>
                       </Field>
                     )}
                   </div>
@@ -1482,12 +1490,37 @@ export const Appointments = () => {
                   )}
                 </Section>
                 <Section title="Note">
-                  <div className="min-h-[44px] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-                    {sole ? (sole.notes || <span className="text-muted-foreground">No note</span>)
-                      : d.students.some((st) => st.notes)
-                        ? d.students.filter((st) => st.notes).map((st) => <div key={st.appointmentId}><b>{st.name}:</b> {st.notes}</div>)
-                        : <span className="text-muted-foreground">No note</span>}
-                  </div>
+                  {sole && canWriteNotes && !d.pending ? (
+                    <>
+                      <textarea value={panelNote} onChange={(e) => setPanelNote(e.target.value)} maxLength={500} rows={3}
+                        aria-label="Appointment note"
+                        className="w-full resize-y rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-ring" />
+                      {panelNote.trim() !== sole.notes && (
+                        <div className="mt-2 flex gap-2">
+                          <button type="button" disabled={panelNoteSaving}
+                            onClick={async () => {
+                              setPanelNoteSaving(true);
+                              try {
+                                await apiClient.put(`/appointments/${sole.appointmentId}`, { notes: panelNote.trim() });
+                                await reloadAppointments();
+                                toast.success('Note saved.');
+                              } catch (err) {
+                                toast.error(err instanceof Error ? err.message : 'Could not save the note');
+                              } finally { setPanelNoteSaving(false); }
+                            }}
+                            className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-hover disabled:opacity-60">
+                            {panelNoteSaving ? 'Saving…' : 'Save note'}
+                          </button>
+                          <button type="button" onClick={() => setPanelNote(sole.notes)} disabled={panelNoteSaving}
+                            className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-gray-50">Undo</button>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="min-h-[44px] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                      {sole ? sole.notes : d.students.filter((st) => st.notes).map((st) => <div key={st.appointmentId}><b>{st.name}:</b> {st.notes}</div>)}
+                    </div>
+                  )}
                 </Section>
               </div>
 
