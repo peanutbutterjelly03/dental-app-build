@@ -178,15 +178,15 @@ export const DentalChartNav = () => {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map(({ label, value, icon: Icon, bg, fg }) => (
-          <div key={label} className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">
-            <span style={{ backgroundColor: bg, color: fg }} className="w-9 h-9 flex-shrink-0 rounded-lg grid place-items-center">
-              <Icon className="w-4 h-4" />
+          <div key={label} className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6">
+            <span style={{ backgroundColor: bg, color: fg }} className="w-11 h-11 flex-shrink-0 rounded-xl grid place-items-center">
+              <Icon className="w-5 h-5" />
             </span>
             <div className="min-w-0">
-              <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground truncate">{label}</div>
-              <div className="text-xl font-bold text-foreground">{value}</div>
+              <div className="text-sm text-muted-foreground truncate">{label}</div>
+              <div className="text-3xl font-bold text-foreground">{value}</div>
             </div>
           </div>
         ))}
