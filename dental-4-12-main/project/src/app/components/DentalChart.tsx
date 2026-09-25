@@ -819,6 +819,7 @@ export const DentalChart = () => {
   const [confirmDeleteYear, setConfirmDeleteYear] = useState<number | null>(null);
   // "Edit date" in the School year menu (user, 2026-09-24): the date stamp
   // under each year chip is that year's DENTAL_CHART.date_charted.
+  const [confirmSaveInfo, setConfirmSaveInfo] = useState(false);
   const [editDateYear, setEditDateYear] = useState<number | null>(null);
   const [editDateValue, setEditDateValue] = useState('');
   const [editDateSaving, setEditDateSaving] = useState(false);
@@ -2461,10 +2462,11 @@ export const DentalChart = () => {
                   <colgroup><col className="w-[30%]" /><col className="w-[15%]" /><col className="w-[20%]" /><col className="w-[15%]" /><col className="w-[20%]" /></colgroup>
                   <thead>
                     <tr>
-                      {/* Plain light grey (user, 2026-09-25), including the empty corner cell. */}
-                      <th className="bg-slate-100 px-3 py-2" />
-                      <th colSpan={2} className="bg-slate-100 px-3 py-2 text-center font-extrabold text-slate-700">Visit 1</th>
-                      <th colSpan={2} className="bg-slate-100 px-3 py-2 text-center font-extrabold text-slate-700">Visit 2</th>
+                      {/* Greys only, a different shade per cell, headings in capitals
+                          (user, 2026-09-25). */}
+                      <th className="bg-slate-50 px-3 py-2" />
+                      <th colSpan={2} className="bg-slate-200 px-3 py-2 text-center text-[11px] font-extrabold uppercase tracking-wider text-slate-700">Visit 1</th>
+                      <th colSpan={2} className="bg-slate-100 px-3 py-2 text-center text-[11px] font-extrabold uppercase tracking-wider text-slate-700">Visit 2</th>
                     </tr>
                   </thead>
                   {(() => {
@@ -2671,8 +2673,9 @@ export const DentalChart = () => {
           The same window, field order and styling as Add New Student
           (PatientList), titled for editing. Grade/Section appear twice on
           purpose: the SELECTED YEAR's (what that year's forms print) and the
-          student's CURRENT enrolment (what rosters read) -- they differ for a
-          retained pupil and for every past year (Sprint 57a/70). */}
+          student's CURRENT enrolment (what rosters read). The selected year's
+          own Grade/Section pair was removed from this window (user,
+          2026-09-25); it is saved back unchanged. */}
       {editingInfo && draftInfo && (
         <Modal onClose={() => setEditingInfo(false)} maxWidth="max-w-4xl" closeDisabled={infoSaving}>
           <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b bg-card p-6">
@@ -2721,23 +2724,13 @@ export const DentalChart = () => {
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Grade <span className="font-normal text-muted-foreground">({years[selectedYear]?.iptr.school_year})</span></label>
-                <select value={draftYear.grade_level} disabled={!!draftInfo.is_not_student} onChange={(e) => setDraftYear((p) => ({ ...p, grade_level: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-card disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground">
-                  <option value="">Not recorded</option>{GRADES.map((g) => <option key={g}>{g}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Section <span className="font-normal text-muted-foreground">({years[selectedYear]?.iptr.school_year})</span></label>
-                <input type="text" placeholder="Not recorded" value={draftYear.section} disabled={!!draftInfo.is_not_student} onChange={(e) => setDraftYear((p) => ({ ...p, section: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Grade <span className="font-normal text-muted-foreground">(current enrolment)</span></label>
+                <label className="block text-sm font-medium text-foreground mb-1">Grade</label>
                 <select value={draftInfo.grade_level ?? ''} disabled={!!draftInfo.is_not_student} onChange={(e) => setDraftInfo((p) => ({ ...p, grade_level: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-card disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground">
                   <option value="">Select Grade</option>{GRADES.map((g) => <option key={g}>{g}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Section <span className="font-normal text-muted-foreground">(current enrolment)</span></label>
+                <label className="block text-sm font-medium text-foreground mb-1">Section</label>
                 <input type="text" value={draftInfo.section ?? ''} disabled={!!draftInfo.is_not_student} onChange={(e) => setDraftInfo((p) => ({ ...p, section: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground" />
               </div>
             </div>
@@ -2779,11 +2772,22 @@ export const DentalChart = () => {
             {infoError && <p role="alert" className="mb-3 rounded-lg border border-destructive/20 bg-danger-surface px-3 py-2 text-sm text-destructive">{infoError}</p>}
             <div className="flex gap-3">
             <button type="button" onClick={() => setEditingInfo(false)} disabled={infoSaving} className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-gray-50 disabled:opacity-60">Cancel</button>
-            <button type="button" onClick={handleSaveInfo} disabled={infoSaving} className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-60">{infoSaving ? 'Saving…' : 'Save Changes'}</button>
+            <button type="button" onClick={() => setConfirmSaveInfo(true)} disabled={infoSaving} className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-60">{infoSaving ? 'Saving…' : 'Save Changes'}</button>
             </div>
           </div>
         </Modal>
       )}
+      {/* One step between Save Changes and the write (user, 2026-09-25). */}
+      <ConfirmDialog
+        open={confirmSaveInfo}
+        tone="default"
+        title="Save changes to this student's basic information?"
+        message={draftInfo ? `${draftInfo.last_name ?? ''}, ${draftInfo.first_name ?? ''}` : ''}
+        confirmLabel="Save Changes"
+        busy={infoSaving}
+        onConfirm={async () => { setConfirmSaveInfo(false); await handleSaveInfo(); }}
+        onCancel={() => setConfirmSaveInfo(false)}
+      />
       {/* Edit date (user, 2026-09-24). Its own compact window, sized to the
           calendar so Save lines up with the calendar's right-hand arrow:
           306px = the 266px calendar (7 x 38px cells) + 2 x 20px padding, in px
