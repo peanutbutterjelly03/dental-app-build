@@ -499,6 +499,12 @@ export const DentalChart = () => {
   // they could tick history boxes before, but Save was always dentist-only,
   // so those edits silently went nowhere (dead UI, now honest).
   const editingChart = canEdit && editMode;
+  // A picked code belongs to an editing session: leaving edit mode (Save,
+  // Cancel, or a view-only role) drops it, so view mode never shows a
+  // highlighted code or its "Click teeth to apply" hint.
+  useEffect(() => {
+    if (!editingChart) { setSelectedCondition(null); setSelectedTreatment(null); }
+  }, [editingChart]);
   const editingHistory = canEditHistory && editMode;
 
   const cancelEdit = async () => {
