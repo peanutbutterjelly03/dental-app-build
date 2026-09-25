@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
-import { CalendarDays, Check, ChevronLeft, ChevronRight, MapPin, School as SchoolIcon } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, MapPin, School as SchoolIcon } from 'lucide-react';
 import { apiClient, ApiError } from '../api/client';
 import type { ApiDentistRotation, ApiSchool } from '../api/types';
 import { useAuth } from '../context/AuthContext';
 import { useSchools } from '../hooks/useSchools';
 import { addDays, dayStart, mondayOf, useRotationDentist, useRotations } from '../hooks/useRotations';
 import { toLocalDateString } from '../utils/localDate';
-import { getSchoolAcronym, getSchoolColor } from '../utils/schoolColors';
+import { getSchoolAcronym, getSchoolColor, getSchoolShortName } from '../utils/schoolColors';
 import { Modal } from './Modal';
 import { useToast } from './Toast';
 
@@ -19,7 +19,6 @@ import { useToast } from './Toast';
 
 const WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const dayLabel = (d: Date) => `${WEEKDAY[d.getDay()]} · ${MONTH[d.getMonth()]} ${d.getDate()}`;
 const longDay = (d: Date) => `${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d.getDay()]}, ${MONTH[d.getMonth()]} ${d.getDate()}`;
 
 /** The Dashboard stat-card shell, with the value optionally in a school colour. */
@@ -68,12 +67,10 @@ export function SchoolRotationTab() {
   const today = dayStart(new Date());
   const [weekStart, setWeekStart] = useState(() => mondayOf(new Date()));
   const weekDays = useMemo(() => [0, 1, 2, 3, 4].map((i) => addDays(weekStart, i)), [weekStart]);
-  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-  const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
   // One read covers everything on screen: the viewed week, the week before it
-  // (Copy last week), today/tomorrow and this month's tally.
-  const from = [addDays(weekStart, -7), monthStart, today].reduce((a, b) => (a < b ? a : b));
-  const to = [addDays(weekStart, 6), monthEnd, addDays(today, 1)].reduce((a, b) => (a > b ? a : b));
+  // (Copy last week) and today/tomorrow.
+  const from = [addDays(weekStart, -7), today].reduce((a, b) => (a < b ? a : b));
+  const to = [addDays(weekStart, 6), addDays(today, 1)].reduce((a, b) => (a > b ? a : b));
   const { byDay, loading, reload } = useRotations(from, to, dentist?._id);
 
   const [editDay, setEditDay] = useState<Date | null>(null);
@@ -152,25 +149,6 @@ export function SchoolRotationTab() {
   };
 
   const tomorrow = addDays(today, 1);
-  const setThisWeek = weekDays.filter((d) => rowFor(d)).length;
-  const unset = weekDays.filter((d) => !rowFor(d)).map((d) => WEEKDAY[d.getDay()]);
-  const monthCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (let d = monthStart; d <= monthEnd; d = addDays(d, 1)) {
-      const s = schoolOf(schools, byDay.get(toLocalDateString(d))?.school_id);
-      if (s) counts.set(s.school_name, (counts.get(s.school_name) ?? 0) + 1);
-    }
-    return counts;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [byDay, schools, monthStart.getTime()]);
-  const monthTotal = [...monthCounts.values()].reduce((a, b) => a + b, 0);
-
-  const schoolValue = (d: Date) => {
-    const s = schoolFor(d);
-    return s
-      ? { value: getSchoolAcronym(s.school_name), color: getSchoolColor(s.school_name).solid, footer: s.school_name, tone: getSchoolColor(s.school_name) }
-      : { value: 'Not set', color: '#94a3b8', footer: canEdit ? 'Set school' : 'No school set', tone: undefined };
-  };
   const firstUnset = weekDays.find((d) => !rowFor(d)) ?? weekDays[0];
   const weekTitle = `${MONTH[weekDays[0].getMonth()]} ${weekDays[0].getDate()} – ${weekDays[0].getMonth() === weekDays[4].getMonth() ? '' : `${MONTH[weekDays[4].getMonth()]} `}${weekDays[4].getDate()}, ${weekDays[4].getFullYear()}`;
 
@@ -200,20 +178,34 @@ export function SchoolRotationTab() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {/* Today up front (user's pick, 2026-09-25): today as a card filled with
+          the school's colour, tomorrow beside it. An unset day is a dashed
+          card that opens the picker. Nothing past tomorrow is shown here. */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {[{ d: today, name: 'Today' }, { d: tomorrow, name: 'Tomorrow' }].map(({ d, name }) => {
-          const v = schoolValue(d);
-          return (
-            <RotationCard key={name} label={`${name} · ${WEEKDAY[d.getDay()]}`} icon={<MapPin className="h-5 w-5" />}
-              tone={v.tone} value={v.value} valueColor={v.color} footer={v.footer} footerStrong={!schoolFor(d) && canEdit}
-              onClick={canEdit ? () => openDay(d) : undefined} />
+          const sch = schoolFor(d);
+          const c = sch ? getSchoolColor(sch.school_name) : null;
+          const big = name === 'Today';
+          const label = `${name} · ${big ? longDay(d) : ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d.getDay()]}`;
+          const inner = (
+            <>
+              <span className={`block text-[11px] font-semibold uppercase tracking-wide ${sch && big ? 'text-white/80' : 'text-muted-foreground'}`}>{label}</span>
+              <span className={`mt-1 block font-extrabold leading-tight ${big ? 'text-[32px]' : 'text-[24px]'}`}
+                style={{ color: sch ? (big ? '#fff' : c!.solid) : '#94a3b8' }}>{sch ? getSchoolAcronym(sch.school_name) : 'Not set'}</span>
+              <span className={`mt-1 block text-xs ${sch ? (big ? 'text-white/85' : 'text-muted-foreground') : 'font-semibold text-primary'}`}>
+                {sch ? sch.school_name : canEdit ? 'Set school ›' : 'No school set'}
+              </span>
+              {rowFor(d)?.notes && <span className={`mt-1 block text-xs italic ${big && sch ? 'text-white/85' : 'text-muted-foreground'}`}>{rowFor(d)!.notes}</span>}
+              {big && sch && <span aria-hidden="true" className="pointer-events-none absolute -right-8 -top-8 h-36 w-36 rounded-full bg-white/10" />}
+            </>
           );
+          const cls = `relative flex flex-col justify-center overflow-hidden rounded-2xl p-5 text-left ${big ? 'md:col-span-2' : ''} ${
+            sch ? '' : 'border border-dashed border-slate-300 bg-card'}`;
+          const style = sch ? (big ? { backgroundColor: c!.solid } : { backgroundColor: c!.light }) : undefined;
+          return canEdit
+            ? <button key={name} type="button" onClick={() => openDay(d)} className={`${cls} transition-transform hover:-translate-y-0.5`} style={style}>{inner}</button>
+            : <div key={name} className={cls} style={style}>{inner}</div>;
         })}
-        <RotationCard label="Days set this week" icon={<CalendarDays className="h-5 w-5" />}
-          value={<>{setThisWeek} <span className="text-lg text-muted-foreground">/ 5</span></>}
-          footer={unset.length ? `${unset.join(', ')} not set yet` : 'Every day is set'} />
-        <RotationCard label="School days this month" icon={<SchoolIcon className="h-5 w-5" />} value={String(monthTotal)}
-          footer={monthTotal ? [...monthCounts.entries()].map(([n, c]) => `${getSchoolAcronym(n)} ${c}`).join(' · ') : 'None set this month'} />
       </div>
 
       <div>
@@ -227,29 +219,37 @@ export function SchoolRotationTab() {
             <button type="button" onClick={() => setWeekStart(mondayOf(new Date()))} className="text-xs font-semibold text-primary hover:underline">This week</button>
           )}
         </div>
+        {/* Colour-topped day cards (user's pick, 2026-09-25): a solid band in
+            the school's colour carries the day and date; the school, its full
+            name and Change sit underneath. Grey band when the day is not set. */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {weekDays.map((d) => {
-            const v = schoolValue(d);
             const key = toLocalDateString(d);
-            const tag = key === toLocalDateString(today) ? 'Today' : key === toLocalDateString(tomorrow) ? 'Tomorrow' : undefined;
-            const s = schoolFor(d);
-            return (
-              <RotationCard key={key} compact label={dayLabel(d)} tag={tag} outlined={tag === 'Today'}
-                icon={s ? <SchoolIcon className="h-5 w-5" /> : <span className="text-sm font-bold">?</span>}
-                tone={v.tone} value={v.value} valueColor={v.color}
-                footer={rowFor(d)?.notes ? rowFor(d)!.notes : s ? (canEdit ? 'Change school' : s.school_name) : v.footer}
-                footerStrong={!s && canEdit}
-                onClick={canEdit ? () => openDay(d) : undefined} />
+            const isToday = key === toLocalDateString(today);
+            const sch = schoolFor(d);
+            const c = sch ? getSchoolColor(sch.school_name) : null;
+            const note = rowFor(d)?.notes;
+            const inner = (
+              <>
+                <span className="flex items-center justify-between px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-white"
+                  style={{ backgroundColor: c?.solid ?? '#CBD5E1' }}>
+                  <span>{WEEKDAY[d.getDay()]}{isToday ? ' · Today' : ''}</span>
+                  <span className="normal-case">{MONTH[d.getMonth()]} {d.getDate()}</span>
+                </span>
+                <span className="block px-3 py-3">
+                  <span className={`block font-extrabold leading-tight ${sch && getSchoolAcronym(sch.school_name).length > 8 ? 'text-[16px]' : 'text-[19px]'}`}
+                    style={{ color: c?.solid ?? '#94a3b8' }}>{sch ? getSchoolAcronym(sch.school_name) : 'Not set'}</span>
+                  {sch && <span className="mt-0.5 block text-[11px] text-muted-foreground">{getSchoolShortName(sch.school_name)}</span>}
+                  {note && <span className="mt-1 block text-[11px] italic text-muted-foreground">{note}</span>}
+                  {canEdit && <span className="mt-2.5 block text-xs font-semibold text-primary">{sch ? 'Change ›' : 'Set school ›'}</span>}
+                </span>
+              </>
             );
+            const cls = `flex flex-col justify-start overflow-hidden rounded-2xl border bg-card text-left ${isToday ? 'border-primary ring-2 ring-primary' : 'border-border'}`;
+            return canEdit
+              ? <button key={key} type="button" onClick={() => openDay(d)} className={`${cls} transition-transform hover:-translate-y-0.5`}>{inner}</button>
+              : <div key={key} className={cls}>{inner}</div>;
           })}
-        </div>
-        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          {schools.map((s) => (
-            <span key={s._id} className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: getSchoolColor(s.school_name).solid }} />
-              {getSchoolAcronym(s.school_name)} · {s.school_name}
-            </span>
-          ))}
         </div>
       </div>
 
