@@ -2398,9 +2398,9 @@ export const DentalChart = () => {
                 Hidden in charting mode for the same reason: a read-out is not
                 a charting surface. */}
             {!chartingMode && (
-            <div className="grid grid-cols-1 lg:grid-cols-[2fr_3fr] items-start gap-4">
-              {/* Side by side from lg: Dental Condition Summary narrower (2fr),
-                  Treatment Summary wider (3fr), user 2026-09-25. Stacked below
+            <div className="grid grid-cols-1 lg:grid-cols-[9fr_11fr] items-start gap-4">
+              {/* Side by side from lg: Dental Condition Summary a little narrower
+                  (9fr, about 45%), Treatment Summary wider (11fr), user 2026-09-25. Stacked below
                   lg, both are full width, so the same size. */}
               {/* ── The two summaries, "option A" (user, 2026-09-24): white
                   cards with a coloured header band, soft striped rows, bold
@@ -2483,8 +2483,8 @@ export const DentalChart = () => {
                       {/* Greys only, darkest to lightest from the empty corner cell
                           (slate-300, 200, 100), headings in capitals (user, 2026-09-25). */}
                       <th className="bg-slate-300 px-3 py-2" />
-                      <th colSpan={2} className="bg-slate-200 px-3 py-2 text-center text-[11px] font-normal uppercase tracking-wider text-slate-700">Visit 1</th>
-                      <th colSpan={2} className="bg-slate-100 px-3 py-2 text-center text-[11px] font-normal uppercase tracking-wider text-slate-700">Visit 2</th>
+                      <th colSpan={2} className="bg-slate-200 px-3 py-2 text-center text-[10.5px] font-normal uppercase tracking-wide text-slate-600">Visit 1</th>
+                      <th colSpan={2} className="bg-slate-100 px-3 py-2 text-center text-[10.5px] font-normal uppercase tracking-wide text-slate-600">Visit 2</th>
                     </tr>
                   </thead>
                   {(() => {
