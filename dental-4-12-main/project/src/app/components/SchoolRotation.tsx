@@ -215,12 +215,8 @@ export function SchoolRotationTab() {
               <span className={`mt-1 block text-xs ${sch ? (big ? 'text-white/85' : 'text-muted-foreground') : 'font-semibold text-primary'}`}>
                 {sch ? sch.school_name : canEdit ? 'Set school ›' : 'No school set'}
               </span>
-              {rowFor(d)?.notes && (
-                <span className={`relative z-10 mt-2 block self-start rounded-lg px-2.5 py-1.5 text-xs ${big && sch ? 'bg-white/15 text-white' : 'border border-slate-200 bg-slate-50 text-slate-700'}`}>
-                  <span className={`mr-1.5 text-[9.5px] font-bold uppercase tracking-wider ${big && sch ? 'text-white/70' : 'text-slate-400'}`}>Note</span>
-                  {rowFor(d)!.notes}
-                </span>
-              )}
+              {/* No note on these two cards (user, 2026-09-25): the note lives on
+                  the day card below, so it is not repeated here. */}
               {big && sch && <span aria-hidden="true" className="pointer-events-none absolute -right-8 -top-8 h-36 w-36 rounded-full bg-white/10" />}
             </>
           );
