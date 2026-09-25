@@ -1557,145 +1557,11 @@ export const DentalChart = () => {
           the PDF captures. */}
       <div ref={recordRef} className="space-y-4">
       {/* Patient Info Card */}
-      <div className={`bg-card rounded-xl border-2 border-primary shadow-[0_8px_24px_rgba(15,23,42,0.08)] ${!editingInfo && !basicInfoExpanded ? 'py-2 px-4' : 'p-4'}`}>
-        {editingInfo ? (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-foreground">Edit Student Info</span>
-              <div className="flex gap-2">
-                <button onClick={handleSaveInfo} disabled={infoSaving} className="px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-60">{infoSaving ? 'Saving…' : 'Save'}</button>
-                <button onClick={() => setEditingInfo(false)} className="px-3 py-1.5 text-sm border border-border text-foreground rounded-lg hover:bg-gray-50">Cancel</button>
-              </div>
-            </div>
-            {infoError && <p className="text-xs text-destructive">{infoError}</p>}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-              {/* Three boxes, matching the DOH IPTR paper form. full_name is
-                  derived server-side from these, so it is not edited directly. */}
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">Last Name</label>
-                <input type="text" value={draftInfo.last_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, last_name: e.target.value }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs" />
-              </div>
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">First Name</label>
-                <input type="text" value={draftInfo.first_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, first_name: e.target.value }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs" />
-              </div>
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">Middle Name</label>
-                <input type="text" value={draftInfo.middle_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, middle_name: e.target.value }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs" />
-              </div>
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">Contact Number</label>
-                <input type="text" value={draftInfo.contact_number ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, contact_number: e.target.value }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs" />
-              </div>
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">Guardian Name</label>
-                <input type="text" value={draftInfo.guardian_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, guardian_name: e.target.value }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs" />
-              </div>
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">Guardian Contact</label>
-                <input type="text" value={draftInfo.guardian_contact ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, guardian_contact: e.target.value }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs" />
-              </div>
-              {/* ── This school year's record ──────────────────────────────
-                  Everything from here down saves to the SELECTED YEAR's IPTR,
-                  not to the student. Two grades exist on purpose: the student
-                  carries their CURRENT enrolment (what rosters and the
-                  appointment picker read), and each year carries the grade the
-                  pupil was actually in then (Sprint 57a). They differ for a
-                  retained pupil, and for every past year once anyone is
-                  promoted — which is the whole reason the year keeps its own. */}
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">
-                  Grade <span className="font-normal">· {years[selectedYear]?.iptr.school_year}</span>
-                </label>
-                <select value={draftYear.grade_level}
-                  onChange={(e) => setDraftYear((p) => ({ ...p, grade_level: e.target.value }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs bg-card">
-                  <option value="">Not recorded</option>
-                  {GRADES.map((g) => <option key={g}>{g}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">
-                  Section <span className="font-normal">· {years[selectedYear]?.iptr.school_year}</span>
-                </label>
-                <input type="text" placeholder="Not recorded" value={draftYear.section}
-                  onChange={(e) => setDraftYear((p) => ({ ...p, section: e.target.value }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs" />
-              </div>
-              {/* ⚠ Height, Weight and the BMI preview are NOT edited here any
-                  more (Sprint 173). They moved to Physical Measurements on the
-                  History tab, alongside temperature and blood pressure, which
-                  is where hers are and where the BMI they feed is read. Two
-                  panels writing one field is how they drift.
-
-                  Grade and Section stay: those are enrolment, not measurements,
-                  and this panel is where a retained pupil's year is corrected
-                  (Sprint 70). */}
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">PhilHealth No.</label>
-                <input type="text" value={draftInfo.philhealth_number ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, philhealth_number: e.target.value, ...(e.target.value.trim() === '' ? { philhealth_status: 'None' as const } : {}) }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs" />
-              </div>
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">Birthday</label>
-                <input type="date" value={draftInfo.birthday?.slice(0, 10) ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, birthday: e.target.value }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs" />
-              </div>
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">Sex</label>
-                <select value={draftInfo.sex ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, sex: e.target.value }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs bg-card">
-                  <option>Male</option><option>Female</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">Grade <span className="font-normal">· current</span></label>
-                <select value={draftInfo.grade_level ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, grade_level: e.target.value }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs bg-card">
-                  {GRADES.map((g) => <option key={g}>{g}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">Section <span className="font-normal">· current</span></label>
-                <input type="text" value={draftInfo.section ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, section: e.target.value }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs" />
-              </div>
-              <div>
-                <label className="block text-muted-foreground font-medium mb-0.5">PhilHealth Status</label>
-                {/* Only meaningful with a number (user, 2026-09-24). */}
-                <select value={(draftInfo.philhealth_number ?? '').trim() ? (draftInfo.philhealth_status ?? 'None') : 'None'}
-                  disabled={!(draftInfo.philhealth_number ?? '').trim()}
-                  title={(draftInfo.philhealth_number ?? '').trim() ? undefined : 'Enter a PhilHealth number first'}
-                  onChange={(e) => setDraftInfo((p) => ({ ...p, philhealth_status: e.target.value as 'None' | 'Principal' | 'Dependent' }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs bg-card disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground">
-                  <option>Dependent</option><option>Principal</option><option>None</option>
-                </select>
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-muted-foreground font-medium mb-0.5">School</label>
-                <select value={schoolName} disabled className="w-full px-2 py-1.5 border border-border rounded-lg text-xs bg-gray-50 text-muted-foreground">
-                  {schoolNames.map((s) => <option key={s}>{s}</option>)}
-                </select>
-              </div>
-              <div className="md:col-span-3">
-                <label className="block text-muted-foreground font-medium mb-0.5">Address</label>
-                <input type="text" value={draftInfo.address ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, address: e.target.value }))}
-                  className="w-full px-2 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-xs" />
-              </div>
-              <div className="flex items-center gap-2">
-                <input type="checkbox" id="4ps" checked={!!draftInfo.is_4ps} onChange={(e) => setDraftInfo((p) => ({ ...p, is_4ps: e.target.checked }))}
-                  className="w-4 h-4 rounded accent-primary" />
-                <label htmlFor="4ps" className="text-foreground font-medium">4Ps Member</label>
-              </div>
-            </div>
-          </div>
-        ) : (
+      <div className={`bg-card rounded-xl border-2 border-primary shadow-[0_8px_24px_rgba(15,23,42,0.08)] ${!basicInfoExpanded ? 'py-2 px-4' : 'p-4'}`}>
+        {/* Editing opens the "Edit Basic Information" window below (user,
+            2026-09-25), laid out like Add New Student; the card keeps showing
+            the record behind it. */}
+        {(
           <>
             <div className={`flex items-start justify-between ${basicInfoExpanded ? 'mb-3' : ''}`}>
               <div className="flex items-center gap-3">
@@ -2800,6 +2666,110 @@ export const DentalChart = () => {
         )}
       </div>
       </div>{/* end recordRef — PDF capture region */}
+      {/* ── Edit Basic Information (user, 2026-09-25) ─────────────────────
+          The same window, field order and styling as Add New Student
+          (PatientList), titled for editing. Grade/Section appear twice on
+          purpose: the SELECTED YEAR's (what that year's forms print) and the
+          student's CURRENT enrolment (what rosters read) -- they differ for a
+          retained pupil and for every past year (Sprint 57a/70). */}
+      {editingInfo && draftInfo && (
+        <Modal onClose={() => setEditingInfo(false)} maxWidth="max-w-4xl" closeDisabled={infoSaving}>
+          <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b bg-card p-6">
+            <div>
+              <div className="mb-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-primary">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary" /> Basic Information
+              </div>
+              <h2 className="text-lg font-bold text-foreground">Edit Basic Information</h2>
+            </div>
+            <button type="button" onClick={() => setEditingInfo(false)} aria-label="Close" className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+          </div>
+          <div className="space-y-4 p-6">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div><label className="block text-sm font-medium text-foreground mb-1">Last Name</label><input type="text" value={draftInfo.last_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, last_name: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+              <div><label className="block text-sm font-medium text-foreground mb-1">First Name</label><input type="text" value={draftInfo.first_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, first_name: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div><label className="block text-sm font-medium text-foreground mb-1">Middle Name</label><input type="text" value={draftInfo.middle_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, middle_name: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+              <div><label className="block text-sm font-medium text-foreground mb-1">Birthdate</label><input type="date" value={draftInfo.birthday ? String(draftInfo.birthday).slice(0, 10) : ''} onChange={(e) => setDraftInfo((p) => ({ ...p, birthday: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Age</label>
+                <input type="text" readOnly disabled value={draftInfo.birthday ? computeAge(String(draftInfo.birthday).slice(0, 10), new Date()) : ''} placeholder="Automatically calculated" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring cursor-not-allowed bg-muted text-muted-foreground" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Sex</label>
+              <div className="grid grid-cols-2 gap-2">
+                {(['Male', 'Female'] as const).map((g) => (
+                  <button key={g} type="button" onClick={() => setDraftInfo((p) => ({ ...p, sex: g }))}
+                    className={`rounded-lg border-2 px-3 py-2 text-sm font-medium transition-colors ${draftInfo.sex === g ? 'border-primary-hover bg-primary text-white' : 'border-border text-foreground hover:bg-canvas'}`}>{g}</button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Grade <span className="font-normal text-muted-foreground">({years[selectedYear]?.iptr.school_year})</span></label>
+                <select value={draftYear.grade_level} onChange={(e) => setDraftYear((p) => ({ ...p, grade_level: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-card">
+                  <option value="">Not recorded</option>{GRADES.map((g) => <option key={g}>{g}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Section <span className="font-normal text-muted-foreground">({years[selectedYear]?.iptr.school_year})</span></label>
+                <input type="text" placeholder="Not recorded" value={draftYear.section} onChange={(e) => setDraftYear((p) => ({ ...p, section: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Grade <span className="font-normal text-muted-foreground">(current enrolment)</span></label>
+                <select value={draftInfo.grade_level ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, grade_level: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-card">
+                  {GRADES.map((g) => <option key={g}>{g}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Section <span className="font-normal text-muted-foreground">(current enrolment)</span></label>
+                <input type="text" value={draftInfo.section ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, section: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div><label className="block text-sm font-medium text-foreground mb-1">Place of Birth<span className="font-normal text-muted-foreground"> (Optional)</span></label><input type="text" value={draftInfo.place_of_birth ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, place_of_birth: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+              <div><label className="block text-sm font-medium text-foreground mb-1">Contact Number<span className="font-normal text-muted-foreground"> (Optional)</span></label><input type="text" value={draftInfo.contact_number ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, contact_number: e.target.value }))} placeholder="09XX-XXX-XXXX" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div><label className="block text-sm font-medium text-foreground mb-1">Guardian Name<span className="font-normal text-muted-foreground"> (Optional)</span></label><input type="text" value={draftInfo.guardian_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, guardian_name: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+              <div><label className="block text-sm font-medium text-foreground mb-1">Guardian Contact<span className="font-normal text-muted-foreground"> (Optional)</span></label><input type="text" value={draftInfo.guardian_contact ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, guardian_contact: e.target.value }))} placeholder="09XX-XXX-XXXX" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+            </div>
+            <div><label className="block text-sm font-medium text-foreground mb-1">Occupation<span className="font-normal text-muted-foreground"> (Optional)</span></label><input type="text" value={draftInfo.guardian_occupation ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, guardian_occupation: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div><label className="block text-sm font-medium text-foreground mb-1">PhilHealth Number<span className="font-normal text-muted-foreground"> (Optional)</span></label><input type="text" value={draftInfo.philhealth_number ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, philhealth_number: e.target.value, ...(e.target.value.trim() === '' ? { philhealth_status: 'None' as const } : {}) }))} placeholder="XX-XXXXXXXXX-X" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">PhilHealth Status</label>
+                {/* Only meaningful with a number (user, 2026-09-24). */}
+                <select value={(draftInfo.philhealth_number ?? '').trim() ? (draftInfo.philhealth_status ?? 'None') : 'None'}
+                  disabled={!(draftInfo.philhealth_number ?? '').trim()}
+                  title={(draftInfo.philhealth_number ?? '').trim() ? undefined : 'Enter a PhilHealth number first'}
+                  onChange={(e) => setDraftInfo((p) => ({ ...p, philhealth_status: e.target.value as 'None' | 'Principal' | 'Dependent' }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-card disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground">
+                  <option value="None">None</option><option value="Principal">Principal</option><option value="Dependent">Dependent</option>
+                </select>
+              </div>
+            </div>
+            <div><label className="block text-sm font-medium text-foreground mb-1">Address<span className="font-normal text-muted-foreground"> (Optional)</span></label><input type="text" value={draftInfo.address ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, address: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+            <div className="flex items-center gap-3">
+              <input type="checkbox" id="edit-is4ps" checked={!!draftInfo.is_4ps} onChange={(e) => setDraftInfo((p) => ({ ...p, is_4ps: e.target.checked }))} className="h-4 w-4 rounded accent-primary" />
+              <label htmlFor="edit-is4ps" className="text-sm font-medium text-foreground">4Ps / NHTS Member</label>
+            </div>
+            {draftInfo.is_4ps && (
+              <div><label className="block text-sm font-medium text-foreground mb-1">4Ps ID</label><input type="text" value={draftInfo.fourps_id ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, fourps_id: e.target.value }))} placeholder="4PS-XXXXXXXX" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+            )}
+          </div>
+          <div className="sticky bottom-0 z-10 border-t bg-card p-6">
+            {/* Next to the buttons, not at the top of a long form: a save that
+                is refused must say why where the user is looking. */}
+            {infoError && <p role="alert" className="mb-3 rounded-lg border border-destructive/20 bg-danger-surface px-3 py-2 text-sm text-destructive">{infoError}</p>}
+            <div className="flex gap-3">
+            <button type="button" onClick={() => setEditingInfo(false)} disabled={infoSaving} className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-gray-50 disabled:opacity-60">Cancel</button>
+            <button type="button" onClick={handleSaveInfo} disabled={infoSaving} className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-60">{infoSaving ? 'Saving…' : 'Save Changes'}</button>
+            </div>
+          </div>
+        </Modal>
+      )}
       {/* Edit date (user, 2026-09-24). Its own compact window, sized to the
           calendar so Save lines up with the calendar's right-hand arrow:
           306px = the 266px calendar (7 x 38px cells) + 2 x 20px padding, in px
