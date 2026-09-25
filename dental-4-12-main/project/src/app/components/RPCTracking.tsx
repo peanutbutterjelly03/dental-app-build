@@ -215,9 +215,14 @@ export const RPCTracking = () => {
   // and scrolling internally) -- a curve right at the screen edge, with
   // nothing beneath it, reads as a cut-off render glitch rather than a
   // corner. `hideAtEdge` is true exactly when the rows box is scrolling.
+  //
+  // ⚠ `useLayoutEffect`, not `useEffect` (user, 2026-09-25 -- "its
+  // delayed"): a passive effect runs AFTER the browser paints, so the
+  // rounded corner flashed for one visible frame before squaring off. This
+  // runs synchronously right after the DOM commits, before that paint.
   const rowsBoxRef = useRef<HTMLDivElement | null>(null);
   const [hideAtEdge, setHideAtEdge] = useState(false);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (pageSize !== HIDE_FOOTER) { setHideAtEdge(false); return; }
     const el = rowsBoxRef.current;
     if (!el) return;
