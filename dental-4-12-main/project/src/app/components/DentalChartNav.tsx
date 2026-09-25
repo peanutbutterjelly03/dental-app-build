@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { Eye, Users, Calendar, Clipboard, Shield, Stethoscope, SlidersHorizontal } from 'lucide-react';
 import { GradePill } from './GradePill';
-import { getSchoolColor, getSchoolShortName } from '../utils/schoolColors';
+import { getSchoolColor } from '../utils/schoolColors';
 import { getGradeColor } from '../utils/gradeColors';
 import { ListSearchInput } from './ListSearchInput';
 import { getQueuedStudentIds } from '../utils/queueStorage';
@@ -140,7 +140,6 @@ export const DentalChartNav = () => {
   // which is why it read as the odd one out. The patterns are lifted from her
   // PatientList so the two rosters are recognisably the same screen.
   const kickerColor = getSchoolColor(selectedSchool || '');
-  const kickerLabel = selectedSchool ? getSchoolShortName(selectedSchool) : 'All schools';
 
   // Four cards, styled after RAMHIS's Doctor Queue stat row (user,
   // 2026-09-25), each tied to a real, already-computed count above --
@@ -157,25 +156,19 @@ export const DentalChartNav = () => {
   return (
     <div className="space-y-4">
       {/* Page-level identity header, above the stat row and the queue itself
-          (user, 2026-09-25) -- was nested inside the queue card, which read
-          as buried. */}
-      <div className="flex items-start gap-4 rounded-2xl border border-border bg-gray-50/70 p-5 sm:p-6">
+          (user, 2026-09-25). No card/border -- sits directly on the page.
+          Generic module eyebrow ("Clinical Services") instead of the school
+          name, which is already shown in the top bar; description is a
+          fixed line about what the module does, not a live count (the
+          queue card below already gives the real number). */}
+      <div className="flex items-center gap-4">
         <span style={{ backgroundColor: kickerColor.light }} className="w-12 h-12 rounded-2xl grid place-items-center flex-shrink-0">
           <Stethoscope style={{ color: kickerColor.solid }} className="w-6 h-6" />
         </span>
         <div className="min-w-0">
-          <div style={{ color: kickerColor.solid }} className="text-xs font-bold uppercase tracking-wider">{kickerLabel}</div>
+          <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Clinical Services</div>
           <h1 className="text-2xl font-bold text-foreground mt-0.5">Dental Charts</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {viewMode === 'queued'
-              ? `${queueCount} queued student${queueCount !== 1 ? 's' : ''}`
-              // ⚠ STUDENTS, not charts. This list is one row per pupil,
-              // drawn from `useStudents()`; DENTAL_CHART held 54 rows for
-              // these 26 pupils when this was checked (2026-09-06), and a
-              // pupil with no chart at all is still a row here. "charts
-              // found" named a number the page never counted.
-              : `${queueCount} student${queueCount !== 1 ? 's' : ''}`}
-          </p>
+          <p className="text-sm text-muted-foreground mt-0.5">Manage student dental charts and the charting queue.</p>
         </div>
       </div>
 
@@ -198,7 +191,9 @@ export const DentalChartNav = () => {
             2026-09-25 -- option B of the design review), not stretched to
             match its full height. Mirrors RAMHIS's own empty state when
             nothing is queued. */}
-        <div className="bg-card rounded-2xl border border-border shadow-sm p-5 flex flex-col items-center justify-center text-center gap-2 min-h-[200px]">
+        <div className="relative overflow-hidden bg-card rounded-2xl border border-border shadow-sm p-5 flex flex-col items-center justify-center text-center gap-2 min-h-[200px]">
+          {/* Blue top accent bar (user, 2026-09-25). */}
+          <div style={{ backgroundColor: '#273A78' }} className="absolute top-0 left-0 right-0 h-1.5" />
           {upNext ? (
             <>
               <span style={{ backgroundColor: '#E8ECF6', color: '#273A78' }} className="w-12 h-12 rounded-full grid place-items-center text-sm font-bold">
