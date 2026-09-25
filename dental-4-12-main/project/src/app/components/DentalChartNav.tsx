@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router';
-import { X, School as SchoolIcon, Eye, Users, Calendar, Clipboard, Shield } from 'lucide-react';
+import { X, Eye, Users, Calendar, Clipboard, Shield, Stethoscope } from 'lucide-react';
 import { GradePill } from './GradePill';
 import { getSchoolColor, getSchoolShortName } from '../utils/schoolColors';
 import { getGradeColor } from '../utils/gradeColors';
@@ -200,7 +200,7 @@ export const DentalChartNav = () => {
         <div className="bg-card rounded-2xl border border-border shadow-sm p-5 flex flex-col items-center justify-center text-center gap-2 min-h-[200px]">
           {upNext ? (
             <>
-              <span style={{ backgroundColor: getGradeColor(upNext.grade).light, color: getGradeColor(upNext.grade).solid }} className="w-12 h-12 rounded-full grid place-items-center text-sm font-bold">
+              <span style={{ backgroundColor: '#E8ECF6', color: '#273A78' }} className="w-12 h-12 rounded-full grid place-items-center text-sm font-bold">
                 {initials(upNext.name)}
               </span>
               <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Up Next</div>
@@ -227,24 +227,24 @@ export const DentalChartNav = () => {
       <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
         <div className="p-5 sm:p-6 space-y-4 border-b border-border">
           <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="min-w-0">
-              <div className="inline-flex items-center gap-2 mb-2">
-                <span style={{ backgroundColor: kickerColor.light }} className="w-6 h-6 rounded-md grid place-items-center">
-                  <SchoolIcon style={{ color: kickerColor.solid }} className="w-3.5 h-3.5" />
-                </span>
-                <span style={{ color: kickerColor.solid }} className="text-xs font-bold uppercase tracking-wider">{kickerLabel}</span>
+            <div className="min-w-0 flex items-start gap-4">
+              <span style={{ backgroundColor: kickerColor.light }} className="w-12 h-12 rounded-2xl grid place-items-center flex-shrink-0">
+                <Stethoscope style={{ color: kickerColor.solid }} className="w-6 h-6" />
+              </span>
+              <div className="min-w-0">
+                <div style={{ color: kickerColor.solid }} className="text-xs font-bold uppercase tracking-wider">{kickerLabel}</div>
+                <h1 className="text-2xl font-bold text-foreground mt-0.5">Dental Charts</h1>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  {viewMode === 'queued'
+                    ? `${filtered.length} queued student${filtered.length !== 1 ? 's' : ''}`
+                    // ⚠ STUDENTS, not charts. This list is one row per pupil,
+                    // drawn from `useStudents()`; DENTAL_CHART held 54 rows for
+                    // these 26 pupils when this was checked (2026-09-06), and a
+                    // pupil with no chart at all is still a row here. "charts
+                    // found" named a number the page never counted.
+                    : `${filtered.length} student${filtered.length !== 1 ? 's' : ''}`}
+                </p>
               </div>
-              <h1 className="text-2xl font-bold text-foreground">Dental Charts</h1>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                {viewMode === 'queued'
-                  ? `${filtered.length} queued student${filtered.length !== 1 ? 's' : ''}`
-                  // ⚠ STUDENTS, not charts. This list is one row per pupil,
-                  // drawn from `useStudents()`; DENTAL_CHART held 54 rows for
-                  // these 26 pupils when this was checked (2026-09-06), and a
-                  // pupil with no chart at all is still a row here. "charts
-                  // found" named a number the page never counted.
-                  : `${filtered.length} student${filtered.length !== 1 ? 's' : ''}`}
-              </p>
             </div>
             <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 shrink-0">
               <button

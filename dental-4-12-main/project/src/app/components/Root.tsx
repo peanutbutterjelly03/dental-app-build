@@ -424,14 +424,12 @@ export const Root = () => {
     const highlighted = isActive || childActive;
     const isOpen = openStudents || childActive;
     const Icon = studentsTab.icon;
-    // ⚠ Click-to-navigate never closes the group (user, 2026-09-25): it used
-    // to toggle on every click, so returning to Students while already
-    // inside the family collapsed it as a side effect of just navigating.
-    // Only the chevron (below) opens OR closes on click; this row always
-    // ensures the group is open, whichever way you arrived.
+    // Row click toggles the group open/closed same as the chevron -- user,
+    // 2026-09-25: expand/collapse should work from anywhere on the row, not
+    // just two clicks on the small chevron button.
     const onRowClick = () => {
       setDrawerOpen(false);
-      setOpenStudents(true);
+      setOpenStudents((v) => !v);
     };
     return (
       <div>
