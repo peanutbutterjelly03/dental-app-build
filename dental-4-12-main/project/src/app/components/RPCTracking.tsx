@@ -184,7 +184,12 @@ export const RPCTracking = () => {
     measure();
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
-  }, [loading]);
+    // pageSize re-measures from a fresh baseline on every Hide toggle -- the
+    // correction pass below only ever SHRINKS, so without this, leaving Hide
+    // (which cancels the bottom-padding overflow that pass was shrinking
+    // for) would keep the old, already-shrunk height instead of settling
+    // back at the true window.innerHeight - top.
+  }, [loading, pageSize]);
 
   // Trims any stray page scroll the estimate above leaves behind (e.g.
   // <main>'s own bottom padding), the same correction pass PatientList uses.
@@ -320,7 +325,16 @@ export const RPCTracking = () => {
           every layout pass, so a short footer, a tall footer, or no footer
           (Hide) all just work — nothing to remeasure, nothing to fall out of
           sync, no stale height left over from switching states. */}
-      <div ref={cardRef} className="flex flex-col bg-card rounded-xl border border-border overflow-hidden" style={{ height: cardHeight ?? undefined }}>
+      {/* Hide cancels <main>'s own bottom padding (Root.tsx's `p-4 md:p-8`
+          around <Outlet/>) with a matching negative margin (user, 2026-09-25):
+          without it, that trailing padding still counted toward the page's
+          scrollHeight, and the overflow-correction pass above shrank the
+          card by exactly that much to keep the page from scrolling -- a gap
+          between the card and the true bottom of the screen. Cancelling the
+          padding removes the overflow at its source, so the card settles at
+          its full `window.innerHeight - top` height and actually reaches
+          the edge. Only in Hide: the default view keeps that breathing room. */}
+      <div ref={cardRef} className={`flex flex-col bg-card rounded-xl border border-border overflow-hidden ${pageSize === HIDE_FOOTER ? '-mb-4 md:-mb-8' : ''}`} style={{ height: cardHeight ?? undefined }}>
         {/* Column headings stick to the TOP OF THIS BOX via `sticky` on each
             `<th>`, not the `<tr>` (a sticky `<tr>` rendered as a duplicate
             mid-table in some browsers, see PatientList). */}
