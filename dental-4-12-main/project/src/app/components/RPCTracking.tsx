@@ -134,6 +134,17 @@ export const RPCTracking = () => {
   const filterCardRef = useRef<HTMLDivElement | null>(null);
   const [stickyTop, setStickyTop] = useState({ title: TOPBAR_H, filters: TOPBAR_H });
 
+  // ⚠ BUG FIX (user, 2026-09-25): this used to run with `[]` deps, so it
+  // measured titleRef ONCE -- during the very first render, while `loading`
+  // is still true and the component returns the skeleton below instead of
+  // the real title. titleRef.current is null at that moment, so titleH
+  // came out 0 and never got corrected (the ResizeObserver.observe() calls
+  // were skipped too, for the same null-ref reason), leaving the filter
+  // bar's sticky offset stuck at TOPBAR_H forever -- same as the title's own
+  // offset, so once both stuck on scroll, the filter card overlapped and
+  // covered the bottom of "Routine Preventive Care". Re-running this when
+  // `loading` flips to false re-measures against the now-mounted real
+  // title and reattaches the observer to it.
   useEffect(() => {
     const measure = () => {
       const titleH = titleRef.current?.offsetHeight ?? 0;
@@ -151,7 +162,7 @@ export const RPCTracking = () => {
       resizeObserver?.disconnect();
       window.removeEventListener('resize', measure);
     };
-  }, []);
+  }, [loading]);
 
   // Bounds the row list to whatever viewport space is left below it and
   // above the footer, so a short page of results still fills that space
