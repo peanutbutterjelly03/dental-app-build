@@ -23,6 +23,14 @@ const GRADES = ['Kinder','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grad
 // status within it, completed pairs included.
 const CURRENT_SCHOOL_YEAR = schoolYearLabel();
 
+// "Show all" (user, 2026-09-25): 0 is the sentinel -- useRPCTracking already
+// treats a falsy limit as "no limit" (see filterRpcRows), so this needs no
+// new backend concept, just a page size that isn't sent. Kept OUT of the
+// shared PAGE_SIZE_OPTIONS: PatientList's usePagination divides by pageSize
+// to slice client-side, and a 0 there would divide by zero.
+const SHOW_ALL = 0;
+const RPC_PAGE_SIZE_OPTIONS = [...PAGE_SIZE_OPTIONS, SHOW_ALL] as const;
+
 
 const ViewToggle = ({ mode, onChange }: { mode: 'school' | 'list'; onChange: (m: 'school' | 'list') => void }) => (
   <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
@@ -84,8 +92,8 @@ export const RPCTracking = () => {
     treatment: treatmentFilter,
     schoolYear: schoolYearFilter,
     sort: sortFilter,
-    limit: pageSize,
-    offset: (page - 1) * pageSize,
+    limit: pageSize === SHOW_ALL ? undefined : pageSize,
+    offset: pageSize === SHOW_ALL ? 0 : (page - 1) * pageSize,
   });
 
   // Back to page 1 on any filter change — a narrowed filter can otherwise
@@ -94,11 +102,12 @@ export const RPCTracking = () => {
     setPage(1);
   }, [searchTerm, selectedSchool, gradeFilter, sectionFilter, genderFilter, ageGroupFilter, statusFilter, treatmentFilter, schoolYearFilter, sortFilter]);
 
-  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const pageCount = pageSize === SHOW_ALL ? 1 : Math.max(1, Math.ceil(total / pageSize));
   // Changing page size keeps you near the same records rather than dumping you
   // back to the top — the same rule usePagination applied.
   const changePageSize = (next: number) => {
-    const firstRow = (page - 1) * pageSize;
+    if (next === SHOW_ALL) { setPageSize(next); setPage(1); return; }
+    const firstRow = pageSize === SHOW_ALL ? 0 : (page - 1) * pageSize;
     setPageSize(next);
     setPage(Math.floor(firstRow / next) + 1);
   };
@@ -297,15 +306,23 @@ export const RPCTracking = () => {
             above. Column headings stick to the TOP OF THIS BOX via `sticky`
             on each `<th>`, not the `<tr>` (a sticky `<tr>` rendered as a
             duplicate mid-table in some browsers, see PatientList). */}
-        <div ref={rowsWrapRef} className="overflow-auto" style={{ height: rowsHeight ?? undefined }}>
+        {/* "All" (pageSize === SHOW_ALL) drops the fixed viewport-height box
+            entirely -- height auto, no internal scrollbar -- so every row
+            renders and the PAGE scrolls down to reach them, per the user's
+            "container should be all the way to the bottom". */}
+        <div ref={rowsWrapRef} className={pageSize === SHOW_ALL ? '' : 'overflow-auto'} style={{ height: pageSize === SHOW_ALL ? undefined : (rowsHeight ?? undefined) }}>
           <table className="w-full text-sm">
+            {/* Sticky only while the rows box itself scrolls -- with SHOW_ALL
+                there is no scrolling ancestor here (the page scrolls
+                instead), so a sticky th would pin to the viewport's very
+                top, behind the topbar. */}
             <thead>
               <tr className="border-b border-border">
                 {['Student','Grade / Section','Visit 1','Visit 2','Status'].map(h => (
-                  <th key={h} className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{h}</th>
+                  <th key={h} className={`${pageSize === SHOW_ALL ? '' : 'sticky top-0 z-10'} bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground`}>{h}</th>
                 ))}
-                <th className="sticky top-0 z-10 bg-gray-100 text-left pl-4 pr-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Days Until Due</th>
-                <th className="sticky top-0 z-10 bg-gray-100 text-left pl-2 pr-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Actions</th>
+                <th className={`${pageSize === SHOW_ALL ? '' : 'sticky top-0 z-10'} bg-gray-100 text-left pl-4 pr-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground`}>Days Until Due</th>
+                <th className={`${pageSize === SHOW_ALL ? '' : 'sticky top-0 z-10'} bg-gray-100 text-left pl-2 pr-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground`}>Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -333,7 +350,9 @@ export const RPCTracking = () => {
                       <span className="text-muted-foreground text-xs ml-1 align-middle">{r.section}</span>
                     </td>
                     <td className="px-4 py-3">{r.visit1Date ? <span className="text-green-700 text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3"/>{formatDate(r.visit1Date)}</span> : <span className="text-muted-foreground text-xs">Not done</span>}</td>
-                    <td className="px-4 py-3">{r.visit2Date ? <span className="text-green-700 text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3"/>{formatDate(r.visit2Date)}{r.earlyVisit2 && <span className="ml-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold" title="Visit 2 recorded less than 4 months after Visit 1">early</span>}</span> : <span className="text-muted-foreground text-xs flex flex-col items-start gap-1">Not done
+                    {/* "early" badge removed from view (user, 2026-09-25); r.earlyVisit2 is
+    still computed server-side, just not shown here. */}
+                    <td className="px-4 py-3">{r.visit2Date ? <span className="text-green-700 text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3"/>{formatDate(r.visit2Date)}</span> : <span className="text-muted-foreground text-xs flex flex-col items-start gap-1">Not done
                       {r.syCutoff === 'impossible' && <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-semibold text-[10px]" title={`Even the earliest allowed Visit 2 (+4 months) falls after this school year ends (${r.syDeadline}) — it can't be counted for DOH/PhilHealth this school year`}>won't fit SY</span>}
                       {r.syCutoff === 'tight' && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold text-[10px]" title={`The 4–6 month window extends past the school year — Visit 2 must be done by ${r.syDeadline} to count for DOH/PhilHealth`}>by {r.syDeadline}</span>}
                     </span>}</td>
@@ -365,8 +384,8 @@ export const RPCTracking = () => {
         <div ref={footerRef} className="flex flex-col gap-3 border-t border-gray-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
             <span>
-              Showing <span className="font-semibold text-foreground">{total === 0 ? 0 : (page - 1) * pageSize + 1}</span> to{' '}
-              <span className="font-semibold text-foreground">{Math.min(page * pageSize, total)}</span> of{' '}
+              Showing <span className="font-semibold text-foreground">{total === 0 ? 0 : pageSize === SHOW_ALL ? 1 : (page - 1) * pageSize + 1}</span> to{' '}
+              <span className="font-semibold text-foreground">{pageSize === SHOW_ALL ? total : Math.min(page * pageSize, total)}</span> of{' '}
               <span className="font-semibold text-foreground">{total}</span> records
               {selectedSchool ? ` at ${selectedSchool}` : ''}
             </span>
@@ -386,7 +405,7 @@ export const RPCTracking = () => {
                 onChange={(e) => changePageSize(Number(e.target.value))}
                 className="w-fit rounded-full border border-border bg-canvas px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
               >
-                {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
+                {RPC_PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n === SHOW_ALL ? 'All' : n}</option>)}
               </select>
             </div>
           </div>
