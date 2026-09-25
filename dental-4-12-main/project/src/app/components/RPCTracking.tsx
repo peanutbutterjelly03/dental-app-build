@@ -209,6 +209,24 @@ export const RPCTracking = () => {
     }
   }, [cardHeight, pageSize]);
 
+  // Hide's bottom corners (user, 2026-09-25): rounded when the card ends on
+  // its own (a short list), square when the card is actually pressed flush
+  // against the bottom of the screen (a long list hitting the maxHeight cap
+  // and scrolling internally) -- a curve right at the screen edge, with
+  // nothing beneath it, reads as a cut-off render glitch rather than a
+  // corner. `hideAtEdge` is true exactly when the rows box is scrolling.
+  const rowsBoxRef = useRef<HTMLDivElement | null>(null);
+  const [hideAtEdge, setHideAtEdge] = useState(false);
+  useEffect(() => {
+    if (pageSize !== HIDE_FOOTER) { setHideAtEdge(false); return; }
+    const el = rowsBoxRef.current;
+    if (!el) return;
+    const check = () => setHideAtEdge(el.scrollHeight > el.clientHeight + 1);
+    check();
+    const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(check) : null;
+    resizeObserver?.observe(el);
+    return () => resizeObserver?.disconnect();
+  }, [pageSize, cardHeight, filtered.length]);
 
   // sectionFilter was missing from both of these — an active section filter
   // neither lit up "Clear All" nor got cleared by it.
@@ -351,11 +369,11 @@ export const RPCTracking = () => {
           capping changes, not the cap's value or how it is measured. The
           default view keeps `height` -- it deliberately always fills the
           space (see the box's own comment above), unlike Hide. */}
-      <div ref={cardRef} className={`flex flex-col bg-card rounded-xl border border-border overflow-hidden ${pageSize === HIDE_FOOTER ? '-mb-4 md:-mb-8' : ''}`} style={pageSize === HIDE_FOOTER ? { maxHeight: cardHeight ?? undefined } : { height: cardHeight ?? undefined }}>
+      <div ref={cardRef} className={`flex flex-col bg-card border border-border overflow-hidden ${hideAtEdge ? 'rounded-t-xl' : 'rounded-xl'} ${pageSize === HIDE_FOOTER ? '-mb-4 md:-mb-8' : ''}`} style={pageSize === HIDE_FOOTER ? { maxHeight: cardHeight ?? undefined } : { height: cardHeight ?? undefined }}>
         {/* Column headings stick to the TOP OF THIS BOX via `sticky` on each
             `<th>`, not the `<tr>` (a sticky `<tr>` rendered as a duplicate
             mid-table in some browsers, see PatientList). */}
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div ref={rowsBoxRef} className="min-h-0 flex-1 overflow-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
