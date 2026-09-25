@@ -2077,7 +2077,7 @@ export const DentalChart = () => {
                 odontogram card below deliberately gets no bar. */}
             <div className="overflow-hidden rounded-xl border border-slate-300 bg-card shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
             {/* Grey while not editable (user, 2026-09-25): navy means "you can change this". */}
-            <div className={`${editingHistory ? 'bg-primary' : 'bg-slate-600'} px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-white`}>Oral Conditions &amp; Treatments Given</div>
+            <div className={`${editingHistory ? 'bg-primary text-white' : 'bg-slate-200 text-slate-600'} px-4 py-2 text-[11px] font-semibold uppercase tracking-wider`}>Oral Conditions &amp; Treatments Given</div>
             <div className="p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className={editingHistory ? '' : 'opacity-60 pointer-events-none select-none'}>
                 <div className="flex flex-wrap items-center gap-3 mb-2">
@@ -2224,7 +2224,7 @@ export const DentalChart = () => {
                 palette that only exists after a click they have no reason to
                 expect. The `pointer-events-none` is what makes it honest. */}
             <div className="overflow-hidden rounded-xl border border-slate-300 bg-card shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
-            <div className={`${editingChart ? 'bg-primary' : 'bg-slate-600'} px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-white`}>Charting Codes</div>
+            <div className={`${editingChart ? 'bg-primary text-white' : 'bg-slate-200 text-slate-600'} px-4 py-2 text-[11px] font-semibold uppercase tracking-wider`}>Charting Codes</div>
             {/* View-mode warning (user pick "C", 2026-09-25): a soft red strip
                 under the bar, OUTSIDE the faded body so it reads at full strength. */}
             {!editingChart && (
