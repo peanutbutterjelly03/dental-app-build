@@ -262,10 +262,10 @@ export function SchoolRotationTab() {
                     box with a small NOTE caption, pinned to the bottom so the
                     five boxes line up; empty when the day has no note. */}
                 <span className="mx-3 mb-3 mt-auto block h-[62px] overflow-hidden rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5" title={note || undefined}>
-                  <span className="block text-[9px] font-bold uppercase tracking-wider text-slate-400">Note</span>
+                  <span className="block text-[10.5px] font-bold uppercase tracking-wider text-slate-400">Note</span>
                   {/* Fixed height so the five boxes match; a long note shows two
                       lines and the rest on hover. */}
-                  {note && <span className="mt-0.5 line-clamp-2 break-words text-[10px] leading-snug text-slate-600">{note}</span>}
+                  {note && <span className="mt-0.5 line-clamp-2 break-words text-[9px] leading-snug text-slate-600">{note}</span>}
                 </span>
               </>
             );
