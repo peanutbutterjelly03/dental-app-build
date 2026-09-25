@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
-import { Search, X, CheckCircle, AlertCircle, Shield, School as SchoolIcon, List, ChevronLeft, ChevronRight, Eye, Users, ChevronDown } from 'lucide-react';
+import { Search, X, CheckCircle, AlertCircle, Shield, School as SchoolIcon, List, ChevronLeft, ChevronRight, ChevronUp, Eye, Users, ChevronDown } from 'lucide-react';
 import { getGradeColor } from '../utils/gradeColors';
 import { useRPCTracking } from '../hooks/useRPCTracking';
 import { treatmentCodes, treatmentLabel } from '../utils/dentalChartCodes';
@@ -23,13 +23,16 @@ const GRADES = ['Kinder','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grad
 // status within it, completed pairs included.
 const CURRENT_SCHOOL_YEAR = schoolYearLabel();
 
-// "Show all" (user, 2026-09-25): 0 is the sentinel -- useRPCTracking already
+// "Hide" (user, 2026-09-25): 0 is the sentinel -- useRPCTracking already
 // treats a falsy limit as "no limit" (see filterRpcRows), so this needs no
-// new backend concept, just a page size that isn't sent. Kept OUT of the
-// shared PAGE_SIZE_OPTIONS: PatientList's usePagination divides by pageSize
-// to slice client-side, and a 0 there would divide by zero.
-const SHOW_ALL = 0;
-const RPC_PAGE_SIZE_OPTIONS = [...PAGE_SIZE_OPTIONS, SHOW_ALL] as const;
+// new backend concept, just a page size that isn't sent. It shows every row
+// AND hides the whole footer bar (Showing.../Items per page), so the table
+// flows to fill the space that bar used to take -- a thin reveal tab at the
+// bottom brings the footer back (see the footer render below). Kept OUT of
+// the shared PAGE_SIZE_OPTIONS: PatientList's usePagination divides by
+// pageSize to slice client-side, and a 0 there would divide by zero.
+const HIDE_FOOTER = 0;
+const RPC_PAGE_SIZE_OPTIONS = [...PAGE_SIZE_OPTIONS, HIDE_FOOTER] as const;
 
 
 const ViewToggle = ({ mode, onChange }: { mode: 'school' | 'list'; onChange: (m: 'school' | 'list') => void }) => (
@@ -92,8 +95,8 @@ export const RPCTracking = () => {
     treatment: treatmentFilter,
     schoolYear: schoolYearFilter,
     sort: sortFilter,
-    limit: pageSize === SHOW_ALL ? undefined : pageSize,
-    offset: pageSize === SHOW_ALL ? 0 : (page - 1) * pageSize,
+    limit: pageSize === HIDE_FOOTER ? undefined : pageSize,
+    offset: pageSize === HIDE_FOOTER ? 0 : (page - 1) * pageSize,
   });
 
   // Back to page 1 on any filter change — a narrowed filter can otherwise
@@ -102,12 +105,12 @@ export const RPCTracking = () => {
     setPage(1);
   }, [searchTerm, selectedSchool, gradeFilter, sectionFilter, genderFilter, ageGroupFilter, statusFilter, treatmentFilter, schoolYearFilter, sortFilter]);
 
-  const pageCount = pageSize === SHOW_ALL ? 1 : Math.max(1, Math.ceil(total / pageSize));
+  const pageCount = pageSize === HIDE_FOOTER ? 1 : Math.max(1, Math.ceil(total / pageSize));
   // Changing page size keeps you near the same records rather than dumping you
   // back to the top — the same rule usePagination applied.
   const changePageSize = (next: number) => {
-    if (next === SHOW_ALL) { setPageSize(next); setPage(1); return; }
-    const firstRow = pageSize === SHOW_ALL ? 0 : (page - 1) * pageSize;
+    if (next === HIDE_FOOTER) { setPageSize(next); setPage(1); return; }
+    const firstRow = pageSize === HIDE_FOOTER ? 0 : (page - 1) * pageSize;
     setPageSize(next);
     setPage(Math.floor(firstRow / next) + 1);
   };
@@ -306,23 +309,23 @@ export const RPCTracking = () => {
             above. Column headings stick to the TOP OF THIS BOX via `sticky`
             on each `<th>`, not the `<tr>` (a sticky `<tr>` rendered as a
             duplicate mid-table in some browsers, see PatientList). */}
-        {/* "All" (pageSize === SHOW_ALL) drops the fixed viewport-height box
-            entirely -- height auto, no internal scrollbar -- so every row
-            renders and the PAGE scrolls down to reach them, per the user's
-            "container should be all the way to the bottom". */}
-        <div ref={rowsWrapRef} className={pageSize === SHOW_ALL ? '' : 'overflow-auto'} style={{ height: pageSize === SHOW_ALL ? undefined : (rowsHeight ?? undefined) }}>
+        {/* "Hide" (pageSize === HIDE_FOOTER) drops the fixed viewport-height
+            box entirely -- height auto, no internal scrollbar -- so every
+            row renders and the rows box, no longer sharing space with a
+            visible footer, flows all the way down to the reveal tab below. */}
+        <div ref={rowsWrapRef} className={pageSize === HIDE_FOOTER ? '' : 'overflow-auto'} style={{ height: pageSize === HIDE_FOOTER ? undefined : (rowsHeight ?? undefined) }}>
           <table className="w-full text-sm">
-            {/* Sticky only while the rows box itself scrolls -- with SHOW_ALL
+            {/* Sticky only while the rows box itself scrolls -- with HIDE_FOOTER
                 there is no scrolling ancestor here (the page scrolls
                 instead), so a sticky th would pin to the viewport's very
                 top, behind the topbar. */}
             <thead>
               <tr className="border-b border-border">
                 {['Student','Grade / Section','Visit 1','Visit 2','Status'].map(h => (
-                  <th key={h} className={`${pageSize === SHOW_ALL ? '' : 'sticky top-0 z-10'} bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground`}>{h}</th>
+                  <th key={h} className={`${pageSize === HIDE_FOOTER ? '' : 'sticky top-0 z-10'} bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground`}>{h}</th>
                 ))}
-                <th className={`${pageSize === SHOW_ALL ? '' : 'sticky top-0 z-10'} bg-gray-100 text-left pl-4 pr-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground`}>Days Until Due</th>
-                <th className={`${pageSize === SHOW_ALL ? '' : 'sticky top-0 z-10'} bg-gray-100 text-left pl-2 pr-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground`}>Actions</th>
+                <th className={`${pageSize === HIDE_FOOTER ? '' : 'sticky top-0 z-10'} bg-gray-100 text-left pl-4 pr-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground`}>Days Until Due</th>
+                <th className={`${pageSize === HIDE_FOOTER ? '' : 'sticky top-0 z-10'} bg-gray-100 text-left pl-2 pr-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground`}>Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -381,11 +384,26 @@ export const RPCTracking = () => {
             </tbody>
           </table>
         </div>
+        {/* "Hide" collapses this whole bar to the thin reveal tab below, so
+            the rows box (no longer sharing the card with a visible footer)
+            flows all the way to the bottom. footerRef only mounts with the
+            full bar, which the rowsHeight effect above already tolerates
+            (a null ref reads as 0 height). */}
+        {pageSize === HIDE_FOOTER ? (
+          <button
+            type="button"
+            onClick={() => changePageSize(25)}
+            title="Show pagination controls"
+            className="flex w-full items-center justify-center gap-1.5 border-t border-gray-100 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-canvas hover:text-foreground"
+          >
+            <ChevronUp className="h-3 w-3" /> Show pagination controls
+          </button>
+        ) : (
         <div ref={footerRef} className="flex flex-col gap-3 border-t border-gray-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
             <span>
-              Showing <span className="font-semibold text-foreground">{total === 0 ? 0 : pageSize === SHOW_ALL ? 1 : (page - 1) * pageSize + 1}</span> to{' '}
-              <span className="font-semibold text-foreground">{pageSize === SHOW_ALL ? total : Math.min(page * pageSize, total)}</span> of{' '}
+              Showing <span className="font-semibold text-foreground">{total === 0 ? 0 : (page - 1) * pageSize + 1}</span> to{' '}
+              <span className="font-semibold text-foreground">{Math.min(page * pageSize, total)}</span> of{' '}
               <span className="font-semibold text-foreground">{total}</span> records
               {selectedSchool ? ` at ${selectedSchool}` : ''}
             </span>
@@ -405,7 +423,7 @@ export const RPCTracking = () => {
                 onChange={(e) => changePageSize(Number(e.target.value))}
                 className="w-fit rounded-full border border-border bg-canvas px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
               >
-                {RPC_PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n === SHOW_ALL ? 'All' : n}</option>)}
+                {RPC_PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n === HIDE_FOOTER ? 'Hide' : n}</option>)}
               </select>
             </div>
           </div>
@@ -429,6 +447,7 @@ export const RPCTracking = () => {
             </div>
           )}
         </div>
+        )}
       </div>
     </div>
   );
