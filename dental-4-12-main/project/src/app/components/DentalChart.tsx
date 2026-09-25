@@ -2461,9 +2461,10 @@ export const DentalChart = () => {
                   <colgroup><col className="w-[30%]" /><col className="w-[15%]" /><col className="w-[20%]" /><col className="w-[15%]" /><col className="w-[20%]" /></colgroup>
                   <thead>
                     <tr>
-                      <th className="px-3 py-2" />
-                      <th colSpan={2} className="bg-amber-100 px-3 py-2 text-center font-extrabold text-amber-800">Visit 1</th>
-                      <th colSpan={2} className="bg-violet-100 px-3 py-2 text-center font-extrabold text-violet-800">Visit 2</th>
+                      {/* Plain light grey (user, 2026-09-25), including the empty corner cell. */}
+                      <th className="bg-slate-100 px-3 py-2" />
+                      <th colSpan={2} className="bg-slate-100 px-3 py-2 text-center font-extrabold text-slate-700">Visit 1</th>
+                      <th colSpan={2} className="bg-slate-100 px-3 py-2 text-center font-extrabold text-slate-700">Visit 2</th>
                     </tr>
                   </thead>
                   {(() => {
@@ -2497,10 +2498,10 @@ export const DentalChart = () => {
                         <tbody className="[&>tr:nth-child(even)>td]:bg-slate-50/70">
                           <tr className={sumHead}>
                             <th className="px-3 py-2">Treatment</th>
-                            <th className="px-3 py-2">Count</th>
-                            <th className="px-3 py-2">Teeth</th>
-                            <th className="px-3 py-2">Count</th>
-                            <th className="px-3 py-2">Teeth</th>
+                            <th className="px-3 py-2">Tooth Count</th>
+                            <th className="px-3 py-2">Tooth Numbers</th>
+                            <th className="px-3 py-2">Tooth Count</th>
+                            <th className="px-3 py-2">Tooth Numbers</th>
                           </tr>
                           {perToothTreatmentRows.map((t) => {
                             const v1 = treatmentTeethVisit1[t.code] ?? [];
@@ -2683,6 +2684,19 @@ export const DentalChart = () => {
             </div>
             <button type="button" onClick={() => setEditingInfo(false)} aria-label="Close" className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
           </div>
+          {/* "Not a Student", as on Add New Student: a person treated here who
+              is not enrolled. Grade and Section do not apply, so ticking it
+              clears and locks both pairs (this year's and current). */}
+          <div className="mx-6 mt-4 flex items-center gap-2">
+            <input type="checkbox" id="edit-not-student" checked={!!draftInfo.is_not_student}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setDraftInfo((p) => ({ ...p, is_not_student: checked, ...(checked ? { grade_level: '', section: '' } : {}) }));
+                if (checked) setDraftYear((p) => ({ ...p, grade_level: '', section: '' }));
+              }}
+              className="h-4 w-4 rounded accent-primary" />
+            <label htmlFor="edit-not-student" className="text-sm font-medium text-foreground">Not a Student</label>
+          </div>
           <div className="space-y-4 p-6">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div><label className="block text-sm font-medium text-foreground mb-1">Last Name</label><input type="text" value={draftInfo.last_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, last_name: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
@@ -2708,23 +2722,23 @@ export const DentalChart = () => {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Grade <span className="font-normal text-muted-foreground">({years[selectedYear]?.iptr.school_year})</span></label>
-                <select value={draftYear.grade_level} onChange={(e) => setDraftYear((p) => ({ ...p, grade_level: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-card">
+                <select value={draftYear.grade_level} disabled={!!draftInfo.is_not_student} onChange={(e) => setDraftYear((p) => ({ ...p, grade_level: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-card disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground">
                   <option value="">Not recorded</option>{GRADES.map((g) => <option key={g}>{g}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Section <span className="font-normal text-muted-foreground">({years[selectedYear]?.iptr.school_year})</span></label>
-                <input type="text" placeholder="Not recorded" value={draftYear.section} onChange={(e) => setDraftYear((p) => ({ ...p, section: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                <input type="text" placeholder="Not recorded" value={draftYear.section} disabled={!!draftInfo.is_not_student} onChange={(e) => setDraftYear((p) => ({ ...p, section: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Grade <span className="font-normal text-muted-foreground">(current enrolment)</span></label>
-                <select value={draftInfo.grade_level ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, grade_level: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-card">
-                  {GRADES.map((g) => <option key={g}>{g}</option>)}
+                <select value={draftInfo.grade_level ?? ''} disabled={!!draftInfo.is_not_student} onChange={(e) => setDraftInfo((p) => ({ ...p, grade_level: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-card disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground">
+                  <option value="">Select Grade</option>{GRADES.map((g) => <option key={g}>{g}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Section <span className="font-normal text-muted-foreground">(current enrolment)</span></label>
-                <input type="text" value={draftInfo.section ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, section: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                <input type="text" value={draftInfo.section ?? ''} disabled={!!draftInfo.is_not_student} onChange={(e) => setDraftInfo((p) => ({ ...p, section: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground" />
               </div>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
