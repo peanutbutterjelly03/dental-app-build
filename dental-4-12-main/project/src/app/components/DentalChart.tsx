@@ -1914,7 +1914,7 @@ export const DentalChart = () => {
         // Navy "Consent" title bar like the Dental Chart panels, applied in
         // full (user pick "D", 2026-09-25 — no separate coloured icon block;
         // the shield moves into a status pill next to the text).
-        <div className="overflow-hidden rounded-xl border border-slate-300 bg-card">
+        <div className="overflow-hidden rounded-xl border border-slate-300 bg-card shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
         <div className="bg-primary px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-white">Consent</div>
         <div className="flex items-center gap-3 px-4 py-3 min-w-0">
           <span className={`inline-flex flex-shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${consentComplete ? 'border-[#86EFAC] bg-[#F0FDF4] text-[#15803D]' : 'border-[#FCD34D] bg-[#FFFBEB] text-[#B45309]'}`}>
@@ -2075,9 +2075,9 @@ export const DentalChart = () => {
                 Target Client List and the DOH return read. */}
             {/* Navy title bar panels (user pick "G", 2026-09-25); the
                 odontogram card below deliberately gets no bar. */}
-            <div className="overflow-hidden rounded-xl border border-slate-300 bg-card">
+            <div className="overflow-hidden rounded-xl border border-slate-300 bg-card shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
             {/* Grey while not editable (user, 2026-09-25): navy means "you can change this". */}
-            <div className={`${editingHistory ? 'bg-primary' : 'bg-slate-400'} px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-white`}>Oral Conditions &amp; Treatments Given</div>
+            <div className={`${editingHistory ? 'bg-primary' : 'bg-slate-600'} px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-white`}>Oral Conditions &amp; Treatments Given</div>
             <div className="p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className={editingHistory ? '' : 'opacity-60 pointer-events-none select-none'}>
                 <div className="flex flex-wrap items-center gap-3 mb-2">
@@ -2223,8 +2223,8 @@ export const DentalChart = () => {
                 be charted and that they are not in edit mode yet, instead of a
                 palette that only exists after a click they have no reason to
                 expect. The `pointer-events-none` is what makes it honest. */}
-            <div className="overflow-hidden rounded-xl border border-slate-300 bg-card">
-            <div className={`${editingChart ? 'bg-primary' : 'bg-slate-400'} px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-white`}>Charting Codes</div>
+            <div className="overflow-hidden rounded-xl border border-slate-300 bg-card shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+            <div className={`${editingChart ? 'bg-primary' : 'bg-slate-600'} px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-white`}>Charting Codes</div>
             {/* View-mode warning (user pick "C", 2026-09-25): a soft red strip
                 under the bar, OUTSIDE the faded body so it reads at full strength. */}
             {!editingChart && (
@@ -2342,7 +2342,7 @@ export const DentalChart = () => {
               </div>
             )}
 
-            <div className="relative bg-card rounded-xl border border-slate-300 p-4 overflow-x-auto">
+            <div className="relative bg-card rounded-xl border border-slate-300 p-4 overflow-x-auto shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
               {/* Every row is 16 equal slots, so a primary tooth sits directly
                   under the permanent tooth it will replace: 55↔15, 54↔14 …
                   51↔11, 61↔21 … 65↔25 (FDI). The primary rows previously used
