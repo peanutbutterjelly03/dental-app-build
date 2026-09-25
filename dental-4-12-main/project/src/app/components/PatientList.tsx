@@ -943,25 +943,30 @@ export const PatientList = () => {
     }
   }, [cardHeight, hidePagination]);
 
-  // Hide's bottom corners: rounded when the card ends on its own (a short
-  // list), square when the card is actually pressed flush against the
-  // bottom of the screen (a long list hitting the maxHeight cap and
-  // scrolling internally) — a curve right at the screen edge, with nothing
-  // beneath it, reads as a cut-off render glitch rather than a corner.
-  // `useLayoutEffect`, not `useEffect`: a passive effect runs after the
-  // browser paints, flashing the rounded corner for one frame first.
+  // The card's bottom corners (user, 2026-09-25: the default view's own
+  // container was leaving the same gap Hide's did, since only Hide cancelled
+  // <main>'s trailing padding) — rounded when the card ends on its own,
+  // square when it is actually pressed flush against the bottom of the
+  // screen. In the default view the card ALWAYS uses a fixed `height` (never
+  // shrinks to content), so cancelling that padding means it is ALWAYS at
+  // the edge -- square unconditionally. In Hide, `maxHeight` lets a short
+  // list end early, so it only squares off when the rows box is actually
+  // scrolling (hits the cap). `useLayoutEffect`, not `useEffect`: a passive
+  // effect runs after the browser paints, flashing the rounded corner for
+  // one frame first.
   const rowsBoxRef = useRef<HTMLDivElement | null>(null);
-  const [hideAtEdge, setHideAtEdge] = useState(false);
+  const [hideRowsScrolling, setHideRowsScrolling] = useState(false);
   useLayoutEffect(() => {
-    if (!hidePagination) { setHideAtEdge(false); return; }
+    if (!hidePagination) { setHideRowsScrolling(false); return; }
     const el = rowsBoxRef.current;
     if (!el) return;
-    const check = () => setHideAtEdge(el.scrollHeight > el.clientHeight + 1);
+    const check = () => setHideRowsScrolling(el.scrollHeight > el.clientHeight + 1);
     check();
     const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(check) : null;
     resizeObserver?.observe(el);
     return () => resizeObserver?.disconnect();
   }, [hidePagination, cardHeight, filtered.length]);
+  const cardAtEdge = !hidePagination || hideRowsScrolling;
 
   const hasActiveFilters = gradeFilter !== 'all' || sectionFilter !== 'all' || genderFilter !== 'all' || ageGroupFilter !== 'all' || searchTerm !== '';
 
@@ -1078,13 +1083,17 @@ export const PatientList = () => {
           is what `position: sticky` pins its descendants against, so the
           header block, table headings and footer below would stick to THIS
           div instead of the viewport and never visibly move. */}
-      {/* Hide cancels <main>'s own bottom padding (Root.tsx's `p-4 md:p-8`
-          around <Outlet/>) with a matching negative margin, and caps the
-          card with `maxHeight` instead of forcing `height` — a short list
-          ends right after the reveal tab (rounded corner and all) instead
-          of stretching into dead white space. See RPC Monitoring for the
-          full reasoning; ported verbatim (user, 2026-09-25). */}
-      <div ref={cardRef} className={`flex flex-col bg-card border border-border shadow-sm overflow-clip ${hideAtEdge ? 'rounded-t-2xl' : 'rounded-2xl'} ${hidePagination ? '-mb-4 md:-mb-8' : ''}`} style={hidePagination ? { maxHeight: cardHeight ?? undefined } : { height: cardHeight ?? undefined }}>
+      {/* Always cancels <main>'s own bottom padding (Root.tsx's `p-4 md:p-8`
+          around <Outlet/>) with a matching negative margin (user,
+          2026-09-25: the default view was leaving the same gap Hide's did,
+          when only Hide cancelled it) — the card reaches the true bottom of
+          the screen in EITHER state. Hide additionally caps the card with
+          `maxHeight` instead of forcing `height`, so a short list ends right
+          after the reveal tab (rounded corner and all) instead of
+          stretching into dead white space; the default view keeps `height`,
+          which always fills the space on purpose. See RPC Monitoring for
+          the full reasoning; ported verbatim. */}
+      <div ref={cardRef} className={`flex flex-col bg-card border border-border shadow-sm overflow-clip -mb-4 md:-mb-8 ${cardAtEdge ? 'rounded-t-2xl' : 'rounded-2xl'}`} style={hidePagination ? { maxHeight: cardHeight ?? undefined } : { height: cardHeight ?? undefined }}>
         <div ref={cardHeaderRef} className="sticky z-40 space-y-4 border-b border-border bg-card p-5 sm:p-6" style={{ top: stickyTop.cardHeader }}>
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
