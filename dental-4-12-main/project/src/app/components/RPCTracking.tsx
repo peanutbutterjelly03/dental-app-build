@@ -190,7 +190,7 @@ export const RPCTracking = () => {
       resizeObserver?.disconnect();
       window.removeEventListener('resize', measure);
     };
-  }, [filtered.length, pageCount]);
+  }, [filtered.length, pageCount, pageSize]);
 
   // Trims any stray page scroll the estimate above leaves behind (e.g.
   // <main>'s own bottom padding), the same correction pass PatientList uses.
