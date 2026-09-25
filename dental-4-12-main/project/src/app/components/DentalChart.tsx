@@ -151,7 +151,7 @@ const yesBadge = 'inline-flex items-center rounded-full bg-green-100 px-2 py-0.5
 const ToothTags = ({ teeth, tone }: { teeth: number[]; tone: 'teal' | 'blue' }) => (
   <span className="flex flex-wrap gap-1">
     {teeth.map((n) => (
-      <span key={n} className={`rounded px-1.5 py-px text-[10.5px] font-semibold ${tone === 'teal' ? 'bg-teal-100 text-teal-800' : 'bg-blue-100 text-blue-900'}`}>{n}</span>
+      <span key={n} className={`rounded px-1.5 py-px text-[10.5px] font-normal ${tone === 'teal' ? 'bg-teal-100 text-teal-800' : 'bg-blue-100 text-blue-900'}`}>{n}</span>
     ))}
   </span>
 );
@@ -2462,7 +2462,7 @@ export const DentalChart = () => {
                     {indicateNumberRows.map(({ label, teeth }) => (
                       <tr key={label}>
                         <td className={sumCell}>{label}</td>
-                        <td className={`${sumCell} text-[13px] font-extrabold`}>{teeth.length ? teeth.length : ''}</td>
+                        <td className={`${sumCell} text-[13px]`}>{teeth.length ? teeth.length : ''}</td>
                         <td className={sumCell}><ToothTags teeth={teeth} tone="teal" /></td>
                       </tr>
                     ))}
@@ -2535,9 +2535,9 @@ export const DentalChart = () => {
                             return (
                               <tr key={t.code}>
                                 <td className={sumCell}><span className="mr-1 font-bold">{t.code}</span>{t.label}</td>
-                                <td className={`${sumCell} text-[13px] font-extrabold`}>{v1.length ? v1.length : ''}</td>
+                                <td className={`${sumCell} text-[13px]`}>{v1.length ? v1.length : ''}</td>
                                 <td className={sumCell}><ToothTags teeth={v1} tone="blue" /></td>
-                                <td className={`${sumCell} text-[13px] font-extrabold`}>{v2.length ? v2.length : ''}</td>
+                                <td className={`${sumCell} text-[13px]`}>{v2.length ? v2.length : ''}</td>
                                 <td className={sumCell}><ToothTags teeth={v2} tone="blue" /></td>
                               </tr>
                             );
@@ -2707,7 +2707,7 @@ export const DentalChart = () => {
               <div className="mb-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-primary">
                 <span className="h-1.5 w-1.5 rounded-full bg-primary" /> Basic Information
               </div>
-              <h2 className="text-lg font-bold text-foreground">Edit Basic Information</h2>
+              <h2 className="text-lg font-bold text-foreground">Edit Student Basic Information</h2>
             </div>
             <button type="button" onClick={() => setEditingInfo(false)} aria-label="Close" className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
           </div>
