@@ -27,6 +27,23 @@ const OTHER_TYPE = 'Other';
 
 const TODAY = toLocalDateString(new Date());
 
+// Details-panel building blocks. ⚠ Module scope on purpose: declared inside
+// the component they were a NEW component type on every render, so React
+// remounted everything under them on each keystroke and the note box lost
+// focus after one letter.
+const PanelField = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  <div className="min-w-0">
+    <div className="text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground">{label}</div>
+    <div className="mt-0.5 break-words text-sm font-semibold text-foreground">{children}</div>
+  </div>
+);
+const PanelSection = ({ title, children, last = false }: { title: string; children: React.ReactNode; last?: boolean }) => (
+  <div className={`px-5 py-4 ${last ? '' : 'border-b border-border'}`}>
+    <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-primary">{title}</div>
+    {children}
+  </div>
+);
+
 /** "2026-09-04" -> "Sep 4". Shared by the card meta chips and the
  *  duplicate-booking warning so both read the same way. */
 const shortenDate = (dateStr: string) =>
@@ -1422,18 +1439,6 @@ export const Appointments = () => {
         const whenText = `${when.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })} · ${formatTimeBlock(d.time).clock} ${formatTimeBlock(d.time).ampm}`;
         const flags = sole ? [sole.requiresFollowup && 'Follow-up', sole.parentalSupervision && 'Parent present'].filter(Boolean) as string[] : [];
         const canResolve = !d.pending && (status === 'Scheduled' || status === 'Missed' || status === 'In Progress');
-        const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
-          <div className="min-w-0">
-            <div className="text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground">{label}</div>
-            <div className="mt-0.5 break-words text-sm font-semibold text-foreground">{children}</div>
-          </div>
-        );
-        const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
-          <div className="border-b border-border px-5 py-4">
-            <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-primary">{title}</div>
-            {children}
-          </div>
-        );
         return (
           <div className="fixed inset-0 z-[80] flex justify-end">
             <div className="absolute inset-0 bg-black/30" onClick={() => setDetailId(null)} aria-hidden="true" />
@@ -1455,27 +1460,27 @@ export const Appointments = () => {
               </div>
 
               <div className="flex-1 overflow-y-auto">
-                <Section title="Appointment">
+                <PanelSection title="Appointment">
                   <div className="grid grid-cols-2 gap-x-5 gap-y-3">
-                    <Field label="When">{whenText}</Field>
-                    <Field label="Status"><span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${statusBadge(status)}`}>{status}</span></Field>
-                    <Field label="Type">{d.type}</Field>
-                    <Field label="Dentist">{d.dentist}</Field>
+                    <PanelField label="When">{whenText}</PanelField>
+                    <PanelField label="Status"><span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${statusBadge(status)}`}>{status}</span></PanelField>
+                    <PanelField label="Type">{d.type}</PanelField>
+                    <PanelField label="Dentist">{d.dentist}</PanelField>
                   </div>
-                </Section>
-                <Section title="Patient">
+                </PanelSection>
+                <PanelSection title="Patient">
                   <div className="grid grid-cols-2 gap-x-5 gap-y-3">
-                    <Field label="School">{d.school}</Field>
-                    <Field label="Guardian contact">{d.guardianContactNumber || 'Not recorded'}</Field>
-                    <Field label="Flags">
+                    <PanelField label="School">{d.school}</PanelField>
+                    <PanelField label="Guardian contact">{d.guardianContactNumber || 'Not recorded'}</PanelField>
+                    <PanelField label="Flags">
                       {flags.length
                         ? <span className="flex flex-wrap gap-1">{flags.map((f) => <span key={f} className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">{f}</span>)}</span>
                         : <span className="font-normal text-muted-foreground">None</span>}
-                    </Field>
+                    </PanelField>
                     {sole && (
-                      <Field label="Record">
+                      <PanelField label="Record">
                         <Link to={`/dental-chart/${sole.id}`} className="text-primary underline underline-offset-2 hover:text-primary-hover">Open dental chart ›</Link>
-                      </Field>
+                      </PanelField>
                     )}
                   </div>
                   {!sole && (
@@ -1488,13 +1493,13 @@ export const Appointments = () => {
                       ))}
                     </ul>
                   )}
-                </Section>
-                <Section title="Note">
+                </PanelSection>
+                <PanelSection title="Note" last>
                   {sole && canWriteNotes && !d.pending ? (
                     <>
                       <textarea value={panelNote} onChange={(e) => setPanelNote(e.target.value)} maxLength={500} rows={3}
                         aria-label="Appointment note"
-                        className="w-full resize-y rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-ring" />
+                        className="w-full resize-y rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-foreground focus:bg-white focus:outline-none focus:ring-2 focus:ring-ring" />
                       {panelNote.trim() !== sole.notes && (
                         <div className="mt-2 flex gap-2">
                           <button type="button" disabled={panelNoteSaving}
@@ -1508,26 +1513,26 @@ export const Appointments = () => {
                                 toast.error(err instanceof Error ? err.message : 'Could not save the note');
                               } finally { setPanelNoteSaving(false); }
                             }}
-                            className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-hover disabled:opacity-60">
+                            className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-60">
                             {panelNoteSaving ? 'Saving…' : 'Save note'}
                           </button>
                           <button type="button" onClick={() => setPanelNote(sole.notes)} disabled={panelNoteSaving}
-                            className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-gray-50">Undo</button>
+                            className="rounded-lg border border-border px-3 py-2 text-sm font-semibold text-foreground hover:bg-gray-50">Undo</button>
                         </div>
                       )}
                     </>
                   ) : (
-                    <div className="min-h-[44px] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                    <div className="min-h-[44px] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-foreground">
                       {sole ? sole.notes : d.students.filter((st) => st.notes).map((st) => <div key={st.appointmentId}><b>{st.name}:</b> {st.notes}</div>)}
                     </div>
                   )}
-                </Section>
+                </PanelSection>
               </div>
 
               {/* Same rules as the row's Actions menu: In Progress can only be
                   completed; a future date cannot be a no-show yet. */}
               {canResolve && (
-                <div className="flex flex-wrap gap-2 border-t border-border px-5 py-4">
+                <div className="flex flex-wrap justify-end gap-2 border-t border-border px-5 py-4">
                   <button type="button" onClick={() => setConfirmStatusAction({ session: d, status: 'Completed' })}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-700"><Check className="h-4 w-4" /> Completed</button>
                   {status !== 'In Progress' && d.date <= TODAY && (
