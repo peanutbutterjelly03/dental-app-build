@@ -17,6 +17,11 @@ import { useToast } from './Toast';
 // ones (utils/schoolColors). The reminder only ever speaks about TODAY and
 // TOMORROW (user rule), in the top bar and on the Dashboard.
 
+const SCHOOL_ORDER = [
+  'Bagong Tanyag Integrated School',
+  'Bagong Tanyag Elementary School Annex A',
+  'South Daang Hari Elementary School Main',
+];
 const WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const longDay = (d: Date) => `${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d.getDay()]}, ${MONTH[d.getMonth()]} ${d.getDate()}`;
@@ -61,7 +66,13 @@ export function SchoolRotationTab() {
   const { user } = useAuth();
   const toast = useToast();
   const canEdit = user?.role === 'dentist' || user?.role === 'dental_aide' || user?.role === 'system_admin';
-  const { schools } = useSchools();
+  const { schools: schoolRows } = useSchools();
+  // The clinic's own order (user, 2026-09-25): BTIS, Annex A, South Daanghari;
+  // any other school after them, alphabetically.
+  const schools = useMemo(() => [...schoolRows].sort((a, b) => {
+    const rank = (n: string) => { const i = SCHOOL_ORDER.indexOf(n); return i === -1 ? SCHOOL_ORDER.length : i; };
+    return rank(a.school_name) - rank(b.school_name) || a.school_name.localeCompare(b.school_name);
+  }), [schoolRows]);
   const { dentist, dentists, isOwn, setChosenId } = useRotationDentist();
 
   const today = dayStart(new Date());
@@ -241,7 +252,7 @@ export function SchoolRotationTab() {
                   <span>{WEEKDAY[d.getDay()]}{isToday ? ' · Today' : ''}</span>
                   <span className="normal-case">{MONTH[d.getMonth()]} {d.getDate()}</span>
                 </span>
-                <span className="block px-3 pt-3 pb-2.5">
+                <span className="block px-3 pt-3 pb-4">
                   <span className={`block font-extrabold leading-tight ${sch && getSchoolAcronym(sch.school_name).length > 8 ? 'text-[16px]' : 'text-[19px]'}`}
                     style={{ color: c?.solid ?? '#94a3b8' }}>{sch ? getSchoolAcronym(sch.school_name) : 'Not set'}</span>
                   {sch && <span className="mt-0.5 block text-[11px] text-muted-foreground">{getSchoolShortName(sch.school_name)}</span>}
@@ -254,7 +265,7 @@ export function SchoolRotationTab() {
                   <span className="block text-[9.5px] font-bold uppercase tracking-wider text-slate-400">Note</span>
                   {/* Fixed height so the five boxes match; a long note shows two
                       lines and the rest on hover. */}
-                  {note && <span className="mt-0.5 line-clamp-2 break-words text-[11.5px] leading-snug text-slate-700">{note}</span>}
+                  {note && <span className="mt-0.5 line-clamp-2 break-words text-[10.5px] leading-snug text-slate-700">{note}</span>}
                 </span>
               </>
             );
@@ -292,7 +303,7 @@ export function SchoolRotationTab() {
             </div>
             <input type="text" value={note} onChange={(e) => setNote(e.target.value)} maxLength={200}
               placeholder="Note (optional), e.g. afternoon only"
-              className="mt-3 w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              className="mt-3 w-full rounded-lg border border-border px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring" />
             {err && <p className="mt-2 text-xs text-destructive">{err}</p>}
             <div className="mt-4 flex items-center gap-2">
               {rowFor(editDay) && (
