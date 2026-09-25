@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Eye, FileText, X, School as SchoolIcon, List, ChevronLeft, ChevronRight, Users, Upload, CheckCircle, AlertCircle, ScanLine, GraduationCap, MoreVertical, ListChecks, Archive as ArchiveIcon, Copy } from 'lucide-react';
+import { Plus, Eye, FileText, X, School as SchoolIcon, List, ChevronLeft, ChevronRight, ChevronUp, Users, Upload, CheckCircle, AlertCircle, ScanLine, GraduationCap, MoreVertical, ListChecks, Archive as ArchiveIcon, Copy } from 'lucide-react';
 import { ConfirmDialog } from './ConfirmDialog';
 import { formatDate } from '../utils/localDate';
 import { OCR_CONFIDENCE_THRESHOLD, type IptrOcrFieldKey, type IptrCheckboxFinding } from '../utils/iptrOcrShared';
@@ -514,7 +514,14 @@ export const PatientList = () => {
       resizeObserver?.disconnect();
       window.removeEventListener('resize', measure);
     };
-  }, [canAddStudent]);
+    // ⚠ `studentsLoading` added (user, 2026-09-25, same bug class found and
+    // fixed on RPC Monitoring): with `[canAddStudent]` alone, this ran once
+    // on the very first render -- while studentsLoading is still true and
+    // the skeleton renders instead of the real toolbar -- so toolbarRef was
+    // null and cardHeader's sticky offset stuck at TOPBAR_H forever, same as
+    // the toolbar's own offset. Once both stuck on scroll, the search/filter
+    // block would overlap and cover the bottom of the toolbar.
+  }, [canAddStudent, studentsLoading]);
 
   // The Add Student form no longer has its own School field — it always adds
   // to whichever school is currently in view, set the moment the form opens
@@ -882,53 +889,79 @@ export const PatientList = () => {
   // carries the page-size picker. Reset keys are the FILTER INPUTS, not
   // `filtered` — see the hook for why that distinction matters.
   const pager = usePagination(filtered, [gradeFilter, sectionFilter, genderFilter, ageGroupFilter, searchTerm, selectedSchool], 10);
-  const paged = pager.paged;
+  // "Hide" (user, 2026-09-25, ported from RPC Monitoring): a local toggle
+  // layered on top of `pager`, not a value fed into it — `usePagination`
+  // slices by dividing into `pageSize`, and a 0 there would divide by zero.
+  // Hiding shows every filtered row and drops pager.pageSize entirely.
+  const [hidePagination, setHidePagination] = useState(false);
+  const paged = hidePagination ? filtered : pager.paged;
+  const HIDE_FOOTER = 0;
+  const PATIENT_PAGE_SIZE_OPTIONS = [...PAGE_SIZE_OPTIONS, HIDE_FOOTER] as const;
 
-  // Bounds the row list to whatever viewport space is left below the toolbar
-  // and the card header and above the pagination footer, so THAT is the only
-  // part of the page that scrolls — the sticky toolbar/header above stay put
-  // because there is nothing left for the page itself to scroll past. The
-  // column headings stick to the top of this same bounded box (not the
-  // viewport): a `<tr>` stuck to the viewport rendered as a visual duplicate
-  // mid-table in some browsers, so each `<th>` sticks to this container
-  // instead, which is the more broadly compatible technique.
-  const rowsWrapRef = useRef<HTMLDivElement | null>(null);
-  const footerRef = useRef<HTMLDivElement | null>(null);
-  const [rowsMaxHeight, setRowsMaxHeight] = useState<number | null>(null);
+  // ⚠ ADAPTIVE, not JS pixel math for the footer (ported from RPC Monitoring,
+  // user 2026-09-25, after three failed attempts THERE at computing an exact
+  // height for the rows box AND the footer separately): the CARD itself is
+  // measured ONCE (its own `top` — the one thing genuine CSS can't express
+  // here, since it depends on the toolbar's rendered height) and given that
+  // much of the viewport as a real `height`/`maxHeight`. Everything below
+  // that split is plain CSS flexbox on the card: the sticky search/filter
+  // header, the rows box (`flex-1 min-h-0 overflow-auto`), and the footer
+  // (an ordinary flex item sized by its own content). The browser recomputes
+  // that split on every layout pass — nothing to remeasure, nothing to fall
+  // out of sync.
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const [cardHeight, setCardHeight] = useState<number | null>(null);
 
   useEffect(() => {
     const measure = () => {
-      if (!rowsWrapRef.current) return;
-      const top = rowsWrapRef.current.getBoundingClientRect().top;
-      const footerH = footerRef.current?.offsetHeight ?? 0;
-      setRowsMaxHeight(Math.max(window.innerHeight - top - footerH, 160));
+      if (!cardRef.current) return;
+      const top = cardRef.current.getBoundingClientRect().top;
+      setCardHeight(Math.max(window.innerHeight - top, 160));
     };
     measure();
-    let resizeObserver: ResizeObserver | null = null;
-    if (typeof ResizeObserver !== 'undefined') {
-      resizeObserver = new ResizeObserver(measure);
-      if (toolbarRef.current) resizeObserver.observe(toolbarRef.current);
-      if (cardHeaderRef.current) resizeObserver.observe(cardHeaderRef.current);
-      if (footerRef.current) resizeObserver.observe(footerRef.current);
-    }
     window.addEventListener('resize', measure);
-    return () => {
-      resizeObserver?.disconnect();
-      window.removeEventListener('resize', measure);
-    };
-  }, [canAddStudent, filtered.length, pager.pageCount]);
+    return () => window.removeEventListener('resize', measure);
+    // studentsLoading: same reason as the stickyTop effect above.
+  }, [canAddStudent, studentsLoading]);
 
   // The estimate above can leave a few stray pixels of page scroll (e.g.
   // `<main>`'s own bottom padding, which this component has no clean way to
   // read). Trim exactly that much, synchronously before paint, so the page
   // itself never scrolls — only the bounded row list above does.
+  //
+  // ⚠ `hidePagination` is ALSO a dep, not just `cardHeight` (same bug class
+  // found and fixed on RPC Monitoring): toggling Hide can remeasure to the
+  // EXACT SAME cardHeight value (both are `window.innerHeight - top`, and
+  // `top` doesn't move between states) — React bails out the resulting
+  // setCardHeight as a no-op, so this effect would never get a second look
+  // at the real footer's overflow once Hide's negative margin is gone.
   useLayoutEffect(() => {
-    if (rowsMaxHeight == null) return;
+    if (cardHeight == null) return;
     const overflow = document.documentElement.scrollHeight - window.innerHeight;
     if (overflow > 0) {
-      setRowsMaxHeight((h) => (h == null ? h : Math.max(h - overflow, 160)));
+      setCardHeight((h) => (h == null ? h : Math.max(h - overflow, 160)));
     }
-  }, [rowsMaxHeight]);
+  }, [cardHeight, hidePagination]);
+
+  // Hide's bottom corners: rounded when the card ends on its own (a short
+  // list), square when the card is actually pressed flush against the
+  // bottom of the screen (a long list hitting the maxHeight cap and
+  // scrolling internally) — a curve right at the screen edge, with nothing
+  // beneath it, reads as a cut-off render glitch rather than a corner.
+  // `useLayoutEffect`, not `useEffect`: a passive effect runs after the
+  // browser paints, flashing the rounded corner for one frame first.
+  const rowsBoxRef = useRef<HTMLDivElement | null>(null);
+  const [hideAtEdge, setHideAtEdge] = useState(false);
+  useLayoutEffect(() => {
+    if (!hidePagination) { setHideAtEdge(false); return; }
+    const el = rowsBoxRef.current;
+    if (!el) return;
+    const check = () => setHideAtEdge(el.scrollHeight > el.clientHeight + 1);
+    check();
+    const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(check) : null;
+    resizeObserver?.observe(el);
+    return () => resizeObserver?.disconnect();
+  }, [hidePagination, cardHeight, filtered.length]);
 
   const hasActiveFilters = gradeFilter !== 'all' || sectionFilter !== 'all' || genderFilter !== 'all' || ageGroupFilter !== 'all' || searchTerm !== '';
 
@@ -1045,7 +1078,13 @@ export const PatientList = () => {
           is what `position: sticky` pins its descendants against, so the
           header block, table headings and footer below would stick to THIS
           div instead of the viewport and never visibly move. */}
-      <div className="bg-card rounded-2xl border border-border shadow-sm overflow-clip">
+      {/* Hide cancels <main>'s own bottom padding (Root.tsx's `p-4 md:p-8`
+          around <Outlet/>) with a matching negative margin, and caps the
+          card with `maxHeight` instead of forcing `height` — a short list
+          ends right after the reveal tab (rounded corner and all) instead
+          of stretching into dead white space. See RPC Monitoring for the
+          full reasoning; ported verbatim (user, 2026-09-25). */}
+      <div ref={cardRef} className={`flex flex-col bg-card border border-border shadow-sm overflow-clip ${hideAtEdge ? 'rounded-t-2xl' : 'rounded-2xl'} ${hidePagination ? '-mb-4 md:-mb-8' : ''}`} style={hidePagination ? { maxHeight: cardHeight ?? undefined } : { height: cardHeight ?? undefined }}>
         <div ref={cardHeaderRef} className="sticky z-40 space-y-4 border-b border-border bg-card p-5 sm:p-6" style={{ top: stickyTop.cardHeader }}>
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
@@ -1151,15 +1190,13 @@ export const PatientList = () => {
           </div>
         </div>
 
-        {/* Table — fixed height (not max-height), so this box (not the page)
-            is what scrolls AND always fills the space left below the header
-            down to the footer, even when there are only a few rows — a
-            max-height instead left a visible gray gap of empty page under a
-            short list. See rowsMaxHeight above. The column headings stick to
+        {/* flex-1 fills whatever the card (see cardRef above) doesn't give
+            to the header/footer — this box (not the page) is what scrolls,
+            even when there are only a few rows. The column headings stick to
             the TOP OF THIS BOX via `sticky` on each `<th>`, not the `<tr>` —
             a sticky `<tr>` rendered as a visual duplicate mid-table in some
             browsers. */}
-        <div ref={rowsWrapRef} className="overflow-auto" style={{ height: rowsMaxHeight ?? undefined }}>
+        <div ref={rowsBoxRef} className="min-h-0 flex-1 overflow-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
@@ -1258,13 +1295,28 @@ export const PatientList = () => {
               })}
             </tbody>
           </table>
+          {/* "Hide" collapses the full Showing/Items-per-page bar to this
+              thin reveal tab — placed INSIDE the scrollable box, as the last
+              row of its content, not pinned below it: it only comes into
+              view once you've scrolled to the end of the list, same as any
+              other row would. Ported from RPC Monitoring (user, 2026-09-25). */}
+          {hidePagination && (
+            <button
+              type="button"
+              onClick={() => setHidePagination(false)}
+              title="Show pagination controls"
+              className="flex w-full items-center justify-center gap-1.5 border-t border-gray-100 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-canvas hover:text-foreground"
+            >
+              <ChevronUp className="h-3 w-3" /> Show pagination controls
+            </button>
+          )}
         </div>
 
         {/* Footer / pagination — sits right after the bounded, scrollable
             row list above, so it is always in view without its own sticky
-            positioning; its height feeds back into rowsMaxHeight. */}
-        {filtered.length > 0 && (
-          <div ref={footerRef} className="flex flex-col gap-3 border-t border-border bg-card px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            positioning. */}
+        {!hidePagination && filtered.length > 0 && (
+          <div className="flex flex-shrink-0 flex-col gap-3 border-t border-border bg-card px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
               <span>
                 Showing <span className="font-semibold text-foreground">{pager.from}</span> to{' '}
@@ -1281,10 +1333,14 @@ export const PatientList = () => {
                 id="patients-page-size"
                 aria-label="Items per page"
                 value={pager.pageSize}
-                onChange={(e) => pager.changePageSize(Number(e.target.value))}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  if (n === HIDE_FOOTER) { setHidePagination(true); return; }
+                  pager.changePageSize(n);
+                }}
                 className="rounded-full border border-border bg-canvas px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
               >
-                {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
+                {PATIENT_PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n === HIDE_FOOTER ? 'Hide' : n}</option>)}
               </select>
             </div>
             {pager.pageCount > 1 && (
