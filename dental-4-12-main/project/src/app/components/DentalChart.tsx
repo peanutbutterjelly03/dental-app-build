@@ -2076,18 +2076,19 @@ export const DentalChart = () => {
             {/* Navy title bar panels (user pick "G", 2026-09-25); the
                 odontogram card below deliberately gets no bar. */}
             <div className="overflow-hidden rounded-xl border border-slate-300 bg-card shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
-            {/* View-mode notice moved INTO the bar (option "B", 2026-09-25,
-                moved here from Charting Codes; VIEW MODE tag in red): the bar
-                stays navy, with the hint and a red VIEW MODE pill on the
-                right, taking no extra row. */}
-            <div className="flex items-center gap-3 bg-primary px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-white">
+            {/* View-mode notice INSIDE the bar (option "B", 2026-09-25): the
+                bar itself still greys out when not editable -- that is the
+                point of the grey/navy toggle -- and the hint plus a solid
+                red VIEW MODE pill sit on the right, both in red, taking no
+                extra row. */}
+            <div className={`flex items-center gap-3 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider ${editingHistory ? 'bg-primary text-white' : 'bg-slate-200 text-slate-600'}`}>
               <span>Oral Conditions &amp; Treatments Given</span>
               {!editingHistory && (
                 <>
-                  <span className="ml-auto text-[11px] font-normal normal-case tracking-normal text-white/85">
-                    {canEditHistory ? 'View mode. Click the pencil icon above to record conditions/treatments.' : 'View only. Editing restricted to Dentist and Dental Aide.'}
+                  <span className="ml-auto text-[10px] font-normal normal-case tracking-normal text-destructive">
+                    {canEditHistory ? 'Click the pencil icon above to record conditions/treatments.' : 'View only. Editing restricted to Dentist and Dental Aide.'}
                   </span>
-                  <span className="flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[10.5px] font-semibold normal-case tracking-normal text-destructive">
+                  <span className="flex items-center gap-1 rounded-full bg-destructive px-2 py-0.5 text-[10.5px] font-semibold normal-case tracking-normal text-white">
                     <Lock className="h-3 w-3" /> View Mode
                   </span>
                 </>
