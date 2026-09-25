@@ -84,6 +84,15 @@ export function SchoolRotationTab() {
   const to = [addDays(weekStart, 6), addDays(today, 1)].reduce((a, b) => (a > b ? a : b));
   const { byDay, loading, reload } = useRotations(from, to, dentist?._id);
 
+  // Show / Hide notes on the day cards (user, 2026-09-25). Remembered per
+  // browser; storage can be unavailable, so every access is guarded.
+  const [showNotes, setShowNotes] = useState(() => {
+    try { return localStorage.getItem('rotation-show-notes') !== '0'; } catch { return true; }
+  });
+  const toggleNotes = () => setShowNotes((v) => {
+    try { localStorage.setItem('rotation-show-notes', v ? '0' : '1'); } catch { /* not remembered */ }
+    return !v;
+  });
   const [editDay, setEditDay] = useState<Date | null>(null);
   const [pickSchool, setPickSchool] = useState<string | null>(null);
   const [note, setNote] = useState('');
@@ -234,6 +243,10 @@ export function SchoolRotationTab() {
           {toLocalDateString(weekStart) !== toLocalDateString(mondayOf(new Date())) && (
             <button type="button" onClick={() => setWeekStart(mondayOf(new Date()))} className="text-xs font-semibold text-primary hover:underline">This week</button>
           )}
+          <button type="button" onClick={toggleNotes} aria-pressed={showNotes}
+            className="ml-auto text-xs font-semibold text-primary underline underline-offset-2 hover:text-primary-hover">
+            {showNotes ? 'Hide notes' : 'Show notes'}
+          </button>
         </div>
         {/* Colour-topped day cards (user's pick, 2026-09-25): a solid band in
             the school's colour carries the day and date; the school, its full
@@ -261,12 +274,14 @@ export function SchoolRotationTab() {
                 {/* Note space on EVERY card (user's pick "C", 2026-09-25): a grey
                     box with a small NOTE caption, pinned to the bottom so the
                     five boxes line up; empty when the day has no note. */}
-                <span className="mx-3 mb-3 mt-auto block h-[62px] overflow-hidden rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5" title={note || undefined}>
-                  <span className="block text-[10.5px] font-bold uppercase tracking-wider text-slate-400">Note</span>
-                  {/* Fixed height so the five boxes match; a long note shows two
-                      lines and the rest on hover. */}
-                  {note && <span className="mt-0.5 line-clamp-2 break-words text-[9px] leading-snug text-slate-600">{note}</span>}
-                </span>
+                {showNotes && (
+                  <span className="mx-3 mb-3 mt-auto block h-[62px] overflow-hidden rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5" title={note || undefined}>
+                    <span className="block text-[10.5px] font-bold uppercase tracking-wider text-slate-400">Note</span>
+                    {/* Fixed height so the five boxes match; a long note shows two
+                        lines and the rest on hover. */}
+                    {note && <span className="mt-0.5 line-clamp-2 break-words text-[9px] leading-snug text-slate-600">{note}</span>}
+                  </span>
+                )}
               </>
             );
             const cls = `flex flex-col justify-start overflow-hidden rounded-2xl border bg-card text-left ${isToday ? 'border-primary ring-2 ring-primary' : 'border-border'}`;
