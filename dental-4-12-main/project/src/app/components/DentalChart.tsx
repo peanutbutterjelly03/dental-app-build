@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
-import { ArrowLeft, Save, ChevronLeft, ChevronRight, Shield, Users, FileText, Plus, Pencil, Trash2, Download, X, Maximize2, Minimize2, Check, ChevronUp, ChevronDown, ShieldCheck, ShieldAlert, Shield as ShieldIcon, MoreVertical, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Save, ChevronLeft, ChevronRight, Shield, Users, FileText, Plus, Pencil, Trash2, Download, X, Maximize2, Minimize2, Check, ChevronUp, ChevronDown, ShieldCheck, ShieldAlert, Shield as ShieldIcon, MoreVertical, AlertTriangle, Lock } from 'lucide-react';
 import { buildPagesPdf } from '../utils/exportPdf';
 import { usePreviewModal } from '../hooks/usePreviewModal';
 import { PreviewModal } from './PreviewModal';
@@ -2224,15 +2224,23 @@ export const DentalChart = () => {
                 palette that only exists after a click they have no reason to
                 expect. The `pointer-events-none` is what makes it honest. */}
             <div className="overflow-hidden rounded-xl border border-slate-300 bg-card shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
-            <div className={`${editingChart ? 'bg-primary text-white' : 'bg-slate-200 text-slate-600'} px-4 py-2 text-[11px] font-semibold uppercase tracking-wider`}>Charting Codes</div>
-            {/* View-mode warning (user pick "C", 2026-09-25): a soft red strip
-                under the bar, OUTSIDE the faded body so it reads at full strength. */}
-            {!editingChart && (
-              <p className="flex items-center gap-2 border-l-4 border-destructive bg-red-50 px-3.5 py-2 text-xs font-medium text-red-700">
-                <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
-                {canEdit ? 'View mode. Click the pencil icon above to record conditions/treatments.' : 'View only. Editing restricted to Dentist.'}
-              </p>
-            )}
+            {/* View-mode notice moved INTO the bar (option "B", 2026-09-25,
+                red instead of the mockup's grey): the bar itself stays navy
+                so the panel never looks disabled, and the hint plus a red
+                VIEW MODE tag sit on the right, taking no extra row. */}
+            <div className="flex items-center gap-3 bg-primary px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-white">
+              <span>Charting Codes</span>
+              {!editingChart && (
+                <>
+                  <span className="ml-auto text-[11px] font-normal normal-case tracking-normal text-white/85">
+                    {canEdit ? 'Click the pencil icon above to record conditions/treatments.' : 'View only. Editing restricted to Dentist.'}
+                  </span>
+                  <span className="flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[10.5px] font-semibold normal-case tracking-normal text-destructive">
+                    <Lock className="h-3 w-3" /> View Mode
+                  </span>
+                </>
+              )}
+            </div>
             <div className={`p-4 ${!editingChart ? 'opacity-60 pointer-events-none select-none' : ''}`}>
               <div className={`grid grid-cols-1 ${iptrContext === 'default' ? 'lg:grid-cols-2' : ''} gap-4`}>
                 {iptrContext !== 'treatment' && (
