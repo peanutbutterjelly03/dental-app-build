@@ -162,6 +162,12 @@ export const Root = () => {
   // toggled OR auto-open when the current route is a child, so landing on
   // /dental-charts directly (not via the chevron) still shows it expanded.
   const [openStudents, setOpenStudents] = useState(false);
+  // Counts consecutive clicks on the Students row toward closing it -- user,
+  // 2026-09-25: closing takes exactly two clicks in a row on Students
+  // itself, with no time limit between them, but a click on ANY other nav
+  // item resets the count to 0 (see resetStudentsClicks below).
+  const studentsClickCount = useRef(0);
+  const resetStudentsClicks = () => { studentsClickCount.current = 0; };
   const drawerRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -365,7 +371,7 @@ export const Root = () => {
     return (
       <Link
         to={tab.path}
-        onClick={() => setDrawerOpen(false)}
+        onClick={() => { setDrawerOpen(false); resetStudentsClicks(); }}
         title={collapsed ? tab.label : undefined}
         aria-current={isActive ? 'page' : undefined}
         // Exact RAMHIS getNavStyle spec: 48px min-height, 12px horizontal
@@ -424,13 +430,22 @@ export const Root = () => {
     const highlighted = isActive || childActive;
     const isOpen = openStudents || childActive;
     const Icon = studentsTab.icon;
-    // Plain toggle on the row click -- user, 2026-09-25: two clicks close
-    // it, but there's no time limit between them (onDoubleClick's browser
-    // double-click window was wrong here: a slow second click has to close
-    // it too).
+    // Two clicks on the row, in a row, close it -- no time limit between
+    // them, but a click on any other nav item resets the count (see
+    // studentsClickCount above). Opening (from closed) always counts as the
+    // first click of a fresh pair.
     const onRowClick = () => {
       setDrawerOpen(false);
-      setOpenStudents((v) => !v);
+      if (!openStudents) {
+        studentsClickCount.current = 1;
+        setOpenStudents(true);
+        return;
+      }
+      studentsClickCount.current += 1;
+      if (studentsClickCount.current >= 2) {
+        studentsClickCount.current = 0;
+        setOpenStudents(false);
+      }
     };
     return (
       <div>
@@ -451,7 +466,7 @@ export const Root = () => {
           <span className={`${labelCls} text-[0.8125rem]`}>{studentsTab.label}</span>
           <button
             type="button"
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpenStudents((v) => !v); }}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRowClick(); }}
             aria-label={isOpen ? 'Collapse Students submenu' : 'Expand Students submenu'}
             aria-expanded={isOpen}
             className={`${labelCls} ml-auto -mr-1 p-0.5 rounded transition-transform ${isOpen ? 'rotate-180' : ''}`}
@@ -471,7 +486,7 @@ export const Root = () => {
                 <Link
                   key={child.id}
                   to={child.path}
-                  onClick={() => setDrawerOpen(false)}
+                  onClick={() => { setDrawerOpen(false); resetStudentsClicks(); }}
                   aria-current={childIsActive ? 'page' : undefined}
                   className={`flex items-center gap-2.5 min-h-[32px] pl-2.5 pr-3 rounded-full text-[0.8125rem] transition-colors ${
                     childIsActive
