@@ -303,7 +303,7 @@ export const DentalChartNav = () => {
               <Icon className="w-4 h-4" />
             </span>
             <div className="min-w-0">
-              <div className="text-xs font-bold text-muted-foreground truncate">{label}</div>
+              <div className="text-[13px] font-bold text-muted-foreground truncate">{label}</div>
               <div className="text-2xl font-bold text-foreground">{value}</div>
             </div>
           </div>
@@ -399,12 +399,7 @@ export const DentalChartNav = () => {
               </span>
               <div className="min-w-0">
                 <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Queue</div>
-                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                  <h2 className="text-lg font-bold text-foreground">Charting Queue</h2>
-                  <span style={{ backgroundColor: kickerColor.light, color: kickerColor.solid }} className="text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap">
-                    {queueCount} {queueCount === 1 ? 'STUDENT' : 'STUDENTS'}
-                  </span>
-                </div>
+                <h2 className="text-lg font-bold text-foreground mt-0.5">Charting Queue</h2>
                 <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
                   <span>
                     {extraFilter === 'appointments-today'
@@ -424,34 +419,41 @@ export const DentalChartNav = () => {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <ListSearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search student, grade, or section" />
-              <div ref={filterMenuRef} className="relative shrink-0">
-                <button
-                  type="button"
-                  role="combobox"
-                  aria-haspopup="listbox"
-                  aria-expanded={filterMenuOpen}
-                  onClick={() => setFilterMenuOpen((o) => !o)}
-                  className="flex items-center gap-1.5 text-sm font-medium rounded-lg px-3 py-2 bg-primary text-white hover:bg-primary-hover"
-                >
-                  <SlidersHorizontal className="w-3.5 h-3.5" /> Filter <ChevronDown className="w-3.5 h-3.5" />
-                </button>
-                {filterMenuOpen && (
-                  <div className="absolute right-0 z-20 mt-1 min-w-[160px] rounded-lg border border-border bg-card shadow-md py-1">
-                    {viewModeOpts.map((o) => (
-                      <button
-                        key={o.v}
-                        type="button"
-                        onClick={() => { setViewMode(o.v); setExtraFilter('none'); setFilterMenuOpen(false); }}
-                        className={`w-full text-left px-3 py-2 text-sm hover:bg-canvas ${viewMode === o.v ? 'text-primary font-semibold' : 'text-foreground'}`}
-                      >
-                        {o.l}
-                      </button>
-                    ))}
-                  </div>
-                )}
+            <div className="flex flex-col items-end gap-2">
+              <div className="flex items-center gap-3 flex-wrap">
+                <ListSearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search student, grade, or section" />
+                <div ref={filterMenuRef} className="relative shrink-0">
+                  <button
+                    type="button"
+                    role="combobox"
+                    aria-haspopup="listbox"
+                    aria-expanded={filterMenuOpen}
+                    onClick={() => setFilterMenuOpen((o) => !o)}
+                    className="flex items-center gap-1.5 text-sm font-medium rounded-lg px-3 py-2 bg-primary text-white hover:bg-primary-hover"
+                  >
+                    <SlidersHorizontal className="w-3.5 h-3.5" /> Filter <ChevronDown className="w-3.5 h-3.5" />
+                  </button>
+                  {filterMenuOpen && (
+                    <div className="absolute right-0 z-20 mt-1 min-w-[160px] rounded-lg border border-border bg-card shadow-md py-1">
+                      {viewModeOpts.map((o) => (
+                        <button
+                          key={o.v}
+                          type="button"
+                          onClick={() => { setViewMode(o.v); setExtraFilter('none'); setFilterMenuOpen(false); }}
+                          className={`w-full text-left px-3 py-2 text-sm hover:bg-canvas ${viewMode === o.v ? 'text-primary font-semibold' : 'text-foreground'}`}
+                        >
+                          {o.l}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
+              {/* Moved under the Filter button, out of the title row (user,
+                  2026-09-26). */}
+              <span style={{ backgroundColor: kickerColor.light, color: kickerColor.solid }} className="text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                {queueCount} {queueCount === 1 ? 'STUDENT' : 'STUDENTS'}
+              </span>
             </div>
           </div>
         </div>
