@@ -1,11 +1,11 @@
 import { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
-import { Eye, Users, Calendar, Clipboard, Shield, Stethoscope, SlidersHorizontal } from 'lucide-react';
+import { Eye, Users, Calendar, Clipboard, Shield, Stethoscope, SlidersHorizontal, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
 import { GradePill } from './GradePill';
 import { getSchoolColor } from '../utils/schoolColors';
 import { getGradeColor } from '../utils/gradeColors';
 import { ListSearchInput } from './ListSearchInput';
-import { getQueuedStudentIds } from '../utils/queueStorage';
+import { getQueuedStudentIds, setQueuedStudentIds as persistQueuedStudentIds } from '../utils/queueStorage';
 import { useStudents } from '../hooks/useStudents';
 import { useRPCTracking } from '../hooks/useRPCTracking';
 import { useAuth } from '../context/AuthContext';
@@ -35,7 +35,18 @@ export const DentalChartNav = () => {
   // Open on Full List when nothing is queued — an empty default view reads as a dead page
   const [viewMode, setViewMode] = useState<'queued' | 'full'>(() => (getQueuedStudentIds().length ? 'queued' : 'full'));
   const [searchTerm, setSearchTerm] = useState('');
-  const queuedStudentIds = useMemo(() => getQueuedStudentIds(), []);
+  // Reactive, not a one-time useMemo (user, 2026-09-26): clicking a stat
+  // card can now auto-queue students, which has to show up immediately in
+  // both this list and the Queue #/Students Queue count, not just after a
+  // fresh page load.
+  const [queuedStudentIds, setQueuedStudentIds] = useState<string[]>(() => getQueuedStudentIds());
+  // Which stat card (if any) is narrowing the queue beyond viewMode alone --
+  // Appointments Today / RPC filter to a specific set of students; Students
+  // Queue and the "Clear filter" chip reset it (user, 2026-09-26).
+  const [extraFilter, setExtraFilter] = useState<'none' | 'appointments-today' | 'rpc-outstanding'>('none');
+  // Up Next can be hidden to give the queue table more width (user,
+  // 2026-09-26).
+  const [showUpNext, setShowUpNext] = useState(true);
   const { selectedSchool } = useAuth();
   const { students: allStudents, loading: studentsLoading } = useStudents();
   // School-scoped like every other list page
@@ -80,24 +91,36 @@ export const DentalChartNav = () => {
   );
 
   // Appointments Today: this school's pupils with a non-archived
-  // appointment on today's LOCAL calendar date.
-  const [appointmentsToday, setAppointmentsToday] = useState(0);
+  // appointment on today's LOCAL calendar date. Kept as the actual student
+  // ID set, not just a count (user, 2026-09-26) -- clicking the card queues
+  // and filters to exactly these students.
+  const [appointmentsTodayIds, setAppointmentsTodayIds] = useState<Set<string>>(new Set());
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const appts = await apiClient.get<ApiAppointment[]>('/appointments');
       const today = toLocalDateString(new Date());
       const schoolIds = new Set(allPatients.map((p) => p.id));
-      const count = appts.filter((a) => !a.isArchived && schoolIds.has(a.student_id) && toLocalDateString(new Date(a.appointment_datetime)) === today).length;
-      if (!cancelled) setAppointmentsToday(count);
+      const ids = new Set(
+        appts
+          .filter((a) => !a.isArchived && schoolIds.has(a.student_id) && toLocalDateString(new Date(a.appointment_datetime)) === today)
+          .map((a) => a.student_id),
+      );
+      if (!cancelled) setAppointmentsTodayIds(ids);
     })();
     return () => { cancelled = true; };
   }, [allPatients]);
+  const appointmentsToday = appointmentsTodayIds.size;
 
   // RPC: outstanding (pending or overdue Visit 2) rows at this school --
   // same 'outstanding' meaning RPC Monitoring's own default view uses.
   // limit: 1 -- only `.total` is read, not the rows themselves.
-  const { total: rpcOutstandingCount } = useRPCTracking({ school: selectedSchool ?? undefined, status: 'outstanding', limit: 1 });
+  // limit: 1000, not 1 (user, 2026-09-26) -- clicking the card now filters
+  // the queue to these exact students, which needs their ids, not just the
+  // count. A single school's outstanding-RPC population is nowhere near
+  // this cap.
+  const { total: rpcOutstandingCount, records: rpcOutstandingRecords } = useRPCTracking({ school: selectedSchool ?? undefined, status: 'outstanding', limit: 1000 });
+  const rpcOutstandingIds = useMemo(() => new Set(rpcOutstandingRecords.map((r) => r.id)), [rpcOutstandingRecords]);
 
   // No grade/section/gender/age filters (user, 2026-09-25 — removed in
   // favor of a single, fixed sort). Search only; order is always by queue
@@ -105,6 +128,11 @@ export const DentalChartNav = () => {
   // queued ones and broken by name.
   const filtered = useMemo(() => {
     const rows = sourcePatients.filter((p) => {
+      // Stat-card filter (user, 2026-09-26): narrows to exactly the
+      // students that card represents, on top of whatever viewMode/search
+      // already apply.
+      if (extraFilter === 'appointments-today' && !appointmentsTodayIds.has(p.id)) return false;
+      if (extraFilter === 'rpc-outstanding' && !rpcOutstandingIds.has(p.id)) return false;
       if (!searchTerm) return true;
       const query = searchTerm.toLowerCase();
       const formattedName = p.name.toLowerCase();
@@ -117,7 +145,7 @@ export const DentalChartNav = () => {
       const posB = qb >= 0 ? qb : Infinity;
       return posA !== posB ? posA - posB : a.name.localeCompare(b.name);
     });
-  }, [sourcePatients, searchTerm, queuedStudentIds]);
+  }, [sourcePatients, searchTerm, queuedStudentIds, extraFilter, appointmentsTodayIds, rpcOutstandingIds]);
 
   // No pagination (user, 2026-09-26 — removed): the queue card scrolls its
   // own rows internally (see regionRef/rowsBoxRef below) instead of paging,
@@ -179,14 +207,40 @@ export const DentalChartNav = () => {
   // PatientList so the two rosters are recognisably the same screen.
   const kickerColor = getSchoolColor(selectedSchool || '');
 
-  // Four cards, styled after RAMHIS's Doctor Queue stat row (user,
-  // 2026-09-25), each tied to a real, already-computed count above --
-  // nothing here is a placeholder number.
+  // Each card is clickable (user, 2026-09-26):
+  // - Students Queue: back to the plain queued view, clearing any filter.
+  // - Appointments Today: queues everyone with an appointment today (adding
+  //   them to the persisted queue, not just filtering) AND filters the list
+  //   down to exactly them -- the user's own distinction: this one "should
+  //   be automatically queued", the others below only filter.
+  // - For Treatment: leaves this page entirely, for the Treatment submodule.
+  // - RPC: filters (Full List, since these students aren't necessarily
+  //   queued) down to students with an outstanding RPC visit.
+  const handleStudentsQueueClick = () => {
+    setViewMode('queued');
+    setExtraFilter('none');
+  };
+  const handleAppointmentsTodayClick = () => {
+    const merged = Array.from(new Set([...queuedStudentIds, ...appointmentsTodayIds]));
+    persistQueuedStudentIds(merged);
+    setQueuedStudentIds(merged);
+    setViewMode('queued');
+    setExtraFilter('appointments-today');
+  };
+  const handleForTreatmentClick = () => navigate('/treatment-records');
+  const handleRpcClick = () => {
+    setViewMode('full');
+    setExtraFilter('rpc-outstanding');
+  };
+
+  // Styled after RAMHIS's Doctor Queue stat row (user, 2026-09-25), each tied
+  // to a real, already-computed count above -- nothing here is a placeholder
+  // number.
   const statCards = [
-    { label: 'Students Queue', value: allPatients.filter((p) => queuedStudentIds.includes(p.id)).length, icon: Users, bg: '#E8ECF6', fg: '#273A78' },
-    { label: 'Appointments Today', value: appointmentsToday, icon: Calendar, bg: '#FFFBEB', fg: '#B45309' },
-    { label: 'For Treatment', value: forTreatmentCount, icon: Clipboard, bg: '#EFF6FF', fg: '#1D4ED8' },
-    { label: 'RPC', value: rpcOutstandingCount, icon: Shield, bg: '#FDF2F8', fg: '#BE185D' },
+    { label: 'Students Queue', value: allPatients.filter((p) => queuedStudentIds.includes(p.id)).length, icon: Users, bg: '#E8ECF6', fg: '#273A78', onClick: handleStudentsQueueClick },
+    { label: 'Appointments Today', value: appointmentsToday, icon: Calendar, bg: '#FFFBEB', fg: '#B45309', onClick: handleAppointmentsTodayClick },
+    { label: 'For Treatment', value: forTreatmentCount, icon: Clipboard, bg: '#EFF6FF', fg: '#1D4ED8', onClick: handleForTreatmentClick },
+    { label: 'RPC', value: rpcOutstandingCount, icon: Shield, bg: '#FDF2F8', fg: '#BE185D', onClick: handleRpcClick },
   ];
 
   const queueCount = filtered.length;
@@ -211,8 +265,12 @@ export const DentalChartNav = () => {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCards.map(({ label, value, icon: Icon, bg, fg }) => (
-          <div key={label} className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6">
+        {statCards.map(({ label, value, icon: Icon, bg, fg, onClick }) => (
+          <div
+            key={label}
+            {...activatable(onClick)}
+            className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6 cursor-pointer transition-colors hover:border-primary/40 hover:shadow-md"
+          >
             <span style={{ backgroundColor: bg, color: fg }} className="w-10 h-10 flex-shrink-0 rounded-xl grid place-items-center">
               <Icon className="w-4 h-4" />
             </span>
@@ -224,14 +282,27 @@ export const DentalChartNav = () => {
         ))}
       </div>
 
-      <div className="grid lg:grid-cols-[280px_1fr] gap-4 items-start">
-        {/* "Up Next": shorter than the queue table beside it (user,
+      {/* Up Next can be collapsed to a slim strip so the queue table gets
+          its width back (user, 2026-09-26) -- the freed ~236px goes
+          straight to the queue card via the grid template itself, not just
+          visually. */}
+      <div className={`grid gap-4 items-start ${showUpNext ? 'lg:grid-cols-[280px_1fr]' : 'lg:grid-cols-[44px_1fr]'}`}>
+        {showUpNext ? (
+        /* "Up Next": shorter than the queue table beside it (user,
             2026-09-25 -- option B of the design review), not stretched to
             match its full height. Mirrors RAMHIS's own empty state when
-            nothing is queued. */}
+            nothing is queued. */
         <div className="relative overflow-hidden bg-card rounded-2xl border border-border shadow-sm p-5 flex flex-col items-center justify-center text-center gap-2 min-h-[200px]">
           {/* Blue top accent bar (user, 2026-09-25). */}
           <div style={{ backgroundColor: '#273A78' }} className="absolute top-0 left-0 right-0 h-1.5" />
+          <button
+            onClick={() => setShowUpNext(false)}
+            aria-label="Hide Up Next panel"
+            title="Hide Up Next"
+            className="absolute top-3 right-3 z-10 p-1 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <PanelLeftClose className="w-3.5 h-3.5" />
+          </button>
           {upNext ? (
             <>
               <span style={{ backgroundColor: '#E8ECF6', color: '#273A78' }} className="w-12 h-12 rounded-full grid place-items-center text-sm font-bold">
@@ -259,6 +330,18 @@ export const DentalChartNav = () => {
             </>
           )}
         </div>
+        ) : (
+          // Compact, not stretched to match the queue card's height -- a
+          // small icon control, as asked, not another tall panel.
+          <button
+            onClick={() => setShowUpNext(true)}
+            aria-label="Show Up Next panel"
+            title="Show Up Next"
+            className="flex items-center justify-center h-11 lg:w-11 rounded-2xl border border-border bg-card shadow-sm text-muted-foreground hover:text-foreground hover:border-primary/40"
+          >
+            <PanelLeftOpen className="w-4 h-4" />
+          </button>
+        )}
 
       {/* The card is sticky at `top-0` of the bounded region above (user,
           2026-09-26), not the document -- pinning it to the document at
@@ -282,7 +365,7 @@ export const DentalChartNav = () => {
             `filtered` above), so those controls had nothing left to do. */}
         <div className="p-5 sm:p-6 border-b border-border bg-card">
           <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="min-w-0 flex items-start gap-3">
+            <div className="min-w-0 flex items-center gap-3">
               <span className="w-10 h-10 rounded-xl bg-gray-100 grid place-items-center flex-shrink-0">
                 <SlidersHorizontal className="w-4.5 h-4.5 text-muted-foreground" />
               </span>
@@ -294,20 +377,36 @@ export const DentalChartNav = () => {
                     {queueCount} {queueCount === 1 ? 'STUDENT' : 'STUDENTS'}
                   </span>
                 </div>
-                <p className="text-sm text-muted-foreground mt-0.5">Students in queue order, ready for dental charting.</p>
+                <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
+                  <span>
+                    {extraFilter === 'appointments-today'
+                      ? 'Showing students with an appointment today.'
+                      : extraFilter === 'rpc-outstanding'
+                      ? 'Showing students with an outstanding RPC visit.'
+                      : 'Students in queue order, ready for dental charting.'}
+                  </span>
+                  {extraFilter !== 'none' && (
+                    <button
+                      onClick={() => setExtraFilter('none')}
+                      className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
+                      <X className="w-3 h-3" /> Clear filter
+                    </button>
+                  )}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
               <ListSearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search student, grade, or section" />
               <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 shrink-0">
                 <button
-                  onClick={() => setViewMode('queued')}
+                  onClick={() => { setViewMode('queued'); setExtraFilter('none'); }}
                   className={`px-3 py-1.5 rounded-md text-sm font-medium ${viewMode === 'queued' ? 'bg-primary text-white' : 'text-muted-foreground hover:text-foreground'}`}
                 >
                   Queued
                 </button>
                 <button
-                  onClick={() => setViewMode('full')}
+                  onClick={() => { setViewMode('full'); setExtraFilter('none'); }}
                   className={`px-3 py-1.5 rounded-md text-sm font-medium ${viewMode === 'full' ? 'bg-primary text-white' : 'text-muted-foreground hover:text-foreground'}`}
                 >
                   Full List
