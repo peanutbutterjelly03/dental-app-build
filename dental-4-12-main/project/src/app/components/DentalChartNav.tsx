@@ -13,6 +13,7 @@ import { apiClient } from '../api/client';
 import type { ApiAppointment, ApiStudentIptr, ApiTreatment } from '../api/types';
 import { toLocalDateString, formatDate } from '../utils/localDate';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
+import { ConfirmDialog } from './ConfirmDialog';
 import { activatable } from '../utils/a11y';
 
 // Gender-specific avatar glyphs for the Up Next card (user, 2026-09-26) --
@@ -111,6 +112,19 @@ export const DentalChartNav = () => {
     [selectedStudentId, allPatients, upNext],
   );
   const isSpotlightUpNext = !!spotlightStudent && spotlightStudent.id === upNext?.id;
+
+  // Dequeue-from-the-table, with confirmation (user, 2026-09-26): the
+  // Queue # badge itself is the trigger, so a moment of "did I mean to
+  // click that" is the whole guard against an accidental dequeue.
+  const [dequeueTarget, setDequeueTarget] = useState<{ id: string; name: string } | null>(null);
+  const confirmDequeue = () => {
+    if (!dequeueTarget) return;
+    const next = queuedStudentIds.filter((id) => id !== dequeueTarget.id);
+    persistQueuedStudentIds(next);
+    setQueuedStudentIds(next);
+    if (selectedStudentId === dequeueTarget.id) setSelectedStudentId(null);
+    setDequeueTarget(null);
+  };
 
   // For Treatment: students at this school with at least one TREATMENT
   // record — same query TreatmentRecords.tsx runs for its own "Treatment
@@ -390,7 +404,7 @@ export const DentalChartNav = () => {
               )}
               <div className="w-full border-t border-border mt-2 pt-2 text-xs">
                 <div className="flex items-center justify-between py-0.5">
-                  <span className="text-muted-foreground">Last visit</span>
+                  <span className="text-muted-foreground">Last Dental Visit</span>
                   <span className="font-semibold text-foreground">{formatDate(spotlightStudent.lastVisit)}</span>
                 </div>
                 <div className="flex items-center justify-between py-0.5">
@@ -538,7 +552,7 @@ export const DentalChartNav = () => {
                     user 2026-09-25) — NOT the row index in `#`, which follows
                     this list's own alphabetical sort and can disagree with
                     who was queued first. Blank for a student never queued. */}
-                <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Queue #</th>
+                <th className="sticky top-0 z-10 text-center px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Queue #</th>
                 <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground sm:pr-6">Actions</th>
               </tr>
             </thead>
@@ -575,7 +589,21 @@ export const DentalChartNav = () => {
                     <td className="px-4 py-2.5 text-muted-foreground">{p.section}</td>
                     <td className="px-4 py-2.5 text-muted-foreground">{p.gender}</td>
                     <td className="px-4 py-2.5 text-muted-foreground">{age}</td>
-                    <td className="px-4 py-2.5 text-muted-foreground">{queuePosition >= 0 ? queuePosition + 1 : '—'}</td>
+                    <td className="px-4 py-2.5 text-center">
+                      {queuePosition >= 0 ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setDequeueTarget({ id: p.id, name: p.name }); }}
+                          title="Remove from charting queue"
+                          aria-label={`Remove ${p.name} from the charting queue`}
+                          style={{ backgroundColor: kickerColor.light, color: kickerColor.solid }}
+                          className="inline-flex w-6 h-6 rounded-full items-center justify-center text-xs font-bold hover:opacity-75"
+                        >
+                          {queuePosition + 1}
+                        </button>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-2.5 sm:pr-6">
                       {/* The row was already clickable; the button makes that
                           visible rather than folklore, and matches the Actions
@@ -595,6 +623,16 @@ export const DentalChartNav = () => {
         </div>
       </div>
       </div>
+
+      <ConfirmDialog
+        open={!!dequeueTarget}
+        title="Remove from charting queue?"
+        message={dequeueTarget ? `${dequeueTarget.name} will be removed from the charting queue. This does not affect their student record or dental chart.` : ''}
+        confirmLabel="Remove"
+        tone="danger"
+        onConfirm={confirmDequeue}
+        onCancel={() => setDequeueTarget(null)}
+      />
     </div>
   );
 };
