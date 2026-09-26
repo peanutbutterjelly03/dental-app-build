@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { Eye, Users, Calendar, Clipboard, Shield, Stethoscope, SlidersHorizontal } from 'lucide-react';
 import { GradePill } from './GradePill';
@@ -14,6 +14,7 @@ import type { ApiAppointment, ApiStudentIptr, ApiTreatment } from '../api/types'
 import { toLocalDateString } from '../utils/localDate';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
 import { activatable } from '../utils/a11y';
+import { TOPBAR_H } from '../utils/layout';
 import { Pagination, usePagination } from './Pagination';
 
 /** Two-letter initials for the row avatar. Same derivation her Student
@@ -125,6 +126,38 @@ export const DentalChartNav = () => {
   // the filter inputs, never `filtered` — see Pagination.tsx.
   const pager = usePagination(filtered, [searchTerm, viewMode]);
 
+  // Adaptive queue card (user, 2026-09-26): page scroll stops once the queue
+  // card reaches the top of the viewport -- the card is sized to fill
+  // exactly the rest of the screen from there, its header stays pinned via
+  // `sticky`, and only the rows box below scrolls. Same mechanism as RPC
+  // Monitoring / Student Records; ported without their "Hide" toggle, which
+  // wasn't asked for here.
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const rowsBoxRef = useRef<HTMLDivElement | null>(null);
+  const [cardHeight, setCardHeight] = useState<number | null>(null);
+
+  useEffect(() => {
+    const measure = () => {
+      if (!cardRef.current) return;
+      const top = cardRef.current.getBoundingClientRect().top;
+      setCardHeight(Math.max(window.innerHeight - top, 160));
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [studentsLoading]);
+
+  // Trims any stray page scroll the estimate above leaves behind (e.g.
+  // <main>'s own bottom padding) -- same correction pass RPC Monitoring and
+  // Student Records use.
+  useLayoutEffect(() => {
+    if (cardHeight == null) return;
+    const overflow = document.documentElement.scrollHeight - window.innerHeight;
+    if (overflow > 0) {
+      setCardHeight((h) => (h == null ? h : Math.max(h - overflow, 160)));
+    }
+  }, [cardHeight]);
+
   if (studentsLoading) {
     return (
       <div className="space-y-4">
@@ -222,14 +255,23 @@ export const DentalChartNav = () => {
           )}
         </div>
 
-      <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+      {/* `overflow-clip`, not `overflow-hidden` -- `hidden` would make this
+          div the scrolling ancestor `position: sticky` pins the header
+          against, so the header would stick to THIS card instead of the
+          viewport and never visibly move (see PatientList for the same
+          note). Height is capped to fill exactly the rest of the viewport
+          from wherever this card starts, so the page itself stops
+          scrolling once the card is reached. */}
+      <div ref={cardRef} className="flex flex-col bg-card rounded-2xl border border-border shadow-sm overflow-clip" style={{ height: cardHeight ?? undefined }}>
         {/* Queue card's own header, restyled after the RAMHIS "Patient
             Queue" reference exactly -- icon badge, gray eyebrow, title with
             a count pill, one-line description, search + view toggle at the
             top right (user, 2026-09-25). No grade/section/gender/age
             filters any more -- order is fixed to queue position (see
-            `filtered` above), so those controls had nothing left to do. */}
-        <div className="p-5 sm:p-6 border-b border-border">
+            `filtered` above), so those controls had nothing left to do.
+            Sticky (user, 2026-09-26) so it stays visible while the rows box
+            below scrolls internally. */}
+        <div className="sticky z-30 p-5 sm:p-6 border-b border-border bg-card" style={{ top: TOPBAR_H }}>
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0 flex items-start gap-3">
               <span className="w-10 h-10 rounded-xl bg-gray-100 grid place-items-center flex-shrink-0">
@@ -266,22 +308,26 @@ export const DentalChartNav = () => {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* The rows box, not the card, is what actually scrolls (user,
+            2026-09-26) -- column headings stick to the TOP OF THIS BOX via
+            `sticky` on each `<th>`, not the `<tr>` (a sticky `<tr>` renders
+            as a duplicate mid-table in some browsers, see PatientList). */}
+        <div ref={rowsBoxRef} className="min-h-0 flex-1 overflow-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
-                <th className="text-left px-4 py-3 sm:pl-6 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">#</th>
-                <th className="text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Student</th>
-                <th className="text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Grade</th>
-                <th className="text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Section</th>
-                <th className="text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Gender</th>
-                <th className="text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Age</th>
+                <th className="sticky top-0 z-10 text-left px-4 py-3 sm:pl-6 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">#</th>
+                <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Student</th>
+                <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Grade</th>
+                <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Section</th>
+                <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Gender</th>
+                <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Age</th>
                 {/* Position in the actual queue (queueStorage's stored order,
                     user 2026-09-25) — NOT the row index in `#`, which follows
                     this list's own alphabetical sort and can disagree with
                     who was queued first. Blank for a student never queued. */}
-                <th className="text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Queue #</th>
-                <th className="text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground sm:pr-6">Actions</th>
+                <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Queue #</th>
+                <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground sm:pr-6">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
