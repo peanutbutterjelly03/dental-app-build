@@ -80,18 +80,6 @@ export const DentalChartNav = () => {
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
   }, [filterMenuOpen]);
-
-  // Bulk-select, collapsed behind one button (user, 2026-09-26 -- "a single
-  // button that when click, it will show the options or all the function
-  // for that button"). Same open/click-outside pattern as the Filter menu.
-  const [bulkMenuOpen, setBulkMenuOpen] = useState(false);
-  const bulkMenuRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!bulkMenuOpen) return;
-    const onDown = (e: MouseEvent) => { if (!bulkMenuRef.current?.contains(e.target as Node)) setBulkMenuOpen(false); };
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, [bulkMenuOpen]);
   const { selectedSchool } = useAuth();
   const { students: allStudents, loading: studentsLoading } = useStudents();
   // School-scoped like every other list page
@@ -565,75 +553,53 @@ export const DentalChartNav = () => {
                   </div>
                 )}
               </div>
-              {/* Bulk dequeue, collapsed behind one button (user, 2026-09-26)
-                  -- "select whole grade/section" are shortcuts that populate
-                  the SAME checkbox set the table's own checkboxes use, not a
-                  separate destructive path: one review step, one confirm
-                  dialog, either way. Only shown once something is actually
-                  queued to act on. */}
-              {queuedInView.length > 0 && (
-                <div ref={bulkMenuRef} className="relative shrink-0">
-                  <button
-                    type="button"
-                    role="combobox"
-                    aria-haspopup="listbox"
-                    aria-expanded={bulkMenuOpen}
-                    onClick={() => setBulkMenuOpen((o) => !o)}
-                    className={`flex items-center gap-1.5 text-sm font-medium rounded-lg px-3 py-2 border ${selectedForDequeue.size > 0 ? 'border-destructive text-destructive bg-danger-surface' : 'border-border text-foreground bg-card hover:bg-muted'}`}
-                  >
-                    <Users className="w-3.5 h-3.5" />
-                    {selectedForDequeue.size > 0 ? `${selectedForDequeue.size} Selected` : 'Bulk Dequeue'}
-                    <ChevronDown className="w-3.5 h-3.5" />
-                  </button>
-                  {bulkMenuOpen && (
-                    <div className="absolute right-0 z-20 mt-1 w-64 rounded-lg border border-border bg-card shadow-md p-3 space-y-3">
-                      <div>
-                        <label className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Select whole grade</label>
-                        <select
-                          value=""
-                          onChange={(e) => { if (e.target.value) selectByGrade(e.target.value); e.target.value = ''; }}
-                          className="w-full text-sm border border-border rounded-md px-2 py-1.5 bg-card"
-                        >
-                          <option value="">Select grade…</option>
-                          {queuedGrades.map((g) => <option key={g} value={g}>{g}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Select whole section</label>
-                        <select
-                          value=""
-                          onChange={(e) => { if (e.target.value) selectBySection(e.target.value); e.target.value = ''; }}
-                          className="w-full text-sm border border-border rounded-md px-2 py-1.5 bg-card"
-                        >
-                          <option value="">Select section…</option>
-                          {queuedSections.map((s) => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                      </div>
-                      <p className="text-xs text-muted-foreground">Or check individual students in the table.</p>
-                      <div className="flex items-center justify-between border-t border-border pt-3">
-                        <span className="text-xs font-semibold text-foreground">{selectedForDequeue.size} selected</span>
-                        <div className="flex items-center gap-2">
-                          {selectedForDequeue.size > 0 && (
-                            <button onClick={() => setSelectedForDequeue(new Set())} className="text-xs font-medium text-muted-foreground hover:text-foreground">
-                              Clear
-                            </button>
-                          )}
-                          <button
-                            disabled={selectedForDequeue.size === 0}
-                            onClick={() => { setPendingDequeue({ ids: Array.from(selectedForDequeue), label: `${selectedForDequeue.size} student${selectedForDequeue.size === 1 ? '' : 's'}` }); setBulkMenuOpen(false); }}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-destructive text-white px-3 py-1.5 text-xs font-semibold hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
-                          >
-                            Dequeue Selected
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           </div>
         </div>
+
+        {/* Bulk dequeue (user, 2026-09-26): "select whole grade/section" are
+            shortcuts that populate the SAME checkbox set the table's own
+            checkboxes use, not a separate destructive path -- one review
+            step, one confirm dialog, either way. Only shown once something
+            is actually queued to act on. */}
+        {queuedInView.length > 0 && (
+          <div className="px-5 sm:px-6 py-2.5 border-b border-border bg-gray-50/60 flex flex-wrap items-center gap-3 text-sm">
+            <span className="text-xs font-semibold text-muted-foreground">Bulk dequeue:</span>
+            <select
+              value=""
+              onChange={(e) => { if (e.target.value) selectByGrade(e.target.value); e.target.value = ''; }}
+              className="text-xs border border-border rounded-md px-2 py-1.5 bg-card"
+            >
+              <option value="">Select grade…</option>
+              {queuedGrades.map((g) => <option key={g} value={g}>{g}</option>)}
+            </select>
+            <select
+              value=""
+              onChange={(e) => { if (e.target.value) selectBySection(e.target.value); e.target.value = ''; }}
+              className="text-xs border border-border rounded-md px-2 py-1.5 bg-card"
+            >
+              <option value="">Select section…</option>
+              {queuedSections.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+            {selectedForDequeue.size > 0 && (
+              <>
+                <span className="text-xs font-semibold text-foreground ml-1">{selectedForDequeue.size} selected</span>
+                <button
+                  onClick={() => setPendingDequeue({ ids: Array.from(selectedForDequeue), label: `${selectedForDequeue.size} student${selectedForDequeue.size === 1 ? '' : 's'}` })}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-destructive text-white px-3 py-1.5 text-xs font-semibold hover:opacity-90"
+                >
+                  Dequeue Selected
+                </button>
+                <button
+                  onClick={() => setSelectedForDequeue(new Set())}
+                  className="text-xs font-medium text-muted-foreground hover:text-foreground"
+                >
+                  Clear selection
+                </button>
+              </>
+            )}
+          </div>
+        )}
 
         {/* The rows box, not the card, is what actually scrolls (user,
             2026-09-26) -- column headings stick to the TOP OF THIS BOX via
