@@ -268,7 +268,12 @@ export const DentalChartNav = () => {
           thing that scrolls, the card sticks within IT instead. Same
           height math as the region: once stuck, it sits exactly where the
           region starts and fills to the region's own bottom. */}
-      <div className="sticky top-0 z-30 flex flex-col bg-card rounded-2xl border border-border shadow-sm overflow-clip" style={{ height: regionHeight ?? undefined }}>
+      {/* Square bottom corners, not rounded (user, 2026-09-26): this card's
+          height is always exactly `regionHeight`, so its bottom edge is
+          always flush against the bottom of the screen once pinned -- unlike
+          RPC Monitoring/Student Records' "Hide" toggle, there's no shorter
+          state here where a rounded bottom corner would ever be correct. */}
+      <div className="sticky top-0 z-30 flex flex-col bg-card rounded-t-2xl border border-border shadow-sm overflow-clip" style={{ height: regionHeight ?? undefined }}>
         {/* Queue card's own header, restyled after the RAMHIS "Patient
             Queue" reference exactly -- icon badge, gray eyebrow, title with
             a count pill, one-line description, search + view toggle at the
