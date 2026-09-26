@@ -100,6 +100,18 @@ export const DentalChartNav = () => {
     [queuedStudentIds, allPatients],
   );
 
+  // Clicking a row in the Charting Queue table previews that student in the
+  // left panel instead of always showing whoever is first in queue (user,
+  // 2026-09-26). null means "show the real Up Next" -- the fallback below
+  // also covers a selection that's since left the filtered list (e.g. a
+  // search that no longer matches them).
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const spotlightStudent = useMemo(
+    () => (selectedStudentId ? allPatients.find((p) => p.id === selectedStudentId) ?? upNext : upNext),
+    [selectedStudentId, allPatients, upNext],
+  );
+  const isSpotlightUpNext = !!spotlightStudent && spotlightStudent.id === upNext?.id;
+
   // For Treatment: students at this school with at least one TREATMENT
   // record — same query TreatmentRecords.tsx runs for its own "Treatment
   // List" view, so the two counts can't disagree.
@@ -348,11 +360,11 @@ export const DentalChartNav = () => {
           >
             <PanelLeftClose className="w-3.5 h-3.5" />
           </button>
-          {upNext ? (
+          {spotlightStudent ? (
             <>
               {/* Gender-specific avatar (user, 2026-09-26): blue + boy icon
                   for Male, pink + girl icon for Female. */}
-              {upNext.gender === 'Female' ? (
+              {spotlightStudent.gender === 'Female' ? (
                 <span style={{ backgroundColor: '#FCE4EC', color: '#D6367B' }} className="w-14 h-14 rounded-full grid place-items-center">
                   <GirlIcon className="w-7 h-7" />
                 </span>
@@ -361,33 +373,35 @@ export const DentalChartNav = () => {
                   <BoyIcon className="w-7 h-7" />
                 </span>
               )}
-              <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Up Next</div>
-              <div className="font-bold text-foreground">{upNext.name}</div>
-              <div className="text-xs text-muted-foreground">{upNext.grade} · {upNext.section} · Queue #1</div>
+              {/* "Up Next" only while it's genuinely who's first in queue;
+                  a clicked row that isn't reads "Selected" instead so the
+                  label never claims something false (user, 2026-09-26). */}
+              <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                {isSpotlightUpNext ? 'Up Next' : 'Selected'}
+              </div>
+              <div className="font-bold text-foreground">{spotlightStudent.name}</div>
+              <div className="text-xs text-muted-foreground">{spotlightStudent.grade} · {spotlightStudent.section}</div>
               {/* Only when real risk data exists -- never a fabricated pill
                   (CLAUDE.md "NOTHING COSMETIC"). */}
-              {upNext.riskLevel && (
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${RISK_BADGE[upNext.riskLevel]}`}>
-                  {upNext.riskLevel.toUpperCase()} RISK
+              {spotlightStudent.riskLevel && (
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${RISK_BADGE[spotlightStudent.riskLevel]}`}>
+                  {spotlightStudent.riskLevel.toUpperCase()} RISK
                 </span>
               )}
-              {/* Last visit + total queue count, replacing Age per the
-                  user's redesign pick (2026-09-26) -- Age added nothing Up
-                  Next didn't already show via the avatar/grade, while the
-                  queue's total size gives real context "Queue #1" alone
-                  doesn't (how many are actually waiting). */}
               <div className="w-full border-t border-border mt-2 pt-2 text-xs">
                 <div className="flex items-center justify-between py-0.5">
                   <span className="text-muted-foreground">Last visit</span>
-                  <span className="font-semibold text-foreground">{formatDate(upNext.lastVisit)}</span>
+                  <span className="font-semibold text-foreground">{formatDate(spotlightStudent.lastVisit)}</span>
                 </div>
                 <div className="flex items-center justify-between py-0.5">
-                  <span className="text-muted-foreground">Queue</span>
-                  <span className="font-semibold text-foreground">{queuedStudentIds.length} {queuedStudentIds.length === 1 ? 'student' : 'students'}</span>
+                  <span className="text-muted-foreground">Queue No.</span>
+                  <span className="font-semibold text-foreground">
+                    {queuedStudentIds.includes(spotlightStudent.id) ? queuedStudentIds.indexOf(spotlightStudent.id) + 1 : '—'}
+                  </span>
                 </div>
               </div>
               <button
-                onClick={() => navigate(`/dental-chart/${upNext.id}?tab=history&context=dental-queue`)}
+                onClick={() => navigate(`/dental-chart/${spotlightStudent.id}?tab=history&context=dental-queue`)}
                 className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted"
               >
                 <Eye className="w-3.5 h-3.5" /> Open chart
@@ -542,8 +556,12 @@ export const DentalChartNav = () => {
                 const age = calculateAge(p.birthdate);
                 const gc = getGradeColor(p.grade);
                 const open = () => navigate(`/dental-chart/${p.id}?tab=history&context=dental-queue`);
+                // Clicking the row previews the student in the left panel
+                // (user, 2026-09-26); the Actions button below is now the
+                // only way this row navigates.
+                const select = () => setSelectedStudentId(p.id);
                 return (
-                  <tr key={p.id} {...activatable(open)} className="hover:bg-canvas cursor-pointer">
+                  <tr key={p.id} {...activatable(select)} className={`cursor-pointer ${spotlightStudent?.id === p.id ? 'bg-primary-surface' : 'hover:bg-canvas'}`}>
                     <td className="px-4 py-2.5 sm:pl-6 text-muted-foreground">{i + 1}</td>
                     <td className="px-4 py-2.5 font-medium text-foreground">
                       <div className="flex items-center gap-3">
