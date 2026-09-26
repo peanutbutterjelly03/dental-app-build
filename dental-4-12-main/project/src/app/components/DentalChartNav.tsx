@@ -303,7 +303,7 @@ export const DentalChartNav = () => {
               <Icon className="w-4 h-4" />
             </span>
             <div className="min-w-0">
-              <div className="text-[11px] font-semibold text-muted-foreground truncate">{label}</div>
+              <div className="text-[11px] font-normal text-muted-foreground truncate">{label}</div>
               <div className="text-2xl font-bold text-foreground">{value}</div>
             </div>
           </div>
