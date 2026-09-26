@@ -14,7 +14,6 @@ import type { ApiAppointment, ApiStudentIptr, ApiTreatment } from '../api/types'
 import { toLocalDateString } from '../utils/localDate';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
 import { activatable } from '../utils/a11y';
-import { TOPBAR_H } from '../utils/layout';
 
 /** Two-letter initials for the row avatar. Same derivation her Student
  *  Records rows use, so a pupil is recognised by the same mark on both
@@ -121,41 +120,48 @@ export const DentalChartNav = () => {
   }, [sourcePatients, searchTerm, queuedStudentIds]);
 
   // No pagination (user, 2026-09-26 — removed): the queue card scrolls its
-  // own rows internally (see cardRef/rowsBoxRef below) instead of paging,
+  // own rows internally (see regionRef/rowsBoxRef below) instead of paging,
   // so every filtered row renders and scrolling the box reaches the rest.
 
-  // Adaptive, PINNED queue card (user, 2026-09-26 — fixed from the previous
-  // version, which sized the card to fill the screen from wherever it
-  // naturally sat, but never actually moved it up: scrolling stopped, but
-  // the card was still buried below the stat row and Up Next instead of
-  // sitting at the top). The card itself is `sticky` at TOPBAR_H, so as the
-  // page scrolls, the header/stat row/Up Next scroll away and the card
-  // slides up to sit right under the top bar and stay there; its own height
-  // fills exactly the rest of the screen from that fixed point, and only the
-  // rows box inside it scrolls further. Same mechanism as RPC Monitoring /
-  // Student Records; ported without their "Hide" toggle, which wasn't asked
-  // for here.
-  const cardRef = useRef<HTMLDivElement | null>(null);
+  // Adaptive, PINNED queue card (user, 2026-09-26 — fixed AGAIN: sticking the
+  // card to the document at `top: TOPBAR_H` worked for where it landed, but
+  // any page that can scroll at all gets the BROWSER's own scrollbar, which
+  // is chrome outside our DOM and always spans the full window from y:0 --
+  // it visually ran straight through the fixed top bar. The actual fix is to
+  // never let the page/document scroll in the first place: this whole
+  // section becomes its OWN bounded, internally-scrolling region (height =
+  // remaining viewport, `overflow-y-auto`), so any scrollbar it shows is
+  // confined to its own box, below the top bar, not the window's. The queue
+  // card then sticks at `top-0` of THAT region instead of the document, and
+  // fills the same remaining height once stuck -- the rows box inside it
+  // keeps its own separate internal scroll for the list itself, unchanged.
+  const regionRef = useRef<HTMLDivElement | null>(null);
   const rowsBoxRef = useRef<HTMLDivElement | null>(null);
-  const [cardHeight, setCardHeight] = useState<number | null>(null);
+  const [regionHeight, setRegionHeight] = useState<number | null>(null);
 
   useEffect(() => {
-    const measure = () => setCardHeight(Math.max(window.innerHeight - TOPBAR_H, 160));
+    const measure = () => {
+      if (!regionRef.current) return;
+      const top = regionRef.current.getBoundingClientRect().top;
+      setRegionHeight(Math.max(window.innerHeight - top, 200));
+    };
     measure();
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
   }, [studentsLoading]);
 
-  // Trims any stray page scroll the estimate above leaves behind (e.g.
-  // <main>'s own bottom padding) -- same correction pass RPC Monitoring and
-  // Student Records use.
+  // Trims any stray page scroll the estimate above leaves behind -- mainly
+  // <main>'s own bottom padding (p-4/md:p-8 around every routed page, see
+  // Root.tsx), which the negative margin below cancels but isn't the only
+  // possible source. Same correction pass RPC Monitoring and Student
+  // Records use.
   useLayoutEffect(() => {
-    if (cardHeight == null) return;
+    if (regionHeight == null) return;
     const overflow = document.documentElement.scrollHeight - window.innerHeight;
     if (overflow > 0) {
-      setCardHeight((h) => (h == null ? h : Math.max(h - overflow, 160)));
+      setRegionHeight((h) => (h == null ? h : Math.max(h - overflow, 200)));
     }
-  }, [cardHeight]);
+  }, [regionHeight]);
 
   if (studentsLoading) {
     return (
@@ -186,7 +192,7 @@ export const DentalChartNav = () => {
   const queueCount = filtered.length;
 
   return (
-    <div className="space-y-4">
+    <div ref={regionRef} className="space-y-4 overflow-y-auto -mb-4 md:-mb-8" style={{ height: regionHeight ?? undefined }}>
       {/* Page-level identity header, above the stat row and the queue itself
           (user, 2026-09-25). No card/border -- sits directly on the page.
           Generic module eyebrow ("Clinical Services") instead of the school
@@ -254,14 +260,15 @@ export const DentalChartNav = () => {
           )}
         </div>
 
-      {/* The CARD itself is sticky and pinned at TOPBAR_H (user, 2026-09-26)
-          -- not just sized to fill the screen from its own natural
-          position, which left it stuck low on the page. `overflow-clip`,
-          not `overflow-hidden` -- `hidden` would make this div a scroll
-          container in its own right, which can fight the outer `sticky`
-          positioning (see PatientList for the same note). Height fills
-          exactly the rest of the viewport below the top bar. */}
-      <div ref={cardRef} className="sticky z-30 flex flex-col bg-card rounded-2xl border border-border shadow-sm overflow-clip" style={{ top: TOPBAR_H, height: cardHeight ?? undefined }}>
+      {/* The card is sticky at `top-0` of the bounded region above (user,
+          2026-09-26), not the document -- pinning it to the document at
+          TOPBAR_H worked for position, but any page-level scroll at all
+          brings the browser's own scrollbar, full window height, straight
+          through the fixed top bar. Since the region itself is now the only
+          thing that scrolls, the card sticks within IT instead. Same
+          height math as the region: once stuck, it sits exactly where the
+          region starts and fills to the region's own bottom. */}
+      <div className="sticky top-0 z-30 flex flex-col bg-card rounded-2xl border border-border shadow-sm overflow-clip" style={{ height: regionHeight ?? undefined }}>
         {/* Queue card's own header, restyled after the RAMHIS "Patient
             Queue" reference exactly -- icon badge, gray eyebrow, title with
             a count pill, one-line description, search + view toggle at the
