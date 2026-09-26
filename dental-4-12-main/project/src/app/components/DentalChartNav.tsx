@@ -11,9 +11,26 @@ import { useRPCTracking } from '../hooks/useRPCTracking';
 import { useAuth } from '../context/AuthContext';
 import { apiClient } from '../api/client';
 import type { ApiAppointment, ApiStudentIptr, ApiTreatment } from '../api/types';
-import { toLocalDateString } from '../utils/localDate';
+import { toLocalDateString, formatDate } from '../utils/localDate';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
 import { activatable } from '../utils/a11y';
+
+// Gender-specific avatar glyphs for the Up Next card (user, 2026-09-26) --
+// a plain lucide "User" icon doesn't distinguish sex, and initials read as
+// less immediately legible at a glance than a real person icon.
+const BoyIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className}><circle cx="12" cy="7" r="4" /><path d="M6 21v-2a6 6 0 0 1 12 0v2" /></svg>
+);
+const GirlIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className}><circle cx="12" cy="6.5" r="3.5" /><path d="M12 10 6 21h12L12 10z" /></svg>
+);
+
+// Same badge convention as AI Analytics' own RISK_BADGE.
+const RISK_BADGE: Record<string, string> = {
+  High: 'bg-red-100 text-red-700',
+  Medium: 'bg-yellow-100 text-yellow-700',
+  Low: 'bg-green-100 text-green-800',
+};
 
 /** Two-letter initials for the row avatar. Same derivation her Student
  *  Records rows use, so a pupil is recognised by the same mark on both
@@ -333,12 +350,42 @@ export const DentalChartNav = () => {
           </button>
           {upNext ? (
             <>
-              <span style={{ backgroundColor: '#E8ECF6', color: '#273A78' }} className="w-12 h-12 rounded-full grid place-items-center text-sm font-bold">
-                {initials(upNext.name)}
-              </span>
+              {/* Gender-specific avatar (user, 2026-09-26): blue + boy icon
+                  for Male, pink + girl icon for Female. */}
+              {upNext.gender === 'Female' ? (
+                <span style={{ backgroundColor: '#FCE4EC', color: '#D6367B' }} className="w-14 h-14 rounded-full grid place-items-center">
+                  <GirlIcon className="w-7 h-7" />
+                </span>
+              ) : (
+                <span style={{ backgroundColor: '#E1EEFB', color: '#1D6FD6' }} className="w-14 h-14 rounded-full grid place-items-center">
+                  <BoyIcon className="w-7 h-7" />
+                </span>
+              )}
               <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Up Next</div>
               <div className="font-bold text-foreground">{upNext.name}</div>
               <div className="text-xs text-muted-foreground">{upNext.grade} · {upNext.section} · Queue #1</div>
+              {/* Only when real risk data exists -- never a fabricated pill
+                  (CLAUDE.md "NOTHING COSMETIC"). */}
+              {upNext.riskLevel && (
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${RISK_BADGE[upNext.riskLevel]}`}>
+                  {upNext.riskLevel.toUpperCase()} RISK
+                </span>
+              )}
+              {/* Last visit + total queue count, replacing Age per the
+                  user's redesign pick (2026-09-26) -- Age added nothing Up
+                  Next didn't already show via the avatar/grade, while the
+                  queue's total size gives real context "Queue #1" alone
+                  doesn't (how many are actually waiting). */}
+              <div className="w-full border-t border-border mt-2 pt-2 text-xs">
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-muted-foreground">Last visit</span>
+                  <span className="font-semibold text-foreground">{formatDate(upNext.lastVisit)}</span>
+                </div>
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-muted-foreground">Queue</span>
+                  <span className="font-semibold text-foreground">{queuedStudentIds.length} {queuedStudentIds.length === 1 ? 'student' : 'students'}</span>
+                </div>
+              </div>
               <button
                 onClick={() => navigate(`/dental-chart/${upNext.id}?tab=history&context=dental-queue`)}
                 className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted"
