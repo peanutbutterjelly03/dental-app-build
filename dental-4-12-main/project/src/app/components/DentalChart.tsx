@@ -18,6 +18,7 @@ import { TOPBAR_H } from '../utils/layout';
 import { surnameFirst, surnameFirstWithInitial } from '../utils/studentName';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
 import { ConfirmDialog } from './ConfirmDialog';
+import { removeQueuedStudentId } from '../utils/queueStorage';
 import { Modal } from './Modal';
 import { useSchools } from '../hooks/useSchools';
 import { SERVICES as CONSENT_SERVICES } from './ConsentForm';
@@ -1058,6 +1059,11 @@ export const DentalChart = () => {
       // toast is what actually confirms the save. One message, not four:
       // the writes above are a single user action, not four separate ones.
       toast.success('Chart saved.');
+      // A charted student no longer belongs in the Dental Charts queue --
+      // user, 2026-09-26: "when dental chart is marked or updated, the
+      // queue should be gone" for that pupil. Harmless if they were never
+      // queued (removeQueuedStudentId no-ops).
+      removeQueuedStudentId(id);
       if (iptrContext === 'dental-queue') setTimeout(() => navigate('/ai-analytics'), 450);
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'Failed to save';

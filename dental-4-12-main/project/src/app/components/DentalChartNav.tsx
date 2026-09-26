@@ -15,7 +15,6 @@ import { toLocalDateString } from '../utils/localDate';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
 import { activatable } from '../utils/a11y';
 import { TOPBAR_H } from '../utils/layout';
-import { Pagination, usePagination } from './Pagination';
 
 /** Two-letter initials for the row avatar. Same derivation her Student
  *  Records rows use, so a pupil is recognised by the same mark on both
@@ -121,10 +120,9 @@ export const DentalChartNav = () => {
     });
   }, [sourcePatients, searchTerm, queuedStudentIds]);
 
-  // Paged (Sprint 58). This is the real Dental Charts list page — it rendered
-  // every filtered row, which is thousands at ~8,000 students. Reset keys are
-  // the filter inputs, never `filtered` — see Pagination.tsx.
-  const pager = usePagination(filtered, [searchTerm, viewMode]);
+  // No pagination (user, 2026-09-26 — removed): the queue card scrolls its
+  // own rows internally (see cardRef/rowsBoxRef below) instead of paging,
+  // so every filtered row renders and scrolling the box reaches the rest.
 
   // Adaptive queue card (user, 2026-09-26): page scroll stops once the queue
   // card reaches the top of the viewport -- the card is sized to fill
@@ -339,14 +337,14 @@ export const DentalChartNav = () => {
                       : 'No students match your search.'}
                   </td>
                 </tr>
-              ) : pager.paged.map((p, i) => {
+              ) : filtered.map((p, i) => {
                 const queuePosition = queuedStudentIds.indexOf(p.id);
                 const age = calculateAge(p.birthdate);
                 const gc = getGradeColor(p.grade);
                 const open = () => navigate(`/dental-chart/${p.id}?tab=history&context=dental-queue`);
                 return (
                   <tr key={p.id} {...activatable(open)} className="hover:bg-canvas cursor-pointer">
-                    <td className="px-4 py-2.5 sm:pl-6 text-muted-foreground">{pager.from + i}</td>
+                    <td className="px-4 py-2.5 sm:pl-6 text-muted-foreground">{i + 1}</td>
                     <td className="px-4 py-2.5 font-medium text-foreground">
                       <div className="flex items-center gap-3">
                         <span style={{ backgroundColor: gc.light, color: gc.solid }} className="w-8 h-8 shrink-0 rounded-full grid place-items-center text-xs font-bold">
@@ -377,21 +375,6 @@ export const DentalChartNav = () => {
             </tbody>
           </table>
         </div>
-
-        {filtered.length > 0 && (
-          <div className="border-t border-border bg-card px-5 py-4 sm:px-6">
-            <Pagination
-              {...pager}
-              onPage={pager.setPage}
-              onPageSize={pager.changePageSize}
-              noun={viewMode === 'queued' ? 'queued students' : 'students'}
-              detail={[
-                filtered.length !== sourcePatients.length ? `(filtered from ${sourcePatients.length})` : '',
-                selectedSchool ? `at ${selectedSchool}` : '',
-              ].filter(Boolean).join(' ')}
-            />
-          </div>
-        )}
       </div>
       </div>
     </div>
