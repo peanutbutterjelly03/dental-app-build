@@ -124,22 +124,23 @@ export const DentalChartNav = () => {
   // own rows internally (see cardRef/rowsBoxRef below) instead of paging,
   // so every filtered row renders and scrolling the box reaches the rest.
 
-  // Adaptive queue card (user, 2026-09-26): page scroll stops once the queue
-  // card reaches the top of the viewport -- the card is sized to fill
-  // exactly the rest of the screen from there, its header stays pinned via
-  // `sticky`, and only the rows box below scrolls. Same mechanism as RPC
-  // Monitoring / Student Records; ported without their "Hide" toggle, which
-  // wasn't asked for here.
+  // Adaptive, PINNED queue card (user, 2026-09-26 — fixed from the previous
+  // version, which sized the card to fill the screen from wherever it
+  // naturally sat, but never actually moved it up: scrolling stopped, but
+  // the card was still buried below the stat row and Up Next instead of
+  // sitting at the top). The card itself is `sticky` at TOPBAR_H, so as the
+  // page scrolls, the header/stat row/Up Next scroll away and the card
+  // slides up to sit right under the top bar and stay there; its own height
+  // fills exactly the rest of the screen from that fixed point, and only the
+  // rows box inside it scrolls further. Same mechanism as RPC Monitoring /
+  // Student Records; ported without their "Hide" toggle, which wasn't asked
+  // for here.
   const cardRef = useRef<HTMLDivElement | null>(null);
   const rowsBoxRef = useRef<HTMLDivElement | null>(null);
   const [cardHeight, setCardHeight] = useState<number | null>(null);
 
   useEffect(() => {
-    const measure = () => {
-      if (!cardRef.current) return;
-      const top = cardRef.current.getBoundingClientRect().top;
-      setCardHeight(Math.max(window.innerHeight - top, 160));
-    };
+    const measure = () => setCardHeight(Math.max(window.innerHeight - TOPBAR_H, 160));
     measure();
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
@@ -253,23 +254,21 @@ export const DentalChartNav = () => {
           )}
         </div>
 
-      {/* `overflow-clip`, not `overflow-hidden` -- `hidden` would make this
-          div the scrolling ancestor `position: sticky` pins the header
-          against, so the header would stick to THIS card instead of the
-          viewport and never visibly move (see PatientList for the same
-          note). Height is capped to fill exactly the rest of the viewport
-          from wherever this card starts, so the page itself stops
-          scrolling once the card is reached. */}
-      <div ref={cardRef} className="flex flex-col bg-card rounded-2xl border border-border shadow-sm overflow-clip" style={{ height: cardHeight ?? undefined }}>
+      {/* The CARD itself is sticky and pinned at TOPBAR_H (user, 2026-09-26)
+          -- not just sized to fill the screen from its own natural
+          position, which left it stuck low on the page. `overflow-clip`,
+          not `overflow-hidden` -- `hidden` would make this div a scroll
+          container in its own right, which can fight the outer `sticky`
+          positioning (see PatientList for the same note). Height fills
+          exactly the rest of the viewport below the top bar. */}
+      <div ref={cardRef} className="sticky z-30 flex flex-col bg-card rounded-2xl border border-border shadow-sm overflow-clip" style={{ top: TOPBAR_H, height: cardHeight ?? undefined }}>
         {/* Queue card's own header, restyled after the RAMHIS "Patient
             Queue" reference exactly -- icon badge, gray eyebrow, title with
             a count pill, one-line description, search + view toggle at the
             top right (user, 2026-09-25). No grade/section/gender/age
             filters any more -- order is fixed to queue position (see
-            `filtered` above), so those controls had nothing left to do.
-            Sticky (user, 2026-09-26) so it stays visible while the rows box
-            below scrolls internally. */}
-        <div className="sticky z-30 p-5 sm:p-6 border-b border-border bg-card" style={{ top: TOPBAR_H }}>
+            `filtered` above), so those controls had nothing left to do. */}
+        <div className="p-5 sm:p-6 border-b border-border bg-card">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0 flex items-start gap-3">
               <span className="w-10 h-10 rounded-xl bg-gray-100 grid place-items-center flex-shrink-0">
