@@ -124,19 +124,59 @@ export const DentalChartNav = () => {
     persistQueuedStudentIds(next);
     setQueuedStudentIds(next);
     if (selectedStudentId && toRemove.has(selectedStudentId)) setSelectedStudentId(null);
-    setSelectedForDequeue(new Set());
+    clearBulkSelection();
     setPendingDequeue(null);
   };
 
-  // Bulk multi-select (user, 2026-09-26): checkboxes on queued rows, plus
-  // "select everyone queued in this grade/section" shortcuts that just
-  // populate the same checkbox set rather than being a separate destructive
-  // path -- one review step, one confirm dialog, for both.
+  // Bulk multi-select (user, 2026-09-26 -- Option K, "click a Grade/Section
+  // badge to select the whole group"): a plain checkbox set, PLUS which
+  // grade/section badges are currently "active" as selection criteria --
+  // tracked separately so the criteria bar can show removable pills and the
+  // matching badges can render as picked, distinct from a one-off manual
+  // checkbox click.
   const [selectedForDequeue, setSelectedForDequeue] = useState<Set<string>>(new Set());
+  const [activeGradeCriteria, setActiveGradeCriteria] = useState<Set<string>>(new Set());
+  const [activeSectionCriteria, setActiveSectionCriteria] = useState<Set<string>>(new Set());
   const toggleSelectedForDequeue = (id: string) => {
     setSelectedForDequeue((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const clearBulkSelection = () => {
+    setSelectedForDequeue(new Set());
+    setActiveGradeCriteria(new Set());
+    setActiveSectionCriteria(new Set());
+  };
+  // Clicking a Grade/Section badge on a queued row toggles it as a selection
+  // criterion: turning one on unions its matching rows into the selection;
+  // turning it off drops just those rows back out.
+  const toggleGradeCriterion = (grade: string) => {
+    const matching = queuedInView.filter((p) => p.grade === grade).map((p) => p.id);
+    const turningOn = !activeGradeCriteria.has(grade);
+    setActiveGradeCriteria((prev) => {
+      const next = new Set(prev);
+      if (turningOn) next.add(grade); else next.delete(grade);
+      return next;
+    });
+    setSelectedForDequeue((prev) => {
+      const next = new Set(prev);
+      matching.forEach((id) => (turningOn ? next.add(id) : next.delete(id)));
+      return next;
+    });
+  };
+  const toggleSectionCriterion = (section: string) => {
+    const matching = queuedInView.filter((p) => p.section === section).map((p) => p.id);
+    const turningOn = !activeSectionCriteria.has(section);
+    setActiveSectionCriteria((prev) => {
+      const next = new Set(prev);
+      if (turningOn) next.add(section); else next.delete(section);
+      return next;
+    });
+    setSelectedForDequeue((prev) => {
+      const next = new Set(prev);
+      matching.forEach((id) => (turningOn ? next.add(id) : next.delete(id)));
       return next;
     });
   };
@@ -223,10 +263,6 @@ export const DentalChartNav = () => {
   // Only students BOTH queued and currently visible in `filtered` count --
   // selecting shouldn't reach past the search box into rows you can't see.
   const queuedInView = useMemo(() => filtered.filter((p) => queuedStudentIds.includes(p.id)), [filtered, queuedStudentIds]);
-  const queuedGrades = useMemo(() => Array.from(new Set(queuedInView.map((p) => p.grade))).sort(), [queuedInView]);
-  const queuedSections = useMemo(() => Array.from(new Set(queuedInView.map((p) => p.section))).sort(), [queuedInView]);
-  const selectByGrade = (grade: string) => setSelectedForDequeue(new Set(queuedInView.filter((p) => p.grade === grade).map((p) => p.id)));
-  const selectBySection = (section: string) => setSelectedForDequeue(new Set(queuedInView.filter((p) => p.section === section).map((p) => p.id)));
 
   // No pagination (user, 2026-09-26 — removed): the queue card scrolls its
   // own rows internally (see regionRef/rowsBoxRef below) instead of paging,
@@ -557,47 +593,42 @@ export const DentalChartNav = () => {
           </div>
         </div>
 
-        {/* Bulk dequeue (user, 2026-09-26): "select whole grade/section" are
-            shortcuts that populate the SAME checkbox set the table's own
-            checkboxes use, not a separate destructive path -- one review
-            step, one confirm dialog, either way. Only shown once something
-            is actually queued to act on. */}
-        {queuedInView.length > 0 && (
-          <div className="px-5 sm:px-6 py-2.5 border-b border-border bg-gray-50/60 flex flex-wrap items-center gap-3 text-sm">
-            <span className="text-xs font-semibold text-muted-foreground">Bulk dequeue:</span>
-            <select
-              value=""
-              onChange={(e) => { if (e.target.value) selectByGrade(e.target.value); e.target.value = ''; }}
-              className="text-xs border border-border rounded-md px-2 py-1.5 bg-card"
+        {/* Bulk dequeue (user, 2026-09-26 -- Option K): no permanent controls
+            here at all. Checking a row, or clicking a Grade/Section badge in
+            the table below, populates the selection; this bar only appears
+            once it's non-empty, showing why (removable criteria pills) as
+            well as what (the count), then Dequeue Selected / Cancel. */}
+        {selectedForDequeue.size > 0 && (
+          <div className="px-5 sm:px-6 py-2.5 bg-foreground flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-xs font-bold text-white">{selectedForDequeue.size} selected</span>
+            {Array.from(activeGradeCriteria).map((g) => (
+              <button
+                key={`g-${g}`}
+                onClick={() => toggleGradeCriterion(g)}
+                className="inline-flex items-center gap-1.5 rounded-full bg-white/10 text-white px-2.5 py-1 text-xs font-semibold hover:bg-white/20"
+              >
+                {g} <X className="w-3 h-3" />
+              </button>
+            ))}
+            {Array.from(activeSectionCriteria).map((s) => (
+              <button
+                key={`s-${s}`}
+                onClick={() => toggleSectionCriterion(s)}
+                className="inline-flex items-center gap-1.5 rounded-full bg-white/10 text-white px-2.5 py-1 text-xs font-semibold hover:bg-white/20"
+              >
+                {s} section <X className="w-3 h-3" />
+              </button>
+            ))}
+            <div className="flex-1" />
+            <button onClick={clearBulkSelection} className="text-xs font-medium text-white/60 hover:text-white">
+              Cancel
+            </button>
+            <button
+              onClick={() => setPendingDequeue({ ids: Array.from(selectedForDequeue), label: `${selectedForDequeue.size} student${selectedForDequeue.size === 1 ? '' : 's'}` })}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-destructive text-white px-3 py-1.5 text-xs font-semibold hover:opacity-90"
             >
-              <option value="">Select grade…</option>
-              {queuedGrades.map((g) => <option key={g} value={g}>{g}</option>)}
-            </select>
-            <select
-              value=""
-              onChange={(e) => { if (e.target.value) selectBySection(e.target.value); e.target.value = ''; }}
-              className="text-xs border border-border rounded-md px-2 py-1.5 bg-card"
-            >
-              <option value="">Select section…</option>
-              {queuedSections.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-            {selectedForDequeue.size > 0 && (
-              <>
-                <span className="text-xs font-semibold text-foreground ml-1">{selectedForDequeue.size} selected</span>
-                <button
-                  onClick={() => setPendingDequeue({ ids: Array.from(selectedForDequeue), label: `${selectedForDequeue.size} student${selectedForDequeue.size === 1 ? '' : 's'}` })}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-destructive text-white px-3 py-1.5 text-xs font-semibold hover:opacity-90"
-                >
-                  Dequeue Selected
-                </button>
-                <button
-                  onClick={() => setSelectedForDequeue(new Set())}
-                  className="text-xs font-medium text-muted-foreground hover:text-foreground"
-                >
-                  Clear selection
-                </button>
-              </>
-            )}
+              Dequeue Selected
+            </button>
           </div>
         )}
 
@@ -677,8 +708,32 @@ export const DentalChartNav = () => {
                         <span className="truncate">{p.name}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-2.5"><GradePill grade={p.grade} /></td>
-                    <td className="px-4 py-2.5 text-muted-foreground">{p.section}</td>
+                    <td className="px-4 py-2.5">
+                      {queuePosition >= 0 ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); toggleGradeCriterion(p.grade); }}
+                          title={activeGradeCriteria.has(p.grade) ? `Deselect all of ${p.grade}` : `Select all of ${p.grade}`}
+                          className={`rounded-full ${activeGradeCriteria.has(p.grade) ? 'ring-2 ring-primary' : 'hover:ring-2 hover:ring-primary/30'}`}
+                        >
+                          <GradePill grade={p.grade} />
+                        </button>
+                      ) : (
+                        <GradePill grade={p.grade} />
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-muted-foreground">
+                      {queuePosition >= 0 ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); toggleSectionCriterion(p.section); }}
+                          title={activeSectionCriteria.has(p.section) ? `Deselect ${p.section} section` : `Select all of ${p.section} section`}
+                          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${activeSectionCriteria.has(p.section) ? 'bg-foreground text-white' : 'bg-gray-100 text-foreground hover:bg-gray-200'}`}
+                        >
+                          {p.section}
+                        </button>
+                      ) : (
+                        p.section
+                      )}
+                    </td>
                     <td className="px-4 py-2.5 text-muted-foreground">{p.gender}</td>
                     <td className="px-4 py-2.5 text-muted-foreground">{age}</td>
                     <td className="px-4 py-2.5 text-center">
