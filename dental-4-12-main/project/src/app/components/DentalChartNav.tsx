@@ -192,7 +192,7 @@ export const DentalChartNav = () => {
   const queueCount = filtered.length;
 
   return (
-    <div ref={regionRef} className="space-y-4 overflow-y-auto -mb-4 md:-mb-8" style={{ height: regionHeight ?? undefined }}>
+    <div ref={regionRef} className="space-y-4 overflow-y-auto no-scrollbar -mb-4 md:-mb-8" style={{ height: regionHeight ?? undefined }}>
       {/* Page-level identity header, above the stat row and the queue itself
           (user, 2026-09-25). No card/border -- sits directly on the page.
           Generic module eyebrow ("Clinical Services") instead of the school
