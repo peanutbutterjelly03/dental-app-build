@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
-import { Eye, Users, Calendar, Clipboard, Shield, Stethoscope, SlidersHorizontal, PanelLeftClose, PanelLeftOpen, X, ChevronDown } from 'lucide-react';
+import { Eye, Users, Calendar, Clipboard, Shield, Stethoscope, SlidersHorizontal, PanelLeftClose, PanelLeftOpen, X, ChevronDown, MoreVertical } from 'lucide-react';
 import { GradePill } from './GradePill';
 import { getSchoolColor } from '../utils/schoolColors';
 import { getGradeColor } from '../utils/gradeColors';
@@ -80,6 +80,20 @@ export const DentalChartNav = () => {
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
   }, [filterMenuOpen]);
+  // Bulk-actions "⋮" menu, after Filter (user, 2026-09-26): the actual
+  // Dequeue action lives one click deeper, behind this menu, instead of
+  // sitting as a bare button in the selection bar -- a stray click in that
+  // bar's row (which the count/pills also occupy) can no longer fire a
+  // bulk dequeue by accident. Same top-level-state pattern as filterMenuOpen
+  // above, for the same reason (a nested component here would remount).
+  const [bulkMenuOpen, setBulkMenuOpen] = useState(false);
+  const bulkMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!bulkMenuOpen) return;
+    const onDown = (e: MouseEvent) => { if (!bulkMenuRef.current?.contains(e.target as Node)) setBulkMenuOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [bulkMenuOpen]);
   const { selectedSchool } = useAuth();
   const { students: allStudents, loading: studentsLoading } = useStudents();
   // School-scoped like every other list page
@@ -589,6 +603,41 @@ export const DentalChartNav = () => {
                   </div>
                 )}
               </div>
+              {/* Bulk-actions "⋮" menu (user, 2026-09-26): the Dequeue action
+                  lives behind this menu, not as a bare button in the
+                  selection bar below, so a stray click near the row of
+                  count/pills can't fire it by accident. Disabled entirely
+                  until something is actually selected. */}
+              <div ref={bulkMenuRef} className="relative shrink-0">
+                <button
+                  type="button"
+                  aria-haspopup="menu"
+                  aria-expanded={bulkMenuOpen}
+                  aria-label="Bulk actions"
+                  title="Bulk actions"
+                  disabled={selectedForDequeue.size === 0}
+                  onClick={() => setBulkMenuOpen((o) => !o)}
+                  className={`flex items-center justify-center w-9 h-9 rounded-lg border border-border bg-card ${
+                    selectedForDequeue.size === 0 ? 'text-muted-foreground/40 cursor-not-allowed' : 'text-foreground hover:bg-muted'
+                  }`}
+                >
+                  <MoreVertical className="w-4 h-4" />
+                </button>
+                {bulkMenuOpen && selectedForDequeue.size > 0 && (
+                  <div className="absolute right-0 z-20 mt-1 min-w-[160px] rounded-lg border border-border bg-card shadow-md py-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBulkMenuOpen(false);
+                        setPendingDequeue({ ids: Array.from(selectedForDequeue), label: `${selectedForDequeue.size} student${selectedForDequeue.size === 1 ? '' : 's'}` });
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm font-medium text-destructive hover:bg-canvas"
+                    >
+                      Dequeue
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -597,7 +646,10 @@ export const DentalChartNav = () => {
             here at all. Checking a row, or clicking a Grade/Section badge in
             the table below, populates the selection; this bar only appears
             once it's non-empty, showing why (removable criteria pills) as
-            well as what (the count), then Dequeue Selected / Cancel. */}
+            well as what (the count) and Cancel. The actual Dequeue action is
+            NOT a button in this bar (user, 2026-09-26) -- it lives behind
+            the "⋮" menu after Filter above, so a stray click in this row
+            can't fire it by accident. */}
         {selectedForDequeue.size > 0 && (
           <div className="px-5 sm:px-6 py-2.5 bg-foreground flex flex-wrap items-center gap-2 text-sm">
             <span className="text-xs font-bold text-white">{selectedForDequeue.size} selected</span>
@@ -622,12 +674,6 @@ export const DentalChartNav = () => {
             <div className="flex-1" />
             <button onClick={clearBulkSelection} className="text-xs font-medium text-white/60 hover:text-white">
               Cancel
-            </button>
-            <button
-              onClick={() => setPendingDequeue({ ids: Array.from(selectedForDequeue), label: `${selectedForDequeue.size} student${selectedForDequeue.size === 1 ? '' : 's'}` })}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-destructive text-white px-3 py-1.5 text-xs font-semibold hover:opacity-90"
-            >
-              Dequeue Selected
             </button>
           </div>
         )}
