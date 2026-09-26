@@ -113,17 +113,32 @@ export const DentalChartNav = () => {
   );
   const isSpotlightUpNext = !!spotlightStudent && spotlightStudent.id === upNext?.id;
 
-  // Dequeue-from-the-table, with confirmation (user, 2026-09-26): the
-  // Queue # badge itself is the trigger, so a moment of "did I mean to
-  // click that" is the whole guard against an accidental dequeue.
-  const [dequeueTarget, setDequeueTarget] = useState<{ id: string; name: string } | null>(null);
+  // Dequeue, with confirmation (user, 2026-09-26) -- one shared pending-
+  // removal state for both the single Queue # badge click AND the bulk
+  // checkbox flow below, so there's one confirm dialog, not two.
+  const [pendingDequeue, setPendingDequeue] = useState<{ ids: string[]; label: string } | null>(null);
   const confirmDequeue = () => {
-    if (!dequeueTarget) return;
-    const next = queuedStudentIds.filter((id) => id !== dequeueTarget.id);
+    if (!pendingDequeue) return;
+    const toRemove = new Set(pendingDequeue.ids);
+    const next = queuedStudentIds.filter((id) => !toRemove.has(id));
     persistQueuedStudentIds(next);
     setQueuedStudentIds(next);
-    if (selectedStudentId === dequeueTarget.id) setSelectedStudentId(null);
-    setDequeueTarget(null);
+    if (selectedStudentId && toRemove.has(selectedStudentId)) setSelectedStudentId(null);
+    setSelectedForDequeue(new Set());
+    setPendingDequeue(null);
+  };
+
+  // Bulk multi-select (user, 2026-09-26): checkboxes on queued rows, plus
+  // "select everyone queued in this grade/section" shortcuts that just
+  // populate the same checkbox set rather than being a separate destructive
+  // path -- one review step, one confirm dialog, for both.
+  const [selectedForDequeue, setSelectedForDequeue] = useState<Set<string>>(new Set());
+  const toggleSelectedForDequeue = (id: string) => {
+    setSelectedForDequeue((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
   };
 
   // For Treatment: students at this school with at least one TREATMENT
@@ -204,6 +219,14 @@ export const DentalChartNav = () => {
       return posA !== posB ? posA - posB : a.name.localeCompare(b.name);
     });
   }, [sourcePatients, searchTerm, queuedStudentIds, extraFilter, appointmentsTodayIds, rpcOutstandingIds]);
+
+  // Only students BOTH queued and currently visible in `filtered` count --
+  // selecting shouldn't reach past the search box into rows you can't see.
+  const queuedInView = useMemo(() => filtered.filter((p) => queuedStudentIds.includes(p.id)), [filtered, queuedStudentIds]);
+  const queuedGrades = useMemo(() => Array.from(new Set(queuedInView.map((p) => p.grade))).sort(), [queuedInView]);
+  const queuedSections = useMemo(() => Array.from(new Set(queuedInView.map((p) => p.section))).sort(), [queuedInView]);
+  const selectByGrade = (grade: string) => setSelectedForDequeue(new Set(queuedInView.filter((p) => p.grade === grade).map((p) => p.id)));
+  const selectBySection = (section: string) => setSelectedForDequeue(new Set(queuedInView.filter((p) => p.section === section).map((p) => p.id)));
 
   // No pagination (user, 2026-09-26 — removed): the queue card scrolls its
   // own rows internally (see regionRef/rowsBoxRef below) instead of paging,
@@ -534,6 +557,50 @@ export const DentalChartNav = () => {
           </div>
         </div>
 
+        {/* Bulk dequeue (user, 2026-09-26): "select whole grade/section" are
+            shortcuts that populate the SAME checkbox set the table's own
+            checkboxes use, not a separate destructive path -- one review
+            step, one confirm dialog, either way. Only shown once something
+            is actually queued to act on. */}
+        {queuedInView.length > 0 && (
+          <div className="px-5 sm:px-6 py-2.5 border-b border-border bg-gray-50/60 flex flex-wrap items-center gap-3 text-sm">
+            <span className="text-xs font-semibold text-muted-foreground">Bulk dequeue:</span>
+            <select
+              value=""
+              onChange={(e) => { if (e.target.value) selectByGrade(e.target.value); e.target.value = ''; }}
+              className="text-xs border border-border rounded-md px-2 py-1.5 bg-card"
+            >
+              <option value="">Select grade…</option>
+              {queuedGrades.map((g) => <option key={g} value={g}>{g}</option>)}
+            </select>
+            <select
+              value=""
+              onChange={(e) => { if (e.target.value) selectBySection(e.target.value); e.target.value = ''; }}
+              className="text-xs border border-border rounded-md px-2 py-1.5 bg-card"
+            >
+              <option value="">Select section…</option>
+              {queuedSections.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+            {selectedForDequeue.size > 0 && (
+              <>
+                <span className="text-xs font-semibold text-foreground ml-1">{selectedForDequeue.size} selected</span>
+                <button
+                  onClick={() => setPendingDequeue({ ids: Array.from(selectedForDequeue), label: `${selectedForDequeue.size} student${selectedForDequeue.size === 1 ? '' : 's'}` })}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-destructive text-white px-3 py-1.5 text-xs font-semibold hover:opacity-90"
+                >
+                  Dequeue Selected
+                </button>
+                <button
+                  onClick={() => setSelectedForDequeue(new Set())}
+                  className="text-xs font-medium text-muted-foreground hover:text-foreground"
+                >
+                  Clear selection
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
         {/* The rows box, not the card, is what actually scrolls (user,
             2026-09-26) -- column headings stick to the TOP OF THIS BOX via
             `sticky` on each `<th>`, not the `<tr>` (a sticky `<tr>` renders
@@ -542,7 +609,21 @@ export const DentalChartNav = () => {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
-                <th className="sticky top-0 z-10 text-left px-4 py-3 sm:pl-6 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">#</th>
+                {/* Bulk-dequeue checkboxes (user, 2026-09-26): only queued
+                    rows get one, since there's nothing to select on an
+                    un-queued Full List row. */}
+                <th className="sticky top-0 z-10 px-4 py-3 sm:pl-6 bg-gray-100 w-8">
+                  {queuedInView.length > 0 && (
+                    <input
+                      type="checkbox"
+                      aria-label="Select all queued students in view"
+                      checked={selectedForDequeue.size > 0 && queuedInView.every((p) => selectedForDequeue.has(p.id))}
+                      onChange={(e) => setSelectedForDequeue(e.target.checked ? new Set(queuedInView.map((p) => p.id)) : new Set())}
+                      className="w-4 h-4"
+                    />
+                  )}
+                </th>
+                <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">#</th>
                 <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Student</th>
                 <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Grade</th>
                 <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Section</th>
@@ -559,7 +640,7 @@ export const DentalChartNav = () => {
             <tbody className="divide-y divide-border">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                  <td colSpan={9} className="px-4 py-10 text-center text-sm text-muted-foreground">
                     {viewMode === 'queued' && queuedStudentIds.length === 0
                       ? 'No students queued for charting yet — use "Queue for Charting" on the Students page, or switch to Full List.'
                       : 'No students match your search.'}
@@ -576,7 +657,18 @@ export const DentalChartNav = () => {
                 const select = () => setSelectedStudentId(p.id);
                 return (
                   <tr key={p.id} {...activatable(select)} className={`cursor-pointer ${spotlightStudent?.id === p.id ? 'bg-primary-surface' : 'hover:bg-canvas'}`}>
-                    <td className="px-4 py-2.5 sm:pl-6 text-muted-foreground">{i + 1}</td>
+                    <td className="px-4 py-2.5 sm:pl-6" onClick={(e) => e.stopPropagation()}>
+                      {queuePosition >= 0 && (
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${p.name} for bulk dequeue`}
+                          checked={selectedForDequeue.has(p.id)}
+                          onChange={() => toggleSelectedForDequeue(p.id)}
+                          className="w-4 h-4"
+                        />
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-muted-foreground">{i + 1}</td>
                     <td className="px-4 py-2.5 font-medium text-foreground">
                       <div className="flex items-center gap-3">
                         <span style={{ backgroundColor: gc.light, color: gc.solid }} className="w-8 h-8 shrink-0 rounded-full grid place-items-center text-xs font-bold">
@@ -592,7 +684,7 @@ export const DentalChartNav = () => {
                     <td className="px-4 py-2.5 text-center">
                       {queuePosition >= 0 ? (
                         <button
-                          onClick={(e) => { e.stopPropagation(); setDequeueTarget({ id: p.id, name: p.name }); }}
+                          onClick={(e) => { e.stopPropagation(); setPendingDequeue({ ids: [p.id], label: p.name }); }}
                           title="Remove from charting queue"
                           aria-label={`Remove ${p.name} from the charting queue`}
                           style={{ backgroundColor: kickerColor.light, color: kickerColor.solid }}
@@ -625,13 +717,13 @@ export const DentalChartNav = () => {
       </div>
 
       <ConfirmDialog
-        open={!!dequeueTarget}
+        open={!!pendingDequeue}
         title="Remove from charting queue?"
-        message={dequeueTarget ? `${dequeueTarget.name} will be removed from the charting queue. This does not affect their student record or dental chart.` : ''}
+        message={pendingDequeue ? `${pendingDequeue.label} will be removed from the charting queue. This does not affect their student record or dental chart.` : ''}
         confirmLabel="Remove"
         tone="danger"
         onConfirm={confirmDequeue}
-        onCancel={() => setDequeueTarget(null)}
+        onCancel={() => setPendingDequeue(null)}
       />
     </div>
   );
