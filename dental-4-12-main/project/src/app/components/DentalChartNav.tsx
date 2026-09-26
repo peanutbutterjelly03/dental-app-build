@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
-import { Eye, Users, Calendar, Clipboard, Shield, Stethoscope, SlidersHorizontal, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
+import { Eye, Users, Calendar, Clipboard, Shield, Stethoscope, SlidersHorizontal, PanelLeftClose, PanelLeftOpen, X, ChevronDown } from 'lucide-react';
 import { GradePill } from './GradePill';
 import { getSchoolColor } from '../utils/schoolColors';
 import { getGradeColor } from '../utils/gradeColors';
@@ -47,6 +47,21 @@ export const DentalChartNav = () => {
   // Up Next can be hidden to give the queue table more width (user,
   // 2026-09-26).
   const [showUpNext, setShowUpNext] = useState(true);
+  // The single "Filter" button's dropdown (replaces the old Queued/Full
+  // List segmented toggle, user, 2026-09-26). State lives here, not inside
+  // a nested component defined in the render body -- that component gets a
+  // NEW function identity every render, so React remounts it (and drops
+  // `open` back to false, mid-click) any time this component re-renders for
+  // an unrelated reason. Confirmed via Playwright: the button detached from
+  // the DOM and reattached on every render while a click was in flight.
+  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
+  const filterMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!filterMenuOpen) return;
+    const onDown = (e: MouseEvent) => { if (!filterMenuRef.current?.contains(e.target as Node)) setFilterMenuOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [filterMenuOpen]);
   const { selectedSchool } = useAuth();
   const { students: allStudents, loading: studentsLoading } = useStudents();
   // School-scoped like every other list page
@@ -245,6 +260,16 @@ export const DentalChartNav = () => {
 
   const queueCount = filtered.length;
 
+  // Replaces the old Queued/Full List segmented toggle with a single button
+  // (user, 2026-09-26) -- same effect (picking viewMode, clearing any stat
+  // filter), just as a dropdown off one dark, filled button instead of two
+  // side-by-side ones. Rendered inline below, not as a nested component --
+  // see the filterMenuOpen state above for why.
+  const viewModeOpts: { v: 'queued' | 'full'; l: string }[] = [
+    { v: 'queued', l: 'Queued' },
+    { v: 'full', l: 'Full List' },
+  ];
+
   return (
     <div ref={regionRef} className="space-y-4 overflow-y-auto no-scrollbar -mb-4 md:-mb-8" style={{ height: regionHeight ?? undefined }}>
       {/* Page-level identity header, above the stat row and the queue itself
@@ -269,13 +294,16 @@ export const DentalChartNav = () => {
           <div
             key={label}
             {...activatable(onClick)}
-            className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6 cursor-pointer transition-colors hover:border-primary/40 hover:shadow-md"
+            // Same hover spec as Dashboard's own SummaryCell (user,
+            // 2026-09-26): -translate-y + primary-tinted border + the exact
+            // shadow, not a generic hover:shadow-md.
+            className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6 shadow-[0_4px_20px_rgba(0,0,0,0.06)] cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_10px_30px_rgba(15,23,42,0.08)] focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-2"
           >
             <span style={{ backgroundColor: bg, color: fg }} className="w-10 h-10 flex-shrink-0 rounded-xl grid place-items-center">
               <Icon className="w-4 h-4" />
             </span>
             <div className="min-w-0">
-              <div className="text-sm text-muted-foreground truncate">{label}</div>
+              <div className="text-xs font-bold text-muted-foreground truncate">{label}</div>
               <div className="text-2xl font-bold text-foreground">{value}</div>
             </div>
           </div>
@@ -373,7 +401,7 @@ export const DentalChartNav = () => {
                 <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Queue</div>
                 <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                   <h2 className="text-lg font-bold text-foreground">Charting Queue</h2>
-                  <span style={{ backgroundColor: kickerColor.light, color: kickerColor.solid }} className="text-[11px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">
+                  <span style={{ backgroundColor: kickerColor.light, color: kickerColor.solid }} className="text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap">
                     {queueCount} {queueCount === 1 ? 'STUDENT' : 'STUDENTS'}
                   </span>
                 </div>
@@ -398,19 +426,31 @@ export const DentalChartNav = () => {
             </div>
             <div className="flex items-center gap-3 flex-wrap">
               <ListSearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search student, grade, or section" />
-              <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 shrink-0">
+              <div ref={filterMenuRef} className="relative shrink-0">
                 <button
-                  onClick={() => { setViewMode('queued'); setExtraFilter('none'); }}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium ${viewMode === 'queued' ? 'bg-primary text-white' : 'text-muted-foreground hover:text-foreground'}`}
+                  type="button"
+                  role="combobox"
+                  aria-haspopup="listbox"
+                  aria-expanded={filterMenuOpen}
+                  onClick={() => setFilterMenuOpen((o) => !o)}
+                  className="flex items-center gap-1.5 text-sm font-medium rounded-lg px-3 py-2 bg-primary text-white hover:bg-primary-hover"
                 >
-                  Queued
+                  <SlidersHorizontal className="w-3.5 h-3.5" /> Filter <ChevronDown className="w-3.5 h-3.5" />
                 </button>
-                <button
-                  onClick={() => { setViewMode('full'); setExtraFilter('none'); }}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium ${viewMode === 'full' ? 'bg-primary text-white' : 'text-muted-foreground hover:text-foreground'}`}
-                >
-                  Full List
-                </button>
+                {filterMenuOpen && (
+                  <div className="absolute right-0 z-20 mt-1 min-w-[160px] rounded-lg border border-border bg-card shadow-md py-1">
+                    {viewModeOpts.map((o) => (
+                      <button
+                        key={o.v}
+                        type="button"
+                        onClick={() => { setViewMode(o.v); setExtraFilter('none'); setFilterMenuOpen(false); }}
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-canvas ${viewMode === o.v ? 'text-primary font-semibold' : 'text-foreground'}`}
+                      >
+                        {o.l}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
