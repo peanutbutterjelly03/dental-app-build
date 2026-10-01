@@ -473,7 +473,7 @@ export function DentalChartTab({
             </label>
             {/* Visit 1 / Visit 2 (2026-09-25, reworked 2026-09-28 x4),
                 right-aligned on this same row. Visit 1 is ALWAYS
-                visible -- a pupil pending their first visit still needs
+                visible -- a student pending their first visit still needs
                 a tab to land on. Visit 2 only appears once Visit 1 has
                 REAL content, read LIVE off the draft (visit1HasDataLive,
                 2026-09-28 fix -- "it should be real time ... the moment

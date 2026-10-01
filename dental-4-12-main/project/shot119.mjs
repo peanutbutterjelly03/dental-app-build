@@ -59,7 +59,7 @@ for (const [name, width, height] of [['phone', 390, 844], ['tablet', 768, 1024],
       await page.waitForTimeout(2200);
       if (await modal.locator(ROW_CB).count() > 0) break;
     }
-    const head = modal.locator('input[aria-label="Select all pupils"]').first();
+    const head = modal.locator('input[aria-label="Select all students"]').first();
     if (await head.count()) { await head.click(); await page.waitForTimeout(700); }
     const bar = await modal.locator('text=/\\d+ selected/').count();
     // Does the page scroll sideways? CLAUDE.md: the body must never.

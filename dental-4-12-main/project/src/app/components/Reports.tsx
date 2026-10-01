@@ -41,9 +41,9 @@ const GRADE_BRACKETS: Record<string, {label:string; ages:string[]}> = {
   'Grade 5': { label:'GRADE 5',  ages:['5-9 yrs','10-14 yrs','15-19 yrs','20 yrs & above'] },
   'Grade 6': { label:'GRADE 6',  ages:['5-9 yrs','10-14 yrs','15-19 yrs','20 yrs & above'] },
   // Secondary carries the SAME four brackets as Grades 2-6. Sprint 41 first
-  // dropped "5-9 yrs" here on the reasoning that a Grade 7 pupil is ~12 so
+  // dropped "5-9 yrs" here on the reasoning that a Grade 7 student is ~12 so
   // the cell can never be filled — but that argument proves too much: a Grade
-  // 2 pupil is never 20 either, and the form still carries "20 yrs & above"
+  // 2 student is never 20 either, and the form still carries "20 yrs & above"
   // for Grade 2. The DOH form uses a uniform bracket set per grade regardless
   // of which cells are plausible, so a shortened secondary set was the odd
   // one out. Corrected 2026-09-01.
@@ -236,7 +236,7 @@ export const Reports = () => {
   // Sprint 128 — the calendar's school year is not necessarily a year the
   // database HAS. Opening Reports in September 2026 defaulted every DOH report
   // to 2026-2027 while every record sat under 2025-2026, so all three tabs
-  // reported zeros and dashes on a database with 26 fully-charted pupils.
+  // reported zeros and dashes on a database with 26 fully-charted students.
   //
   // Once the real year list arrives, a selection that names a year with no
   // records is replaced by the NEWEST year that has them. Only that case is
@@ -323,7 +323,7 @@ export const Reports = () => {
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const { students: realStudents } = useStudents();
 
-  // Only offer the 7-10 band where secondary pupils actually exist for the
+  // Only offer the 7-10 band where secondary students actually exist for the
   // school in view — two of the three schools stop at G6, and a tab that is
   // permanently empty reads as a broken report rather than an empty one.
   const hasSecondary = useMemo(
@@ -670,7 +670,7 @@ export const Reports = () => {
             >{showDohPicker ? 'Done' : `Rows & grades${dohHiddenCount ? ` (${dohHiddenCount} hidden)` : ''}`}</button>
 
             {/* Same DOH form, different grade band. Hidden entirely when the
-                school in view has no secondary pupils. */}
+                school in view has no secondary students. */}
             {hasSecondary && (
               <div role="group" aria-label="Grade band" className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
                 {([['elem','Kinder–Grade 6'],['hs','Grade 7–10']] as const).map(([band, label]) => (
@@ -691,15 +691,15 @@ export const Reports = () => {
 
           {/* How the two year-varying figures in this table are derived. Both
               used to be computed against TODAY, which silently rewrote past
-              reports every time a pupil was promoted or had a birthday. */}
+              reports every time a student was promoted or had a birthday. */}
           <p className="text-xs text-muted-foreground">
             {dohSchoolYear && !dohLoading && dohYears.length > 0 && !dohYears.includes(dohSchoolYear) && (
               <> <span className="font-medium text-amber-700">No records exist for {dohSchoolYear}</span>, so every figure below is zero.
               Records exist for {dohYears.join(', ')}. </>
             )}
             {dohSchoolYear
-              ? <>Covering school year <span className="font-medium text-foreground">{dohSchoolYear}</span>. Grade is the grade recorded for that year, and age is the pupil&apos;s age at that year&apos;s first recorded visit (or the start of the school year where no visit is recorded) — not their grade or age today.</>
-              : <>Covering <span className="font-medium text-foreground">all years to date</span>, so a pupil with several school years is counted once per year. Pick a school year above to report on one.</>}
+              ? <>Covering school year <span className="font-medium text-foreground">{dohSchoolYear}</span>. Grade is the grade recorded for that year, and age is the student&apos;s age at that year&apos;s first recorded visit (or the start of the school year where no visit is recorded) — not their grade or age today.</>
+              : <>Covering <span className="font-medium text-foreground">all years to date</span>, so a student with several school years is counted once per year. Pick a school year above to report on one.</>}
             {unplacedCount > 0 && (
               <> <span className="font-medium text-foreground">{unplacedCount} record{unplacedCount === 1 ? '' : 's'}</span> in this range predate grade being stored per school year, so {unplacedCount === 1 ? 'it appears' : 'they appear'} in the totals but in no grade column.</>
             )}
@@ -1308,7 +1308,7 @@ export const Reports = () => {
                     <tbody className="divide-y divide-gray-100">
                       {referralRows.length === 0 ? (
                         <tr><td colSpan={8} className="px-4 py-6 text-center text-muted-foreground">
-                          No referrals recorded. Referrals are written on a pupil&apos;s record, under Referrals,
+                          No referrals recorded. Referrals are written on a student&apos;s record, under Referrals,
                           and are counted on the DOH Program Report from there.
                         </td></tr>
                       ) : referralRows.map((r, i) => (

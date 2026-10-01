@@ -1,4 +1,4 @@
-// 2026-10-01, Risk Classification redesign: which tab a pupil lands in
+// 2026-10-01, Risk Classification redesign: which tab a student lands in
 // (reviewed / needs review / not checked yet), the stored suggestion, and the
 // caries columns. Judged on the LATEST RPC visit.
 
@@ -96,7 +96,7 @@ describe('reviewSummary (Students list chip)', () => {
     expect(reviewSummary(true, []).status).toBe('not_checked');
   });
 
-  it('studentId narrows the list to one pupil', () => {
+  it('studentId narrows the list to one student', () => {
     const base = input();
     const all = buildRiskCandidates({ ...base, students: [...base.students, { ...base.students[0], _id: 'st2', last_name: 'Bautista' }] });
     expect(filterRiskCandidates(all, {}).total).toBe(2);

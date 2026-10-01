@@ -21,7 +21,7 @@ import type { RiskCandidate } from '../../../../shared/riskCandidates';
 // Classification and, in R3, straight from the Students list, so the review
 // can never work differently depending on where it was opened.
 //
-// Saving VALIDATES: a stored suggestion is UPDATED (PUT); a pupil with no
+// Saving VALIDATES: a stored suggestion is UPDATED (PUT); a student with no
 // stored suggestion gets a new, already-validated row (POST). Only the dentist
 // can save (SEC-35: the server refuses anyone else); others can read.
 //
@@ -296,7 +296,7 @@ export function RiskReviewDialog({
               {findings.length > 0 && (
                 <div className="mt-3">
                   {/* "Findings", not "Reasons": real facts from the chart and
-                      forms. The model does not explain one pupil's result. */}
+                      forms. The model does not explain one student's result. */}
                   <div className="text-sm text-muted-foreground">Findings:</div>
                   <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-foreground">
                     {findings.map((f) => <li key={f}>{f}</li>)}

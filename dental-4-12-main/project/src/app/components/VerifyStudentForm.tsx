@@ -52,7 +52,7 @@ const Label = ({ children, extracted, required }: { children: React.ReactNode; e
 );
 
 // The route reads a QUEUE (O3, 2026-10-01): one scanned file is a queue of one
-// and behaves exactly as before (save opens the pupil's chart); a batch is
+// and behaves exactly as before (save opens the student's chart); a batch is
 // reviewed one form at a time with Save & next / Skip, then a summary.
 export const VerifyStudentForm = () => {
   const navigate = useNavigate();

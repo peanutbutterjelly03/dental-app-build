@@ -1,6 +1,6 @@
 // Sprint 102 — is Promote/Assign re-runnable?
 //
-// Exercises the API path the screen uses, twice over the same pupil:
+// Exercises the API path the screen uses, twice over the same student:
 //   run 1  POST /student-iptrs           -> creates the target year
 //   run 2  POST again                    -> MUST 409 (this is why the screen
 //                                           used to be unable to fix itself)

@@ -21,7 +21,7 @@
  *
  *  The month/day comparison is not a nicety: `yearA - yearB` alone reports a
  *  child born in December 2015 as 11 during 2026 when they are still 10, so
- *  roughly a twelfth of pupils land one age bracket too high. */
+ *  roughly a twelfth of students land one age bracket too high. */
 export function ageOn(birth: string | Date | null | undefined, on: Date = new Date()): number | null {
   if (birth === null || birth === undefined || birth === '') return null;
   const b = typeof birth === 'string' ? new Date(birth) : birth;

@@ -137,7 +137,7 @@ function normalizeSex(raw: string): string {
 }
 
 // A phone number has digits. A form's greyed example ("09XX XXX XXXX") was read
-// as the pupil's number on the web-form layout (O2, 2026-10-01); PH mobile
+// as the student's number on the web-form layout (O2, 2026-10-01); PH mobile
 // numbers are 11 digits and landlines 7-8, so fewer than 7 is not a number.
 function normalizePhone(raw: string): string {
   return raw.replace(/\D/g, '').length >= 7 ? raw.trim() : '';
@@ -641,7 +641,7 @@ export async function extractIptrFields(
   // Personal details come from the page(s) that CARRY them (O2, 2026-10-01).
   // Earlier pages used to win, so on a split two-page IPTR the medical-history
   // half went first and its signature line "Lagda at Pangalan ng Pasyente"
-  // was read as the pupil's name. Pages are ranked by how many identity
+  // was read as the student's name. Pages are ranked by how many identity
   // captions they print; when any page has at least two, only such pages are
   // read, best first. With none (an unusual form), every page is read in order.
   const ranked = recognized

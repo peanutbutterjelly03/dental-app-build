@@ -37,7 +37,7 @@ const RISK_BADGE: Record<string, string> = {
 };
 
 /** Two-letter initials for the row avatar. Same derivation her Student
- *  Records rows use, so a pupil is recognised by the same mark on both
+ *  Records rows use, so a student is recognised by the same mark on both
  *  screens rather than two near-misses. */
 const initials = (name: string) =>
   name.split(/[\s,]+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
@@ -220,7 +220,7 @@ export const DentalChartNav = () => {
     [allPatients, treatmentStudentIds],
   );
 
-  // Appointments Today: this school's pupils with a non-archived
+  // Appointments Today: this school's students with a non-archived
   // appointment on today's LOCAL calendar date. Kept as the actual student
   // ID set, not just a count (user, 2026-09-26) -- clicking the card queues
   // and filters to exactly these students.

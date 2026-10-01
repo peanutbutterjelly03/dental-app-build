@@ -17,7 +17,7 @@ import { suggestTreatments } from '../../../shared/riskTreatments';
 // Sprint 21g queue + inline validation panel. Plan and decisions: HANDOFF
 // "PLANNED: Risk Classification redesign".
 //
-// ⚠ What the list SHOWS as a pupil's risk is `displayLevel`: the dentist's
+// ⚠ What the list SHOWS as a student's risk is `displayLevel`: the dentist's
 // level once reviewed, the stored suggestion while it waits ("Needs review").
 // Only this clinical screen shows suggestions; every report and dashboard
 // reads validated results only (R1), which is what makes the banner's "nothing
@@ -61,7 +61,7 @@ export const AIAnalytics = () => {
   const { user, selectedSchool } = useAuth();
   const isDentist = user?.role === 'dentist';
 
-  // `?student=<id>` = one pupil, opened from the Students list's Risk card;
+  // `?student=<id>` = one student, opened from the Students list's Risk card;
   // `?tab=` = a tab to open on (the Notifications link). Read from the URL so
   // following either link while already on this page still takes effect.
   const [searchParams, setSearchParams] = useSearchParams();
@@ -126,7 +126,7 @@ export const AIAnalytics = () => {
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const notCheckedOnPage = useMemo(() => candidates.filter((c) => c.status === 'not_checked' && c.latestPreventiveId), [candidates]);
 
-  // "Check risk" for the not-checked pupils ON THIS PAGE: ask the model, then
+  // "Check risk" for the not-checked students ON THIS PAGE: ask the model, then
   // STORE each answer as an unreviewed suggestion. Sequential on purpose: the
   // free ML host handles one request at a time, and the progress stays honest.
   const checkVisible = async () => {

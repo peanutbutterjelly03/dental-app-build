@@ -33,12 +33,12 @@ interface CrudOptions {
   /** Blank these fields out of every response for these roles.
    *
    *  ⚠ Read access is not all-or-nothing. A SCHOOL ADMINISTRATOR needs the
-   *  pupil ROWS to draw their dashboard (counts by grade, sex, age bracket) but
-   *  has no business with the pupil's name, address, guardian, contact number
+   *  student ROWS to draw their dashboard (counts by grade, sex, age bracket) but
+   *  has no business with the student's name, address, guardian, contact number
    *  or PhilHealth number — CLAUDE.md gives that role "school reports +
    *  dashboards only, no clinical records", and the manuscript has them
    *  receiving one aggregate report. Before this (found 2026-09-06) a plain
-   *  GET /api/students handed them fully identified records for every pupil in
+   *  GET /api/students handed them fully identified records for every student in
    *  their school. Hiding the screens is not enough; the API is the door. */
   redact?: { roles: string[]; fields: string[] };
   writeRoles?: string[];
@@ -216,7 +216,7 @@ export function createCrudRouter(model: Model<any>, options: CrudOptions = {}) {
       // (student_id, iptr_id, chart_id), so `{ ...filter, ...scope }` would
       // silently DROP the caller's filter. `GET /medical-histories?iptr_id=X`
       // would then return every in-scope medical history instead of that
-      // pupil's — one child's record rendered under another's name.
+      // student's — one child's record rendered under another's name.
       const scope = await scopeFilter(modelName, req);
       const docs = await model.find(scope ? { $and: [filter, scope] } : filter);
       // decryptForResponse first, while `d` is still a real Mongoose document
@@ -290,7 +290,7 @@ export function createCrudRouter(model: Model<any>, options: CrudOptions = {}) {
         // Only LIVE records block a create. This used to count archived ones
         // too, to stop a later restore resurrecting a duplicate — but that
         // made archiving worse than deleting: an IPTR recorded against the
-        // wrong pupil and archived left that pupil+year permanently
+        // wrong student and archived left that student+year permanently
         // uncreatable, 409-ing against a record the UI cannot even show.
         // The restore route below now carries that check instead, which is
         // where the conflict is visible and an admin can actually resolve it.
@@ -342,7 +342,7 @@ export function createCrudRouter(model: Model<any>, options: CrudOptions = {}) {
       // (BUG-04, Sprint 159b). `findById` finds archived rows, and until this
       // check existed the GET path 404'd them while PUT happily wrote to them.
       //
-      // The offline queue is how that actually got reached: a pupil archived
+      // The offline queue is how that actually got reached: a student archived
       // while an aide was offline, the aide's queued edit syncing afterwards,
       // landing in a record no screen lists — and the encoder told it saved.
       //

@@ -39,7 +39,7 @@ describe('tallyIptrServices — tooth counts', () => {
     expect(teethByCode).toEqual({ FV: 1 });
   });
 
-  it('returns empty tallies for a pupil with no chartings', () => {
+  it('returns empty tallies for a student with no chartings', () => {
     const { teethByCode, codesByVisit } = tallyIptrServices([], new Map());
     expect(teethByCode).toEqual({});
     expect(codesByVisit[1].size).toBe(0);
@@ -142,8 +142,8 @@ describe('tallyIptrServices — the ordinal, LINKED chartings (Sprint 150)', () 
 });
 
 describe('ageAt — age is taken at EXAMINATION date, not today (Sprint 57b)', () => {
-  it('puts a pupil in the bracket they were in at the time', () => {
-    // A mistyped birthday silently shifts a pupil into the wrong DOH age
+  it('puts a student in the bracket they were in at the time', () => {
+    // A mistyped birthday silently shifts a student into the wrong DOH age
     // bracket and the report still looks authoritative, so this is the
     // arithmetic the brackets rest on.
     expect(ageAt('2016-06-15', new Date('2026-06-14'))).toBe(9);

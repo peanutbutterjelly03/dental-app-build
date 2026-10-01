@@ -19,7 +19,7 @@ import { activatable } from '../utils/a11y';
 import { Pagination, usePagination } from './Pagination';
 
 /** Two-letter initials for the row avatar -- same derivation Dental Charts'
- *  own queue table uses, so a pupil is recognised by the same mark on both
+ *  own queue table uses, so a student is recognised by the same mark on both
  *  screens rather than two near-misses. */
 const initials = (name: string) =>
   name.split(/[\s,]+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
@@ -106,7 +106,7 @@ export const TreatmentRecords = () => {
   }, [studentIdsByCode]);
 
   // Auto-queued from a dental chart save -- see DentalChart.tsx's
-  // handleSave, which adds a pupil here the moment their saved chart
+  // handleSave, which adds a student here the moment their saved chart
   // carries a tooth condition/treatment or an oral health condition.
   const [treatmentQueueIds, setTreatmentQueueIdsState] = useState<string[]>(() => getTreatmentQueueStudentIds());
   // "Full List" is a TESTING tab (user, 2026-09-28, "add the full list of
@@ -118,7 +118,7 @@ export const TreatmentRecords = () => {
 
   // Dequeues AUTOMATICALLY once real treatment data shows up (user,
   // 2026-09-28: "remove mark as done, it should be automatic") -- a queued
-  // pupil who now appears in `doneIds` (a real ToothRecord/
+  // student who now appears in `doneIds` (a real ToothRecord/
   // PreventiveCareRecord for the SELECTED year) leaves the queue on its
   // own, no button required.
   useEffect(() => {
@@ -130,7 +130,7 @@ export const TreatmentRecords = () => {
     });
   }, [doneIds]);
 
-  // Auto-queued from RPC Monitoring too (user, 2026-09-28): a pupil whose
+  // Auto-queued from RPC Monitoring too (user, 2026-09-28): a student whose
   // Visit 2 falls due THIS calendar month is added here automatically, same
   // 'due_this_month' definition RPC Monitoring's own sort/filter already
   // uses (Visit 1 done, Visit 2 not yet, due date = Visit 1 + 4 months) --
@@ -174,7 +174,7 @@ export const TreatmentRecords = () => {
 
   // Per-row manual removal (user, 2026-09-28, "also the delete queue") --
   // alongside automatic done-detection and the bulk "Clear queue" action,
-  // for pulling one specific pupil out of the queue (e.g. queued in error)
+  // for pulling one specific student out of the queue (e.g. queued in error)
   // without waiting on real treatment data or clearing everyone.
   const deleteFromQueue = (studentId: string) => {
     const next = treatmentQueueIds.filter((id) => id !== studentId);
@@ -381,7 +381,7 @@ export const TreatmentRecords = () => {
           PreventiveCareRecord's booleans for the 4 whole-mouth ones (see
           /stats/treatment-categories). Never the free-text TREATMENT.
           treatment_done field, which can't be reliably bucketed into a code.
-          A count is PER STUDENT (headcount), not per tooth record -- a pupil
+          A count is PER STUDENT (headcount), not per tooth record -- a student
           with 4 sealants charted still counts once, same as one.
           NOT CLICKABLE (user, 2026-09-27 correction) -- these are read-only
           totals, not a filter into the list below. Hover lift/shadow ADDED
@@ -444,7 +444,7 @@ export const TreatmentRecords = () => {
               <div className="min-w-0">
                 {/* Swaps title/description per tab (user, 2026-09-28)
                     rather than keeping "Treatment Queue" as the title while
-                    showing already-treated pupils or the whole roll. */}
+                    showing already-treated students or the whole roll. */}
                 <div className="flex items-center gap-2">
                   <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                     {viewTab === 'queue' ? 'Queue' : viewTab === 'done' ? 'Done' : 'Full List'}
@@ -478,7 +478,7 @@ export const TreatmentRecords = () => {
               <div className="flex items-center gap-3 flex-wrap">
                 <ListSearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search student, grade, or section" />
                 {/* "⋮" -- clears the whole Treatment Queue at once, for a
-                    pupil queued in error or otherwise handled outside the
+                    student queued in error or otherwise handled outside the
                     normal (now automatic) done-detection. Only meaningful on
                     the Queue tab, since Done isn't manually managed. */}
                 <div ref={bulkMenuRef} className="relative shrink-0">
@@ -631,7 +631,7 @@ export const TreatmentRecords = () => {
                           <Eye className="w-3.5 h-3.5" /> Open Chart
                         </button>
                         {/* Per-row manual removal (user, 2026-09-28, "also
-                            the delete queue") -- pulls just this pupil out,
+                            the delete queue") -- pulls just this student out,
                             unlike the "⋮" menu's all-at-once "Clear queue". */}
                         {viewTab === 'queue' && (
                           <button

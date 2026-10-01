@@ -82,7 +82,7 @@ const run = async () => {
   check('at least one year differs from the all-years total (scoping does something)',
     perYear.some(([, n]) => n !== allTime));
 
-  // Age is measured at the year's own anchor, so the same pupil can land in
+  // Age is measured at the year's own anchor, so the same student can land in
   // different brackets in different years. That is the point.
   let movedBracket = 0;
   const byStudent = new Map();

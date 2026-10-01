@@ -1,7 +1,7 @@
 // The demo student roster, in ONE place.
 //
 // It used to be declared in seedStudents.ts and duplicated as a name list in
-// purgeDemoData.ts. They drifted: Sprint 45 added the eight Grade 7-10 pupils
+// purgeDemoData.ts. They drifted: Sprint 45 added the eight Grade 7-10 students
 // to the seeder on 2026-09-01, the purge's copy was written 2026-08-11 and
 // never updated, so a purge would have deleted all three SCHOOLS and the demo
 // staff while leaving those eight students behind pointing at schools that no
@@ -43,7 +43,7 @@ export const DEMO_STUDENTS = [
   // the report exercises more than one age column instead of stacking
   // everyone into one.
   //
-  // dmf_index is "DMF" (uppercase) for these: secondary pupils are assessed
+  // dmf_index is "DMF" (uppercase) for these: secondary students are assessed
   // on PERMANENT dentition, and the DOH table counts DMF_total separately
   // from the primary-teeth dmf_df row. The elementary records above stay
   // lowercase "dmf".
@@ -58,7 +58,7 @@ export const DEMO_STUDENTS = [
 
   // 30 more (user, 2026-09-26 — wanted a bigger roster to test the Dental
   // Charts queue against without adding students by hand). Fills in the
-  // Kinder/Grade 2/4/6 gaps BTIS didn't have before, plus more pupils in
+  // Kinder/Grade 2/4/6 gaps BTIS didn't have before, plus more students in
   // grades all three schools already had.
   // Bagong Tanyag Integrated School
   { school: "Bagong Tanyag Integrated School", full_name: "Ethan Bautista", birthday: "2021-03-14", sex: "Male", grade_level: "Kinder", section: "Marigold", risk: "Low" },

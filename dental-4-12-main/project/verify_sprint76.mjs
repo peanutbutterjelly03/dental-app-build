@@ -1,8 +1,8 @@
 // Sprint 76 — archiving must not permanently block re-creation.
 //
 // The create guard used to count archived records, which made archiving worse
-// than deleting: an IPTR recorded against the wrong pupil and archived left
-// that pupil+year permanently uncreatable, 409-ing against a record the UI
+// than deleting: an IPTR recorded against the wrong student and archived left
+// that student+year permanently uncreatable, 409-ing against a record the UI
 // cannot even show. The uniqueness check now lives on restore instead.
 //
 // Both halves have to hold, or the fix just trades one bug for the other:

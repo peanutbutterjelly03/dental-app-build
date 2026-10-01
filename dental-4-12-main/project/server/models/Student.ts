@@ -35,7 +35,7 @@ const studentSchema = new mongoose.Schema(
     // or community member treated at a Bayanihan mission) -- grade_level and
     // section don't apply, so this is the one case those two are allowed to
     // be missing (see the conditional `required` above). Defaults false:
-    // every existing and newly-added real pupil is unaffected.
+    // every existing and newly-added real student is unaffected.
     is_not_student: { type: Boolean, default: false },
     // Not in the original ERD — added Sprint 14. Real DOH IPTR school
     // registration data, not UI-invented (same rationale as Sprint 11's
@@ -71,7 +71,7 @@ const studentSchema = new mongoose.Schema(
     // Added Sprint 117 because the ONLY thing separating demo from real data
     // was a hardcoded list of 26 names in demoStudents.ts, and the first real
     // hand-encoded record had just landed in the same database. That list had
-    // already drifted once (Sprint 45 added eight pupils the purge's copy never
+    // already drifted once (Sprint 45 added eight students the purge's copy never
     // learned about), and Phase 3 adds 50 more real records.
     //
     // ⚠ DEVIATES from the Chapter 3 ERD — recorded in docs/DATA-MODEL.md; the

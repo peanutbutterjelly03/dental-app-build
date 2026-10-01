@@ -15,7 +15,7 @@ import { schoolYearLabel } from '../utils/schoolYear';
 const GRADES = ['Kinder','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10'];
 
 // The "resting" school year for this page's default view (user, 2026-09-25):
-// a pupil whose Visit 2 just got recorded was disappearing from the default
+// a student whose Visit 2 just got recorded was disappearing from the default
 // list because the OLD default combined 'outstanding' status with 'all'
 // years, and 'outstanding' hides a completed pair. The fix scopes the
 // default to the CURRENT school year instead -- that is what "School Year"
@@ -65,7 +65,7 @@ export const RPCTracking = () => {
   const [treatmentFilter, setTreatmentFilter] = useState('all');
   const [schoolYearFilter, setSchoolYearFilter] = useState(CURRENT_SCHOOL_YEAR);
   // Defaults to 'date_desc', not 'all' (user, 2026-09-25): a worklist reads
-  // newest activity first, so the most recently treated pupils lead. 'all'
+  // newest activity first, so the most recently treated students lead. 'all'
   // stays selectable from the dropdown for the plain alphabetical order.
   const [sortFilter, setSortFilter] = useState('date_desc');
 
@@ -351,7 +351,7 @@ export const RPCTracking = () => {
               local term (e.g. "Oral Prophylaxis (Linis)"), which stays on the
               clinical legend/chart but this filter is English-only. */}
           <FS value={treatmentFilter} onChange={setTreatmentFilter} label="All Treatments" opts={treatmentCodes.map(t=>({v:t.code,l:t.label}))} />
-          {/* Narrows to pupils with an IPTR for that year — i.e. enrolled
+          {/* Narrows to students with an IPTR for that year — i.e. enrolled
               that year, the only school-year fact this join actually has
               (a visit isn't itself scoped to one). */}
           <FS value={schoolYearFilter} onChange={setSchoolYearFilter} label="All School Years" opts={schoolYearOptions.map(y=>({v:y,l:`SY ${y}`}))} />

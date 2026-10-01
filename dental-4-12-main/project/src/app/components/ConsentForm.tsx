@@ -10,7 +10,7 @@ import { PreviewModal } from './PreviewModal';
 // (Parents_and_Guardian_Consent_Form.pdf).
 //
 // ⚠ THIS IS A BLANK FORM AND IT STAYS BLANK — the user's instruction was
-// "blank consent form only". It is printed, sent home with the pupil, filled in
+// "blank consent form only". It is printed, sent home with the student, filled in
 // by hand by the parent, and returned. Nothing here reads the database and
 // nothing is pre-filled.
 //

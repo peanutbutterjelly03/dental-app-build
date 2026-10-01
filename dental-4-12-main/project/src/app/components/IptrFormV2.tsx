@@ -14,7 +14,7 @@ import { sectionBRows, type ChartedTooth } from '../../../shared/iptrSectionB';
 // document that is filed nowhere.
 //
 // Built from the user's photograph of the blank/filled sheet, 2026-09-05.
-// ⚠ That photo shows a real pupil's name, birth date and findings, so it is
+// ⚠ That photo shows a real student's name, birth date and findings, so it is
 // NOT committed to the repo. If a scan is ever added, blank the handwriting
 // first — this repo is public and these are the exact fields the database
 // encrypts.
@@ -53,7 +53,7 @@ const FORM1_SECTION_B_LABELS = [
  *  Answered from the History tab's chips (user, 2026-09-24): ticked prints
  *  under Oo, unticked under Hindi. With no medical history saved for the
  *  year at all, the row prints blank. Q12 and Q13 are "para sa babae" and
- *  print blank for a male pupil.
+ *  print blank for a male student.
  *
  *  ⚠ Q3 and Q4 read their OWN fields (liver_disease, anemia), not the IPTR's
  *  hepatitis / blood-disorder rows: "may sakit sa atay" is broader than
@@ -129,7 +129,7 @@ export function IptrFormV2({ student, schoolName, years }: Props) {
   const shown = years.slice(-AGE_COLUMNS);
   const cols = Array.from({ length: AGE_COLUMNS }, (_, i) => shown[i] ?? null);
 
-  /** The pupil's age during that school year — the form heads its columns with
+  /** The student's age during that school year — the form heads its columns with
    *  an AGE, not a year number, so it is computed at the school year's start
    *  (June 1) rather than today. */
   const ageInYear = (y: IptrYearData | null) => {
@@ -379,7 +379,7 @@ export function IptrFormV2({ student, schoolName, years }: Props) {
                   were computed separately here before, which is two
                   implementations of one official form's arithmetic: the screen
                   and the sheet filed with the City Health Office could disagree
-                  about the same pupil. Row labels stay exactly as this form
+                  about the same student. Row labels stay exactly as this form
                   prints them, which is why they are listed rather than taken
                   from the shared row set. */}
               {sectionBRows(chartedFor(cols[0])).map((row, i) => (

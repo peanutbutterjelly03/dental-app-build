@@ -74,7 +74,7 @@ describe('ageAt', () => {
   });
 
   it('is evaluated at the DATE PASSED IN, not today (Sprint 57b)', () => {
-    // The same pupil is 10 at one examination and 11 at the next. A report for
+    // The same student is 10 at one examination and 11 at the next. A report for
     // last school year must use last year's age, which is the whole reason
     // this function takes `on` and calculateAge does not.
     expect(ageAt('2015-06-15', new Date('2026-01-01'))).toBe(10);
@@ -117,7 +117,7 @@ describe('⚠ the three age implementations must agree', () => {
 
   it('all three give null on a bad or missing date — the NaN odd-one-out is gone (BUG-02 fixed)', () => {
     // ageOn used to return NaN here, and five local copies elsewhere returned
-    // NaN or 0. NaN fails every comparison silently: it filed pupils under
+    // NaN or 0. NaN fails every comparison silently: it filed students under
     // "20 & above" and "15-19". null is the one answer, everywhere.
     for (const bad of ['not-a-date', '']) {
       expect(ageOn(bad, ON), bad).toBeNull();

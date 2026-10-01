@@ -4,7 +4,7 @@
 // one Atlas cluster serves both, and `.env` on a dev machine points at it).
 // The 2026-09-04 session produced three live examples in one day -- a test
 // record POSTed to production while proving a validator, a migration run
-// against it, and a real pupil transferred -- all recoverable, none of which
+// against it, and a real student transferred -- all recoverable, none of which
 // should have been possible to do inattentively.
 //
 // This does NOT fix #26. A second cluster is still the fix, and it needs the

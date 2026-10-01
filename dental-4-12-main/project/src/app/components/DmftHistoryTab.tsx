@@ -27,7 +27,7 @@ function isYearOrallyFitChild(y: IptrYearData): boolean {
   return !anyCondition && !charted.some((t) => t.treatment);
 }
 
-// The Dental Records tab — DMFT progression across a pupil's school years.
+// The Dental Records tab — DMFT progression across a student's school years.
 //
 // Extracted from `DentalChart.tsx` in Sprint 162b, unchanged. It was the
 // obvious first tab to lift: of the seven panels in that component this is the

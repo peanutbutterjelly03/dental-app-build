@@ -100,7 +100,7 @@ export function buildReportsPanels(input: ReportsPanelsInput): ReportsPanelsOutp
     return Number.isFinite(t) && t >= start && t < end;
   };
 
-  /** The pupil behind an IPTR, respecting the school filter. */
+  /** The student behind an IPTR, respecting the school filter. */
   const studentForIptr = (iptrId: string): PanelStudent | null => {
     const iptr = iptrById.get(iptrId);
     if (!iptr) return null;
@@ -147,7 +147,7 @@ export function buildReportsPanels(input: ReportsPanelsInput): ReportsPanelsOutp
       student: surnameFirst(student),
       school: schoolNameById.get(student.school_id) ?? 'Unknown School',
       // The IPTR's own grade is the grade AT THE TIME (Sprint 57a); the
-      // pupil's current grade would relabel last year's referrals.
+      // student's current grade would relabel last year's referrals.
       grade: iptr.grade_level || student.grade_level,
       date: r.date_issued,
       facility: r.facility_name,

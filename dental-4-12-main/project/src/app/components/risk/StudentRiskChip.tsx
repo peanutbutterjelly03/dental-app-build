@@ -14,7 +14,7 @@ import type { StudentRow } from '../../hooks/useStudents';
 // rule as Risk Classification, so the two screens cannot disagree.
 //
 // "Needs review" opens a small card; "Review now" opens the SAME 4-step
-// review Risk Classification uses, fetched fresh for this one pupil.
+// review Risk Classification uses, fetched fresh for this one student.
 
 const LEVEL_TEXT = { High: 'text-red-700', Medium: 'text-amber-800', Low: 'text-green-800' } as const;
 

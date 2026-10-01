@@ -27,7 +27,7 @@
  *  than inventing a number. */
 export const MAX_NAME_LENGTH = 60;
 
-/** K-Grade 10 with retained pupils. Deliberately generous at the top: the point
+/** K-Grade 10 with retained students. Deliberately generous at the top: the point
  *  is to catch a mistyped YEAR (2020 -> 2002), not to police enrolment. */
 export const MIN_AGE_YEARS = 3;
 export const MAX_AGE_YEARS = 25;
@@ -44,7 +44,7 @@ export { ageOn };
  *
  * WARNING: this is a REPORTING-CORRECTNESS check, not form polish. Age is
  * derived at examination date (Sprint 57b), so a mistyped birthday silently
- * shifts a pupil into the wrong DOH age bracket and the report still looks
+ * shifts a student into the wrong DOH age bracket and the report still looks
  * authoritative.
  */
 export function validateBirthdate(value: string): string | null {

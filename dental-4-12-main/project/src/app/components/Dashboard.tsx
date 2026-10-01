@@ -65,7 +65,7 @@ export const Dashboard = () => {
   const { sessions: allSessions, loading: appointmentsLoading } = useAppointments(weekWindow);
   // ⚠ SCOPED, and `status: 'all'`. Without the school the funnel counted every
   // school while every other tile on this page counted one; without status the
-  // endpoint defaults to "outstanding" and the completed pupils never arrive.
+  // endpoint defaults to "outstanding" and the completed students never arrive.
   const { records: rpcRecords, funnel: rpcFunnel, loading: rpcLoading } =
     useRPCTracking({ school: selectedSchool ?? '', status: 'all' });
   const [users, setUsers] = useState<ApiUser[]>([]);
@@ -647,9 +647,9 @@ export const Dashboard = () => {
                   // ⚠ From the SERVER's population counts, not from the rows
                   // this page received. /stats/rpc-rows defaults its status
                   // filter to "outstanding", which excludes by definition every
-                  // pupil who finished — so counting the delivered rows made
+                  // student who finished — so counting the delivered rows made
                   // "Both visits completed" permanently 0, and RPC Completion
-                  // permanently 0%. Two pupils had both visits the whole time.
+                  // permanently 0%. Two students had both visits the whole time.
                   { label: 'Enrolled', value: rpcFunnel.enrolled, ...FUNNEL_RAMP[0] },
                   { label: 'Visit 1 completed', value: rpcFunnel.visit1, ...FUNNEL_RAMP[1] },
                   { label: 'Both visits completed', value: rpcFunnel.both, ...FUNNEL_RAMP[2] },

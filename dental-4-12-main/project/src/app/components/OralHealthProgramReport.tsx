@@ -683,15 +683,15 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
       {/* Sprint 129 — said on the form rather than left for an inspector to
           find. Rows a/b/c print indented under the Higher Level total, so the
           arithmetic looks like it should cross-foot. It does not always: each
-          row counts PATIENTS, and one pupil referred for both a surgical
+          row counts PATIENTS, and one student referred for both a surgical
           procedure and a private facility in the same school year is counted
           once in the total and once in EACH sub-row. Adding a+b+c would
-          double-count that pupil, so the total is deliberately not their sum. */}
+          double-count that student, so the total is deliberately not their sum. */}
       <p className="text-xs text-muted-foreground mt-2">
         Every referral row counts <span className="font-medium text-foreground">patients, not referral slips</span>.
-        A pupil referred more than once in the school year is counted once per row, so the
+        A student referred more than once in the school year is counted once per row, so the
         Higher Level of Care total is <span className="font-medium text-foreground">not necessarily a + b + c</span> —
-        a pupil appearing in two sub-rows is still one patient in the total.
+        a student appearing in two sub-rows is still one patient in the total.
       </p>
       <PreviewModal
         open={preview.open}

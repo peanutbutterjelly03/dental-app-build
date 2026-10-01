@@ -90,10 +90,10 @@ async function startSchool(
   })
     .select("_id grade_level section")
     .lean<{ _id: Id; grade_level?: string | null; section?: string | null }[]>();
-  // ⚠ A pupil who ALREADY has a record for the year being started is already in
-  // it (a school that rolled over under the old per-school button, or had pupils
+  // ⚠ A student who ALREADY has a record for the year being started is already in
+  // it (a school that rolled over under the old per-school button, or had students
   // assigned early). Their grade is next year's, not last year's: clearing it
-  // would undo real work. Only pupils still carrying the OUTGOING year are cleared.
+  // would undo real work. Only students still carrying the OUTGOING year are cleared.
   const alreadyInNext = new Set(
     (
       await StudentIptr.find({ student_id: { $in: assigned.map((a) => a._id) }, school_year: next, isArchived: false })
@@ -147,9 +147,9 @@ export async function getSchoolYearStatus(req: Request, res: Response) {
   const plan = rows.find((r) => !r.school_id) ?? null;
   const bySchool = new Map(rows.filter((r) => r.school_id).map((r) => [String(r.school_id), r]));
 
-  // `assigned` = pupils the start would clear: still carrying a grade or section
+  // `assigned` = students the start would clear: still carrying a grade or section
   // AND without a record for the year being started (see startSchool).
-  const pupils = await Student.find({ isArchived: false, school_id: { $in: schools.map((s) => s._id) } })
+  const students = await Student.find({ isArchived: false, school_id: { $in: schools.map((s) => s._id) } })
     .select("school_id grade_level section")
     .lean<{ _id: Id; school_id: Id; grade_level?: string | null; section?: string | null }[]>();
   const inNext = new Set(
@@ -158,7 +158,7 @@ export async function getSchoolYearStatus(req: Request, res: Response) {
     ).map((i) => String(i.student_id)),
   );
   const countOf = new Map<string, { total: number; assigned: number }>();
-  for (const p of pupils) {
+  for (const p of students) {
     const key = String(p.school_id);
     const c = countOf.get(key) ?? { total: 0, assigned: 0 };
     c.total += 1;

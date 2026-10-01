@@ -134,7 +134,7 @@ export interface RPCRow {
    *  visit does not exist yet.
    *
    *  ⚠ THIS IS WHY THEY EXIST: before this, the Target Client List answered
-   *  "has this pupil EVER had fluoride varnish?" from the dental chart, where
+   *  "has this student EVER had fluoride varnish?" from the dental chart, where
    *  the form asks "was it done at THIS visit?". `treatmentCodes` below still
    *  answers the first question and is still the right source for the
    *  chart-derived columns — these two answer the second. */
@@ -253,7 +253,7 @@ const now = input.now ?? Date.now();
 const rows: RPCRow[] = students.map((s) => {
   const studentIptrs = iptrsByStudent.get(s._id) ?? [];
   const allVisits = studentIptrs.flatMap((iptr) => preventivesByIptr.get(iptr._id) ?? []);
-  // A pupil can carry a Visit-1-tagged PreventiveCareRecord in MORE THAN ONE
+  // A student can carry a Visit-1-tagged PreventiveCareRecord in MORE THAN ONE
   // school year's iptr (a completed round in 2025-2026, a fresh one started
   // in 2026-2027) -- `.find()` picked whichever happened to sit first in
   // `studentIptrs`' array order, which is really insertion order, not
@@ -375,7 +375,7 @@ const rows: RPCRow[] = students.map((s) => {
 //
 // The same move as Sprint 145 made on Risk Classification, for the same
 // reason: this page filtered the whole population in the browser, so the
-// endpoint had to send every pupil (685 B/row, ~5.5 MB at 8,000). Paging the
+// endpoint had to send every student (685 B/row, ~5.5 MB at 8,000). Paging the
 // query while any filter stayed client-side would have filtered only the
 // visible page.
 
@@ -393,15 +393,15 @@ export interface RpcListQuery {
   /** 'outstanding' (the resting value) hides completed pairs; 'all' shows
    *  everything; anything else matches RPCRow.status exactly. */
   status?: string;
-  /** A TOOTH_RECORD treatment code the pupil has had at some point. */
+  /** A TOOTH_RECORD treatment code the student has had at some point. */
   treatment?: string;
-  /** A school year the pupil has an IPTR for, e.g. '2026-2027' — narrows to
-   *  pupils enrolled (had a record made) that year. 'all' or omitted = every
+  /** A school year the student has an IPTR for, e.g. '2026-2027' — narrows to
+   *  students enrolled (had a record made) that year. 'all' or omitted = every
    *  year. */
   schoolYear?: string;
   /** 'date_desc' (the resting value, user 2026-09-25 -- newest activity
    *  first) and 'date_asc' sort by the LATEST of Visit 1/Visit 2 date, not
-   *  just Visit 1 -- a pupil with a recent Visit 2 leads a pupil whose only
+   *  just Visit 1 -- a student with a recent Visit 2 leads a student whose only
    *  visit was older, rows with no visit yet sorted last either way.
    *  'due_this_month' FILTERS to rows whose Visit 2 falls due within the
    *  CURRENT calendar month, soonest due first -- a worklist, unlike
@@ -499,7 +499,7 @@ export function filterRpcRows(all: RPCRow[], query: RpcListQuery): RpcListPage {
     // `rows` and NOT over the page. The dashboard's two-visit funnel needs
     // counts for everyone, and it used to derive them by counting the rows it
     // received: an endpoint whose status filter defaults to "outstanding",
-    // which excludes by definition every pupil who finished. "Both visits
+    // which excludes by definition every student who finished. "Both visits
     // completed: 0" was therefore structurally impossible to beat.
     funnel: {
       enrolled: inSchool.length,

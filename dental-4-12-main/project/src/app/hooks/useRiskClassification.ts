@@ -12,7 +12,7 @@ export type {
 
 // ⚠ Sprint 139 moved this join to the server; Sprint 145 moved the FILTERS,
 // the SORT and the PAGING with it. Filtering in the browser is what forced the
-// endpoint to send every pupil (measured 673 B/row — ~5.4 MB at 8,000), and
+// endpoint to send every student (measured 673 B/row — ~5.4 MB at 8,000), and
 // paging the query while the filters stayed client-side would have produced
 // filters that only filter the current page.
 //

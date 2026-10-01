@@ -20,7 +20,7 @@ import { GRADES, PromoteAssign } from './PromoteAssign';
 // ─── Update School Year ──────────────────────────────────────────────────────
 // Rules (user, 2026-10-01):
 //   • Only the SYSTEM ADMIN starts a new school year, and the button starts it
-//     for EVERY school at once: grade and section are cleared for all pupils,
+//     for EVERY school at once: grade and section are cleared for all students,
 //     each one's outgoing values saved to their IPTR first.
 //   • A dentist or dental aide can ask, ONCE A YEAR, for their own school to
 //     start early. The System Admin approves (only that school is cleared) or
@@ -30,7 +30,7 @@ import { GRADES, PromoteAssign } from './PromoteAssign';
 //   • Until a school has started, nobody else can create that year's IPTR --
 //     enforced by the API (schoolYearController.guardNextYearIptr), not just
 //     by the locks below.
-// The clearing itself now runs on the server (it used to run, pupil by pupil, in
+// The clearing itself now runs on the server (it used to run, student by student, in
 // the browser); see schoolYearController.startSchool.
 //
 // Still here, unchanged:

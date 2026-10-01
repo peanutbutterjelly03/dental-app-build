@@ -95,7 +95,7 @@ const CONFIRM = process.argv.includes("--confirm");
 
 // Derived from the seeder's own roster -- NEVER hand-maintain this list. A
 // hand-copied version drifted once already: it missed the eight Grade 7-10
-// pupils Sprint 45 added, so this script would have deleted all three schools
+// students Sprint 45 added, so this script would have deleted all three schools
 // and the demo staff while leaving those eight behind, pointing at schools
 // that no longer existed. See demoStudents.ts.
 import { DEMO_STUDENT_NAMES } from "./demoStudents.js";

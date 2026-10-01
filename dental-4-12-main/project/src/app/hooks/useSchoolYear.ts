@@ -3,7 +3,7 @@ import { apiClient } from '../api/client';
 import type { RolloverStatus } from '../../../shared/schoolYearRollover';
 
 // One school's standing for the school year being started (SCHOOL_YEAR_ROLLOVER,
-// read through GET /school-year/status). `assigned` is how many active pupils
+// read through GET /school-year/status). `assigned` is how many active students
 // still carry a grade or section -- the ones starting the year will clear.
 export interface SchoolYearSchool {
   id: string;

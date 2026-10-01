@@ -19,13 +19,13 @@ const preventiveCareRecordSchema = new mongoose.Schema(
     // ── The services performed AT this visit (Sprint 147) ─────────────────
     //
     // ERD deviation, like REFERRAL and DAY_NOTE. Until now this model recorded
-    // that a pupil was SEEN and never what was DONE — four fields, none of them
+    // that a student was SEEN and never what was DONE — four fields, none of them
     // a service — while CLAUDE.md's module 5 defines an RPC visit as exactly
     // these services and page 2 of the Target Client List prints them as
     // per-visit tick columns for the 1st and 2nd visit.
     //
     // ⚠ THIS IS WHAT MADE THREE FILED FIGURES APPROXIMATIONS. With no service
-    // on the visit, the TCL had to answer "has this pupil EVER had fluoride
+    // on the visit, the TCL had to answer "has this student EVER had fluoride
     // varnish?" from the dental chart where the form asks "was it done at THIS
     // visit?", and the DOH report inferred 1st/2nd application from chart dates
     // because nothing recorded the ordinal. Both said so in their own comments.

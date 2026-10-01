@@ -36,7 +36,7 @@ import { validateStudentValues } from '../../../shared/studentValidation';
 const GRADES = ['Kinder','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10'];
 
 // Sentinels for "not assigned yet" (user, 2026-09-28) -- a new school year's
-// promotion leaves a pupil's grade/section blank until re-assigned, and
+// promotion leaves a student's grade/section blank until re-assigned, and
 // that population needs to be findable, not just invisible among "All
 // Grades"/"All Sections". Distinct from '' itself so a literal empty string
 // value on a <select> (which reads as unset) can never collide with these.
@@ -1181,12 +1181,12 @@ export const PatientList = () => {
               )}
               {/* Annual rollover (see UpdateSchoolYear.tsx): school-wide clear +
                   reassign + archive. Solid navy icon button beside the more-options
-                  button; turns amber with a count while pupils still lack a grade or
+                  button; turns amber with a count while students still lack a grade or
                   section (the same check that doubles as "rollover not finished"). */}
               {canAddStudent && !selectMode && !bulkQueueMode && (
                 <button
                   onClick={() => navigate('/students/update-school-year')}
-                  title={schoolYearNeedsUpdate ? `Update School Year: ${schoolYearPendingCount} ${schoolYearPendingCount === 1 ? 'pupil needs' : 'pupils need'} a grade or section` : 'Update School Year'}
+                  title={schoolYearNeedsUpdate ? `Update School Year: ${schoolYearPendingCount} ${schoolYearPendingCount === 1 ? 'student needs' : 'students need'} a grade or section` : 'Update School Year'}
                   aria-label={schoolYearNeedsUpdate ? `Update School Year Information, ${schoolYearPendingCount} need a grade or section` : 'Update School Year Information'}
                   className={`relative grid h-[38px] w-[38px] place-items-center rounded-[10px] text-white transition-colors hover:brightness-110 ${schoolYearNeedsUpdate ? 'bg-amber-500' : 'bg-primary'}`}
                 >

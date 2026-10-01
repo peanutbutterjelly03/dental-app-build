@@ -90,7 +90,7 @@ const ORAL_ROWS: Row[] = [
   { label: 'Calculus', value: (y) => tick(y.oralCondition?.calculus) },
   { label: 'Abnormal Growth', value: (y) => tick(y.oralCondition?.abnormal_growth) },
   { label: 'Cleft Lip / Palate', value: (y) => tick(y.oralCondition?.cleft_lip_palate) },
-  // No source: no field records a fully edentulous pupil.
+  // No source: no field records a fully edentulous student.
   { label: 'Completely Edentulous', value: null },
   { label: 'Others (Please specify)', value: (y) => y.oralCondition?.others ?? '' },
 ];
@@ -119,7 +119,7 @@ export function IptrForm({ student, years, dentists }: Props) {
   const dentistNameById = new Map(dentists.map((d) => [d._id, `Dr. ${d.first_name} ${d.last_name}`]));
 
   // The form has five year columns. More than five school years is a real
-  // possibility for a pupil followed K-G10, so the LAST five are shown — the
+  // possibility for a student followed K-G10, so the LAST five are shown — the
   // form cannot hold more, and silently showing the oldest would hide current
   // care. Fewer than five leaves the remaining columns blank, as on paper.
   const shown = years.slice(-YEAR_COLUMNS);

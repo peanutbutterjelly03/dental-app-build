@@ -2,9 +2,9 @@
 //
 // Sprint 138. This logic used to live in `useDohReportData` and run in the
 // BROWSER, which is why the browser had to download eleven whole collections
-// to draw one report: measured 2026-09-05 at ~108 KB for 26 pupils, i.e.
-// ~4.1 KB per pupil per page open — about 32 MB at the Chapter 1 scale of
-// 8,000 pupils, and 60-80 MB once mouths are charted at a realistic 20-32
+// to draw one report: measured 2026-09-05 at ~108 KB for 26 students, i.e.
+// ~4.1 KB per student per page open — about 32 MB at the Chapter 1 scale of
+// 8,000 students, and 60-80 MB once mouths are charted at a realistic 20-32
 // teeth rather than the demo's ~5.
 //
 // It is MOVED here, not copied. Two implementations of a DOH return would
@@ -180,7 +180,7 @@ export const REAL_ORAL_FIELDS: Record<string, keyof AggOral> = {
 };
 
 /** Grade bucket for records whose year predates Sprint 57a. They are still
- *  counted — dropping a real pupil from a DOH total would be worse than not
+ *  counted — dropping a real student from a DOH total would be worse than not
  *  knowing their grade — but they cannot be placed in a grade row. */
 export const GRADE_NOT_RECORDED = '__not_recorded__';
 
@@ -189,7 +189,7 @@ export const GRADE_ALL = '__all__';
 
 /** Whole years completed between two dates. The month/day comparison is not a
  *  nicety: `yearA - yearB` alone reports a child born in December 2015 as 11
- *  during 2026 when they are still 10, so roughly a twelfth of pupils landed
+ *  during 2026 when they are still 10, so roughly a twelfth of students landed
  *  one age bracket too high on a form submitted to the City Health Office. */
 export function ageAt(birthdate: string | Date, on: Date): number | null {
   // BUG-02: delegates to the one age rule in `age.ts`; kept under this name
@@ -203,7 +203,7 @@ function bracketOf(age: number | null): string {
   return i === null ? 'unknown' : DOH_AGE_BRACKETS[i];
 }
 
-/** June 1 of a "YYYY-YYYY" school year — the anchor a pupil's age is reported
+/** June 1 of a "YYYY-YYYY" school year — the anchor a student's age is reported
  *  against when no examination date is recorded. Deterministic on purpose: a
  *  submitted report re-opened next month must produce the same numbers it did
  *  when it was filed, which an age computed to "today" cannot. */
@@ -262,7 +262,7 @@ export function tallyIptrServices(
   // Unlinked chartings keep the PRE-SPRINT-150 rule exactly: per CODE, how many
   // sittings carried it — one sitting means a 1st application, two or more
   // means a 2nd as well. That is per code, not per chart, which matters: a code
-  // appearing only in a pupil's THIRD charting still counted as a 1st
+  // appearing only in a student's THIRD charting still counted as a 1st
   // application under the old rule, and a "fill the first two slots" rule
   // silently dropped it. Caught by diffing the filed numbers before and after —
   // sdf_1st fell 9 → 7 and sdf_2nd rose 0 → 2 on the first attempt.
@@ -380,7 +380,7 @@ export function aggregateDohReport(input: DohAggregateInput): DohAggregateResult
   const increment = (key: string, by = 1) => { result[key] = (result[key] ?? 0) + by; };
 
   // One pass per IPTR, not per student. Grade and age belong to the school
-  // year's record, so a pupil with two years contributes each year under that
+  // year's record, so a student with two years contributes each year under that
   // year's own grade and that year's own age.
   let unplaced = 0;
   for (const s of scopedStudents) {
@@ -460,7 +460,7 @@ export function aggregateDohReport(input: DohAggregateInput): DohAggregateResult
       // ⚠ Referral rows count PATIENTS, not slips, and a/b/c print INDENTED
       // under the Higher Level total, so that total is `higher_level` PLUS the
       // three sub-kinds. Recording a surgical referral as `higher_level` too
-      // would double-count the pupil.
+      // would double-count the student.
       const iptrReferrals = referralsByIptr.get(iptrId) ?? [];
       if (iptrReferrals.length > 0) {
         const types = new Set(iptrReferrals.map((r) => r.referral_type));

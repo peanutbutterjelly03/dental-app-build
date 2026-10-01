@@ -79,7 +79,7 @@ async function run() {
     // read is `.lean()`, which returns the raw `<iv>:<ciphertext>` — silently,
     // with a 200 and no error (the Sprint 118 trap). Printing them produced
     // lines like "d100a362…:355fa4e0…, ca9a1fe9…:8c277708…", which identify
-    // nothing and cannot be checked against a pupil. The id is not encrypted
+    // nothing and cannot be checked against a student. The id is not encrypted
     // and is what you would grep for.
     console.log(
       `  student ${String(s._id)}  ${latest.school_year} → complete` +

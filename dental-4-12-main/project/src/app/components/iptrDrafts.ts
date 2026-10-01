@@ -14,7 +14,7 @@
 //
 // ⚠ Each `empty*` is a FUNCTION, not a shared object literal. A single shared
 // default would be mutated by the first form that edits it and then handed to
-// the next pupil.
+// the next student.
 
 /** MEDICAL_HISTORY's yes/no questions, by their API field name. Ticked =
  *  true ("Oo" on Form 1), unticked = false ("Hindi"). */

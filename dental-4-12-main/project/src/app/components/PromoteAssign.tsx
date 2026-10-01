@@ -9,26 +9,26 @@ import { schoolYearLabel } from '../utils/schoolYear';
 import { surnameFirst } from '../utils/studentName';
 
 // ─── Promote / Assign ────────────────────────────────────────────────────────
-// Rollover, in one reviewed action per section instead of one edit per pupil.
+// Rollover, in one reviewed action per section instead of one edit per student.
 //
 // Sprint 57a put grade/section on the IPTR, 69 made intake open the year
 // record, and 70 made those fields editable one at a time. This is the bulk
 // version of that same edit — the piece backlog 23 called "option A" and
-// deferred as a rollout feature. At ~8,000 pupils it is the difference between
+// deferred as a rollout feature. At ~8,000 students it is the difference between
 // roughly thirty actions and eight thousand.
 //
-// Two records change per pupil, deliberately:
+// Two records change per student, deliberately:
 //   • the StudentIptr for the target year, carrying the new grade/section —
 //     CREATED when there is none, or CORRECTED in place when there already is
 //     one (Sprint 102). Other years are never touched.
 //   • the STUDENT's own grade/section, which is CURRENT enrolment and is what
 //     rosters and the appointment picker read.
 //
-// Sprint 102 made it RE-RUNNABLE. Before it, a pupil who already held the
+// Sprint 102 made it RE-RUNNABLE. Before it, a student who already held the
 // target year was forced to skip, so a section applied wrongly could not be
 // fixed from the screen that applied it — the only way back was editing each
-// pupil by hand, which is the work this screen exists to remove. Correcting is
-// opt-in per pupil and never the default: a blind second pass would overwrite
+// student by hand, which is the work this screen exists to remove. Correcting is
+// opt-in per student and never the default: a blind second pass would overwrite
 // a deliberate manual fix, which is a worse failure than a visible refusal.
 //
 // The user's standing constraint applies: no per-record prompts or badges
@@ -67,7 +67,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
   onClose: () => void;
   schoolId: string | undefined;
   schoolName: string;
-  /** Pupils at this school with no grade or section yet, and a way to list them
+  /** Students at this school with no grade or section yet, and a way to list them
    *  (Bulk Assignment, filtered to "Unassigned"). Both optional: without them the
    *  shortcut simply is not shown. */
   unassignedCount?: number;
@@ -85,9 +85,9 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
 
   // Two jobs on one screen, deliberately separate:
   //  · promote  — opens NEXT year's record (the Sprint 74 flow)
-  //  · transfer — moves pupils between grade/section WITHIN the current year,
+  //  · transfer — moves students between grade/section WITHIN the current year,
   //    creating no year record at all. Requested 2026-09-04: "sections can
-  //    change mid year", so a reshuffle of 30 pupils was 30 separate edits.
+  //    change mid year", so a reshuffle of 30 students was 30 separate edits.
   const [mode, setMode] = useState<'promote' | 'transfer'>(nextYearStarted ? 'promote' : 'transfer');
   // The school's status arrives a moment after this mounts, so the mode follows it:
   // locked -> Transfer, started -> Promote (the first thing a started school wants).
@@ -140,7 +140,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
   // ⚠ MERGES with what is already on screen rather than replacing it. The
   // roster and the "who already has next year" lookup arrive in two separate
   // requests, so this effect runs twice — and a plain rebuild wiped every
-  // per-pupil choice made in between. That is precisely the retain exception
+  // per-student choice made in between. That is precisely the retain exception
   // this screen exists to capture, silently discarded a second after it was
   // set. Caught by the verification, not by reading the code.
   useEffect(() => {
@@ -157,10 +157,10 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
           const existing = chosen.get(s._id);
           if (existingIptr) {
             // ⚠ DEFAULTS TO SKIP, NOT UPDATE, AND THAT IS THE POINT (Sprint 102).
-            // Someone may have hand-corrected this pupil's year record (Sprint
+            // Someone may have hand-corrected this student's year record (Sprint
             // 70). Defaulting to update would silently stamp over that on the
             // next run — trading a visible failure for an invisible one. The
-            // operator opts in per pupil, having seen what it would change.
+            // operator opts in per student, having seen what it would change.
             return {
               student: s,
               // Keep a choice already made this session; otherwise skip.
@@ -194,9 +194,9 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
   // Narrowing by grade + section alone stops being enough once a section is a
   // real class list; the Base44 prototype's equivalent screen has a name/ID
   // search and ours did not. Purely a VIEW filter -- it never changes which
-  // pupils the run touches, only which ones are on screen.
+  // students the run touches, only which ones are on screen.
   const [search, setSearch] = useState('');
-  // Promote mode only: show everyone, only pupils not yet in the new year, or only
+  // Promote mode only: show everyone, only students not yet in the new year, or only
   // those already moved. A VIEW filter like the search -- it never changes who a run touches.
   const [statusFilter, setStatusFilter] = useState<'all' | 'todo' | 'moved'>('all');
 
@@ -215,7 +215,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
   const visibleIds = useMemo(() => new Set(visibleRows.map((r) => r.student._id)), [visibleRows]);
 
   // Drop ids no longer on screen (grade/section changed). A selection the
-  // operator cannot see would make the next bulk action touch pupils they are
+  // operator cannot see would make the next bulk action touch students they are
   // not looking at.
   useEffect(() => {
     setSelected((prev) => {
@@ -234,7 +234,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
     });
 
   // "All" means all VISIBLE. With a search active, a header tick that silently
-  // selected filtered-out pupils would be the same trap the selection-pruning
+  // selected filtered-out students would be the same trap the selection-pruning
   // effect above exists to avoid.
   const allSelected = visibleRows.length > 0 && visibleRows.every((r) => selected.has(r.student._id));
   const toggleAll = () =>
@@ -247,7 +247,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
   /** Selected but filtered out of view — the bulk bar must not act on these. */
   const hiddenSelected = [...selected].filter((id) => !visibleIds.has(id)).length;
 
-  // Which actions a row can legally take. A pupil who already has a toYear
+  // Which actions a row can legally take. A student who already has a toYear
   // record can only be corrected or skipped -- promoting them would POST a
   // duplicate and 409 on uniqueBy (Sprint 102). The bulk bar must respect this
   // or it would appear to act on rows it silently cannot change.
@@ -258,7 +258,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
       : a === 'retain';
 
   const applyBulkAction = (action: Action) => {
-    // selected AND visible. Acting on a pupil the search has hidden is exactly
+    // selected AND visible. Acting on a student the search has hidden is exactly
     // the "touching rows you are not looking at" hazard this screen guards.
     const picked = visibleRows.filter((r) => selected.has(r.student._id));
     const eligible = new Set(picked.filter((r) => canTake(r, action)).map((r) => r.student._id));
@@ -271,7 +271,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
     // same class of lie as a filter that changes a label but not the data.
     const skipped = picked.length - eligible.size;
     toast.success(
-      `Applied to ${eligible.size} pupil${eligible.size === 1 ? '' : 's'}` +
+      `Applied to ${eligible.size} student${eligible.size === 1 ? '' : 's'}` +
       (skipped > 0 ? ` — ${skipped} left unchanged (already has a ${toYear} record).` : '.'),
     );
   };
@@ -281,12 +281,12 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
     if (!value) return;
     const picked = visibleRows.filter((r) => selected.has(r.student._id) && r.action !== 'skip');
     if (picked.length === 0) {
-      toast.error('No selected pupil has an action set — a skipped pupil gets no section.');
+      toast.error('No selected student has an action set — a skipped student gets no section.');
       return;
     }
     const ids = new Set(picked.map((r) => r.student._id));
     setRows((prev) => prev.map((r) => (ids.has(r.student._id) ? { ...r, section: value } : r)));
-    toast.success(`Section set to "${value}" for ${picked.length} pupil${picked.length === 1 ? '' : 's'}.`);
+    toast.success(`Section set to "${value}" for ${picked.length} student${picked.length === 1 ? '' : 's'}.`);
   };
   // Promote is driven by the per-row ACTION; transfer is driven by the
   // SELECTION. Keeping them on different inputs means neither can silently
@@ -307,7 +307,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
       const newSection = r.section || null;
       try {
         // The CURRENT year's record, not next year's. A transfer corrects where
-        // the pupil already is; creating a year record here would silently
+        // the student already is; creating a year record here would silently
         // promote them, which is the other tab's job.
         const current = iptrs.find(
           (i) => i.student_id === r.student._id && i.school_year === fromYear,
@@ -320,7 +320,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
           moved += 1;
         } else {
           // No record for this year yet. Deliberately does NOT create one --
-          // that is Promote's job and would put the pupil in a year they have
+          // that is Promote's job and would put the student in a year they have
           // not been examined in. The enrolment still moves, and the summary
           // reports these separately so it is visible rather than silent.
           studentOnly += 1;
@@ -335,7 +335,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
     }
     setResult({ created: moved, corrected: studentOnly, skipped: rows.length - transferPicked.length, failed });
     setRunning(false);
-    if (moved > 0) toast.success(`${moved} pupil${moved === 1 ? '' : 's'} moved within ${fromYear}.`);
+    if (moved > 0) toast.success(`${moved} student${moved === 1 ? '' : 's'} moved within ${fromYear}.`);
     if (studentOnly > 0) toast.success(`${studentOnly} had no ${fromYear} record — enrolment updated only.`);
     if (failed.length > 0) toast.error(`${failed.length} could not be moved — see the summary.`);
   };
@@ -347,9 +347,9 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
     let corrected = 0;
     const failed: string[] = [];
     for (const r of toApply) {
-      // Retained pupils repeat the grade; promoted ones move up. Graduating
-      // pupils have no next grade, so only "retain" is meaningful there.
-      // `update` keeps the pupil in whatever grade the existing record says —
+      // Retained students repeat the grade; promoted ones move up. Graduating
+      // students have no next grade, so only "retain" is meaningful there.
+      // `update` keeps the student in whatever grade the existing record says —
       // it is a correction of THIS year's placement, not a second promotion.
       // Re-deriving it from `target` would quietly bump anyone corrected twice.
       const newGrade = r.action === 'update'
@@ -385,14 +385,14 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
     }
     setResult({ created, corrected, skipped: rows.length - toApply.length, failed });
     setRunning(false);
-    if (created > 0) toast.success(`${created} pupil${created === 1 ? '' : 's'} moved into ${toYear}.`);
+    if (created > 0) toast.success(`${created} student${created === 1 ? '' : 's'} moved into ${toYear}.`);
     if (corrected > 0) toast.success(`${corrected} ${toYear} record${corrected === 1 ? '' : 's'} corrected.`);
     if (failed.length > 0) toast.error(`${failed.length} could not be moved — see the summary.`);
   };
 
-  // ── Archive selected pupils ────────────────────────────────────────────────
+  // ── Archive selected students ────────────────────────────────────────────────
   // The same soft archive Bulk Assignment offers (PATCH .../archive; a System
-  // Admin can restore from Archived Records). Lives here so a pupil who has left
+  // Admin can restore from Archived Records). Lives here so a student who has left
   // can be removed from the very list being promoted.
   const [showArchive, setShowArchive] = useState(false);
   const [archiving, setArchiving] = useState(false);
@@ -415,7 +415,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
     setSelected(new Set());
     setArchiving(false);
     setShowArchive(false);
-    if (archived > 0) toast.success(`${archived} pupil${archived === 1 ? ' is' : 's are'} archived.`);
+    if (archived > 0) toast.success(`${archived} student${archived === 1 ? ' is' : 's are'} archived.`);
     if (failed.length > 0) toast.error(`${failed.length} could not be archived: ${failed[0]}`);
   };
 
@@ -427,11 +427,11 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
     <div className="space-y-4 p-4 sm:p-5">
       {/* Mode switch on the left, progress for the list on screen on the right.
           Switching resets the selection: a tick made while promoting means
-          "promote this pupil", and carrying it into a transfer would apply an
+          "promote this student", and carrying it into a transfer would apply an
           intent the operator never expressed. */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="flex w-full overflow-hidden rounded-lg border-2 border-primary sm:w-auto">
-          {(['promote', 'transfer'] as const).map((m) => (
+          {(['transfer', 'promote'] as const).map((m) => (
             <button
               key={m}
               type="button"
@@ -444,7 +444,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
               }`}
             >
               {m === 'promote'
-                ? <>{!nextYearStarted && <Lock className="mr-1.5 inline h-3.5 w-3.5 align-[-2px]" />}Move up to {toYear}</>
+                ? <>{!nextYearStarted && <Lock className="mr-1.5 inline h-3.5 w-3.5 align-[-2px]" />}Update and promote students to {toYear}</>
                 : `Change grade or section in ${fromYear}`}
             </button>
           ))}
@@ -452,7 +452,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
         <p className="text-xs text-muted-foreground sm:flex-1">
           {mode === 'promote'
             ? <>Start {toYear} for a whole class at once: <span className="font-medium text-foreground">{fromYear}</span> <ArrowRight className="mx-0.5 inline h-3 w-3" /> <span className="font-medium text-foreground">{toYear}</span>.</>
-            : <>Fix a pupil's grade or section for <span className="font-medium text-foreground">{fromYear}</span>. This does not start a new school year.</>}
+            : <>Fix a student's grade or section for <span className="font-medium text-foreground">{fromYear}</span>. This does not start a new school year.</>}
           {' '}School: <span className="font-medium text-foreground">{schoolName}</span>
         </p>
         {mode === 'promote' && rows.length > 0 && (
@@ -472,7 +472,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
         {/* ── Controls ─────────────────────────────────────────────────── */}
         <div className="space-y-5 rounded-xl border-2 border-slate-300 bg-white p-4 shadow-sm">
           <div>
-            <div className="mb-3 flex items-center gap-2"><span className="grid h-6 w-6 place-items-center rounded-full bg-primary text-xs font-bold text-white">1</span><span className="text-base font-bold text-foreground">Which pupils?</span></div>
+            <div className="mb-3 flex items-center gap-2"><span className="grid h-6 w-6 place-items-center rounded-full bg-primary text-xs font-bold text-white">1</span><span className="text-base font-bold text-foreground">Which students?</span></div>
             <div className="space-y-3">
               <label className={label} htmlFor="pa-grade">Grade</label>
               <select id="pa-grade" value={grade} onChange={(e) => { setGrade(e.target.value); setSection(''); setSelected(new Set()); }} className={`w-full ${field}`} aria-label="Grade">
@@ -502,7 +502,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                 {GRADES.map((g) => <option key={g}>{g}</option>)}
               </select></>
             )}
-            <p className="mt-1.5 text-xs text-muted-foreground">You can change each pupil's section in the list on the right.</p>
+            <p className="mt-1.5 text-xs text-muted-foreground">You can change each student's section in the list on the right.</p>
           </div>
 
           {/* Tick-and-apply. Appears only with a selection, so the screen is
@@ -524,7 +524,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                 </div>
               )}
               <div className="flex gap-1.5">
-                <input value={bulkSection} onChange={(e) => setBulkSection(e.target.value)} placeholder="Section for all" aria-label="Section to apply to the ticked pupils" className="min-w-0 flex-1 rounded-md border border-border bg-card px-2 py-1 text-xs" />
+                <input value={bulkSection} onChange={(e) => setBulkSection(e.target.value)} placeholder="Section for all" aria-label="Section to apply to the ticked students" className="min-w-0 flex-1 rounded-md border border-border bg-card px-2 py-1 text-xs" />
                 <button type="button" onClick={applyBulkSection} disabled={!bulkSection.trim()} className="rounded-md border border-border bg-card px-2.5 py-1 text-xs hover:bg-gray-50 disabled:opacity-40">Apply</button>
               </div>
               <button type="button" onClick={() => setSelected(new Set())} className="text-xs text-muted-foreground hover:text-foreground">Clear selection</button>
@@ -532,7 +532,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
           )}
 
           <div className="space-y-2 border-t-2 border-slate-200 pt-4">
-            <div className="mb-1 flex items-center gap-2"><span className="grid h-6 w-6 place-items-center rounded-full bg-primary text-xs font-bold text-white">3</span><span className="text-base font-bold text-foreground">Tick the pupils, then confirm</span></div>
+            <div className="mb-1 flex items-center gap-2"><span className="grid h-6 w-6 place-items-center rounded-full bg-primary text-xs font-bold text-white">3</span><span className="text-base font-bold text-foreground">Tick the students, then confirm</span></div>
             <button
               onClick={mode === 'transfer' ? runTransfer : run}
               disabled={running || (mode === 'transfer' ? transferPicked.length === 0 : toApply.length === 0)}
@@ -540,7 +540,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
             >
               {running ? 'Working…'
                 : mode === 'transfer'
-                  ? `Move ${transferPicked.length} selected pupil${transferPicked.length === 1 ? '' : 's'}`
+                  ? `Move ${transferPicked.length} selected student${transferPicked.length === 1 ? '' : 's'}`
                   : toCorrect.length && !toCreate.length
                     ? `Correct ${toCorrect.length} ${toYear} record${toCorrect.length === 1 ? '' : 's'}`
                     : `Open ${toYear} for ${toApply.length}`}
@@ -565,7 +565,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
           <div className="space-y-1 border-t border-border pt-3 text-sm">
             {onShowUnassigned && unassignedCount > 0 && (
               <button type="button" onClick={onShowUnassigned} className="flex w-full items-center gap-2 rounded-md px-1 py-1.5 text-left font-semibold text-primary hover:bg-primary/5">
-                <ListChecks className="h-4 w-4" /> Pupils without a grade
+                <ListChecks className="h-4 w-4" /> Students without a grade
                 <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">{unassignedCount}</span>
               </button>
             )}
@@ -573,19 +573,19 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
               type="button"
               onClick={() => setShowArchive(true)}
               disabled={selected.size === 0 || running || archiving}
-              title={selected.size === 0 ? 'Select the pupils to archive first' : undefined}
+              title={selected.size === 0 ? 'Select the students to archive first' : undefined}
               className="flex w-full items-center gap-2 rounded-md px-1 py-1.5 text-left font-semibold text-destructive hover:bg-danger-surface disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
             >
-              <ArchiveIcon className="h-4 w-4" /> Archive selected pupils
+              <ArchiveIcon className="h-4 w-4" /> Archive selected students
             </button>
           </div>
         </div>
 
-        {/* ── Pupils ───────────────────────────────────────────────────── */}
+        {/* ── Students ───────────────────────────────────────────────────── */}
         <div className="min-w-0 space-y-3">
           {graduating && (
             <Notice variant="warning">
-              {grade} is the exit year — there is no grade above it. Pupils here can be retained, but not promoted.
+              {grade} is the exit year — there is no grade above it. Students here can be retained, but not promoted.
               Leaving school is not recorded by this system.
             </Notice>
           )}
@@ -595,8 +595,8 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
             <div className="grid min-h-64 place-items-center rounded-xl border-2 border-dashed border-slate-300 bg-white p-8 text-center">
               <div>
                 <Users className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-                <p className="text-sm font-semibold text-foreground">No pupils to show yet</p>
-                <p className="mt-1 text-xs text-muted-foreground">Start with step 1: choose a grade, and the pupils will appear here.</p>
+                <p className="text-sm font-semibold text-foreground">No students to show yet</p>
+                <p className="mt-1 text-xs text-muted-foreground">Start with step 1: choose a grade, and the students will appear here.</p>
               </div>
             </div>
           )}
@@ -604,16 +604,16 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
           {loading && <p className="text-sm text-muted-foreground">Loading roster…</p>}
 
           {!loading && grade && rows.length === 0 && (
-            <Notice variant="warning">No pupils in {grade}{section ? ` · ${section}` : ''} at this school.</Notice>
+            <Notice variant="warning">No students in {grade}{section ? ` · ${section}` : ''} at this school.</Notice>
           )}
 
           {rows.length > 0 && (
             <div className="overflow-hidden rounded-xl border-2 border-slate-300 bg-white shadow-sm">
               {/* Count, status filter and search. VIEW filters only -- they never
-                  change which pupils the run touches, which is why the counts
+                  change which students the run touches, which is why the counts
                   on the left still read from every row. */}
               <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
-                <span className="text-sm font-bold text-foreground">{rows.length} pupil{rows.length === 1 ? '' : 's'}</span>
+                <span className="text-sm font-bold text-foreground">{rows.length} student{rows.length === 1 ? '' : 's'}</span>
                 <span className="text-xs text-muted-foreground">· {selected.size} selected</span>
                 {mode === 'promote' && (
                   <div className="flex gap-1.5 sm:ml-2">
@@ -635,7 +635,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                   <input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search a pupil"
+                    placeholder="Search a student"
                     aria-label="Search the roster by name or section"
                     className="w-full rounded-lg border border-border bg-card py-1.5 pl-9 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                   />
@@ -649,7 +649,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
 
               {visibleRows.length === 0 && (
                 <p className="px-4 py-6 text-sm text-muted-foreground">
-                  No pupil matches{search ? <> “{search}”</> : ' this filter'}. The {rows.length} in this list are still counted — the search and filter only change what is shown.
+                  No student matches{search ? <> “{search}”</> : ' this filter'}. The {rows.length} in this list are still counted — the search and filter only change what is shown.
                 </p>
               )}
 
@@ -661,9 +661,9 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                     <thead className="sticky top-0 bg-gray-50">
                       <tr>
                         <th className="w-9 px-3 py-2">
-                          <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label={allSelected ? 'Deselect all pupils' : 'Select all pupils'} className="h-4 w-4 cursor-pointer align-middle accent-primary" />
+                          <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label={allSelected ? 'Deselect all students' : 'Select all students'} className="h-4 w-4 cursor-pointer align-middle accent-primary" />
                         </th>
-                        <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold text-muted-foreground">Pupil</th>
+                        <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold text-muted-foreground">Student</th>
                         <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold text-muted-foreground">Now ({fromYear})</th>
                         {mode === 'promote' && <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold text-muted-foreground">In {toYear}</th>}
                         {mode === 'promote' && <th className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground">Action</th>}
@@ -751,7 +751,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
 
       <ConfirmDialog
         open={showArchive}
-        title={`Archive ${selected.size} pupil${selected.size === 1 ? '' : 's'}?`}
+        title={`Archive ${selected.size} student${selected.size === 1 ? '' : 's'}?`}
         message="Archived students are removed from active rosters and reports. A System Admin can restore them later from Archived Records."
         confirmLabel="Archive"
         tone="danger"

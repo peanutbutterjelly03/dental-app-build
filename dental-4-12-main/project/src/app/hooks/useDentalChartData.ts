@@ -26,7 +26,7 @@ export interface IptrYearData {
    *
    *  ⚠ There is usually more than one: measured on dev 2026-09-05, **22 of 26
    *  IPTRs have two or more**, one has three. The screen used to render
-   *  `charts[0]` and silently hide the rest — a pupil with three chartings
+   *  `charts[0]` and silently hide the rest — a student with three chartings
    *  showed 3 of their 4 tooth records.
    *
    *  The dentist screens and treats at the SAME visit (user, 2026-09-05), so
@@ -68,7 +68,7 @@ export interface IptrYearData {
    *  ⚠ THIS IS NOT `toothRecords`, AND THE DIFFERENCE IS THE BUG. `toothRecords`
    *  is the charting being VIEWED, which is right for the editor: open a fresh
    *  charting and you must see it empty, because you are about to fill it in.
-   *  It is wrong for a YEAR SUMMARY. Measured 2026-09-11: a pupil with 14
+   *  It is wrong for a YEAR SUMMARY. Measured 2026-09-11: a student with 14
    *  decayed permanent teeth on a Sep 6 charting and an empty Sep 7 charting
    *  after it had the year reported as `DMFT: 0`, Trend "Stable" — a clinical
    *  screen stating there is no disease.
@@ -101,7 +101,7 @@ export function useDentalChartData(studentId: string | undefined) {
   // THAN ORDINARY STALENESS. It commits identity (student, school, dentists)
   // after the FIRST round of requests and the chart years after the SECOND, so
   // with two runs in flight the interleaving A-first, B-first, A-second left
-  // pupil B's name and school sitting above pupil A's chart years — a
+  // student B's name and school sitting above student A's chart years — a
   // clinically wrong record with no error and no empty state to give it away.
   // Guarding only the last commit would still allow exactly that.
   const runIdRef = useRef(0);
@@ -129,7 +129,7 @@ export function useDentalChartData(studentId: string | undefined) {
       ]);
 
       // COMMIT POINT 1 of 2 — identity. A newer run has started, so this one
-      // must not put its pupil's name on screen, and must not fall through to
+      // must not put its student's name on screen, and must not fall through to
       // the second round either.
       if (isStale()) return;
       setStudent(studentDoc);
@@ -169,7 +169,7 @@ export function useDentalChartData(studentId: string | undefined) {
           .filter((c) => c.iptr_id === iptr._id)
           .sort((a, b) => a.date_charted.localeCompare(b.date_charted));
         // The latest is the current state of the mouth. The old code took the
-        // first, so a pupil charted again in January showed August's findings.
+        // first, so a student charted again in January showed August's findings.
         const dentalChart = charts.length ? charts[charts.length - 1] : null;
         const visitNumberByChart: Record<string, 1 | 2> = {};
         const preventiveByChart: Record<string, ApiPreventiveCareRecord> = {};
@@ -217,7 +217,7 @@ export function useDentalChartData(studentId: string | undefined) {
       setError(null);
     } catch (err) {
       // A superseded run's failure is not this screen's failure: showing "Failed
-      // to load" for a pupil the user already navigated away from would be a
+      // to load" for a student the user already navigated away from would be a
       // second way to mislead.
       if (!isStale()) setError(err instanceof Error ? err.message : 'Failed to load dental chart data');
     } finally {

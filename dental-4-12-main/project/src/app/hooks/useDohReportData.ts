@@ -19,7 +19,7 @@ export { GRADE_ALL, GRADE_NOT_RECORDED, ageAt, tallyIptrServices } from '../../.
 //
 // ⚠ Sprint 138 MOVED the arithmetic to the server. This hook used to fetch
 // ELEVEN WHOLE COLLECTIONS and join them in the browser — measured 2026-09-05
-// at ~108 KB for 26 pupils (~4.1 KB each), so roughly 32 MB at the Chapter 1
+// at ~108 KB for 26 students (~4.1 KB each), so roughly 32 MB at the Chapter 1
 // scale of 8,000, and 60-80 MB once mouths are charted at 20-32 teeth rather
 // than the demo's ~5. It now makes ONE request to `/stats/doh-report`, whose
 // response is a few KB whatever the roll size.
