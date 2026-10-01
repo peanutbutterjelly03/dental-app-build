@@ -341,7 +341,7 @@ export const AIAnalytics = () => {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[1100px] text-sm">
                 <thead>
-                  <tr className="bg-muted/60 text-left align-bottom text-xs font-semibold text-foreground">
+                  <tr className="bg-gray-100 text-left align-bottom text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                     <th className="px-4 py-3">#</th>
                     <th className="px-4 py-3">Student</th>
                     <th className="px-4 py-3">Risk</th>
@@ -351,7 +351,7 @@ export const AIAnalytics = () => {
                     <th className="px-3 py-3 text-center">With active caries</th>
                     <th className="px-3 py-3 text-center">Caries-free teeth</th>
                     <th className="px-3 py-3 text-center">Treatments</th>
-                    <th className="px-4 py-3"><span className="sr-only">Action</span></th>
+                    <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
