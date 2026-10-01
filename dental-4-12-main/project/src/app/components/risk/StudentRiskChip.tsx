@@ -80,7 +80,7 @@ export function StudentRiskChip({
         className="flex flex-col items-start gap-0.5 text-left"
         aria-label={`Needs review${review.level ? `, suggested ${review.level} risk` : ''}. Open details`}
       >
-        <span className={`inline-flex items-center rounded-full border border-dashed border-amber-400 bg-card px-2 py-0.5 text-[13px] font-semibold ${review.level ? LEVEL_TEXT[review.level] : 'text-muted-foreground'}`}>
+        <span className={`inline-flex items-center rounded-full border border-dashed border-current bg-card px-2 py-0.5 text-[12.5px] font-semibold ${review.level ? LEVEL_TEXT[review.level] : 'text-muted-foreground'}`}>
           {review.level ? `${review.level} risk` : 'No level'}
         </span>
         <span className="whitespace-nowrap text-xs font-medium text-amber-800">Needs review</span>
