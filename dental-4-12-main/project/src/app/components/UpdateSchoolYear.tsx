@@ -74,7 +74,7 @@ const Chip = ({ tone, children }: { tone: 'green' | 'amber' | 'blue' | 'gray'; c
   return <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${cls}`}>{children}</span>;
 };
 
-const Strip = ({ tone, icon, children, actions }: { tone: 'amber' | 'blue' | 'green' | 'red'; icon: React.ReactNode; children: React.ReactNode; actions?: React.ReactNode }) => {
+const Strip = ({ tone, icon, children, actions }: { tone: 'amber' | 'blue' | 'green' | 'red'; icon?: React.ReactNode; children: React.ReactNode; actions?: React.ReactNode }) => {
   const cls = {
     amber: 'bg-amber-50 border-amber-300 text-amber-900',
     red: 'bg-red-50 border-red-300 text-red-900',
@@ -83,7 +83,7 @@ const Strip = ({ tone, icon, children, actions }: { tone: 'amber' | 'blue' | 'gr
   }[tone];
   return (
     <div className={`flex flex-col gap-3 rounded-2xl border px-4 py-3 text-sm sm:flex-row sm:items-center ${cls}`}>
-      <div className="flex min-w-0 flex-1 items-start gap-3"><span className="mt-0.5 flex-shrink-0">{icon}</span><div className="min-w-0">{children}</div></div>
+      <div className="flex min-w-0 flex-1 items-start gap-3">{icon && <span className="mt-0.5 flex-shrink-0">{icon}</span>}<div className="min-w-0">{children}</div></div>
       {actions && <div className="flex flex-shrink-0 flex-wrap gap-2">{actions}</div>}
     </div>
   );
@@ -864,7 +864,7 @@ export const UpdateSchoolYear = () => {
 
       {dialog?.kind === 'startSure' && (
         <DialogShell title="Are you really sure?" icon={<TriangleAlert className="h-5 w-5 text-red-700" />} iconBg="bg-red-100" onClose={closeDialog} busy={busy}>
-          <div className="mt-4"><Strip tone="red" icon={<TriangleAlert className="h-5 w-5 text-red-700" />}>
+          <div className="mt-4"><Strip tone="red">
             You are about to start <b>{toYear}</b> for <b>all {toClear.length} {plural(toClear.length, 'school')}</b>. Grade and section will be cleared for <b>{toClearStudents} {plural(toClearStudents, 'student')}</b> right now.
           </Strip></div>
           <p className="mt-3 text-sm text-muted-foreground">Each student's {fromYear} grade and section stay saved in their IPTR, but nobody can undo the clearing from this screen.</p>
