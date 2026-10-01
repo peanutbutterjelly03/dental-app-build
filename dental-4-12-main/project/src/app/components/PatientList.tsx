@@ -1162,7 +1162,7 @@ export const PatientList = () => {
               </div>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <h1 className="text-2xl font-bold text-foreground">Student Records</h1>
-                <span style={{ backgroundColor: kickerColor.light, color: kickerColor.solid }} className="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">
+                <span style={{ backgroundColor: kickerColor.light, color: kickerColor.solid }} className="text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap">
                   {schoolStudents.length} {schoolStudents.length === 1 ? 'STUDENT' : 'STUDENTS'}{selectedSchool ? '' : ' ACROSS 3 SCHOOLS'}
                 </span>
               </div>
