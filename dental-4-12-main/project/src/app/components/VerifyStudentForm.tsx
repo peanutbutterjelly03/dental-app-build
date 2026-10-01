@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from './Toast';
@@ -122,6 +122,19 @@ const VerifyOne = ({ handoff, position, onDone, onBack }: {
   const [missing, setMissing] = useState<Set<keyof NewPatientForm>>(new Set());
   const [duplicates, setDuplicates] = useState<DuplicateCandidate[] | null>(null);
   const [showSourcePreview, setShowSourcePreview] = useState(false);
+  // The original file for Download, and a full-size view for images and PDFs.
+  const fileUrl = useMemo(() => (handoff.sourceFile ? URL.createObjectURL(handoff.sourceFile) : null), [handoff.sourceFile]);
+  useEffect(() => () => { if (fileUrl) URL.revokeObjectURL(fileUrl); }, [fileUrl]);
+  const isPdf = handoff.sourceFile?.type === 'application/pdf' || /\.pdf$/i.test(handoff.sourceFileName);
+  const viewUrl = handoff.sourcePreviewUrl ?? (isPdf ? fileUrl : null);
+  const downloadSource = () => {
+    const href = fileUrl ?? handoff.sourcePreviewUrl;
+    if (!href) return;
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = handoff.sourceFileName;
+    a.click();
+  };
   // The IPTR tick grid (O2b, 2026-10-01). Every finding starts UNCHECKED and
   // the Year select defaults to the latest column with ticks (user decisions).
   const tickFindings = handoff.ticks?.findings ?? [];
@@ -267,20 +280,41 @@ const VerifyOne = ({ handoff, position, onDone, onBack }: {
           <div style={{ width: '100%', aspectRatio: '3/4', background: '#ECECF0', borderRadius: '0.625rem', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#98999f', overflow: 'hidden' }}>
             {handoff.sourcePreviewUrl ? (
               <img src={handoff.sourcePreviewUrl} alt="Source form" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : handoff.sourceRecord ? (
+              <div style={{ width: '100%', height: '100%', overflow: 'auto', background: '#fff', padding: '0.5rem 0.625rem', fontSize: '0.71875rem', color: '#141413' }}>
+                <div style={{ fontWeight: 700, marginBottom: '0.375rem', color: '#67687A' }}>Row from the file</div>
+                {Object.entries(handoff.sourceRecord).filter(([, v]) => String(v ?? '').trim()).map(([k, v]) => (
+                  <div key={k} style={{ display: 'grid', gridTemplateColumns: '38% 1fr', gap: '0.375rem', padding: '0.1875rem 0', borderTop: '0.0625rem solid #F1F5F9' }}>
+                    <span style={{ color: '#67687A', wordBreak: 'break-word' }}>{k}</span>
+                    <span style={{ wordBreak: 'break-word' }}>{String(v)}</span>
+                  </div>
+                ))}
+              </div>
             ) : (
               <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="15.3" height="15.3" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
             )}
           </div>
           <div style={{ fontSize: '0.78125rem', fontWeight: 600, wordBreak: 'break-word' }}>{handoff.sourceFileName}</div>
-          {handoff.sourcePreviewUrl && (
-            <button
-              type="button"
-              onClick={() => setShowSourcePreview(true)}
-              style={{ fontSize: '0.78125rem', color: '#273A78', fontWeight: 600, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
-            >
-              View full size &rarr;
-            </button>
-          )}
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+            {viewUrl && (
+              <button
+                type="button"
+                onClick={() => setShowSourcePreview(true)}
+                style={{ fontSize: '0.78125rem', color: '#273A78', fontWeight: 600, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
+              >
+                View full size &rarr;
+              </button>
+            )}
+            {(fileUrl || handoff.sourcePreviewUrl) && (
+              <button
+                type="button"
+                onClick={downloadSource}
+                style={{ fontSize: '0.78125rem', color: '#273A78', fontWeight: 600, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
+              >
+                Download file
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Form */}
@@ -494,17 +528,11 @@ const VerifyOne = ({ handoff, position, onDone, onBack }: {
 
       <PreviewModal
         open={showSourcePreview}
-        kind="image"
+        kind={handoff.sourcePreviewUrl ? 'image' : 'pdf'}
         title={handoff.sourceFileName}
-        url={handoff.sourcePreviewUrl}
+        url={viewUrl}
         onClose={() => setShowSourcePreview(false)}
-        onDownload={() => {
-          if (!handoff.sourcePreviewUrl) return;
-          const a = document.createElement('a');
-          a.href = handoff.sourcePreviewUrl;
-          a.download = handoff.sourceFileName;
-          a.click();
-        }}
+        onDownload={downloadSource}
       />
     </div>
   );

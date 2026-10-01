@@ -31,6 +31,10 @@ export type ExtractedHandoff = {
   ocrSourceLabel: 'scanned form' | 'uploaded file';
   sourceFileName: string;
   sourcePreviewUrl: string | null;
+  /** The original file, kept so Verify can offer Download and a full-size view. */
+  sourceFile?: File;
+  /** The spreadsheet row this student came from (column header to value). */
+  sourceRecord?: Record<string, string>;
   /** The IPTR Year 1-5 tick grid (O2b, 2026-10-01). Computed by the OCR but
    *  dropped here until now; absent for a spreadsheet upload. */
   ticks?: { findings: IptrCheckboxFinding[]; confidence: number; reason?: string };
@@ -97,6 +101,8 @@ export const ScanStudentForm = () => {
           ocrSourceLabel: 'uploaded file',
           sourceFileName: file.name,
           sourcePreviewUrl: null,
+          sourceFile: file,
+          sourceRecord: rec,
         };
   };
 
@@ -135,6 +141,7 @@ export const ScanStudentForm = () => {
           ocrSourceLabel: 'scanned form',
           sourceFileName: file.name,
           sourcePreviewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
+          sourceFile: file,
           ticks: { findings: result.checkboxes, confidence: result.checkboxConfidence, reason: result.checkboxReason },
         };
       }
@@ -169,6 +176,7 @@ export const ScanStudentForm = () => {
               confidences: {}, extractedKeys: [], ocrSourceLabel: 'scanned form',
               sourceFileName: file.name,
               sourcePreviewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
+              sourceFile: file,
             });
           }
         }
@@ -202,6 +210,7 @@ export const ScanStudentForm = () => {
             confidences: {}, extractedKeys: [], ocrSourceLabel: 'scanned form',
             sourceFileName: file.name,
             sourcePreviewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
+            sourceFile: file,
           });
         }
       }
