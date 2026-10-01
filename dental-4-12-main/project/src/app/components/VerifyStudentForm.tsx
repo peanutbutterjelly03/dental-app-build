@@ -309,9 +309,9 @@ const VerifyOne = ({ handoff, position, onDone, onBack }: {
             )}
           </div>
         </div>
-        {error && <p style={{ margin: 0, fontSize: '0.8125rem', color: '#BE123C' }}>{error}</p>}
+        {error && <p style={{ margin: 0, fontSize: '0.71875rem', lineHeight: 1.4, color: '#BE123C' }}>{error}</p>}
         {missing.size > 0 && (
-          <p style={{ margin: 0, fontSize: '0.75rem', color: '#BE123C' }}>Highlighted fields to the right are required.</p>
+          <p style={{ margin: 0, fontSize: '0.65625rem', lineHeight: 1.4, color: '#BE123C' }}>Highlighted fields to the right are required.</p>
         )}
         </div>
 
