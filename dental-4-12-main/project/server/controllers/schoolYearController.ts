@@ -83,13 +83,25 @@ async function startSchool(
   current: string,
   next: string,
 ): Promise<number> {
-  const carrying = await Student.find({
+  const assigned = await Student.find({
     school_id: schoolId,
     isArchived: false,
     $or: [{ grade_level: { $nin: ["", null] } }, { section: { $nin: ["", null] } }],
   })
     .select("_id grade_level section")
     .lean<{ _id: Id; grade_level?: string | null; section?: string | null }[]>();
+  // ⚠ A pupil who ALREADY has a record for the year being started is already in
+  // it (a school that rolled over under the old per-school button, or had pupils
+  // assigned early). Their grade is next year's, not last year's: clearing it
+  // would undo real work. Only pupils still carrying the OUTGOING year are cleared.
+  const alreadyInNext = new Set(
+    (
+      await StudentIptr.find({ student_id: { $in: assigned.map((a) => a._id) }, school_year: next, isArchived: false })
+        .select("student_id")
+        .lean<{ student_id: Id }[]>()
+    ).map((i) => String(i.student_id)),
+  );
+  const carrying = assigned.filter((a) => !alreadyInNext.has(String(a._id)));
 
   if (carrying.length > 0) {
     const ids = carrying.map((s) => s._id);
@@ -135,30 +147,24 @@ export async function getSchoolYearStatus(req: Request, res: Response) {
   const plan = rows.find((r) => !r.school_id) ?? null;
   const bySchool = new Map(rows.filter((r) => r.school_id).map((r) => [String(r.school_id), r]));
 
-  const counts = await Student.aggregate<{ _id: Id; total: number; assigned: number }>([
-    { $match: { isArchived: false, school_id: { $in: schools.map((s) => s._id) } } },
-    {
-      $group: {
-        _id: "$school_id",
-        total: { $sum: 1 },
-        assigned: {
-          $sum: {
-            $cond: [
-              {
-                $or: [
-                  { $gt: [{ $strLenCP: { $ifNull: ["$grade_level", ""] } }, 0] },
-                  { $gt: [{ $strLenCP: { $ifNull: ["$section", ""] } }, 0] },
-                ],
-              },
-              1,
-              0,
-            ],
-          },
-        },
-      },
-    },
-  ]);
-  const countOf = new Map(counts.map((c) => [String(c._id), c]));
+  // `assigned` = pupils the start would clear: still carrying a grade or section
+  // AND without a record for the year being started (see startSchool).
+  const pupils = await Student.find({ isArchived: false, school_id: { $in: schools.map((s) => s._id) } })
+    .select("school_id grade_level section")
+    .lean<{ _id: Id; school_id: Id; grade_level?: string | null; section?: string | null }[]>();
+  const inNext = new Set(
+    (
+      await StudentIptr.find({ school_year: next, isArchived: false }).select("student_id").lean<{ student_id: Id }[]>()
+    ).map((i) => String(i.student_id)),
+  );
+  const countOf = new Map<string, { total: number; assigned: number }>();
+  for (const p of pupils) {
+    const key = String(p.school_id);
+    const c = countOf.get(key) ?? { total: 0, assigned: 0 };
+    c.total += 1;
+    if ((p.grade_level || p.section) && !inNext.has(String(p._id))) c.assigned += 1;
+    countOf.set(key, c);
+  }
 
   const requesterIds = [...new Set(rows.map((r) => r.requested_by).filter(Boolean).map(String))];
   const requesters = requesterIds.length

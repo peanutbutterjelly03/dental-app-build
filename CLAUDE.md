@@ -41,6 +41,7 @@ Capstone Thesis — Build Phase — Group 404 — AY 2025-2026
 - ~8,000 student records; 1 dentist, 1 dental aide, 3 clinic staff
 - **Non-student patients are IN scope (user decision 2026-09-30, merging the classmate's `majorUpdates`):** `STUDENT.is_not_student` marks a patient who is not enrolled; grade and section are then not required. Chapter 3 describes pupils only, so cite this as a scope extension, not as the manuscript's design.
 - **One dentist and one dental aide per SCHOOL, enforced on the API** (`server/middleware/oneStaffPerSchool.ts`; user decision 2026-09-30). A dentist or aide may cover several schools; an account with EMPTY `school_ids` (= all schools) is exempt and never counted. It checks only the save in front of it and leaves already-conflicting accounts alone.
+- **Starting a school year (user decision 2026-10-01):** ONLY the System Admin starts it, for EVERY school at once (clears grade/section, outgoing values saved to each IPTR first); changing the next year's planned start date and starting all schools both need the admin's password. A dentist or dental aide may ask ONCE A YEAR for their own school to start early; the admin approves (that school only) or declines (the request is spent). Until a school has started, only a System Admin can create that year's STUDENT_IPTR (API-enforced, `schoolYearController.guardNextYearIptr`). Every step shows on the Update School Year page AND in Notifications. "Current year" is `schoolYearLabel()`, which buckets May into the year about to begin.
 - Three schools: (1) Bagong Tanyag Integrated School (primary, K-G10), (2) Bagong Tanyag Elementary School Annex A (K-G6), (3) South Daang Hari Elementary School Main (K-G6)
 
 ## SCOPE LIMITATIONS (do not build)
@@ -60,11 +61,11 @@ Capstone Thesis — Build Phase — Group 404 — AY 2025-2026
 - **Barangay Health Office Staff** — consolidated reports across all schools, City Health Office report submission
 
 ## MONGODB MODELS (exact from ERD Chapter 3)
-Full field-level specs for all 19 models live in **`/docs/DATA-MODEL.md`** — READ IT before touching any schema, model, or migration (moved out of CLAUDE.md to keep per-session context small; that doc is authoritative for field details).
+Full field-level specs for all 20 models live in **`/docs/DATA-MODEL.md`** — READ IT before touching any schema, model, or migration (moved out of CLAUDE.md to keep per-session context small; that doc is authoritative for field details).
 
 **16 models ARE the Chapter 3 ERD:** SCHOOL, USER, DENTIST, DENTAL_AIDE, STUDENT, STUDENT_IPTR, MEDICAL_HISTORY, DIETARY_SOCIAL_HABITS, ORAL_HEALTH_CONDITION, DENTAL_CHART, TOOTH_RECORD, TREATMENT, PREVENTIVE_CARE_RECORD, RISK_STRATIFICATION, APPOINTMENT, AUDIT_TRAIL.
 
-**3 are ERD DEVIATIONS — do not cite them as ERD entities:** DAY_NOTE (Sprint 108), REFERRAL (Sprint 127), DENTIST_ROTATION (Sprint 11). ⚠ This line previously listed DENTIST_ROTATION among the ERD models; it is not in the ERD, not in the manuscript, and not in any Specific Objective (corrected 2026-09-07, after that false claim was used to justify keeping a UI feature). Its Rotation tab was removed the same day; on 2026-09-24 the user asked for it back, so it now powers Appointments → School Rotation (one row per day, today/tomorrow reminder for dentist + aide). Still a deviation: cite it as one.
+**4 are ERD DEVIATIONS — do not cite them as ERD entities:** DAY_NOTE (Sprint 108), REFERRAL (Sprint 127), DENTIST_ROTATION (Sprint 11), SCHOOL_YEAR_ROLLOVER (2026-10-01). ⚠ This line previously listed DENTIST_ROTATION among the ERD models; it is not in the ERD, not in the manuscript, and not in any Specific Objective (corrected 2026-09-07, after that false claim was used to justify keeping a UI feature). Its Rotation tab was removed the same day; on 2026-09-24 the user asked for it back, so it now powers Appointments → School Rotation (one row per day, today/tomorrow reminder for dentist + aide). Still a deviation: cite it as one.
 
 ## SOFT DELETE RULES
 - All models include: isArchived BOOLEAN default false, archivedAt DATETIME default null, archivedBy user_id default null — **except AUDIT_TRAIL, deliberately** (verified Sprint 155; an audit trail that can be archived is not an audit trail, so its reads are bounded by date range instead). Said "ALL" until 2026-09-11, which invited someone to "fix" the model to match.
