@@ -517,12 +517,16 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                 <div className="text-sm font-bold text-foreground">{grade ? `${grade}${section ? ` · ${section}` : ''}` : <span className="font-normal text-muted-foreground">Pick a grade in step 1</span>}</div>
               </div>
               <div className="text-center text-3xl font-bold leading-none text-muted-foreground" aria-hidden="true">↓</div>
-              <div className="space-y-3 rounded-lg border-2 border-primary p-3">
-                <div className="text-sm font-bold text-green-700">Updated ({mode === 'promote' ? toYear : fromYear})</div>
+              <div className={`space-y-3 rounded-lg border-2 border-primary p-3 ${mode === 'promote' ? 'bg-red-50' : 'bg-green-50'}`}>
+                <div className="flex items-center gap-2 text-sm font-bold">
+                  {mode === 'promote'
+                    ? <><span className="text-red-700">Promotion</span><span className="rounded-full bg-red-200 px-2.5 py-0.5 text-[11.5px] font-semibold text-red-800">{toYear}</span></>
+                    : <><span className="text-green-700">Will update to</span><span className="rounded-full bg-green-200 px-2.5 py-0.5 text-[11.5px] font-semibold text-green-800">{fromYear}</span></>}
+                </div>
                 <div>
                   <label className={label} htmlFor="pa-to">Grade</label>
                   {mode === 'promote' ? (
-                    <div id="pa-to" className="rounded-lg border border-slate-400 bg-slate-50 px-3 py-2.5 text-sm font-medium text-primary">{grade ? (target ?? `Stays in ${grade}`) : '—'} <span className="text-xs font-normal text-muted-foreground">(automatic)</span></div>
+                    <div id="pa-to" className="rounded-lg border border-slate-400 bg-slate-50 px-3 py-2.5 text-sm font-medium text-primary"><span className="flex items-center justify-between gap-2"><span>{grade ? (target ?? `Stays in ${grade}`) : ''}</span><span className="text-xs font-normal text-muted-foreground">Automatic</span></span></div>
                   ) : (
                     <select id="pa-to" value={transferGrade} onChange={(e) => setTransferGrade(e.target.value)} className={`w-full ${field} font-medium text-primary`} aria-label="Move to grade">
                       <option value="">Stay in their current grade</option>
@@ -721,7 +725,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                         </th>
                         <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-foreground">Student</th>
                         <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-foreground">{mode === 'transfer' ? 'Current' : `Now (${fromYear})`}</th>
-                        {mode === 'transfer' && <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-green-700">Updated ({fromYear})</th>}
+                        {mode === 'transfer' && <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-green-700">Will update to <span className="ml-1 rounded-full bg-green-200 px-2 py-0.5 text-[11.5px] font-semibold text-green-800">{fromYear}</span></th>}
                         {mode === 'promote' && <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-green-700">In {toYear}</th>}
                         {mode === 'promote' && <th className="px-3 py-2 text-left text-[14.5px] font-bold text-foreground">Action</th>}
                         <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-foreground" title={`Section in ${mode === 'promote' ? toYear : fromYear}`}>Section</th>
