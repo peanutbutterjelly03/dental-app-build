@@ -497,9 +497,6 @@ export const UpdateSchoolYear = () => {
             </div>
           )}
         </div>
-        <p className="mt-1.5 flex items-center gap-1.5 pl-11 text-sm text-muted-foreground">
-          {isAdmin ? 'All schools' : selectedSchool} · {fromYear} <ArrowRight className="h-3.5 w-3.5" /> {toYear}
-        </p>
       </div>
 
       {sy.error && <Notice variant="error">{sy.error}</Notice>}
