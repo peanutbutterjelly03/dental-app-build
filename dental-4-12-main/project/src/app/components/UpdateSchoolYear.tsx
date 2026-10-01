@@ -548,7 +548,7 @@ export const UpdateSchoolYear = () => {
         <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center">
           <p className="flex-1 text-xs text-white/90">{heroText}</p>
           {isAdmin && (
-            <div className="flex flex-shrink-0 flex-col items-stretch gap-1 sm:items-end">
+            <div className="flex flex-shrink-0 flex-col items-stretch gap-1 sm:items-end" title={lockedReason ?? undefined}>
               <button
                 onClick={() => openDialog({ kind: 'startAll' })}
                 disabled={!sy.status || allStarted || !!lockedReason}
@@ -557,7 +557,7 @@ export const UpdateSchoolYear = () => {
               >
                 Start new school year for all schools
               </button>
-              {(lockedReason || allStarted) && <span className="text-xs text-white/80">{lockedReason ?? `Already started for all ${allSchools.length} schools.`}</span>}
+              {allStarted && !lockedReason && <span className="text-xs text-white/80">Already started for all {allSchools.length} schools.</span>}
             </div>
           )}
           {!isAdmin && staffStatus === 'not_started' && (
