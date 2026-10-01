@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Archive as ArchiveIcon, ArrowRight, GraduationCap, ListChecks, Lock, Search, Users, X } from 'lucide-react';
 import { apiClient, ApiError } from '../api/client';
 import type { ApiStudent, ApiStudentIptr } from '../api/types';
@@ -33,6 +34,53 @@ import { surnameFirst } from '../utils/studentName';
 //
 // The user's standing constraint applies: no per-record prompts or badges
 // across thousands of students. One preview, one confirm, one summary.
+
+/** Type-to-filter section box, same behaviour as Add Student. The menu is
+ *  portalled and fixed-positioned so the roster table's scroll area cannot clip it. */
+function SectionCombo({ value, onChange, options, disabled, ariaLabel, className }: {
+  value: string; onChange: (v: string) => void; options: string[]; disabled?: boolean; ariaLabel: string; className: string;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  const [rect, setRect] = useState<DOMRect | null>(null);
+  const open = () => { if (ref.current) setRect(ref.current.getBoundingClientRect()); };
+  useEffect(() => {
+    if (!rect) return;
+    const close = () => setRect(null);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => { window.removeEventListener('scroll', close, true); window.removeEventListener('resize', close); };
+  }, [rect]);
+  const q = value.trim().toLowerCase();
+  const shown = options.filter((o) => o.toLowerCase().startsWith(q));
+  return (
+    <>
+      <input
+        ref={ref}
+        type="text"
+        value={value}
+        disabled={disabled}
+        onChange={(e) => { onChange(e.target.value); open(); }}
+        onFocus={open}
+        onBlur={() => setRect(null)}
+        placeholder="Section"
+        autoComplete="off"
+        aria-label={ariaLabel}
+        className={className}
+      />
+      {rect && !disabled && (shown.length > 0 || q) && createPortal(
+        <div style={{ position: 'fixed', top: rect.bottom + 4, left: rect.left, minWidth: Math.max(rect.width, 160), zIndex: 60 }} className="max-h-48 overflow-y-auto rounded-lg border border-border bg-card text-sm shadow-md">
+          {shown.map((o) => (
+            <button key={o} type="button" onMouseDown={() => { onChange(o); setRect(null); }} className="block w-full px-3 py-2 text-left text-foreground hover:bg-gray-50">{o}</button>
+          ))}
+          {q && !options.some((o) => o.toLowerCase() === q) && (
+            <button type="button" onMouseDown={() => setRect(null)} className={`block w-full px-3 py-2 text-left text-primary hover:bg-primary/5 ${shown.length ? 'border-t border-border' : ''}`}>+ Add "{value.trim()}" as new section</button>
+          )}
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+}
 
 export const GRADES = ['Kinder','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10'];
 
@@ -497,7 +545,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
               </div>
               <div className="text-center text-3xl font-bold leading-none text-muted-foreground" aria-hidden="true">↓</div>
               <div className="space-y-3 rounded-lg border-2 border-green-600 bg-green-50/60 p-3">
-                <div className="text-sm font-extrabold text-green-700">Will become</div>
+                <div className="text-sm font-normal text-green-700">Will become</div>
                 <div>
                   <label className={label} htmlFor="pa-to">Grade</label>
                   {mode === 'promote' ? (
@@ -544,7 +592,6 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
             </div>
           </div>
 
-          <datalist id="pa-section-suggestions">{sections.map((s) => <option key={s} value={s} />)}</datalist>
 
           {/* Tick-and-apply. Appears only with a selection, so the screen is
               unchanged for anyone who never ticks anything. */}
@@ -702,7 +749,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                         </th>
                         <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold text-muted-foreground">Student</th>
                         <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold text-muted-foreground">{mode === 'transfer' ? 'Current' : `Now (${fromYear})`}</th>
-                        {mode === 'transfer' && <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-extrabold text-green-700">Will become</th>}
+                        {mode === 'transfer' && <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-normal text-green-700">Will become</th>}
                         {mode === 'promote' && <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold text-muted-foreground">In {toYear}</th>}
                         {mode === 'promote' && <th className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground">Action</th>}
                         <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold text-muted-foreground" title={`Section in ${mode === 'promote' ? toYear : fromYear}`}>Section</th>
@@ -726,7 +773,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                           {mode === 'transfer' && (
                             <td className="whitespace-nowrap px-3 py-2 text-xs">
                               {selected.has(r.student._id)
-                                ? <span className="rounded-md bg-green-600 px-2 py-0.5 font-bold text-white">{transferGrade || r.student.grade_level || 'no grade'}{r.section ? ` · ${r.section}` : ' · no section yet'}</span>
+                                ? <span className="rounded-full border border-green-600 px-2.5 py-0.5 font-normal text-green-700">{transferGrade || r.student.grade_level || 'no grade'}{r.section ? ` · ${r.section}` : ''}</span>
                                 : <span className="text-muted-foreground">Not selected</span>}
                             </td>
                           )}
@@ -763,14 +810,13 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                             </td>
                           )}
                           <td className="px-3 py-2">
-                            <input
+                            <SectionCombo
                               value={r.section}
-                              onChange={(e) => setRow(r.student._id, { section: e.target.value })}
+                              onChange={(v) => setRow(r.student._id, { section: v })}
+                              options={sections}
                               disabled={mode === 'promote' ? r.action === 'skip' : !selected.has(r.student._id)}
-                              list="pa-section-suggestions"
-                              autoComplete="off"
+                              ariaLabel={`Section for ${surnameFirst(r.student)}`}
                               className="w-28 rounded-md border border-border px-2 py-1 text-xs disabled:opacity-50"
-                              aria-label={`Section for ${surnameFirst(r.student)}`}
                             />
                           </td>
                         </tr>
