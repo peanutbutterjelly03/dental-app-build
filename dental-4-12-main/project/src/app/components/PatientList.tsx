@@ -1223,7 +1223,7 @@ export const PatientList = () => {
                     ref={listMenuBtnRef}
                     onClick={toggleListMenu}
                     disabled={bulkQueueMode}
-                    className={`grid h-9 w-9 place-items-center rounded-xl border border-border bg-card ${bulkQueueMode ? 'text-muted-foreground/40 cursor-not-allowed' : 'text-muted-foreground hover:bg-canvas hover:text-foreground'}`}
+                    className={`grid h-10 w-8 place-items-center rounded-xl border-2 border-slate-200 bg-card ${bulkQueueMode ? 'text-muted-foreground/40 cursor-not-allowed' : 'text-foreground hover:bg-canvas'}`}
                     title="More options"
                   >
                     <MoreVertical className="w-4 h-4" />
