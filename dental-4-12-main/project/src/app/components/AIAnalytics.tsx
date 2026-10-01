@@ -308,16 +308,16 @@ export const AIAnalytics = () => {
                   );
                 })}
               </div>
-              <div className="relative flex flex-wrap items-center gap-2 pb-4">
-                <div className="relative min-w-0 flex-1 lg:w-72 lg:flex-none">
+              <div className="relative flex flex-wrap items-stretch gap-2 pb-4">
+                <div className="relative flex min-w-0 flex-1 lg:w-72 lg:flex-none">
                   <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#94A3B8]" />
                   <input type="text" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by student name..."
                     aria-label="Search by student name"
-                    className="w-full rounded-2xl bg-[#F8FAFC] py-3.5 pl-12 pr-4 text-sm placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#16214F]/30"
+                    className="h-full w-full rounded-2xl bg-[#F8FAFC] py-3.5 pl-12 pr-4 text-sm placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#16214F]/30"
                     style={{ border: '1px solid #E2E8F0' }} />
                 </div>
                 <button type="button" onClick={() => setMoreOpen((v) => !v)} aria-expanded={moreOpen}
-                  className="inline-flex h-[50px] items-center gap-2 rounded-2xl bg-white px-5 text-sm font-semibold text-primary hover:bg-white/90">
+                  className="inline-flex items-center gap-2 rounded-2xl bg-white px-5 text-sm font-semibold text-primary hover:bg-white/90">
                   <SlidersHorizontal className="h-4 w-4" /> Filters
                   <span className="grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[11px] font-bold text-white">
                     {[grade, risk, section, gender, ageGroup].filter((v) => v !== 'all').length}
