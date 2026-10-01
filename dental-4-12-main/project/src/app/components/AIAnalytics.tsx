@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Brain, ChevronDown, CircleDashed, ChevronLeft, ChevronRight, ClipboardList, Loader2, Search, ShieldAlert, SlidersHorizontal, ShieldCheck, TriangleAlert, type LucideIcon } from 'lucide-react';
+import { Brain, ChevronDown, CircleDashed, ChevronLeft, ChevronRight, ClipboardList, X, Loader2, Search, ShieldAlert, SlidersHorizontal, ShieldCheck, TriangleAlert, type LucideIcon } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router';
 import { apiClient } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -100,7 +100,7 @@ export const AIAnalytics = () => {
   const [ageGroup, setAgeGroup] = useState('all');
   const [sort, setSort] = useState<'priority' | 'name'>('priority');
   const [noticeOpen, setNoticeOpen] = useState(() => {
-    try { return localStorage.getItem('risk-notice-open') !== 'false'; } catch { return true; }
+    try { return localStorage.getItem('risk-notice-open') === 'true'; } catch { return false; }
   });
   const toggleNotice = () => {
     setNoticeOpen((o) => {
@@ -196,6 +196,13 @@ export const AIAnalytics = () => {
 
   const selectCls = 'rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring';
 
+  const synthetic = !!modelStatus?.model?.synthetic_data;
+  const statusPill = serviceDown
+    ? <span className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-[13px] font-semibold text-amber-800"><span className="h-2 w-2 rounded-full bg-amber-600" />Prediction service waking up</span>
+    : modelStatus
+      ? <span className="inline-flex items-center gap-2 rounded-full bg-green-100 px-3 py-1 text-[13px] font-semibold text-green-800"><span className="h-2 w-2 rounded-full bg-green-600" />Prediction service ready</span>
+      : <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-[13px] font-semibold text-slate-600"><span className="h-2 w-2 rounded-full bg-slate-400" />Checking the prediction service</span>;
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -203,60 +210,50 @@ export const AIAnalytics = () => {
         eyebrow="Clinical Care"
         title="Risk Classification"
         description="Check each student's cavity risk, review it, and confirm the treatments that follow."
+        action={(
+          <div className="flex items-center gap-2 self-start sm:self-center">
+            {synthetic && <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">Synthetic data model</span>}
+            <button type="button" onClick={toggleNotice} aria-expanded={noticeOpen}
+              aria-label="Disclaimer: computer-assisted screening, not a diagnosis"
+              title="Disclaimer: computer-assisted screening, not a diagnosis"
+              className={`relative grid h-11 w-11 place-items-center rounded-full border text-xl font-extrabold ${noticeOpen ? 'border-red-700 bg-red-700 text-white' : 'border-red-300 bg-red-100 text-red-700 hover:bg-red-200'}`}>
+              !
+              {serviceDown && <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-white bg-amber-500" aria-hidden="true" />}
+            </button>
+          </div>
+        )}
       />
 
-      {/* How to read this page + system status. Can be hidden; the choice is
-          remembered in this browser only. The synthetic-data flag stays visible even
-          when hidden (it must show until the model is retrained on real records). */}
-      {(() => {
-        const synthetic = !!modelStatus?.model?.synthetic_data;
-        const statusPill = serviceDown
-          ? <span className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-[13px] font-semibold text-amber-800"><span className="h-2 w-2 rounded-full bg-amber-600" />Prediction service waking up</span>
-          : modelStatus
-            ? <span className="inline-flex items-center gap-2 rounded-full bg-green-100 px-3 py-1 text-[13px] font-semibold text-green-800"><span className="h-2 w-2 rounded-full bg-green-600" />Prediction service ready</span>
-            : <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-[13px] font-semibold text-slate-600"><span className="h-2 w-2 rounded-full bg-slate-400" />Checking the prediction service</span>;
-        const toggle = (
-          <button type="button" onClick={toggleNotice} aria-expanded={noticeOpen}
-            className="inline-flex flex-shrink-0 items-center gap-1 self-start rounded-full border border-border px-3 py-1 text-xs font-semibold text-primary hover:bg-gray-50">
-            {noticeOpen ? 'Hide' : 'Expand'}
-            <ChevronDown className={`h-4 w-4 transition-transform ${noticeOpen ? 'rotate-180' : ''}`} />
-          </button>
-        );
-        return noticeOpen ? (
-          <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 lg:flex-row lg:items-start">
-            <div className="grid min-w-0 flex-1 gap-4 lg:grid-cols-[1.2fr_1px_1fr]">
-              <div>
-                <div className="mb-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">How to read this page</div>
-                <div className="text-sm font-bold text-foreground">Computer-assisted screening, not a diagnosis.</div>
-                <ul className="mt-1.5 space-y-1 text-[13px] text-slate-700">
-                  <li>✓ The system only suggests.</li>
-                  <li>✓ Nothing counts until the dentist reviews it.</li>
-                  <li>✓ Every step is saved in the audit trail.</li>
-                </ul>
-              </div>
-              <div className="hidden bg-border lg:block" aria-hidden="true" />
-              <div>
-                <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">System status</div>
-                {statusPill}
-                {serviceDown && (
-                  <p className="mt-2 text-[12.5px] text-muted-foreground">It sleeps when idle and usually wakes within a minute. This page keeps checking. Reviews of results already on record work as normal.</p>
-                )}
-                {synthetic && (
-                  <p className="mt-2 text-[12.5px] text-amber-800">The current model ({modelStatus?.model?.display_name}) was trained on <strong>synthetic placeholder data</strong>. Its suggestions are for demonstration and pipeline testing only until it is retrained on real IPTR records.</p>
-                )}
-              </div>
+      {noticeOpen && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-red-300 bg-card p-4 lg:flex-row lg:items-start">
+          <div className="grid min-w-0 flex-1 gap-4 lg:grid-cols-[1.2fr_1px_1fr]">
+            <div>
+              <div className="mb-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Disclaimer</div>
+              <div className="text-sm font-bold text-foreground">Computer-assisted screening, not a diagnosis.</div>
+              <ul className="mt-1.5 space-y-1 text-[13px] text-slate-700">
+                <li>✓ The system only suggests.</li>
+                <li>✓ Nothing counts until the dentist reviews it.</li>
+                <li>✓ Every step is saved in the audit trail.</li>
+              </ul>
             </div>
-            {toggle}
+            <div className="hidden bg-border lg:block" aria-hidden="true" />
+            <div>
+              <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">System status</div>
+              {statusPill}
+              {serviceDown && (
+                <p className="mt-2 text-[12.5px] text-muted-foreground">It sleeps when idle and usually wakes within a minute. This page keeps checking. Reviews of results already on record work as normal.</p>
+              )}
+              {synthetic && (
+                <p className="mt-2 text-[12.5px] text-amber-800">The current model ({modelStatus?.model?.display_name}) was trained on <strong>synthetic placeholder data</strong>. Its suggestions are for demonstration and pipeline testing only until it is retrained on real IPTR records.</p>
+              )}
+            </div>
           </div>
-        ) : (
-          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card px-4 py-2.5">
-            <span className="text-sm font-bold text-foreground">Computer-assisted screening, not a diagnosis.</span>
-            {statusPill}
-            {synthetic && <span className="rounded-full bg-amber-100 px-3 py-1 text-[13px] font-semibold text-amber-800">Synthetic data model</span>}
-            <span className="ml-auto">{toggle}</span>
-          </div>
-        );
-      })()}
+          <button type="button" onClick={toggleNotice} aria-label="Close the disclaimer"
+            className="grid h-8 w-8 flex-shrink-0 place-items-center self-start rounded-full border border-border text-slate-600 hover:bg-gray-50">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {loading && candidates.length === 0 ? (
         <div className="space-y-4" aria-busy="true" aria-label="Loading students">
