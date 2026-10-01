@@ -369,7 +369,7 @@ export const UpdateSchoolYear = () => {
   const heroText = isAdmin
     ? allStarted
       ? <>{toYear} has started for all {allSchools.length} schools.</>
-      : <>Starting {toYear} clears grade and section for <b>{toClearStudents} {plural(toClearStudents, 'student')} in {toClear.length === allSchools.length ? `all ${allSchools.length}` : toClear.length} {plural(toClear.length, 'school')}</b>. Each student's {fromYear} grade and section are saved to their record first.</>
+      : <>Starting {toYear} clears grade and section for <b>all students in {toClear.length === allSchools.length ? `all ${allSchools.length}` : toClear.length} {plural(toClear.length, 'school')}</b>. Each student's {fromYear} grade and section are saved to their record first.</>
     : staffStatus === 'started'
       ? <>{toYear} has started for {selectedSchool}. You can now move students up.</>
       : <>The System Admin starts {toYear} for every school{plannedStart ? <> on {fmtLong(plannedStart)}</> : ''}. Need it sooner? You can ask the System Admin to start it early for <b>your school only</b>, once a year.</>;
@@ -449,7 +449,7 @@ export const UpdateSchoolYear = () => {
           <p className="flex-1 text-xs text-white/90">{heroText}</p>
           {isAdmin && !allStarted && (
             <button onClick={() => openDialog({ kind: 'startAll' })} disabled={!sy.status} className="flex-shrink-0 rounded-xl bg-rose-700 px-5 py-2.5 text-sm font-bold text-white hover:bg-rose-800 disabled:opacity-50">
-              Start new school year for all schools{toClearStudents > 0 ? ` (${toClearStudents})` : ''}
+              Start new school year for all schools
             </button>
           )}
           {!isAdmin && staffStatus === 'not_started' && (
