@@ -629,18 +629,20 @@ export const UpdateSchoolYear = () => {
             </button>
           )}
 
-          <div className="flex gap-1 border-b border-border">
+          <div className="flex gap-6 overflow-x-auto border-b-2 border-slate-200">
             <button
               onClick={() => setTab('promote')}
-              className={`-mb-px flex items-center gap-1.5 border-b-2 px-4 py-2 text-sm font-medium ${tab === 'promote' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+              className={`-mb-0.5 border-b-[3px] px-1 pb-2.5 pt-2 text-left ${tab === 'promote' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
             >
-              <GraduationCap className="h-4 w-4" /> Assign
+              <span className="flex items-center gap-1.5 text-[15px] font-bold"><GraduationCap className="h-4 w-4" /> Assign</span>
+              <span className="block whitespace-nowrap text-xs">Move students up or between sections</span>
             </button>
             <button
               onClick={() => setTab('transfer')}
-              className={`-mb-px flex items-center gap-1.5 border-b-2 px-4 py-2 text-sm font-medium ${tab === 'transfer' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+              className={`-mb-0.5 border-b-[3px] px-1 pb-2.5 pt-2 text-left ${tab === 'transfer' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
             >
-              <Repeat className="h-4 w-4" /> Bulk Assignment
+              <span className="flex items-center gap-1.5 text-[15px] font-bold"><Repeat className="h-4 w-4" /> Bulk Assignment</span>
+              <span className="block whitespace-nowrap text-xs">Place many students at once</span>
             </button>
           </div>
 

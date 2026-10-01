@@ -596,8 +596,13 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
           {/* Tick-and-apply. Appears only with a selection, so the screen is
               unchanged for anyone who never ticks anything. */}
           {selected.size > 0 && (
-            <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
-              <div className="text-xs font-semibold text-foreground">{selected.size} selected</div>
+            <div className="overflow-hidden rounded-xl border-2 border-primary bg-white">
+              <div className="flex items-center justify-between gap-2 bg-primary px-3 py-2 text-sm font-bold text-white">
+                <span>{selected.size} student{selected.size === 1 ? '' : 's'} selected</span>
+                <button type="button" onClick={() => setSelected(new Set())} className="rounded-full bg-white/20 px-2.5 py-0.5 text-xs font-semibold text-white hover:bg-white/30">✕ Clear</button>
+              </div>
+              <div className="space-y-2 px-3 py-2.5">
+              <div className="text-xs text-muted-foreground">{mode === 'promote' ? 'Pick an action below, or use the Action column.' : 'Press Move below to move them.'}</div>
               {hiddenSelected > 0 && (
                 <div className="text-xs text-amber-700">{hiddenSelected} hidden by the search or filter. Actions apply to the {selected.size - hiddenSelected} shown.</div>
               )}
@@ -611,7 +616,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                   <button type="button" onClick={() => applyBulkAction('skip')} className="rounded-md border border-border bg-card px-2.5 py-1 text-xs hover:bg-gray-50">Skip</button>
                 </div>
               )}
-              <button type="button" onClick={() => setSelected(new Set())} className="text-xs text-muted-foreground hover:text-foreground">Clear selection</button>
+              </div>
             </div>
           )}
 
