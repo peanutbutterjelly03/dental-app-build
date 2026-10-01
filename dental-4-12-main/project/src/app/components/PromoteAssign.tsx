@@ -517,7 +517,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                 <div className="text-sm font-bold text-foreground">{grade ? `${grade}${section ? ` · ${section}` : ''}` : <span className="font-normal text-muted-foreground">Pick a grade in step 1</span>}</div>
               </div>
               <div className="text-center text-3xl font-bold leading-none text-muted-foreground" aria-hidden="true">↓</div>
-              <div className={`space-y-3 rounded-lg border-2 border-primary p-3 ${mode === 'promote' ? 'bg-red-50' : 'bg-green-50'}`}>
+              <div className={`space-y-3 rounded-lg border-2 p-3 ${mode === 'promote' ? 'border-red-400 bg-red-50' : 'border-green-500 bg-green-50'}`}>
                 <div className="flex items-center gap-2 text-sm font-bold">
                   {mode === 'promote'
                     ? <><span className="text-red-700">Promotion</span><span className="rounded-full bg-red-200 px-2.5 py-0.5 text-[11.5px] font-semibold text-red-800">{toYear}</span></>
