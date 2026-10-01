@@ -86,14 +86,20 @@ export const BulkScanReview = () => {
   // bottom padding, so the document has nothing left to scroll.
   const shellRef = useRef<HTMLDivElement | null>(null);
   const [fitHeight, setFitHeight] = useState<number | null>(null);
+  // The layout pads the page on the right and bottom; the grid should touch those edges, so the
+  // page cancels that padding with matching negative margins.
+  const [edge, setEdge] = useState({ r: 0, b: 0 });
   useLayoutEffect(() => {
     const fit = () => {
       const el = shellRef.current;
       if (!el) return;
       const top = el.getBoundingClientRect().top + window.scrollY;
       const parent = el.parentElement;
-      const pad = parent ? parseFloat(getComputedStyle(parent).paddingBottom) || 0 : 0;
-      setFitHeight(Math.max(240, Math.floor(window.innerHeight - top - pad)));
+      const cs = parent ? getComputedStyle(parent) : null;
+      const padB = cs ? parseFloat(cs.paddingBottom) || 0 : 0;
+      const padR = cs ? parseFloat(cs.paddingRight) || 0 : 0;
+      setEdge({ r: padR, b: padB });
+      setFitHeight(Math.max(240, Math.floor(window.innerHeight - top)));
     };
     window.scrollTo(0, 0);
     fit();
@@ -109,10 +115,10 @@ export const BulkScanReview = () => {
   const shell: CSSProperties = {
     // The PAGE never scrolls: it is exactly the screen below the top bar, and only the
     // grid (or the cards) inside it scrolls, both ways, like a spreadsheet pane.
-    background: '#F6F9FC', height: fitHeight ?? 'calc(100vh - 8rem)', padding: '0.25rem 3.5rem 0.75rem', fontFamily: 'var(--font-sans)', color: '#141413',
+    background: '#F6F9FC', height: fitHeight ?? 'calc(100vh - 8rem)', padding: '0.25rem 0 0 3.5rem', fontFamily: 'var(--font-sans)', color: '#141413',
     // width 100% + inline-size containment: a wide table inside must never widen the page
     // (an overflow:auto child still counts toward its ancestors' minimum width otherwise).
-    width: '100%', minWidth: 0, maxWidth: '100%', contain: 'inline-size', boxSizing: 'border-box', overflow: 'hidden', display: 'flex', flexDirection: 'column',
+    width: `calc(100% + ${edge.r}px)`, marginRight: -edge.r, marginBottom: -edge.b, minWidth: 0, maxWidth: 'none', contain: 'inline-size', boxSizing: 'border-box', overflow: 'hidden', display: 'flex', flexDirection: 'column',
   };
 
   // A refresh drops router state, so there is nothing to review.
@@ -175,7 +181,7 @@ export const BulkScanReview = () => {
   return (
     <div ref={shellRef} style={shell}>
       {/* Header, same shape as the Scan and Verify pages */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem', flexShrink: 0, paddingRight: '3.5rem' }}>
         <div style={{ width: '3.5rem', height: '3.5rem', borderRadius: '1rem', background: '#F4F7FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           <svg width="23.8" height="23.8" viewBox="0 0 24 24" fill="none" stroke={NAVY} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>
         </div>
@@ -196,7 +202,7 @@ export const BulkScanReview = () => {
       </div>
 
       {/* Summary, filter and the Grid / Cards switch sit directly above the list */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem', flexShrink: 0, paddingRight: '3.5rem' }}>
         <span style={chip}><b>{rows.length}</b> found</span>
         <span style={chip}><b style={{ color: '#15803D' }}>{ready}</b> ready</span>
         <span style={chip}><b style={{ color: '#B91C1C' }}>{fixes}</b> need fixes</span>
@@ -224,7 +230,7 @@ export const BulkScanReview = () => {
       {shown.length > 0 && view === 'grid' && (
         // The pane scrolls on its own (both ways) and fills the screen below the header,
         // like a spreadsheet: the header row and Student column never leave the frame.
-        <div style={{ flex: '1 1 0', minHeight: 0, width: 0, minWidth: '100%', maxWidth: '100%', overflow: 'auto', background: '#fff', border: `0.0625rem solid ${GRID_LINE}`, borderRadius: '0.75rem' }}>
+        <div style={{ flex: '1 1 0', minHeight: 0, width: 0, minWidth: '100%', maxWidth: '100%', overflow: 'auto', background: '#fff', borderTop: `0.0625rem solid ${GRID_LINE}`, borderLeft: `0.0625rem solid ${GRID_LINE}`, borderTopLeftRadius: '0.75rem' }}>
           <table style={{ borderCollapse: 'separate', borderSpacing: 0, width: '100%' }}>
             <thead>
               <tr>
@@ -248,7 +254,7 @@ export const BulkScanReview = () => {
       )}
 
       {shown.length > 0 && view === 'cards' && (
-        <div style={{ flex: '1 1 0', minHeight: 0, width: 0, minWidth: '100%', overflow: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(17rem, 1fr))', gap: '1rem', alignContent: 'start' }}>
+        <div style={{ flex: '1 1 0', minHeight: 0, width: 0, minWidth: '100%', overflow: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(17rem, 1fr))', gap: '1rem', alignContent: 'start', paddingRight: '3.5rem', paddingBottom: '1rem' }}>
           {shown.map((r) => {
             const p = r.h.newPatient;
             return (
