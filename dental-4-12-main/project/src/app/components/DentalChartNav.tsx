@@ -527,7 +527,11 @@ export const DentalChartNav = () => {
                 {isSpotlightUpNext ? 'Up Next' : 'Selected'}
               </div>
               <div className="font-bold text-foreground">{spotlightStudent.name}</div>
-              <div className="text-xs text-muted-foreground">{spotlightStudent.grade} · {spotlightStudent.section}</div>
+              {[spotlightStudent.grade, spotlightStudent.section].filter(Boolean).length > 0 && (
+                <span className="rounded-full border border-primary/40 bg-primary/5 px-3 py-0.5 text-xs font-semibold text-primary">
+                  {[spotlightStudent.grade, spotlightStudent.section].filter(Boolean).join(' · ')}
+                </span>
+              )}
               {/* Only when real risk data exists -- never a fabricated pill
                   (CLAUDE.md "NOTHING COSMETIC"). */}
               {spotlightStudent.riskLevel && (
