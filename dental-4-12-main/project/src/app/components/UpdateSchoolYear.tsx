@@ -575,19 +575,19 @@ export const UpdateSchoolYear = () => {
 
       {/* System Admin: how each school stands */}
       {isAdmin && (
-        <div className="overflow-hidden rounded-2xl border border-border bg-card">
+        <div className="overflow-hidden rounded-2xl border-2 border-primary bg-card">
           <button
             type="button"
             onClick={() => setSchoolsOpen((o) => !o)}
             aria-expanded={schoolsOpen}
-            className={`flex w-full items-center gap-3 px-5 py-4 text-left hover:bg-gray-50 ${schoolsOpen ? 'border-b border-border' : ''}`}
+            className="flex w-full items-center gap-3 bg-primary px-5 py-4 text-left hover:opacity-95"
           >
-            <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-xl bg-indigo-100 text-indigo-800"><SchoolIcon className="h-[18px] w-[18px]" /></span>
+            <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-xl bg-white/15 text-white"><SchoolIcon className="h-[18px] w-[18px]" /></span>
             <div className="min-w-0 flex-1">
-              <h2 className="flex items-center gap-2 text-lg font-bold leading-tight text-foreground">Schools <span className="grid h-5 min-w-5 place-items-center rounded-full bg-blue-100 px-1 text-[11px] font-bold text-blue-700">{allSchools.length}</span></h2>
-              <p className="text-xs font-normal text-muted-foreground">The button above starts every school at once. A school can also start early if you approve its request.</p>
+              <h2 className="flex items-center gap-2 text-lg font-bold leading-tight text-white">Schools <span className="grid h-5 min-w-5 place-items-center rounded-full bg-white/20 px-1 text-[11px] font-bold text-white">{allSchools.length}</span></h2>
+              <p className="text-xs font-normal text-white/80">The button above starts every school at once. A school can also start early if you approve its request.</p>
             </div>
-            <span className="flex flex-shrink-0 items-center gap-1 text-xs font-semibold text-primary">
+            <span className="flex flex-shrink-0 items-center gap-1 text-xs font-semibold text-white">
               {schoolsOpen ? 'Hide' : 'Show'}
               <ChevronDown className={`h-4 w-4 transition-transform ${schoolsOpen ? 'rotate-180' : ''}`} />
             </span>

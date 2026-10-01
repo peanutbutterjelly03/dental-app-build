@@ -219,7 +219,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
           const existing = chosen.get(s._id);
           // Default is Promote (Retain where there is no grade above). A student who
           // already has a record for the new year is simply updated by whatever is chosen.
-          const defaultAction: Action = gradeFor(s.grade_level ?? '', 'promote') ? 'promote' : 'retain';
+          const defaultAction: Action = grade === UNASSIGNED || gradeFor(s.grade_level ?? '', 'promote') ? 'promote' : 'retain';
           return {
             student: s,
             action: existing?.action ?? defaultAction,
@@ -230,7 +230,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
         });
     });
     setResult(null);
-  }, [students, iptrs, section, toYear]);
+  }, [students, iptrs, section, toYear, grade]);
 
   const setRow = (id: string, patch: Partial<RowState>) =>
     setRows((prev) => prev.map((r) => (r.student._id === id ? { ...r, ...patch } : r)));
@@ -246,6 +246,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkSection, setBulkSection] = useState('');
   const [sectionMenuOpen, setSectionMenuOpen] = useState(false);
+  const [confirmRun, setConfirmRun] = useState(false);
   // Narrowing by grade + section alone stops being enough once a section is a
   // real class list; the Base44 prototype's equivalent screen has a name/ID
   // search and ours did not. Purely a VIEW filter -- it never changes which
@@ -306,7 +307,11 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
   // record can only be corrected or skipped -- promoting them would POST a
   // duplicate and 409 on uniqueBy (Sprint 102). The bulk bar must respect this
   // or it would appear to act on rows it silently cannot change.
-  const canTake = (r: RowState, a: Action) => !!gradeFor(r.student.grade_level ?? '', a);
+  // For the "no grade yet" list there is no grade to go up from, so every action
+  // lands in the one grade chosen in step 2 ("Place them in").
+  const landFor = (r: RowState, a: Action): string | null =>
+    grade === UNASSIGNED ? (transferGrade || null) : gradeFor(r.student.grade_level ?? '', a);
+  const canTake = (r: RowState, a: Action) => !!landFor(r, a);
 
   const applyBulkAction = (action: Action) => {
     // selected AND visible. Acting on a student the search has hidden is exactly
@@ -343,7 +348,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
   // SELECTION. Keeping them on different inputs means neither can silently
   // inherit the other's intent when the mode is switched.
   const transferPicked = rows.filter((r) => selected.has(r.student._id));
-  const toApply = rows.filter((r) => !!gradeFor(r.student.grade_level ?? '', r.action));
+  const toApply = rows.filter((r) => !!landFor(r, r.action));
   const toCreate = toApply.filter((r) => !r.alreadyHasYear);
   const toCorrect = toApply.filter((r) => r.alreadyHasYear);
 
@@ -403,7 +408,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
       // `update` keeps the student in whatever grade the existing record says —
       // it is a correction of THIS year's placement, not a second promotion.
       // Re-deriving it from `target` would quietly bump anyone corrected twice.
-      const newGrade = gradeFor(r.student.grade_level ?? '', r.action) ?? (r.student.grade_level ?? '');
+      const newGrade = landFor(r, r.action) ?? (r.student.grade_level ?? '');
       try {
         if (r.existingIptr) {
           // Sprint 102: correct the year record in place. POSTing again would
@@ -530,7 +535,12 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                 </div>
                 <div>
                   <label className={label} htmlFor="pa-to">Grade</label>
-                  {mode === 'promote' ? (
+                  {mode === 'promote' && grade === UNASSIGNED ? (
+                    <select id="pa-to" value={transferGrade} onChange={(e) => setTransferGrade(e.target.value)} className={`w-full ${field} font-medium text-primary`} aria-label="Place them in grade">
+                      <option value="">Place them in…</option>
+                      {GRADES.map((g) => <option key={g}>{g}</option>)}
+                    </select>
+                  ) : mode === 'promote' ? (
                     <div id="pa-to" className="rounded-lg border border-slate-400 bg-slate-50 px-3 py-2.5 text-sm font-medium text-primary"><span className="flex items-center justify-between gap-2"><span>{grade ? (target ?? `Stays in ${grade}`) : ''}</span><span className="text-xs font-normal text-muted-foreground">Automatic</span></span></div>
                   ) : (
                     <select id="pa-to" value={transferGrade} onChange={(e) => setTransferGrade(e.target.value)} className={`w-full ${field} font-medium text-primary`} aria-label="Move to grade">
@@ -602,24 +612,18 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
           <div className="space-y-2 border-t-2 border-slate-200 pt-4">
             <div className="mb-1 flex items-center gap-2"><span className="grid h-6 w-6 place-items-center rounded-full bg-primary text-xs font-bold text-white">3</span><span className="text-base font-bold text-foreground">Tick the students, then confirm</span></div>
             <button
-              onClick={mode === 'transfer' ? runTransfer : run}
+              onClick={() => setConfirmRun(true)}
               disabled={running || (mode === 'transfer' ? transferPicked.length === 0 || (grade === UNASSIGNED && !transferGrade) : toApply.length === 0)}
               className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
             >
               {running ? 'Working…'
                 : mode === 'transfer'
-                  ? `Move ${transferPicked.length} selected student${transferPicked.length === 1 ? '' : 's'}`
-                  : `Update ${toApply.length} student${toApply.length === 1 ? '' : 's'} for ${toYear}`}
+                  ? `Update ${transferPicked.length} selected student${transferPicked.length === 1 ? '' : 's'}`
+                  : `Promote ${toApply.length} student${toApply.length === 1 ? '' : 's'}`}
             </button>
             <button onClick={onClose} disabled={running} className="w-full rounded-lg border border-slate-400 bg-white px-4 py-2 text-sm font-medium text-foreground hover:bg-gray-50 disabled:opacity-50">
               {result ? 'Close' : 'Cancel'}
             </button>
-            {rows.length > 0 && mode === 'promote' && (
-              <p className="text-xs text-muted-foreground">
-                <b className="text-foreground">{toCreate.length}</b> of {rows.length} will get a new {toYear} record
-                {toCorrect.length > 0 && <>, and <b className="text-amber-700">{toCorrect.length}</b> existing {toYear} record{toCorrect.length === 1 ? '' : 's'} will be OVERWRITTEN</>}.
-              </p>
-            )}
             {rows.length > 0 && mode === 'transfer' && (
               <p className="text-xs text-muted-foreground">
                 <b className="text-foreground">{transferPicked.length}</b> of {rows.length} selected will move to <b className="text-foreground">{transferGrade || 'their current grade'}</b>. This updates their {fromYear} record. <b className="text-foreground">No new school year is started.</b>
@@ -628,7 +632,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
           </div>
 
           <div className="space-y-1 border-t border-border pt-3 text-sm">
-            {mode === 'transfer' && unassignedCount > 0 && (
+            {unassignedCount > 0 && (
               <button type="button" onClick={() => { setGrade(UNASSIGNED); setSection(''); setSelected(new Set()); }} className="flex w-full items-center gap-2 rounded-md px-1 py-1.5 text-left font-semibold text-primary hover:bg-primary/5">
                 <ListChecks className="h-4 w-4" /> Students without a grade
                 <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">{unassignedCount}</span>
@@ -759,7 +763,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                           {mode === 'promote' && (
                             <td className="whitespace-nowrap px-3 py-2">
                               {(() => {
-                                const g = gradeFor(r.student.grade_level ?? '', r.action);
+                                const g = landFor(r, r.action);
                                 return g
                                   ? <span className="inline-flex rounded-full border border-red-400 bg-red-50 px-2.5 py-0.5 text-[12.5px] font-normal text-red-700">{g}{r.section ? ` · ${r.section}` : ''}</span>
                                   : <span className="text-[12.5px] text-muted-foreground">No grade above</span>;
@@ -780,7 +784,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                               >
                                 {(['promote', 'retain', 'skipgrade'] as const).map((a) => (
                                   <option key={a} value={a} disabled={!canTake(r, a)}>
-                                    {ACTION_LABEL[a]}{gradeFor(r.student.grade_level ?? '', a) ? ` → ${gradeFor(r.student.grade_level ?? '', a)}` : ''}
+                                    {ACTION_LABEL[a]}{landFor(r, a) ? ` → ${landFor(r, a)}` : ''}
                                   </option>
                                 ))}
                               </select>
@@ -805,8 +809,8 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
             </div>
           )}
 
-          {result && (
-            <Notice variant={result.failed.length ? 'error' : 'success'}>
+          {result && result.failed.length > 0 && (
+            <Notice variant="error">
               {mode === 'transfer'
                 ? <>{result.created} moved within {fromYear}{result.corrected > 0 && `, ${result.corrected} had no ${fromYear} record so only enrolment changed`}, {result.skipped} not ticked.</>
                 : <>{result.created + result.corrected} updated for {toYear}{result.skipped > 0 && `, ${result.skipped} could not be placed (no grade above)`}.</>}
@@ -817,6 +821,18 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmRun}
+        title={mode === 'transfer' ? `Update ${transferPicked.length} student${transferPicked.length === 1 ? '' : 's'}?` : `Promote ${toApply.length} student${toApply.length === 1 ? '' : 's'} to ${toYear}?`}
+        message={mode === 'transfer'
+          ? <>{transferPicked.length} selected student{transferPicked.length === 1 ? '' : 's'} will be moved to <b>{transferGrade || 'their current grade'}</b> in {fromYear}. No new school year is started.</>
+          : <>{toCreate.length} will get a new {toYear} record{toCorrect.length > 0 && <>, and <b>{toCorrect.length}</b> existing {toYear} record{toCorrect.length === 1 ? '' : 's'} will be overwritten</>}. Their current grade and section follow the new year.</>}
+        confirmLabel={mode === 'transfer' ? 'Yes, update' : 'Yes, promote'}
+        busy={running}
+        onConfirm={() => { setConfirmRun(false); void (mode === 'transfer' ? runTransfer() : run()); }}
+        onCancel={() => setConfirmRun(false)}
+      />
 
       <ConfirmDialog
         open={showArchive}
