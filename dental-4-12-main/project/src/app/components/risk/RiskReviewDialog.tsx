@@ -47,6 +47,9 @@ const LEVEL_HELP: Record<RiskLevel, string> = {
   Medium: 'Some cavities or risk factors. Regular follow-up.',
   Low: 'Few or no cavities. Routine care.',
 };
+// Everyone but the dentist only READS the result (canSave false), so the steps
+// are named for reading, not for deciding.
+const READ_LABELS: Record<Step, string> = { 1: 'Check the facts', 2: 'Risk level', 3: 'Suggested treatments', 4: 'Summary' };
 const STEPS: { n: Step; label: string }[] = [
   { n: 1, label: 'Check the facts' },
   { n: 2, label: 'Confirm risk level' },
@@ -119,12 +122,9 @@ export function RiskReviewDialog({
   const acceptedCount = treatments.filter((t) => decisions[keyOf(t)]?.decision === 'accepted').length;
   const skippedCount = treatments.filter((t) => decisions[keyOf(t)]?.decision === 'skipped').length;
 
-  const canNext: Record<Step, boolean> = {
-    1: true,
-    2: level !== null,
-    3: decided === treatments.length,
-    4: true,
-  };
+  const canNext: Record<Step, boolean> = canSave
+    ? { 1: true, 2: level !== null, 3: decided === treatments.length, 4: true }
+    : { 1: true, 2: true, 3: true, 4: true };
 
   // "Check risk now": ask the model, then STORE the answer as an unreviewed
   // suggestion, so it survives closing this dialog and shows as Needs review.
@@ -218,7 +218,7 @@ export function RiskReviewDialog({
       {/* Header */}
       <div className="flex items-start justify-between gap-4 px-6 pt-6">
         <div className="min-w-0">
-          <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Review risk result</div>
+          <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{canSave ? 'Review risk result' : 'Risk result'}</div>
           <h2 className="mt-1 text-2xl font-bold text-foreground">{candidate.name}</h2>
           <div className="mt-1 text-sm text-muted-foreground">{subtitle}</div>
         </div>
@@ -238,7 +238,7 @@ export function RiskReviewDialog({
                 <span className={`flex h-7 w-7 items-center justify-center rounded-full border-2 text-sm font-bold ${done ? 'border-primary bg-primary text-white' : current ? 'border-primary text-primary' : 'border-border text-muted-foreground'}`}>
                   {done ? <Check className="h-4 w-4" /> : n}
                 </span>
-                <span className={`text-sm ${current ? 'font-bold text-foreground' : 'text-muted-foreground'}`}>{label}</span>
+                <span className={`text-sm ${current ? 'font-bold text-foreground' : 'text-muted-foreground'}`}>{canSave ? label : READ_LABELS[n]}</span>
               </li>
             );
           })}
@@ -261,7 +261,7 @@ export function RiskReviewDialog({
                     ['With active caries', yesNo(caries.withActiveCaries)],
                     ['Caries-free teeth', caries.cariesFreeTeeth === null ? '—' : String(caries.cariesFreeTeeth)],
                     ['DMF (decayed / missing / filled)', `${dmf.d} / ${dmf.m} / ${dmf.f}`],
-                  ] as const).map(([label, value]) => (
+                  ] as const).filter(([, value]) => value !== null).map(([label, value]) => (
                     <div key={label} className="rounded-xl bg-muted/60 px-4 py-3">
                       <div className="text-xs text-muted-foreground">{label}</div>
                       <div className="mt-2 text-xl font-bold text-foreground">{value}</div>
@@ -313,30 +313,34 @@ export function RiskReviewDialog({
           <div className="space-y-5">
             <div>
               <h3 className="text-base font-bold text-foreground">
-                {suggestion ? `Is ${suggestion.level} risk right for this student?` : 'Choose the risk level for this student'}
+                {!canSave ? 'Risk level' : suggestion ? `Is ${suggestion.level} risk right for this student?` : 'Choose the risk level for this student'}
               </h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                {suggestion
+                {!canSave
+                  ? (suggestion
+                    ? <>The system suggested <strong>{suggestion.level}</strong>. Only the dentist can confirm or change it.</>
+                    : 'No system suggestion yet. Only the dentist can set the level.')
+                  : suggestion
                   ? <>The system suggested <strong>{suggestion.level}</strong>. Keep it, or choose a different level.</>
                   : 'There is no system suggestion, so the level is entirely your call.'}
               </p>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {(['High', 'Medium', 'Low'] as RiskLevel[]).map((l) => (
-                <button key={l} type="button" onClick={() => setLevel(l)} aria-pressed={level === l}
-                  className={`rounded-xl border-2 p-4 text-left transition-colors ${level === l ? 'border-primary ring-2 ring-primary/15' : 'border-border hover:border-primary/40'}`}>
+                <button key={l} type="button" onClick={() => setLevel(l)} aria-pressed={level === l} disabled={!canSave}
+                  className={`rounded-xl border-2 p-4 text-left transition-colors disabled:cursor-default ${level === l ? 'border-primary ring-2 ring-primary/15' : canSave ? 'border-border hover:border-primary/40' : 'border-border'}`}>
                   <LevelChip level={l} />
                   <p className="mt-2 text-sm text-muted-foreground">{LEVEL_HELP[l]}</p>
                   {suggestion?.level === l && <p className="mt-2 text-sm font-bold text-primary">System suggestion</p>}
                 </button>
               ))}
             </div>
-            <div>
+            {canSave && <div>
               <label htmlFor="risk-notes" className="text-sm font-bold text-foreground">Your notes (optional)</label>
               <textarea id="risk-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3}
                 placeholder={suggestion ? 'Why do you agree, or why did you change it?' : 'Why this level?'}
                 className="mt-2 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-            </div>
+            </div>}
           </div>
         )}
 
@@ -344,14 +348,16 @@ export function RiskReviewDialog({
           <div className="space-y-4">
             <div>
               <h3 className="text-base font-bold text-foreground">
-                Treatments to consider <span className="text-sm font-semibold text-muted-foreground">{decided} of {treatments.length} decided</span>
+                Treatments to consider {canSave && <span className="text-sm font-semibold text-muted-foreground">{decided} of {treatments.length} decided</span>}
               </h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                Only treatments from the dental chart are offered. Accepting one saves it as a recommendation. It does not change the chart.
+                {canSave
+                  ? 'Only treatments from the dental chart are offered. Accepting one saves it as a recommendation. It does not change the chart.'
+                  : 'Suggestions drawn from the dental chart. Only the dentist can accept or skip them, and nothing here changes the chart.'}
               </p>
             </div>
             {treatments.length === 0 ? (
-              <p className="rounded-xl bg-muted px-4 py-3 text-sm text-muted-foreground">No treatments to decide: the chart shows no decayed teeth, and the level you chose does not call for fluoride varnish.</p>
+              <p className="rounded-xl bg-muted px-4 py-3 text-sm text-muted-foreground">No treatments to decide: the chart shows no decayed teeth, and {canSave ? 'the level you chose' : 'the risk level'} does not call for fluoride varnish.</p>
             ) : (
               <>
                 {treatments.map((t) => {
@@ -366,7 +372,7 @@ export function RiskReviewDialog({
                           </div>
                           <div className="text-sm text-muted-foreground">Why: {t.why}</div>
                         </div>
-                        <div className="flex gap-2">
+                        {canSave && <div className="flex gap-2">
                           <button type="button" onClick={() => decide(t, 'accepted')} aria-pressed={d?.decision === 'accepted'}
                             className={`rounded-lg border px-4 py-1.5 text-sm font-semibold ${d?.decision === 'accepted' ? 'border-green-300 bg-green-50 text-green-700' : 'border-border text-foreground hover:bg-muted'}`}>
                             Accept
@@ -375,7 +381,7 @@ export function RiskReviewDialog({
                             className={`rounded-lg border px-4 py-1.5 text-sm font-semibold ${d?.decision === 'skipped' ? 'border-red-300 bg-red-50 text-red-700' : 'border-border text-foreground hover:bg-muted'}`}>
                             Skip
                           </button>
-                        </div>
+                        </div>}
                       </div>
                       {d?.decision === 'skipped' && (
                         <select value={d.reason} aria-label={`Why skip ${nameOf(t.code)}`}
@@ -388,7 +394,7 @@ export function RiskReviewDialog({
                     </div>
                   );
                 })}
-                {treatments.length >= 2 && (
+                {canSave && treatments.length >= 2 && (
                   <button type="button" onClick={acceptAll} className="rounded-lg border border-border px-4 py-1.5 text-sm font-medium text-foreground hover:bg-muted">
                     Accept all
                   </button>
@@ -398,42 +404,60 @@ export function RiskReviewDialog({
           </div>
         )}
 
-        {step === 4 && level && (
+        {step === 4 && (level || !canSave) && (
           <div>
-            <h3 className="mb-2 text-base font-bold text-foreground">Please check before saving</h3>
+            <h3 className="mb-2 text-base font-bold text-foreground">{canSave ? 'Please check before saving' : 'Summary'}</h3>
             <dl className="divide-y divide-border">
               {([
                 ['Student', <span key="s" className="font-semibold">{candidate.name}</span>],
-                ['Risk level', (
+                ['Risk level', !canSave ? (
+                  suggestion ? (
+                    <span key="l" className="inline-flex flex-wrap items-center justify-end gap-2">
+                      <LevelChip level={suggestion.level} />
+                      <span className="text-sm text-muted-foreground">suggested by the system, not yet reviewed</span>
+                    </span>
+                  ) : <span key="l" className="text-muted-foreground">No system suggestion yet</span>
+                ) : level ? (
                   <span key="l" className="inline-flex flex-wrap items-center justify-end gap-2">
                     <LevelChip level={level} />
                     <span className="text-sm text-muted-foreground">
                       {!suggestion ? 'chosen by you (no system suggestion)' : suggestion.level === level ? 'as the system suggested' : `changed from ${suggestion.level}`}
                     </span>
                   </span>
-                )],
+                ) : null],
+                ...(canSave ? [
                 ['Your notes', notes.trim() ? <span key="n" className="break-words">{notes.trim()}</span> : <span key="n" className="text-muted-foreground">None</span>],
-                ['Treatments accepted', (
-                  <div key="a">
-                    <span className="font-semibold">{acceptedCount}</span>
-                    {treatments.filter((t) => decisions[keyOf(t)]?.decision === 'accepted').map((t) => (
+                  ['Treatments accepted', (
+                    <div key="a">
+                      <span className="font-semibold">{acceptedCount}</span>
+                      {treatments.filter((t) => decisions[keyOf(t)]?.decision === 'accepted').map((t) => (
+                        <div key={keyOf(t)} className="text-sm text-foreground">{nameOf(t.code)} <span className="text-muted-foreground">· {t.tooth ? `Tooth ${t.tooth}` : 'Whole mouth'}</span></div>
+                      ))}
+                    </div>
+                  )],
+                  ['Treatments skipped', (
+                    <div key="k">
+                      <span className="font-semibold">{skippedCount}</span>
+                      {treatments.filter((t) => decisions[keyOf(t)]?.decision === 'skipped').map((t) => (
+                        <div key={keyOf(t)} className="text-sm text-foreground">
+                          {nameOf(t.code)} <span className="text-muted-foreground">· {t.tooth ? `Tooth ${t.tooth}` : 'Whole mouth'}</span>
+                          {decisions[keyOf(t)]?.reason && <div className="text-xs text-muted-foreground">Reason: {decisions[keyOf(t)].reason}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )],
+                  ['Still to decide', <span key="d" className="font-semibold">{treatments.length - decided}</span>],
+                ] as const : [
+                ['Treatments suggested', (
+                  <div key="t">
+                    <span className="font-semibold">{treatments.length}</span>
+                    {treatments.map((t) => (
                       <div key={keyOf(t)} className="text-sm text-foreground">{nameOf(t.code)} <span className="text-muted-foreground">· {t.tooth ? `Tooth ${t.tooth}` : 'Whole mouth'}</span></div>
                     ))}
                   </div>
                 )],
-                ['Treatments skipped', (
-                  <div key="k">
-                    <span className="font-semibold">{skippedCount}</span>
-                    {treatments.filter((t) => decisions[keyOf(t)]?.decision === 'skipped').map((t) => (
-                      <div key={keyOf(t)} className="text-sm text-foreground">
-                        {nameOf(t.code)} <span className="text-muted-foreground">· {t.tooth ? `Tooth ${t.tooth}` : 'Whole mouth'}</span>
-                        {decisions[keyOf(t)]?.reason && <div className="text-xs text-muted-foreground">Reason: {decisions[keyOf(t)].reason}</div>}
-                      </div>
-                    ))}
-                  </div>
-                )],
-                ['Still to decide', <span key="d" className="font-semibold">{treatments.length - decided}</span>],
-              ] as const).map(([label, value]) => (
+                ] as const),
+              ] as const).filter(([, value]) => value !== null).map(([label, value]) => (
                 <div key={label} className="flex items-start justify-between gap-4 py-3 text-sm">
                   <dt className="text-muted-foreground">{label}</dt>
                   <dd className="text-right text-foreground">{value}</dd>
