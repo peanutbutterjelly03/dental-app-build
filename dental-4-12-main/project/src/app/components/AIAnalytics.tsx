@@ -345,16 +345,16 @@ export const AIAnalytics = () => {
                     <th rowSpan={2} className="px-4 py-3">#</th>
                     <th rowSpan={2} className="px-4 py-3">Student</th>
                     <th rowSpan={2} className="px-4 py-3">Risk</th>
-                    <th colSpan={5} className="border-b border-border px-3 py-2 text-center text-[12px] font-bold normal-case tracking-normal text-foreground">Caries Experience</th>
+                    <th colSpan={5} className="border-b border-border px-3 py-2 text-left text-[12px] font-bold normal-case tracking-normal text-foreground">Caries Experience</th>
                     <th rowSpan={2} className="px-3 py-3 text-center">Treatments</th>
                     <th rowSpan={2} className="px-4 py-3 text-right">Actions</th>
                   </tr>
                   <tr className="bg-gray-100 text-left align-bottom text-[12px] font-normal normal-case tracking-normal text-muted-foreground">
-                    <th className="px-3 py-2 text-center font-normal">With Caries Experience</th>
-                    <th className="px-3 py-2 text-center font-normal">With Caries Experience in Temporary Teeth</th>
-                    <th className="px-3 py-2 text-center font-normal">With Caries Experience in Permanent Dentition</th>
-                    <th className="px-3 py-2 text-center font-normal">With Active Dental Caries</th>
-                    <th className="px-3 py-2 text-center font-normal">Number of Caries Free Teeth</th>
+                    <th className="px-3 py-2 text-left font-normal">With Caries Experience</th>
+                    <th className="px-3 py-2 text-left font-normal">With Caries Experience in Temporary Teeth</th>
+                    <th className="px-3 py-2 text-left font-normal">With Caries Experience in Permanent Dentition</th>
+                    <th className="px-3 py-2 text-left font-normal">With Active Dental Caries</th>
+                    <th className="px-3 py-2 text-left font-normal">Number of Caries Free Teeth</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -374,14 +374,14 @@ export const AIAnalytics = () => {
                         <td className="px-4 py-3"><RiskCell c={c} level={lvl} /></td>
                         {charted ? (
                           <>
-                            <td className="px-3 py-3 text-center"><YesNo value={c.caries.withCariesExperience} /></td>
-                            <td className="px-3 py-3 text-center"><YesNo value={c.caries.inTemporaryTeeth} /></td>
-                            <td className="px-3 py-3 text-center"><YesNo value={c.caries.inPermanentDentition} /></td>
-                            <td className="px-3 py-3 text-center"><YesNo value={c.caries.withActiveCaries} /></td>
-                            <td className="px-3 py-3 text-center tabular-nums">{c.caries.cariesFreeTeeth ?? '—'}</td>
+                            <td className="px-3 py-3 text-left"><YesNo value={c.caries.withCariesExperience} /></td>
+                            <td className="px-3 py-3 text-left"><YesNo value={c.caries.inTemporaryTeeth} /></td>
+                            <td className="px-3 py-3 text-left"><YesNo value={c.caries.inPermanentDentition} /></td>
+                            <td className="px-3 py-3 text-left"><YesNo value={c.caries.withActiveCaries} /></td>
+                            <td className="px-3 py-3 text-left tabular-nums">{c.caries.cariesFreeTeeth ?? '—'}</td>
                           </>
                         ) : (
-                          <td colSpan={5} className="px-3 py-3 text-center text-muted-foreground">Not charted this school year</td>
+                          <td colSpan={5} className="px-3 py-3 text-left text-muted-foreground">Not charted this school year</td>
                         )}
                         <td className="px-3 py-3 text-center text-foreground">
                           {toDecide !== null ? `${toDecide} to decide` : c.status === 'reviewed' ? 'Decided' : '—'}
