@@ -211,12 +211,12 @@ export const AIAnalytics = () => {
         title="Risk Classification"
         description="Check each student's cavity risk, review it, and confirm the treatments that follow."
         action={(
-          <div className="flex items-center gap-2 self-start sm:self-center">
+          <div className="flex translate-y-2 items-center gap-2 self-start sm:self-center">
             {synthetic && <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">Synthetic data model</span>}
             <button type="button" onClick={toggleNotice} aria-expanded={noticeOpen}
               aria-label="Disclaimer: computer-assisted screening, not a diagnosis"
               title="Disclaimer: computer-assisted screening, not a diagnosis"
-              className={`relative grid h-11 w-11 place-items-center rounded-full border text-xl font-extrabold ${noticeOpen ? 'border-red-700 bg-red-700 text-white' : 'border-red-300 bg-red-100 text-red-700 hover:bg-red-200'}`}>
+              className={`relative grid h-11 w-11 place-items-center rounded-full border text-xl font-extrabold ${noticeOpen ? 'border-red-300 bg-red-100 text-red-700 hover:bg-red-200' : 'border-red-700 bg-red-700 text-white hover:bg-red-800'}`}>
               !
               {serviceDown && <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-white bg-amber-500" aria-hidden="true" />}
             </button>
