@@ -40,7 +40,7 @@ import { GRADES, PromoteAssign } from './PromoteAssign';
 
 const UNASSIGNED = '__unassigned__';
 
-type Tab = 'promote' | 'transfer';
+type Tab = 'assign' | 'promotion';
 
 type Dialog =
   | { kind: 'startAll' }
@@ -197,7 +197,7 @@ export const UpdateSchoolYear = () => {
   // Nobody may start the year before January 1 of the year it begins in.
   const lockedReason = startLockedReason(toYear);
 
-  const [tab, setTab] = useState<Tab>('promote');
+  const [tab, setTab] = useState<Tab>('assign');
   const [schoolsOpen, setSchoolsOpen] = useState(true);
   const [bellOpen, setBellOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState<'waiting' | 'answered' | 'all' | null>(null);
@@ -620,200 +620,56 @@ export const UpdateSchoolYear = () => {
         <Notice variant="warning">To move students up or between sections, choose a school with Switch School.</Notice>
       ) : (
         <>
-          {nextYearStarted && unassignedCount > 0 && (
-            <button
-              onClick={() => { setTab('transfer'); setFromGrade(UNASSIGNED); setFromSection(''); }}
-              className="text-xs font-medium text-primary hover:underline"
-            >
-              {unassignedCount} student{unassignedCount === 1 ? '' : 's'} unassigned for {toYear} — view them
-            </button>
-          )}
-
-          <div className="flex gap-6 overflow-x-auto border-b-2 border-slate-200">
-            <button
-              onClick={() => setTab('promote')}
-              className={`-mb-0.5 border-b-[3px] px-1 pb-2.5 pt-2 text-left ${tab === 'promote' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-            >
-              <span className="flex items-center gap-1.5 text-[15px] font-bold"><GraduationCap className="h-4 w-4" /> Assign</span>
-              <span className="block whitespace-nowrap text-xs">Move students up or between sections</span>
-            </button>
-            <button
-              onClick={() => setTab('transfer')}
-              className={`-mb-0.5 border-b-[3px] px-1 pb-2.5 pt-2 text-left ${tab === 'transfer' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-            >
-              <span className="flex items-center gap-1.5 text-[15px] font-bold"><Repeat className="h-4 w-4" /> Bulk Assignment</span>
-              <span className="block whitespace-nowrap text-xs">Place many students at once</span>
-            </button>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {([
+              { id: 'assign' as const, icon: <GraduationCap className="h-5 w-5" />, title: 'Assign', sub: 'Move students up or between sections', locked: false },
+              { id: 'promotion' as const, icon: nextYearStarted ? <Repeat className="h-5 w-5" /> : <Lock className="h-5 w-5" />, title: 'Learners Promotion and Retention', sub: 'Place many students at once', locked: !nextYearStarted },
+            ]).map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTab(t.id)}
+                aria-pressed={tab === t.id}
+                className={`flex items-center gap-3 rounded-xl border-2 p-3 text-left ${tab === t.id ? 'border-primary bg-primary/5' : t.locked ? 'border-dashed border-slate-300 bg-slate-100 hover:bg-slate-50' : 'border-slate-300 bg-white hover:bg-gray-50'}`}
+              >
+                <span className={`grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl ${tab === t.id ? 'bg-primary text-white' : 'bg-slate-200 text-slate-700'}`}>{t.icon}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[15px] font-bold text-foreground">{t.title}</span>
+                  <span className="block text-xs text-muted-foreground">{t.sub}</span>
+                </span>
+                {t.locked && <span className="flex-shrink-0 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11.5px] font-bold text-amber-800">Opens with {toYear}</span>}
+              </button>
+            ))}
           </div>
 
-          {tab === 'promote' && (
-            <div className="rounded-xl border border-border bg-card">
-              <PromoteAssign onClose={() => void reloadStudents()} schoolId={schoolId} schoolName={selectedSchool} nextYearStarted={nextYearStarted} unassignedCount={unassignedCount} onShowUnassigned={nextYearStarted ? () => { setTab('transfer'); setFromGrade(UNASSIGNED); setFromSection(''); } : undefined} />
-            </div>
-          )}
-
-          {tab === 'transfer' && !nextYearStarted && (
-            <div className="flex items-start gap-3 rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">
-              <Lock className="mt-0.5 h-4 w-4 flex-shrink-0" />
-              <p>Bulk Assignment opens when {toYear} starts for {selectedSchool}. {isAdmin ? 'Start the school year above, or approve this school\'s request.' : 'Ask the System Admin to start it early, or wait for the planned start.'}</p>
-            </div>
-          )}
-
-      {tab === 'transfer' && nextYearStarted && (
-        <div className="bg-card rounded-xl border border-border p-4 space-y-4">
-          {/* Actions sit at the right end of this row rather than under the
-              roster: same reason as the Assign tab, and `items-end` already
-              bottom-aligns everything here so they line up with the selects. */}
-          <div className="flex flex-wrap items-end gap-3">
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">From Grade</label>
-              <select value={fromGrade} onChange={(e) => { setFromGrade(e.target.value); setFromSection(''); }} className={field}>
-                <option value="">All Grades</option>
-                <option value={UNASSIGNED}>Unassigned (no grade/section)</option>
-                {GRADES.map((g) => <option key={g} value={g}>{g}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">From Section</label>
-              <select value={fromSection} onChange={(e) => setFromSection(e.target.value)} className={field} disabled={fromGrade === UNASSIGNED}>
-                <option value="">All Sections</option>
-                {fromSections.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-foreground mb-1">Target Grade *</label>
-              <select value={targetGrade} onChange={(e) => setTargetGrade(e.target.value)} className={field}>
-                <option value="">Select grade…</option>
-                {GRADES.map((g) => <option key={g} value={g}>{g}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-foreground mb-1">Target Section</label>
-              {addingNewSection ? (
-                <div className="flex items-center gap-1">
-                  <input
-                    value={targetSection}
-                    onChange={(e) => setTargetSection(e.target.value)}
-                    placeholder="New section name"
-                    autoFocus
-                    className={field}
+          {/* Before the year opens the promotion tab can be viewed but not used:
+              the form is inert (no clicks, no keyboard) and a card says why. */}
+          {(() => {
+            const locked = tab === 'promotion' && !nextYearStarted;
+            return (
+              <div className="relative rounded-xl border border-border bg-card">
+                <div className={locked ? 'pointer-events-none select-none opacity-45 grayscale' : ''} aria-hidden={locked} {...(locked ? ({ inert: '' } as object) : {})}>
+                  <PromoteAssign
+                    key={tab}
+                    fixedMode={tab === 'assign' ? 'transfer' : 'promote'}
+                    onClose={() => void reloadStudents()}
+                    schoolId={schoolId}
+                    schoolName={selectedSchool}
+                    nextYearStarted={nextYearStarted}
                   />
-                  <button
-                    type="button"
-                    onClick={() => { setAddingNewSection(false); setTargetSection(''); }}
-                    title="Cancel — pick from the list instead"
-                    className="flex-shrink-0 text-xs text-muted-foreground hover:text-foreground px-2 py-2"
-                  >
-                    Cancel
-                  </button>
                 </div>
-              ) : (
-                <select
-                  value={targetSection}
-                  onChange={(e) => {
-                    if (e.target.value === NEW_SECTION) { setAddingNewSection(true); setTargetSection(''); }
-                    else setTargetSection(e.target.value);
-                  }}
-                  className={field}
-                >
-                  <option value="">No section</option>
-                  {allSections.map((s) => <option key={s} value={s}>{s}</option>)}
-                  <option value={NEW_SECTION}>+ Add new section…</option>
-                </select>
-              )}
-            </div>
-            <div className="ml-auto flex items-center gap-2">
-              <button
-                onClick={() => setShowArchiveConfirm(true)}
-                disabled={selected.size === 0 || archiving || transferring}
-                className="flex items-center justify-center gap-2 px-4 py-2 border border-destructive text-destructive rounded-lg text-sm font-medium hover:bg-danger-surface disabled:opacity-50"
-              >
-                <ArchiveIcon className="w-4 h-4" /> Archive Selected
-              </button>
-              <button
-                onClick={runTransfer}
-                disabled={selected.size === 0 || !targetGrade || transferring || archiving}
-                className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-hover disabled:opacity-50"
-              >
-                {transferring ? 'Working…' : `Transfer Selected (${selected.size})`}
-              </button>
-            </div>
-          </div>
-
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name…"
-            className={`w-full ${field}`}
-          />
-
-          <div className="flex items-center justify-between text-sm">
-            <label className="flex items-center gap-2 font-medium text-foreground">
-              <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAll} className="w-4 h-4 accent-primary" />
-              Select All ({transferCandidates.length})
-            </label>
-            <span className="text-muted-foreground">{selected.size} student{selected.size === 1 ? '' : 's'} selected</span>
-          </div>
-
-          <div className="border border-border rounded-xl overflow-hidden max-h-96 overflow-y-auto">
-            <table className="w-full border-collapse text-sm">
-              <thead className="bg-gray-50 sticky top-0">
-                <tr>
-                  <th className="w-10 px-3 py-2" />
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground">Student Name</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground">Current Grade</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground">Current Section</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-primary">Target Grade</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-primary">Target Section</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {transferCandidates.length === 0 ? (
-                  <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">No students match.</td></tr>
-                ) : transferCandidates.map((s) => (
-                  <tr key={s.id}>
-                    <td className="px-3 py-2">
-                      <input type="checkbox" checked={selected.has(s.id)} onChange={() => toggleOne(s.id)} className="w-4 h-4 accent-primary" aria-label={`Select ${s.name}`} />
-                    </td>
-                    <td className="px-3 py-2 text-foreground">{s.name}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{s.grade || '—'}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{s.section || '—'}</td>
-                    <td className="px-3 py-2">
-                      {targetGrade
-                        ? <span className="inline-flex px-2 py-0.5 rounded-full bg-primary-surface text-primary text-xs font-semibold">{targetGrade}</span>
-                        : <span className="text-muted-foreground">—</span>}
-                    </td>
-                    <td className="px-3 py-2">
-                      {targetSection
-                        ? <span className="inline-flex px-2 py-0.5 rounded-full bg-primary-surface text-primary text-xs font-semibold">{targetSection}</span>
-                        : <span className="text-muted-foreground">—</span>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {transferResult && (
-            <Notice variant={transferResult.failed.length ? 'error' : 'success'}>
-              {transferResult.moved} moved to {toYear}.
-              {transferResult.failed.length > 0 && (
-                <ul className="mt-1 list-disc list-inside">{transferResult.failed.map((f) => <li key={f}>{f}</li>)}</ul>
-              )}
-            </Notice>
-          )}
-          {archiveResult && (
-            <Notice variant={archiveResult.failed.length ? 'error' : 'success'}>
-              {archiveResult.archived} archived.
-              {archiveResult.failed.length > 0 && (
-                <ul className="mt-1 list-disc list-inside">{archiveResult.failed.map((f) => <li key={f}>{f}</li>)}</ul>
-              )}
-            </Notice>
-          )}
-
-        </div>
-      )}
-
+                {locked && (
+                  <div className="absolute inset-0 grid place-items-center rounded-xl bg-slate-50/50 p-4">
+                    <div className="max-w-sm rounded-2xl border-2 border-primary bg-white p-5 text-center shadow-lg">
+                      <Lock className="mx-auto mb-2 h-6 w-6 text-primary" />
+                      <div className="text-base font-bold text-foreground">Not open yet</div>
+                      <p className="mt-1 text-xs text-muted-foreground">Promotion and retention opens when {toYear} starts for {selectedSchool}. Until then this page is view-only.</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </>
       )}
 

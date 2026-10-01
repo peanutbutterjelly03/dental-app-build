@@ -111,8 +111,10 @@ interface RowState {
   existingIptr?: ApiStudentIptr;
 }
 
-export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted = true, unassignedCount = 0, onShowUnassigned }: {
+export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted = true, unassignedCount = 0, onShowUnassigned, fixedMode }: {
   onClose: () => void;
+  /** Which job this instance does. The two jobs live on separate tabs, so there is no in-panel switch. */
+  fixedMode: 'promote' | 'transfer';
   schoolId: string | undefined;
   schoolName: string;
   /** Students at this school with no grade or section yet, and a way to list them
@@ -136,10 +138,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
   //  · transfer — moves students between grade/section WITHIN the current year,
   //    creating no year record at all. Requested 2026-09-04: "sections can
   //    change mid year", so a reshuffle of 30 students was 30 separate edits.
-  const [mode, setMode] = useState<'promote' | 'transfer'>(nextYearStarted ? 'promote' : 'transfer');
-  // The school's status arrives a moment after this mounts, so the mode follows it:
-  // locked -> Transfer, started -> Promote (the first thing a started school wants).
-  useEffect(() => { setMode(nextYearStarted ? 'promote' : 'transfer'); }, [nextYearStarted]);
+  const mode = fixedMode;
   const [transferGrade, setTransferGrade] = useState('');
   const [grade, setGrade] = useState('');
   const [section, setSection] = useState('');
@@ -481,36 +480,8 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
 
   return (
     <div className="space-y-4 p-4 sm:p-5">
-      {/* Mode switch on the left, progress for the list on screen on the right.
-          Switching resets the selection: a tick made while promoting means
-          "promote this student", and carrying it into a transfer would apply an
-          intent the operator never expressed. */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="flex w-full overflow-hidden rounded-lg border-2 border-primary sm:w-auto">
-          {(['transfer', 'promote'] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              onClick={() => { setMode(m); setRows((prev) => prev.map((x) => ({ ...x, section: m === 'transfer' ? '' : (x.student.section ?? '') }))); setSelected(new Set()); setResult(null); setStatusFilter('all'); }}
-              aria-pressed={mode === m}
-              disabled={m === 'promote' && !nextYearStarted}
-              title={m === 'promote' && !nextYearStarted ? `Opens when ${toYear} starts for ${schoolName}` : undefined}
-              className={`flex-1 px-5 py-3 text-base font-semibold disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-muted-foreground sm:flex-none ${
-                mode === m ? 'bg-primary text-white' : 'bg-card text-foreground hover:bg-gray-50'
-              }`}
-            >
-              {m === 'promote'
-                ? <>{!nextYearStarted && <Lock className="mr-1.5 inline h-3.5 w-3.5 align-[-2px]" />}Update and promote students to {toYear}</>
-                : `Change grade or section in ${fromYear}`}
-            </button>
-          ))}
-        </div>
-        <p className="text-sm text-muted-foreground sm:flex-1">
-          {mode === 'promote'
-            ? <>Start {toYear} for a whole class at once: <span className="font-medium text-foreground">{fromYear}</span> <ArrowRight className="mx-0.5 inline h-3 w-3" /> <span className="font-medium text-foreground">{toYear}</span>.</>
-            : <>Fix a student's grade or section for <span className="font-medium text-foreground">{fromYear}</span>. This does not start a new school year.</>}
-          {' '}School: <span className="font-medium text-foreground">{schoolName}</span>
-        </p>
+      {/* Progress for the list on screen (promotion only). */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
         {mode === 'promote' && rows.length > 0 && (
           <div className="w-full sm:w-60">
             <div className="mb-1 flex justify-between text-xs">
@@ -552,7 +523,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
               </div>
               <div className="text-center text-3xl font-bold leading-none text-muted-foreground" aria-hidden="true">↓</div>
               <div className="space-y-3 rounded-lg border-2 border-primary p-3">
-                <div className="text-sm font-bold text-green-700">Will become</div>
+                <div className="text-sm font-bold text-green-700">Updated ({mode === 'promote' ? toYear : fromYear})</div>
                 <div>
                   <label className={label} htmlFor="pa-to">Grade</label>
                   {mode === 'promote' ? (
@@ -761,7 +732,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                         </th>
                         <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-foreground">Student</th>
                         <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-foreground">{mode === 'transfer' ? 'Current' : `Now (${fromYear})`}</th>
-                        {mode === 'transfer' && <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-green-700">Will become</th>}
+                        {mode === 'transfer' && <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-green-700">Updated ({fromYear})</th>}
                         {mode === 'promote' && <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-foreground">In {toYear}</th>}
                         {mode === 'promote' && <th className="px-3 py-2 text-left text-[14.5px] font-bold text-foreground">Action</th>}
                         <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-foreground" title={`Section in ${mode === 'promote' ? toYear : fromYear}`}>Section</th>
