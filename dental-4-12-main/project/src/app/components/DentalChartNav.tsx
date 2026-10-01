@@ -528,7 +528,7 @@ export const DentalChartNav = () => {
               </div>
               <div className="font-bold text-foreground">{spotlightStudent.name}</div>
               {[spotlightStudent.grade, spotlightStudent.section].filter(Boolean).length > 0 && (
-                <span className="rounded-full border border-primary/40 bg-primary/5 px-3 py-0.5 text-xs font-semibold text-primary">
+                <span className="-mt-1.5 rounded-full border border-primary/40 bg-primary/5 px-3 py-0.5 text-xs font-bold text-primary">
                   {[spotlightStudent.grade, spotlightStudent.section].filter(Boolean).join(' · ')}
                 </span>
               )}
