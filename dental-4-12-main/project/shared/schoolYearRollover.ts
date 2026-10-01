@@ -54,3 +54,14 @@ export function rolloverStatus(row: { status?: string } | null | undefined): Rol
 
 /** A school may ask once per school year: only when it has no row of its own. */
 export const canRequestEarlyStart = (status: RolloverStatus): boolean => status === 'not_started';
+
+/**
+ * Nobody, System Admin included, may start a school year before the calendar
+ * year it begins in (user, 2026-10-01): "2027-2028" opens on 1 January 2027.
+ * Returns why it cannot be started yet, or null when it can.
+ */
+export function startLockedReason(sy: string, now: Date = new Date()): string | null {
+  const y = startYearOf(sy);
+  if (!Number.isFinite(y) || now >= new Date(y, 0, 1)) return null;
+  return `${sy} can only be started from January 1, ${y}.`;
+}

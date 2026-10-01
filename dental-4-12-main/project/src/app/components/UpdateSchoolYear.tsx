@@ -14,7 +14,7 @@ import { useToast } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Modal } from './Modal';
 import { schoolYearLabel, nextSchoolYear, schoolYearEnd } from '../utils/schoolYear';
-import { plannedStartProblem } from '../../../shared/schoolYearRollover';
+import { plannedStartProblem, startLockedReason } from '../../../shared/schoolYearRollover';
 import { GRADES, PromoteAssign } from './PromoteAssign';
 
 // ─── Update School Year ──────────────────────────────────────────────────────
@@ -133,7 +133,7 @@ const DialogShell = ({ icon, iconBg, title, children, onClose, busy }: { icon: R
   </Modal>
 );
 
-const RequestCard = ({ item, toYear, compact, onApprove, onDecline }: { item: RequestItem; toYear: string; compact?: boolean; onApprove: () => void; onDecline: () => void }) => {
+const RequestCard = ({ item, toYear, compact, onApprove, onDecline, approveLocked }: { item: RequestItem; toYear: string; compact?: boolean; onApprove: () => void; onDecline: () => void; approveLocked?: string | null }) => {
   const { school: s, state } = item;
   const tone = { waiting: 'border-amber-300 bg-amber-50', approved: 'border-green-200 bg-green-50', declined: 'border-border bg-slate-50', withAll: 'border-border bg-slate-50' }[state];
   const icon = state === 'waiting' ? <BellRing className="h-5 w-5 text-amber-700" />
@@ -151,7 +151,7 @@ const RequestCard = ({ item, toYear, compact, onApprove, onDecline }: { item: Re
         {state === 'waiting' && (
           <div className={`mt-2.5 flex gap-2 ${compact ? '' : ''}`}>
             <button onClick={onDecline} className="rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-bold text-foreground hover:bg-gray-50">Decline</button>
-            <button onClick={onApprove} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white hover:bg-primary-hover">Approve for this school</button>
+            <button onClick={onApprove} disabled={!!approveLocked} title={approveLocked ?? undefined} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50">Approve for this school</button>
           </div>
         )}
       </div>
@@ -191,6 +191,8 @@ export const UpdateSchoolYear = () => {
     .sort((a, b) => (a.state === 'waiting' ? 0 : 1) - (b.state === 'waiting' ? 0 : 1)
       || new Date(b.school.requestedAt!).getTime() - new Date(a.school.requestedAt!).getTime());
   const plannedStart = sy.status?.plannedStart ?? null;
+  // Nobody may start the year before January 1 of the year it begins in.
+  const lockedReason = startLockedReason(toYear);
 
   const [tab, setTab] = useState<Tab>('promote');
   const [schoolsOpen, setSchoolsOpen] = useState(true);
@@ -479,6 +481,7 @@ export const UpdateSchoolYear = () => {
                     {requestItems.slice(0, 3).map((r) => (
                       <RequestCard key={r.school.id} item={r} toYear={toYear} compact
                         onApprove={() => openDialog({ kind: 'approve', school: r.school })}
+                        approveLocked={lockedReason}
                         onDecline={() => openDialog({ kind: 'decline', school: r.school })} />
                     ))}
                     <button
@@ -544,10 +547,18 @@ export const UpdateSchoolYear = () => {
         </div>
         <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center">
           <p className="flex-1 text-xs text-white/90">{heroText}</p>
-          {isAdmin && !allStarted && (
-            <button onClick={() => openDialog({ kind: 'startAll' })} disabled={!sy.status} className="flex-shrink-0 rounded-xl bg-rose-700 px-5 py-2.5 text-sm font-bold text-white hover:bg-rose-800 disabled:opacity-50">
-              Start new school year for all schools
-            </button>
+          {isAdmin && (
+            <div className="flex flex-shrink-0 flex-col items-stretch gap-1 sm:items-end">
+              <button
+                onClick={() => openDialog({ kind: 'startAll' })}
+                disabled={!sy.status || allStarted || !!lockedReason}
+                title={lockedReason ?? (allStarted ? `${toYear} has already started for every school` : undefined)}
+                className="rounded-xl bg-rose-700 px-5 py-2.5 text-sm font-bold text-white hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Start new school year for all schools
+              </button>
+              {(lockedReason || allStarted) && <span className="text-xs text-white/80">{lockedReason ?? `Already started for all ${allSchools.length} schools.`}</span>}
+            </div>
           )}
           {!isAdmin && staffStatus === 'not_started' && (
             <button onClick={() => openDialog({ kind: 'ask' })} disabled={!mySchool} className="inline-flex flex-shrink-0 items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-primary hover:bg-white/90 disabled:opacity-50">
@@ -596,7 +607,7 @@ export const UpdateSchoolYear = () => {
               {s.status === 'requested' && (
                 <div className="flex gap-2">
                   <button onClick={() => openDialog({ kind: 'decline', school: s })} className="rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-bold text-foreground hover:bg-gray-50">Decline</button>
-                  <button onClick={() => openDialog({ kind: 'approve', school: s })} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white hover:bg-primary-hover">Approve</button>
+                  <button onClick={() => openDialog({ kind: 'approve', school: s })} disabled={!!lockedReason} title={lockedReason ?? undefined} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50">Approve</button>
                 </div>
               )}
             </div>
@@ -826,6 +837,7 @@ export const UpdateSchoolYear = () => {
             {requestItems.filter((r) => panelOpen === 'all' || (panelOpen === 'waiting' ? r.state === 'waiting' : r.state !== 'waiting')).map((r) => (
               <RequestCard key={r.school.id} item={r} toYear={toYear}
                 onApprove={() => openDialog({ kind: 'approve', school: r.school })}
+                        approveLocked={lockedReason}
                 onDecline={() => openDialog({ kind: 'decline', school: r.school })} />
             ))}
             {requestItems.filter((r) => panelOpen === 'all' || (panelOpen === 'waiting' ? r.state === 'waiting' : r.state !== 'waiting')).length === 0 && (

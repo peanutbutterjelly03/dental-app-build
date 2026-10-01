@@ -10,6 +10,7 @@ import {
   rolloverStatus,
   canRequestEarlyStart,
   isLaterSchoolYear,
+  startLockedReason,
 } from "../../shared/schoolYearRollover.js";
 
 // ─── Starting a school year ─────────────────────────────────────────────────
@@ -219,8 +220,13 @@ export async function setSchoolYearPlan(req: Request, res: Response) {
 
 /** POST /school-year/start-all — System Admin starts the next year for EVERY school. */
 export async function startAllSchools(req: Request, res: Response) {
-  if (!(await passwordConfirmed(req, res))) return;
   const { current, next } = years();
+  const locked = startLockedReason(next);
+  if (locked) {
+    res.status(409).json({ error: locked });
+    return;
+  }
+  if (!(await passwordConfirmed(req, res))) return;
 
   const schools = await School.find({ isArchived: false }).select("school_name").lean<{ _id: Id; school_name: string }[]>();
   const started = await SchoolYearRollover.find({ school_year: next, status: "started", isArchived: false })
@@ -301,6 +307,11 @@ async function openRequest(req: Request, res: Response) {
 export async function approveEarlyStart(req: Request, res: Response) {
   const row = await openRequest(req, res);
   if (!row) return;
+  const locked = startLockedReason(row.school_year);
+  if (locked) {
+    res.status(409).json({ error: locked });
+    return;
+  }
   const { current } = years();
   const cleared = await startSchool(row.school_id as Id, "early", req.user!.id, current, row.school_year);
   await SchoolYearRollover.updateOne({ _id: row._id }, { $set: { decided_by: req.user!.id, decided_at: new Date() } });
