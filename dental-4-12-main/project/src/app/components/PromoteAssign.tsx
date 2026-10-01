@@ -172,7 +172,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
           }
           return existing
             ? { ...existing, student: s, alreadyHasYear: false, existingIptr: undefined }
-            : { student: s, action: 'promote' as Action, section: s.section ?? '', alreadyHasYear: false };
+            : { student: s, action: 'promote' as Action, section: mode === 'transfer' ? '' : (s.section ?? ''), alreadyHasYear: false };
         });
     });
     setResult(null);
@@ -191,6 +191,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
   // leaves the original flow untouched.
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkSection, setBulkSection] = useState('');
+  const [sectionMenuOpen, setSectionMenuOpen] = useState(false);
   // Narrowing by grade + section alone stops being enough once a section is a
   // real class list; the Base44 prototype's equivalent screen has a name/ID
   // search and ours did not. Purely a VIEW filter -- it never changes which
@@ -435,7 +436,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
             <button
               key={m}
               type="button"
-              onClick={() => { setMode(m); setSelected(new Set()); setResult(null); setStatusFilter('all'); }}
+              onClick={() => { setMode(m); setRows((prev) => prev.map((x) => ({ ...x, section: m === 'transfer' ? '' : (x.student.section ?? '') }))); setSelected(new Set()); setResult(null); setStatusFilter('all'); }}
               aria-pressed={mode === m}
               disabled={m === 'promote' && !nextYearStarted}
               title={m === 'promote' && !nextYearStarted ? `Opens when ${toYear} starts for ${schoolName}` : undefined}
@@ -492,11 +493,11 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
             <div className="space-y-2">
               <div className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2">
                 <div className="text-[11px] font-semibold text-muted-foreground">Now</div>
-                <div className="text-sm font-bold text-foreground">{grade ? `${grade} · ${section || 'every section'}` : <span className="font-normal text-muted-foreground">Pick a grade in step 1</span>}</div>
+                <div className="text-sm font-bold text-foreground">{grade ? `${grade}${section ? ` · ${section}` : ''}` : <span className="font-normal text-muted-foreground">Pick a grade in step 1</span>}</div>
               </div>
-              <div className="text-center text-lg leading-none text-muted-foreground" aria-hidden="true">↓</div>
-              <div className="space-y-3 rounded-lg border-2 border-primary p-3">
-                <div className="text-[11px] font-semibold text-muted-foreground">Will become</div>
+              <div className="text-center text-3xl font-bold leading-none text-muted-foreground" aria-hidden="true">↓</div>
+              <div className="space-y-3 rounded-lg border-2 border-green-600 bg-green-50/60 p-3">
+                <div className="text-sm font-extrabold text-green-700">Will become</div>
                 <div>
                   <label className={label} htmlFor="pa-to">Grade</label>
                   {mode === 'promote' ? (
@@ -511,15 +512,30 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                 <div>
                   <label className={label} htmlFor="pa-bulk-section">Section</label>
                   <div className="flex gap-1.5">
-                    <input
-                      id="pa-bulk-section"
-                      list="pa-section-suggestions"
-                      value={bulkSection}
-                      onChange={(e) => setBulkSection(e.target.value)}
-                      placeholder="Type a section"
-                      autoComplete="off"
-                      className={`min-w-0 flex-1 ${field}`}
-                    />
+                    <div className="relative min-w-0 flex-1">
+                      <input
+                        id="pa-bulk-section"
+                        type="text"
+                        value={bulkSection}
+                        onChange={(e) => { setBulkSection(e.target.value); setSectionMenuOpen(true); }}
+                        onFocus={() => setSectionMenuOpen(true)}
+                        onBlur={() => setSectionMenuOpen(false)}
+                        placeholder="Search or add a section"
+                        autoComplete="off"
+                        className={`w-full ${field}`}
+                      />
+                      {sectionMenuOpen && (
+                        <div className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-border bg-card shadow-md">
+                          {sections.filter((x) => x.toLowerCase().startsWith(bulkSection.trim().toLowerCase())).map((x) => (
+                            <button key={x} type="button" onMouseDown={() => { setBulkSection(x); setSectionMenuOpen(false); }} className="block w-full px-3 py-2 text-left text-sm text-foreground hover:bg-gray-50">{x}</button>
+                          ))}
+                          {bulkSection.trim() && !sections.some((x) => x.toLowerCase() === bulkSection.trim().toLowerCase()) && (
+                            <button type="button" onMouseDown={() => setSectionMenuOpen(false)} className="block w-full border-t border-border px-3 py-2 text-left text-sm text-primary hover:bg-primary/5">+ Add "{bulkSection.trim()}" as new section</button>
+                          )}
+                          {sections.length === 0 && !bulkSection.trim() && <p className="px-3 py-2 text-xs text-muted-foreground">Type to add a section</p>}
+                        </div>
+                      )}
+                    </div>
                     <button type="button" onClick={applyBulkSection} disabled={!bulkSection.trim() || selected.size === 0} title={selected.size === 0 ? 'Tick the students first' : undefined} className="rounded-lg border border-slate-400 bg-white px-3 text-sm font-semibold hover:bg-gray-50 disabled:opacity-40">Apply</button>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">Applies to the selected students. You can also edit each student in the list.</p>
@@ -686,7 +702,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                         </th>
                         <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold text-muted-foreground">Student</th>
                         <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold text-muted-foreground">{mode === 'transfer' ? 'Current' : `Now (${fromYear})`}</th>
-                        {mode === 'transfer' && <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold text-muted-foreground">Will become</th>}
+                        {mode === 'transfer' && <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-extrabold text-green-700">Will become</th>}
                         {mode === 'promote' && <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold text-muted-foreground">In {toYear}</th>}
                         {mode === 'promote' && <th className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground">Action</th>}
                         <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold text-muted-foreground" title={`Section in ${mode === 'promote' ? toYear : fromYear}`}>Section</th>
@@ -710,7 +726,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                           {mode === 'transfer' && (
                             <td className="whitespace-nowrap px-3 py-2 text-xs">
                               {selected.has(r.student._id)
-                                ? <span className="rounded-md border border-primary px-2 py-0.5 font-semibold text-primary">{transferGrade || r.student.grade_level || 'no grade'}{r.section ? ` · ${r.section}` : ''}</span>
+                                ? <span className="rounded-md bg-green-600 px-2 py-0.5 font-bold text-white">{transferGrade || r.student.grade_level || 'no grade'}{r.section ? ` · ${r.section}` : ' · no section yet'}</span>
                                 : <span className="text-muted-foreground">Not selected</span>}
                             </td>
                           )}
