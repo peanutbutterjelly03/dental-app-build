@@ -180,6 +180,8 @@ export const BulkScanReview = () => {
 
   return (
     <div ref={shellRef} style={shell}>
+      {/* Scrolling still works (wheel, trackpad, touch, arrow keys); only the bars are hidden. */}
+      <style>{'.bulk-scroll{scrollbar-width:none;-ms-overflow-style:none}.bulk-scroll::-webkit-scrollbar{display:none}'}</style>
       {/* Header, same shape as the Scan and Verify pages */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem', flexShrink: 0, paddingRight: '3.5rem' }}>
         <div style={{ width: '3.5rem', height: '3.5rem', borderRadius: '1rem', background: '#F4F7FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -230,7 +232,7 @@ export const BulkScanReview = () => {
       {shown.length > 0 && view === 'grid' && (
         // The pane scrolls on its own (both ways) and fills the screen below the header,
         // like a spreadsheet: the header row and Student column never leave the frame.
-        <div style={{ flex: '1 1 0', minHeight: 0, width: 0, minWidth: '100%', maxWidth: '100%', overflow: 'auto', background: '#fff', borderTop: `0.0625rem solid ${GRID_LINE}`, borderLeft: `0.0625rem solid ${GRID_LINE}`, borderTopLeftRadius: '0.75rem' }}>
+        <div className="bulk-scroll" style={{ flex: '1 1 0', minHeight: 0, width: 0, minWidth: '100%', maxWidth: '100%', overflow: 'auto', background: '#fff', borderTop: `0.0625rem solid ${GRID_LINE}`, borderLeft: `0.0625rem solid ${GRID_LINE}`, borderTopLeftRadius: '0.75rem' }}>
           <table style={{ borderCollapse: 'separate', borderSpacing: 0, width: '100%' }}>
             <thead>
               <tr>
@@ -254,7 +256,7 @@ export const BulkScanReview = () => {
       )}
 
       {shown.length > 0 && view === 'cards' && (
-        <div style={{ flex: '1 1 0', minHeight: 0, width: 0, minWidth: '100%', overflow: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(17rem, 1fr))', gap: '1rem', alignContent: 'start', paddingRight: '3.5rem', paddingBottom: '1rem' }}>
+        <div className="bulk-scroll" style={{ flex: '1 1 0', minHeight: 0, width: 0, minWidth: '100%', overflow: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(17rem, 1fr))', gap: '1rem', alignContent: 'start', paddingRight: '3.5rem', paddingBottom: '1rem' }}>
           {shown.map((r) => {
             const p = r.h.newPatient;
             return (
