@@ -68,7 +68,7 @@ function SectionCombo({ value, onChange, options, disabled, ariaLabel, className
         className={className}
       />
       {rect && !disabled && (shown.length > 0 || q) && createPortal(
-        <div style={{ position: 'fixed', top: rect.bottom + 4, left: rect.left, minWidth: Math.max(rect.width, 160), zIndex: 60 }} className="max-h-48 overflow-y-auto rounded-lg border border-border bg-card text-[15px] shadow-md">
+        <div style={{ position: 'fixed', top: rect.bottom + 4, left: rect.left, minWidth: Math.max(rect.width, 160), zIndex: 60 }} className="max-h-48 overflow-y-auto rounded-lg border border-border bg-card text-[14.5px] shadow-md">
           {shown.map((o) => (
             <button key={o} type="button" onMouseDown={() => { onChange(o); setRect(null); }} className="block w-full px-3 py-2 text-left text-foreground hover:bg-gray-50">{o}</button>
           ))}
@@ -697,8 +697,8 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                   change which students the run touches, which is why the counts
                   on the left still read from every row. */}
               <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
-                <span className="text-[15px] font-bold text-foreground">{rows.length} student{rows.length === 1 ? '' : 's'}</span>
-                <span className="text-[13px] text-muted-foreground">· {selected.size} selected</span>
+                <span className="text-[14.5px] font-bold text-foreground">{rows.length} student{rows.length === 1 ? '' : 's'}</span>
+                <span className="text-[12.5px] text-muted-foreground">· {selected.size} selected</span>
                 {mode === 'promote' && (
                   <div className="flex gap-1.5 sm:ml-2">
                     {([['all', 'All'], ['todo', `Not yet moved · ${rows.length - movedCount}`], ['moved', `Moved · ${movedCount}`]] as const).map(([k, t]) => (
@@ -707,7 +707,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                         type="button"
                         onClick={() => setStatusFilter(k)}
                         aria-pressed={statusFilter === k}
-                        className={`rounded-full px-3 py-1 text-[13px] font-semibold ${statusFilter === k ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-100 text-muted-foreground hover:bg-gray-200'}`}
+                        className={`rounded-full px-3 py-1 text-[12.5px] font-semibold ${statusFilter === k ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-100 text-muted-foreground hover:bg-gray-200'}`}
                       >
                         {t}
                       </button>
@@ -721,7 +721,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search a student"
                     aria-label="Search the roster by name or section"
-                    className="w-full rounded-lg border border-border bg-card py-1.5 pl-9 pr-8 text-[15px] focus:outline-none focus:ring-2 focus:ring-ring"
+                    className="w-full rounded-lg border border-border bg-card py-1.5 pl-9 pr-8 text-[14.5px] focus:outline-none focus:ring-2 focus:ring-ring"
                   />
                   {search && (
                     <button type="button" onClick={() => setSearch('')} aria-label="Clear the search" className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-muted-foreground hover:text-foreground">
@@ -732,7 +732,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
               </div>
 
               {visibleRows.length === 0 && (
-                <p className="px-4 py-6 text-[15px] text-muted-foreground">
+                <p className="px-4 py-6 text-[14.5px] text-muted-foreground">
                   No student matches{search ? <> “{search}”</> : ' this filter'}. The {rows.length} in this list are still counted — the search and filter only change what is shown.
                 </p>
               )}
@@ -741,18 +741,18 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                   never the page (CLAUDE.md, phone width). */}
               {visibleRows.length > 0 && (
                 <div className="max-h-[28rem] overflow-auto">
-                  <table className="w-full border-collapse text-[15px]">
+                  <table className="w-full border-collapse text-[14.5px]">
                     <thead className="sticky top-0 bg-gray-50">
                       <tr>
                         <th className="w-9 px-3 py-2">
                           <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label={allSelected ? 'Deselect all students' : 'Select all students'} className="h-4 w-4 cursor-pointer align-middle accent-primary" />
                         </th>
-                        <th className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-semibold text-muted-foreground">Student</th>
-                        <th className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-semibold text-muted-foreground">{mode === 'transfer' ? 'Current' : `Now (${fromYear})`}</th>
-                        {mode === 'transfer' && <th className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-normal text-green-700">Will become</th>}
-                        {mode === 'promote' && <th className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-semibold text-muted-foreground">In {toYear}</th>}
-                        {mode === 'promote' && <th className="px-3 py-2 text-left text-[13px] font-semibold text-muted-foreground">Action</th>}
-                        <th className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-semibold text-muted-foreground" title={`Section in ${mode === 'promote' ? toYear : fromYear}`}>Section</th>
+                        <th className="whitespace-nowrap px-3 py-2 text-left text-[12.5px] font-semibold text-muted-foreground">Student</th>
+                        <th className="whitespace-nowrap px-3 py-2 text-left text-[12.5px] font-semibold text-muted-foreground">{mode === 'transfer' ? 'Current' : `Now (${fromYear})`}</th>
+                        {mode === 'transfer' && <th className="whitespace-nowrap px-3 py-2 text-left text-[12.5px] font-normal text-green-700">Will become</th>}
+                        {mode === 'promote' && <th className="whitespace-nowrap px-3 py-2 text-left text-[12.5px] font-semibold text-muted-foreground">In {toYear}</th>}
+                        {mode === 'promote' && <th className="px-3 py-2 text-left text-[12.5px] font-semibold text-muted-foreground">Action</th>}
+                        <th className="whitespace-nowrap px-3 py-2 text-left text-[12.5px] font-semibold text-muted-foreground" title={`Section in ${mode === 'promote' ? toYear : fromYear}`}>Section</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -765,13 +765,13 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                             <input type="checkbox" checked={selected.has(r.student._id)} onChange={() => toggleOne(r.student._id)} aria-label={`Select ${surnameFirst(r.student)}`} className="h-4 w-4 cursor-pointer align-middle accent-primary" />
                           </td>
                           <td className="whitespace-nowrap px-3 py-2 font-medium text-foreground">{surnameFirst(r.student)}</td>
-                          <td className="whitespace-nowrap px-3 py-2 text-[13px] text-muted-foreground">
+                          <td className="whitespace-nowrap px-3 py-2 text-[12.5px] text-muted-foreground">
                             {mode === 'transfer'
                               ? <span className="rounded-md bg-green-100 px-2 py-0.5 font-semibold text-green-800">{r.student.grade_level || 'no grade'}{r.student.section ? ` · ${r.student.section}` : ''}</span>
                               : <>{r.student.grade_level || 'no grade'}{r.student.section ? ` · ${r.student.section}` : ''}</>}
                           </td>
                           {mode === 'transfer' && (
-                            <td className="whitespace-nowrap px-3 py-2 text-[13px]">
+                            <td className="whitespace-nowrap px-3 py-2 text-[12.5px]">
                               {selected.has(r.student._id)
                                 ? <span className="rounded-full border border-green-600 px-2.5 py-0.5 font-normal text-green-700">{transferGrade || r.student.grade_level || 'no grade'}{r.section ? ` · ${r.section}` : ''}</span>
                                 : <span className="text-muted-foreground">Not selected</span>}
@@ -780,13 +780,13 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                           {mode === 'promote' && (
                             <td className="whitespace-nowrap px-3 py-2">
                               {r.alreadyHasYear ? (
-                                <span className="inline-flex rounded-full bg-green-100 px-2.5 py-0.5 text-[12px] font-bold text-green-800">
+                                <span className="inline-flex rounded-full bg-green-100 px-2.5 py-0.5 text-[11.5px] font-bold text-green-800">
                                   {r.existingIptr?.grade_level || 'grade not recorded'}{r.existingIptr?.section ? ` · ${r.existingIptr.section}` : ''}
                                 </span>
                               ) : (
-                                <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-[12px] font-bold text-slate-600">Not yet</span>
+                                <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-[11.5px] font-bold text-slate-600">Not yet</span>
                               )}
-                              {r.alreadyHasYear && r.action === 'update' && <span className="ml-1.5 text-[12px] text-amber-700">→ {r.section || 'no section'}</span>}
+                              {r.alreadyHasYear && r.action === 'update' && <span className="ml-1.5 text-[11.5px] text-amber-700">→ {r.section || 'no section'}</span>}
                             </td>
                           )}
                           {mode === 'promote' && (
@@ -794,7 +794,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                               <select
                                 value={r.action}
                                 onChange={(e) => setRow(r.student._id, { action: e.target.value as Action })}
-                                className="rounded-md border border-border bg-card px-2 py-1 text-[13px]"
+                                className="rounded-md border border-border bg-card px-2 py-1 text-[12.5px]"
                                 aria-label={`Action for ${surnameFirst(r.student)}`}
                               >
                                 {r.alreadyHasYear ? (
@@ -816,7 +816,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                               options={sections}
                               disabled={mode === 'promote' ? r.action === 'skip' : !selected.has(r.student._id)}
                               ariaLabel={`Section for ${surnameFirst(r.student)}`}
-                              className="w-28 rounded-md border border-border px-2 py-1 text-[13px] disabled:opacity-50"
+                              className="w-28 rounded-md border border-border px-2 py-1 text-[12.5px] disabled:opacity-50"
                             />
                           </td>
                         </tr>
