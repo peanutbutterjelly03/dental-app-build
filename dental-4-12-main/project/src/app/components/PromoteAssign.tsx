@@ -646,7 +646,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
         </div>
 
         {/* ── Students ───────────────────────────────────────────────────── */}
-        <div className="min-w-0 space-y-3">
+        <div className="flex min-w-0 flex-col gap-3">
           {graduating && (
             <Notice variant="warning">
               {grade} is the exit year — there is no grade above it. Students here can be retained, but not promoted.
@@ -656,7 +656,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
           {error && <Notice variant="error">{error}</Notice>}
 
           {!grade && (
-            <div className="grid min-h-64 place-items-center rounded-xl border-2 border-dashed border-slate-300 bg-white p-8 text-center">
+            <div className="grid min-h-64 flex-1 place-items-center rounded-xl border-2 border-dashed border-slate-300 bg-white p-8 text-center">
               <div>
                 <Users className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
                 <p className="text-sm font-semibold text-foreground">No students to show yet</p>
@@ -672,7 +672,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
           )}
 
           {rows.length > 0 && (
-            <div className="overflow-hidden rounded-xl border-2 border-slate-300 bg-white shadow-sm">
+            <div className="flex flex-1 flex-col overflow-hidden rounded-xl border-2 border-slate-300 bg-white shadow-sm">
               {/* Count, status filter and search. VIEW filters only -- they never
                   change which students the run touches, which is why the counts
                   on the left still read from every row. */}
@@ -720,7 +720,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
               {/* overflow-x-auto: wide tables scroll inside their own container,
                   never the page (CLAUDE.md, phone width). */}
               {visibleRows.length > 0 && (
-                <div className="max-h-[75vh] overflow-auto">
+                <div className="max-h-[75vh] flex-1 overflow-auto">
                   <table className="w-full border-collapse text-[14.5px]">
                     <thead>
                       <tr>
