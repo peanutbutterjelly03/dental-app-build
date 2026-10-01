@@ -214,8 +214,8 @@ export const AIAnalytics = () => {
           <div className="flex translate-y-4 items-center gap-2 self-start sm:-translate-x-4 sm:self-center">
             {synthetic && <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">Synthetic data model</span>}
             <button type="button" onClick={toggleNotice} aria-expanded={noticeOpen}
-              aria-label="Disclaimer: computer-assisted screening, not a diagnosis"
-              title="Disclaimer: computer-assisted screening, not a diagnosis"
+              aria-label="Important Reminder: computer-assisted screening, not a diagnosis"
+              title="Important Reminder: computer-assisted screening, not a diagnosis"
               className={`relative grid h-11 w-11 place-items-center rounded-full border text-xl font-extrabold ${noticeOpen ? 'border-red-300 bg-red-100 text-red-700 hover:bg-red-200' : 'border-red-700 bg-red-700 text-white hover:bg-red-800'}`}>
               !
               {serviceDown && <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-white bg-amber-500" aria-hidden="true" />}
@@ -228,7 +228,7 @@ export const AIAnalytics = () => {
         <div className="flex flex-col gap-3 rounded-2xl border border-red-300 bg-card p-4 lg:flex-row lg:items-start">
           <div className="grid min-w-0 flex-1 gap-4 lg:grid-cols-[1.2fr_1px_1fr]">
             <div>
-              <div className="mb-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Disclaimer</div>
+              <div className="mb-1 text-[11px] font-bold uppercase tracking-wider text-red-700">Important Reminder</div>
               <div className="text-sm font-bold text-foreground">Computer-assisted screening, not a diagnosis.</div>
               <ul className="mt-1.5 space-y-1 text-[13px] text-slate-700">
                 <li>✓ The system only suggests.</li>
@@ -248,7 +248,7 @@ export const AIAnalytics = () => {
               )}
             </div>
           </div>
-          <button type="button" onClick={toggleNotice} aria-label="Close the disclaimer"
+          <button type="button" onClick={toggleNotice} aria-label="Close the reminder"
             className="grid h-8 w-8 flex-shrink-0 place-items-center self-start rounded-full border border-border text-slate-600 hover:bg-gray-50">
             <X className="h-4 w-4" />
           </button>
