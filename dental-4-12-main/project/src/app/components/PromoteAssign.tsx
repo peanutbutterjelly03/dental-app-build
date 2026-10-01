@@ -545,7 +545,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
               </div>
               <div className="text-center text-3xl font-bold leading-none text-muted-foreground" aria-hidden="true">↓</div>
               <div className="space-y-3 rounded-lg border-2 border-primary p-3">
-                <div className="text-sm font-normal text-green-700">Will become</div>
+                <div className="text-sm font-bold text-green-700">Will become</div>
                 <div>
                   <label className={label} htmlFor="pa-to">Grade</label>
                   {mode === 'promote' ? (
@@ -749,7 +749,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                         </th>
                         <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-normal text-muted-foreground">Student</th>
                         <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-normal text-muted-foreground">{mode === 'transfer' ? 'Current' : `Now (${fromYear})`}</th>
-                        {mode === 'transfer' && <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-normal text-green-700">Will become</th>}
+                        {mode === 'transfer' && <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-green-700">Will become</th>}
                         {mode === 'promote' && <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-normal text-muted-foreground">In {toYear}</th>}
                         {mode === 'promote' && <th className="px-3 py-2 text-left text-[14.5px] font-normal text-muted-foreground">Action</th>}
                         <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-normal text-muted-foreground" title={`Section in ${mode === 'promote' ? toYear : fromYear}`}>Section</th>
