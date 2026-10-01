@@ -750,7 +750,8 @@ export const PatientList = () => {
   // Bulk Transfer re-settles them into the new year. So "does anyone still
   // need a grade/section" doubles as "has this year's rollover been finished
   // yet" — no separate open/closed flag needed anywhere in the data model.
-  const schoolYearNeedsUpdate = schoolStudents.some(s => !s.pending && (!s.grade || !s.section));
+  const schoolYearPendingCount = schoolStudents.filter(s => !s.pending && (!s.grade || !s.section)).length;
+  const schoolYearNeedsUpdate = schoolYearPendingCount > 0;
 
   // Every section name already in use anywhere in the school being entered
   // on the Add Student form — real sections come from the whole roster, not
@@ -1167,22 +1168,6 @@ export const PatientList = () => {
                 </span>
               </div>
             </div>
-            {/* Annual rollover — was "Promote / Assign" (a modal, one grade
-                at a time). Now a full page: school-wide clear + reassign +
-                archive, see UpdateSchoolYear.tsx. Sits top-right of this card,
-                level with the school kicker, because it acts on THIS roster. */}
-            {canAddStudent && (
-              <button
-                onClick={() => navigate('/students/update-school-year')}
-                title="Update School Year Information"
-                aria-label="Update School Year Information"
-                className={`shrink-0 p-2 rounded-full text-white shadow-sm transition-colors hover:brightness-110 ${
-                  schoolYearNeedsUpdate ? 'bg-gray-400' : 'bg-primary'
-                }`}
-              >
-                <GraduationCap className="w-6 h-6 text-white/90" strokeWidth={1.25} />
-              </button>
-            )}
           </div>
 
           {/* Filters */}
@@ -1212,6 +1197,25 @@ export const PatientList = () => {
                   <ArchiveIcon className="w-4 h-4" />
                 </button>
               )}
+              {/* Annual rollover (see UpdateSchoolYear.tsx): school-wide clear +
+                  reassign + archive. Solid navy icon button beside the more-options
+                  button; turns amber with a count while pupils still lack a grade or
+                  section (the same check that doubles as "rollover not finished"). */}
+              {canAddStudent && !selectMode && !bulkQueueMode && (
+                <button
+                  onClick={() => navigate('/students/update-school-year')}
+                  title={schoolYearNeedsUpdate ? `Update School Year: ${schoolYearPendingCount} ${schoolYearPendingCount === 1 ? 'pupil needs' : 'pupils need'} a grade or section` : 'Update School Year'}
+                  aria-label={schoolYearNeedsUpdate ? `Update School Year Information, ${schoolYearPendingCount} need a grade or section` : 'Update School Year Information'}
+                  className={`relative grid h-[38px] w-[38px] place-items-center rounded-[10px] text-white shadow-sm transition-colors hover:brightness-110 ${schoolYearNeedsUpdate ? 'bg-amber-500' : 'bg-primary'}`}
+                >
+                  <GraduationCap className="h-[19px] w-[19px]" strokeWidth={2} />
+                  {schoolYearNeedsUpdate && (
+                    <span className="absolute -right-1.5 -top-1.5 grid h-[18px] min-w-[18px] place-items-center rounded-full border-2 border-amber-500 bg-white px-1 text-[11px] font-bold leading-none text-amber-700">
+                      {schoolYearPendingCount}
+                    </span>
+                  )}
+                </button>
+              )}
               {selectMode ? (
                 <button onClick={exitSelectMode}
                   className="text-sm font-medium text-foreground border border-border rounded-full px-3 py-2 hover:bg-canvas">
@@ -1223,7 +1227,7 @@ export const PatientList = () => {
                     ref={listMenuBtnRef}
                     onClick={toggleListMenu}
                     disabled={bulkQueueMode}
-                    className={`flex items-center justify-center w-7 h-9 rounded-lg border border-border bg-card ${bulkQueueMode ? 'text-muted-foreground/40 cursor-not-allowed' : 'text-foreground hover:bg-muted'}`}
+                    className={`flex items-center justify-center h-[38px] w-[38px] rounded-[10px] border border-border bg-card ${bulkQueueMode ? 'text-muted-foreground/40 cursor-not-allowed' : 'text-foreground hover:bg-muted'}`}
                     title="More options"
                   >
                     <MoreVertical className="w-4 h-4" />
