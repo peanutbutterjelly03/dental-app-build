@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import {
   ArrowLeft, ArrowRight, Bell, BellRing, CalendarDays, ChevronDown, CircleCheck, CircleX, Clock, Eye, EyeOff, GraduationCap,
-  Hourglass, Info, Lock, Repeat, Archive as ArchiveIcon, School as SchoolIcon, TriangleAlert, X as XIcon,
+  Hourglass, Info, Lock, Pencil, Repeat, Archive as ArchiveIcon, School as SchoolIcon, TriangleAlert, X as XIcon,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useStudents } from '../hooks/useStudents';
@@ -622,7 +622,7 @@ export const UpdateSchoolYear = () => {
         <>
           <div className="grid gap-3 sm:grid-cols-2">
             {([
-              { id: 'assign' as const, icon: <GraduationCap className="h-5 w-5" />, title: 'Assign Grade and Section', sub: `Change a student's grade or section in ${fromYear}.`, locked: false },
+              { id: 'assign' as const, icon: <Pencil className="h-5 w-5" />, title: "Update Student's Grade and Section", sub: `Change a student's grade or section in ${fromYear}.`, locked: false },
               { id: 'promotion' as const, icon: nextYearStarted ? <Repeat className="h-5 w-5" /> : <Lock className="h-5 w-5" />, title: 'Learners Promotion and Retention', sub: `Promote, retain or skip a grade into ${toYear}.`, locked: !nextYearStarted },
             ]).map((t) => (
               <button
