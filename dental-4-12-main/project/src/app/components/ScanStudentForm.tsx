@@ -178,7 +178,7 @@ export const ScanStudentForm = () => {
   };
 
   return (
-    <div style={{ background: '#F6F9FC', minHeight: '100%', padding: '2.5rem 3.5rem', fontFamily: 'var(--font-sans)', color: '#141413' }}>
+    <div style={{ background: '#F6F9FC', minHeight: '100%', padding: '0.75rem 3.5rem 2.5rem', fontFamily: 'var(--font-sans)', color: '#141413' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.75rem' }}>
         <div style={{ width: '3.5rem', height: '3.5rem', borderRadius: '1rem', background: '#F4F7FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
