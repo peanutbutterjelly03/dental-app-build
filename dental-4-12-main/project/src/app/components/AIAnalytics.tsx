@@ -257,20 +257,20 @@ export const AIAnalytics = () => {
               </div>
             )}
             {/* Tabs on the left; search and one Filters button on the right. */}
-            <div className="flex flex-col gap-2 border-b-2 border-slate-200 px-4 pt-2 lg:flex-row lg:items-end lg:justify-between">
+            <div className="flex flex-col gap-3 bg-primary px-5 pt-5 lg:flex-row lg:items-end lg:justify-between">
               <div className="-mb-0.5 flex min-w-0 gap-6 overflow-x-auto">
                 {TABS.map(({ key, label }) => {
                   const n = key === 'all' ? statusCounts.all : statusCounts[key];
                   const on = tab === key;
                   return (
                     <button key={key} type="button" onClick={() => setTab(key)} aria-pressed={on}
-                      className={`whitespace-nowrap border-b-[3px] px-0.5 py-3 text-[15px] font-bold ${on ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
-                      {label}<span className="ml-1.5 text-[13px] font-normal text-muted-foreground tabular-nums">{n}</span>
+                      className={`whitespace-nowrap border-b-[3px] px-0.5 py-4 text-[15px] font-bold ${on ? 'border-white text-white' : 'border-transparent text-white/70 hover:text-white'}`}>
+                      {label}<span className="ml-1.5 text-[13px] font-normal text-white/70 tabular-nums">{n}</span>
                     </button>
                   );
                 })}
               </div>
-              <div className="relative flex flex-wrap items-center gap-2 pb-2">
+              <div className="relative flex flex-wrap items-center gap-2 pb-4">
                 <div className="relative min-w-0 flex-1 lg:w-72 lg:flex-none">
                   <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#94A3B8]" />
                   <input type="text" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by student name..."
@@ -279,9 +279,9 @@ export const AIAnalytics = () => {
                     style={{ border: '1px solid #E2E8F0' }} />
                 </div>
                 <button type="button" onClick={() => setMoreOpen((v) => !v)} aria-expanded={moreOpen}
-                  className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover">
+                  className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-primary hover:bg-white/90">
                   <SlidersHorizontal className="h-4 w-4" /> Filters
-                  <span className="grid h-5 min-w-5 place-items-center rounded-full bg-white px-1 text-[11px] font-bold text-primary">
+                  <span className="grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[11px] font-bold text-white">
                     {[grade, risk, section, gender, ageGroup].filter((v) => v !== 'all').length}
                   </span>
                 </button>
