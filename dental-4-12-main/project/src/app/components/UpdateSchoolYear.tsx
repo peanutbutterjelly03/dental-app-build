@@ -622,8 +622,8 @@ export const UpdateSchoolYear = () => {
         <>
           <div className="grid gap-3 sm:grid-cols-2">
             {([
-              { id: 'assign' as const, icon: <GraduationCap className="h-5 w-5" />, title: 'Assign', sub: 'Move students up or between sections', locked: false },
-              { id: 'promotion' as const, icon: nextYearStarted ? <Repeat className="h-5 w-5" /> : <Lock className="h-5 w-5" />, title: 'Learners Promotion and Retention', sub: 'Place many students at once', locked: !nextYearStarted },
+              { id: 'assign' as const, icon: <GraduationCap className="h-5 w-5" />, title: 'Assign', sub: `Fix a student's grade or section for ${fromYear}. This does not start a new school year.`, locked: false },
+              { id: 'promotion' as const, icon: nextYearStarted ? <Repeat className="h-5 w-5" /> : <Lock className="h-5 w-5" />, title: 'Learners Promotion and Retention', sub: `Promote, retain or skip a grade for students finishing ${fromYear}, and place them in ${toYear}.`, locked: !nextYearStarted },
             ]).map((t) => (
               <button
                 key={t.id}
