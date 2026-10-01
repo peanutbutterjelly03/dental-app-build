@@ -474,12 +474,12 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
           <div>
             <div className="mb-3 flex items-center gap-2"><span className="grid h-6 w-6 place-items-center rounded-full bg-primary text-xs font-bold text-white">1</span><span className="text-base font-bold text-foreground">Which students?</span></div>
             <div className="space-y-3">
-              <label className={label} htmlFor="pa-grade">Grade</label>
+              <label className={label} htmlFor="pa-grade">Grade <span className="ml-1.5 rounded-full bg-green-100 px-2 py-0.5 align-[1px] text-[11px] font-bold text-green-800">Current</span></label>
               <select id="pa-grade" value={grade} onChange={(e) => { setGrade(e.target.value); setSection(''); setSelected(new Set()); }} className={`w-full ${field}`} aria-label="Grade">
                 <option value="">Choose a grade…</option>
                 {GRADES.map((g) => <option key={g}>{g}</option>)}
               </select>
-              <label className={`${label} !mt-3`} htmlFor="pa-section">Section <span className="font-normal text-muted-foreground">(optional)</span></label>
+              <label className={`${label} !mt-3`} htmlFor="pa-section">Section <span className="ml-1.5 rounded-full bg-green-100 px-2 py-0.5 align-[1px] text-[11px] font-bold text-green-800">Current</span></label>
               <select id="pa-section" value={section} onChange={(e) => setSection(e.target.value)} className={`w-full ${field}`} aria-label="Section" disabled={!grade}>
                 <option value="">Every section</option>
                 {sections.map((s) => <option key={s}>{s}</option>)}
@@ -489,21 +489,46 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
 
           <div>
             <div className="mb-3 flex items-center gap-2"><span className="grid h-6 w-6 place-items-center rounded-full bg-primary text-xs font-bold text-white">2</span><span className="text-base font-bold text-foreground">{mode === 'promote' ? 'Where will they go?' : 'Where should they move?'}</span></div>
-            {mode === 'promote' ? (
-              <div className="rounded-lg border border-slate-400 bg-slate-50 px-3 py-2.5 text-sm">
-                {grade
-                  ? <>{grade} <ArrowRight className="mx-0.5 inline h-3.5 w-3.5 text-muted-foreground" /> <b>{target ?? `stays in ${grade}`}</b></>
-                  : <span className="text-muted-foreground">Pick a grade in step 1 first</span>}
+            <div className="space-y-2">
+              <div className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2">
+                <div className="text-[11px] font-semibold text-muted-foreground">Now</div>
+                <div className="text-sm font-bold text-foreground">{grade ? `${grade} · ${section || 'every section'}` : <span className="font-normal text-muted-foreground">Pick a grade in step 1</span>}</div>
               </div>
-            ) : (
-              <><label className={label} htmlFor="pa-to">Move them to</label>
-              <select id="pa-to" value={transferGrade} onChange={(e) => setTransferGrade(e.target.value)} className={`w-full ${field}`} aria-label="Move to grade">
-                <option value="">Stay in their current grade</option>
-                {GRADES.map((g) => <option key={g}>{g}</option>)}
-              </select></>
-            )}
-            <p className="mt-1.5 text-xs text-muted-foreground">You can change each student's section in the list on the right.</p>
+              <div className="text-center text-lg leading-none text-muted-foreground" aria-hidden="true">↓</div>
+              <div className="space-y-3 rounded-lg border-2 border-primary p-3">
+                <div className="text-[11px] font-semibold text-muted-foreground">Will become</div>
+                <div>
+                  <label className={label} htmlFor="pa-to">Grade</label>
+                  {mode === 'promote' ? (
+                    <div id="pa-to" className="rounded-lg border border-slate-400 bg-slate-50 px-3 py-2.5 text-sm font-medium">{grade ? (target ?? `Stays in ${grade}`) : '—'}</div>
+                  ) : (
+                    <select id="pa-to" value={transferGrade} onChange={(e) => setTransferGrade(e.target.value)} className={`w-full ${field}`} aria-label="Move to grade">
+                      <option value="">Stay in their current grade</option>
+                      {GRADES.map((g) => <option key={g}>{g}</option>)}
+                    </select>
+                  )}
+                </div>
+                <div>
+                  <label className={label} htmlFor="pa-bulk-section">Section</label>
+                  <div className="flex gap-1.5">
+                    <input
+                      id="pa-bulk-section"
+                      list="pa-section-suggestions"
+                      value={bulkSection}
+                      onChange={(e) => setBulkSection(e.target.value)}
+                      placeholder="Type a section"
+                      autoComplete="off"
+                      className={`min-w-0 flex-1 ${field}`}
+                    />
+                    <button type="button" onClick={applyBulkSection} disabled={!bulkSection.trim() || selected.size === 0} title={selected.size === 0 ? 'Tick the students first' : undefined} className="rounded-lg border border-slate-400 bg-white px-3 text-sm font-semibold hover:bg-gray-50 disabled:opacity-40">Apply</button>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">Applies to the selected students. You can also edit each student in the list.</p>
+                </div>
+              </div>
+            </div>
           </div>
+
+          <datalist id="pa-section-suggestions">{sections.map((s) => <option key={s} value={s} />)}</datalist>
 
           {/* Tick-and-apply. Appears only with a selection, so the screen is
               unchanged for anyone who never ticks anything. */}
@@ -523,10 +548,6 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                   <button type="button" onClick={() => applyBulkAction('skip')} className="rounded-md border border-border bg-card px-2.5 py-1 text-xs hover:bg-gray-50">Skip</button>
                 </div>
               )}
-              <div className="flex gap-1.5">
-                <input value={bulkSection} onChange={(e) => setBulkSection(e.target.value)} placeholder="Section for all" aria-label="Section to apply to the ticked students" className="min-w-0 flex-1 rounded-md border border-border bg-card px-2 py-1 text-xs" />
-                <button type="button" onClick={applyBulkSection} disabled={!bulkSection.trim()} className="rounded-md border border-border bg-card px-2.5 py-1 text-xs hover:bg-gray-50 disabled:opacity-40">Apply</button>
-              </div>
               <button type="button" onClick={() => setSelected(new Set())} className="text-xs text-muted-foreground hover:text-foreground">Clear selection</button>
             </div>
           )}
@@ -664,7 +685,8 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                           <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label={allSelected ? 'Deselect all students' : 'Select all students'} className="h-4 w-4 cursor-pointer align-middle accent-primary" />
                         </th>
                         <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold text-muted-foreground">Student</th>
-                        <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold text-muted-foreground">Now ({fromYear})</th>
+                        <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold text-muted-foreground">{mode === 'transfer' ? 'Current' : `Now (${fromYear})`}</th>
+                        {mode === 'transfer' && <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold text-muted-foreground">Will become</th>}
                         {mode === 'promote' && <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold text-muted-foreground">In {toYear}</th>}
                         {mode === 'promote' && <th className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground">Action</th>}
                         <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold text-muted-foreground" title={`Section in ${mode === 'promote' ? toYear : fromYear}`}>Section</th>
@@ -681,11 +703,17 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                           </td>
                           <td className="whitespace-nowrap px-3 py-2 font-medium text-foreground">{surnameFirst(r.student)}</td>
                           <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">
-                            {r.student.grade_level || 'no grade'}{r.student.section ? ` · ${r.student.section}` : ''}
-                            {mode === 'transfer' && selected.has(r.student._id) && (
-                              <span className="text-amber-700">{' → '}{transferGrade || r.student.grade_level || 'no grade'}{r.section ? ` · ${r.section}` : ''}</span>
-                            )}
+                            {mode === 'transfer'
+                              ? <span className="rounded-md bg-green-100 px-2 py-0.5 font-semibold text-green-800">{r.student.grade_level || 'no grade'}{r.student.section ? ` · ${r.student.section}` : ''}</span>
+                              : <>{r.student.grade_level || 'no grade'}{r.student.section ? ` · ${r.student.section}` : ''}</>}
                           </td>
+                          {mode === 'transfer' && (
+                            <td className="whitespace-nowrap px-3 py-2 text-xs">
+                              {selected.has(r.student._id)
+                                ? <span className="rounded-md border border-primary px-2 py-0.5 font-semibold text-primary">{transferGrade || r.student.grade_level || 'no grade'}{r.section ? ` · ${r.section}` : ''}</span>
+                                : <span className="text-muted-foreground">Not selected</span>}
+                            </td>
+                          )}
                           {mode === 'promote' && (
                             <td className="whitespace-nowrap px-3 py-2">
                               {r.alreadyHasYear ? (
@@ -723,6 +751,8 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                               value={r.section}
                               onChange={(e) => setRow(r.student._id, { section: e.target.value })}
                               disabled={mode === 'promote' ? r.action === 'skip' : !selected.has(r.student._id)}
+                              list="pa-section-suggestions"
+                              autoComplete="off"
                               className="w-28 rounded-md border border-border px-2 py-1 text-xs disabled:opacity-50"
                               aria-label={`Section for ${surnameFirst(r.student)}`}
                             />

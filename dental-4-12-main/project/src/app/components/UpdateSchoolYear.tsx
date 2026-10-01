@@ -151,7 +151,7 @@ const RequestCard = ({ item, toYear, compact, onApprove, onDecline, approveLocke
         {state === 'waiting' && (
           <div className={`mt-2.5 flex gap-2 ${compact ? '' : ''}`}>
             <button onClick={onDecline} className="rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-bold text-foreground hover:bg-gray-50">Decline</button>
-            <button onClick={onApprove} disabled={!!approveLocked} title={approveLocked ?? undefined} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50">Approve for this school</button>
+            <button onClick={onApprove} title={approveLocked ?? undefined} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white hover:bg-primary-hover">Approve for this school</button>
           </div>
         )}
       </div>
@@ -551,7 +551,7 @@ export const UpdateSchoolYear = () => {
             <div className="flex flex-shrink-0 flex-col items-stretch gap-1 sm:items-end" title={lockedReason ?? undefined}>
               <button
                 onClick={() => openDialog({ kind: 'startAll' })}
-                disabled={!sy.status || allStarted || !!lockedReason}
+                disabled={!sy.status || allStarted}
                 title={lockedReason ?? (allStarted ? `${toYear} has already started for every school` : undefined)}
                 className="rounded-xl bg-rose-700 px-5 py-2.5 text-sm font-bold text-white hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -607,7 +607,7 @@ export const UpdateSchoolYear = () => {
               {s.status === 'requested' && (
                 <div className="flex gap-2">
                   <button onClick={() => openDialog({ kind: 'decline', school: s })} className="rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-bold text-foreground hover:bg-gray-50">Decline</button>
-                  <button onClick={() => openDialog({ kind: 'approve', school: s })} disabled={!!lockedReason} title={lockedReason ?? undefined} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50">Approve</button>
+                  <button onClick={() => openDialog({ kind: 'approve', school: s })} title={lockedReason ?? undefined} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white hover:bg-primary-hover">Approve</button>
                 </div>
               )}
             </div>
@@ -860,13 +860,15 @@ export const UpdateSchoolYear = () => {
             </div>
             <div className="flex justify-between border-t border-border bg-slate-50 px-3.5 py-2.5 font-extrabold"><span>All schools</span><span>{toClearStudents} {plural(toClearStudents, 'student')}</span></div>
           </div>
+          {lockedReason && <div className="mt-3"><Strip tone="red" icon={<TriangleAlert className="h-5 w-5 text-red-700" />}>{lockedReason} You can look at this screen now, but it cannot be confirmed until then.</Strip></div>}
           <PasswordField id="sy-startall-pw" value={password} onChange={setPassword} />
           {dialogError && <div className="mt-3"><Notice variant="error">{dialogError}</Notice></div>}
           <div className="mt-5 flex gap-2">
             <button onClick={closeDialog} disabled={busy} className="flex-1 rounded-xl border border-border px-4 py-2.5 text-sm font-bold hover:bg-gray-50 disabled:opacity-60">Cancel</button>
             <button
               onClick={() => void checkPasswordThenAskAgain()}
-              disabled={busy || !password}
+              disabled={busy || !password || !!lockedReason}
+              title={lockedReason ?? undefined}
               className="flex-[1.4] rounded-xl bg-rose-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-rose-800 disabled:opacity-50"
             >
               {busy ? 'Checking…' : 'Start for all schools'}
@@ -886,7 +888,7 @@ export const UpdateSchoolYear = () => {
             <button onClick={() => { setDialogError(null); setDialog({ kind: 'startAll' }); }} disabled={busy} className="flex-1 rounded-xl border border-border px-4 py-2.5 text-sm font-bold hover:bg-gray-50 disabled:opacity-60">No, go back</button>
             <button
               onClick={() => void act(() => sy.startAll(password), (r) => `${toYear} started for ${r.schoolsStarted} ${plural(r.schoolsStarted, 'school')}. ${r.studentsCleared} ${plural(r.studentsCleared, 'student')} cleared.`)}
-              disabled={busy}
+              disabled={busy || !!lockedReason}
               className="flex-[1.4] rounded-xl bg-rose-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-rose-800 disabled:opacity-50"
             >
               {busy ? 'Starting…' : 'Yes, start all schools'}
@@ -959,12 +961,13 @@ export const UpdateSchoolYear = () => {
         <DialogShell title="Approve the early start?" icon={<BellRing className="h-5 w-5 text-amber-700" />} iconBg="bg-amber-100" onClose={closeDialog} busy={busy}>
           <p className="mt-3 text-sm text-muted-foreground"><b className="text-foreground">{dialog.school.name}</b> will start {toYear} now. Grade and section are cleared for its <b className="text-foreground">{dialog.school.assigned} {plural(dialog.school.assigned, 'student')} only</b>. Other schools are not affected.</p>
           {dialog.school.requestedBy && <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground"><Info className="h-3.5 w-3.5" /> Requested by {dialog.school.requestedBy}{dialog.school.requestedAt ? ` on ${fmtStamp(dialog.school.requestedAt)}` : ''}.</p>}
+          {lockedReason && <div className="mt-3"><Strip tone="red" icon={<TriangleAlert className="h-5 w-5 text-red-700" />}>{lockedReason} You can look at this screen now, but it cannot be confirmed until then.</Strip></div>}
           {dialogError && <div className="mt-3"><Notice variant="error">{dialogError}</Notice></div>}
           <div className="mt-5 flex gap-2">
             <button onClick={closeDialog} disabled={busy} className="flex-1 rounded-xl border border-border px-4 py-2.5 text-sm font-bold hover:bg-gray-50 disabled:opacity-60">Cancel</button>
             <button
               onClick={() => void act(() => sy.approve(dialog.school.requestId!), (r) => `${toYear} started for ${dialog.school.name}. ${r.studentsCleared} ${plural(r.studentsCleared, 'student')} cleared.`)}
-              disabled={busy || !dialog.school.requestId}
+              disabled={busy || !dialog.school.requestId || !!lockedReason}
               className="flex-[1.4] rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white hover:bg-primary-hover disabled:opacity-50"
             >
               {busy ? 'Starting…' : 'Approve for this school'}
