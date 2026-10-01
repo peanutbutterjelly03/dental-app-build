@@ -42,7 +42,7 @@ export function StudentRiskChip({
     return (
       <div className="flex flex-col items-start gap-0">
         <LevelChip level={review.level} small />
-        <span className="whitespace-nowrap text-xs text-green-700">✓ Reviewed{review.reviewedAt ? ` · ${formatDate(review.reviewedAt)}` : ''}</span>
+        <span className="whitespace-nowrap text-xs text-green-700">Reviewed{review.reviewedAt ? ` · ${formatDate(review.reviewedAt)}` : ''}</span>
       </div>
     );
   }
