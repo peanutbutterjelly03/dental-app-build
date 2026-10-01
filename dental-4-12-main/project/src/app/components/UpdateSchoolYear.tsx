@@ -632,10 +632,10 @@ export const UpdateSchoolYear = () => {
                 aria-pressed={tab === t.id}
                 className={`flex items-center gap-3 rounded-xl border-2 p-3 text-left ${tab === t.id ? 'border-primary bg-primary/5' : t.locked ? 'border-dashed border-slate-300 bg-slate-100 hover:bg-slate-50' : 'border-slate-300 bg-white hover:bg-gray-50'}`}
               >
-                <span className={`grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl ${tab === t.id ? 'bg-primary text-white' : 'bg-slate-200 text-slate-700'}`}>{t.icon}</span>
+                <span className={`grid h-11 w-11 flex-shrink-0 place-items-center rounded-xl ${tab === t.id ? 'bg-primary text-white' : 'bg-slate-200 text-slate-700'}`}>{t.icon}</span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[15px] font-bold text-foreground">{t.title}</span>
-                  <span className="block text-xs text-muted-foreground">{t.sub}</span>
+                  <span className="block text-[17px] font-bold text-foreground">{t.title}</span>
+                  <span className="block text-[13.5px] text-muted-foreground">{t.sub}</span>
                 </span>
                 {t.locked && <span className="flex-shrink-0 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11.5px] font-bold text-amber-800">Opens with {toYear}</span>}
               </button>

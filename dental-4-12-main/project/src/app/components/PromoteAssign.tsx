@@ -501,13 +501,13 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
           <div>
             <div className="mb-3 flex items-center gap-2"><span className="grid h-6 w-6 place-items-center rounded-full bg-primary text-xs font-bold text-white">1</span><span className="text-base font-bold text-foreground">Which students?</span></div>
             <div className="space-y-3">
-              <label className={label} htmlFor="pa-grade">Grade <span className="ml-1.5 rounded-full bg-green-100 px-2 py-0.5 align-[1px] text-[11px] font-bold text-green-800">{mode === 'promote' ? fromYear : 'Current'}</span></label>
+              <label className={label} htmlFor="pa-grade">Grade <span className="ml-1.5 rounded-full bg-green-100 px-1.5 py-px align-[1px] text-[10px] font-semibold text-green-800">{mode === 'promote' ? fromYear : 'Current'}</span></label>
               <select id="pa-grade" value={grade} onChange={(e) => { setGrade(e.target.value); setSection(''); setSelected(new Set()); }} className={`w-full ${field}`} aria-label="Grade">
                 <option value="">Choose a grade…</option>
                 {mode === 'transfer' && <option value={UNASSIGNED}>No grade or section yet</option>}
                 {GRADES.map((g) => <option key={g}>{g}</option>)}
               </select>
-              <label className={`${label} !mt-3`} htmlFor="pa-section">Section <span className="ml-1.5 rounded-full bg-green-100 px-2 py-0.5 align-[1px] text-[11px] font-bold text-green-800">{mode === 'promote' ? fromYear : 'Current'}</span></label>
+              <label className={`${label} !mt-3`} htmlFor="pa-section">Section <span className="ml-1.5 rounded-full bg-green-100 px-1.5 py-px align-[1px] text-[10px] font-semibold text-green-800">{mode === 'promote' ? fromYear : 'Current'}</span></label>
               <select id="pa-section" value={section} onChange={(e) => setSection(e.target.value)} className={`w-full ${field}`} aria-label="Section" disabled={!grade || grade === UNASSIGNED}>
                 <option value="">Every section</option>
                 {sections.map((s) => <option key={s}>{s}</option>)}
