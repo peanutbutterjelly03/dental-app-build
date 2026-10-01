@@ -1340,20 +1340,21 @@ export const PatientList = () => {
             a sticky `<tr>` rendered as a visual duplicate mid-table in some
             browsers. */}
         <div ref={rowsBoxRef} className="min-h-0 flex-1 overflow-auto">
-          <table className="w-full min-w-[1000px] table-fixed text-sm">
+          <table className="w-full min-w-[1040px] table-fixed text-sm">
             {/* Fixed column widths (user, 2026-10-01): with auto layout the
                 spare width went mostly to Risk, leaving a wide gap before
-                Grade. Student takes the largest share; the rest sit close. */}
+                Grade. Every column but Student has a width sized to its content, so Student
+                absorbs the spare width and the others stay evenly close. */}
             <colgroup>
               <col className="w-16" />
-              <col style={{ width: '21%' }} />
-              <col style={{ width: '12%' }} />
-              <col style={{ width: '9%' }} />
-              <col style={{ width: '13%' }} />
-              <col style={{ width: '8%' }} />
-              <col style={{ width: '6%' }} />
-              <col style={{ width: '13%' }} />
-              <col className="w-[120px]" />
+              <col />
+              <col className="w-[130px]" />
+              <col className="w-[100px]" />
+              <col className="w-[130px]" />
+              <col className="w-[90px]" />
+              <col className="w-[64px]" />
+              <col className="w-[150px]" />
+              <col className="w-[110px]" />
             </colgroup>
             <thead>
               <tr className="border-b border-border">
