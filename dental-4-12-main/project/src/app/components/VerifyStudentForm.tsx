@@ -274,8 +274,10 @@ const VerifyOne = ({ handoff, position, onDone, onBack }: {
 
       {/* Body: source + form */}
       <div style={{ display: 'grid', gridTemplateColumns: '18.75rem minmax(0, 1fr)', gap: '1.5rem' }}>
-        {/* Source thumbnail */}
-        <div style={{ background: '#fff', border: '0.0625rem solid #E2E8F0', borderRadius: '1rem', padding: '0.875rem', display: 'flex', flexDirection: 'column', gap: '0.625rem', alignSelf: 'start' }}>
+        {/* Source thumbnail. The warnings sit UNDER it, in this column, so showing or hiding
+            them never moves the form or the footer buttons. */}
+        <div style={{ alignSelf: 'start', display: 'flex', flexDirection: 'column', gap: '0.75rem', minWidth: 0 }}>
+        <div style={{ background: '#fff', border: '0.0625rem solid #E2E8F0', borderRadius: '1rem', padding: '0.875rem', display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
           <div style={{ fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#67687A' }}>Source</div>
           <div style={{ width: '100%', aspectRatio: '3/4', background: '#ECECF0', borderRadius: '0.625rem', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#98999f', overflow: 'hidden' }}>
             {handoff.sourcePreviewUrl ? (
@@ -306,6 +308,11 @@ const VerifyOne = ({ handoff, position, onDone, onBack }: {
               </button>
             )}
           </div>
+        </div>
+        {error && <p style={{ margin: 0, fontSize: '0.8125rem', color: '#BE123C' }}>{error}</p>}
+        {missing.size > 0 && (
+          <p style={{ margin: 0, fontSize: '0.75rem', color: '#BE123C' }}>Highlighted fields to the right are required.</p>
+        )}
         </div>
 
         {/* Form */}
@@ -480,11 +487,6 @@ const VerifyOne = ({ handoff, position, onDone, onBack }: {
             </>
           )}
         </div>
-      )}
-
-      {error && <p style={{ marginTop: '1rem', fontSize: '0.8125rem', color: '#BE123C' }}>{error}</p>}
-      {missing.size > 0 && (
-        <p style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#BE123C' }}>Highlighted fields above are required.</p>
       )}
 
       {/* Footer actions */}
