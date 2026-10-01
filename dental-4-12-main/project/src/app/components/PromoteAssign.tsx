@@ -544,14 +544,14 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                 <div className="text-sm font-bold text-foreground">{grade ? `${grade}${section ? ` · ${section}` : ''}` : <span className="font-normal text-muted-foreground">Pick a grade in step 1</span>}</div>
               </div>
               <div className="text-center text-3xl font-bold leading-none text-muted-foreground" aria-hidden="true">↓</div>
-              <div className="space-y-3 rounded-lg border-2 border-green-600 bg-green-50/60 p-3">
+              <div className="space-y-3 rounded-lg border-2 border-primary p-3">
                 <div className="text-sm font-normal text-green-700">Will become</div>
                 <div>
                   <label className={label} htmlFor="pa-to">Grade</label>
                   {mode === 'promote' ? (
-                    <div id="pa-to" className="rounded-lg border border-slate-400 bg-slate-50 px-3 py-2.5 text-sm font-medium">{grade ? (target ?? `Stays in ${grade}`) : '—'}</div>
+                    <div id="pa-to" className="rounded-lg border border-slate-400 bg-slate-50 px-3 py-2.5 text-sm font-medium text-primary">{grade ? (target ?? `Stays in ${grade}`) : '—'}</div>
                   ) : (
-                    <select id="pa-to" value={transferGrade} onChange={(e) => setTransferGrade(e.target.value)} className={`w-full ${field}`} aria-label="Move to grade">
+                    <select id="pa-to" value={transferGrade} onChange={(e) => setTransferGrade(e.target.value)} className={`w-full ${field} font-medium text-primary`} aria-label="Move to grade">
                       <option value="">Stay in their current grade</option>
                       {GRADES.map((g) => <option key={g}>{g}</option>)}
                     </select>
@@ -749,7 +749,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                         </th>
                         <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-normal text-muted-foreground">Student</th>
                         <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-normal text-muted-foreground">{mode === 'transfer' ? 'Current' : `Now (${fromYear})`}</th>
-                        {mode === 'transfer' && <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-normal text-blue-700">Will become</th>}
+                        {mode === 'transfer' && <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-normal text-green-700">Will become</th>}
                         {mode === 'promote' && <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-normal text-muted-foreground">In {toYear}</th>}
                         {mode === 'promote' && <th className="px-3 py-2 text-left text-[14.5px] font-normal text-muted-foreground">Action</th>}
                         <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-normal text-muted-foreground" title={`Section in ${mode === 'promote' ? toYear : fromYear}`}>Section</th>
@@ -773,7 +773,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                           {mode === 'transfer' && (
                             <td className="whitespace-nowrap px-3 py-2 text-[12.5px]">
                               {selected.has(r.student._id)
-                                ? <span className="rounded-full border border-blue-900 px-2.5 py-0.5 font-normal text-blue-700">{transferGrade || r.student.grade_level || 'no grade'}{r.section ? ` · ${r.section}` : ''}</span>
+                                ? <span className="rounded-full border border-primary px-2.5 py-0.5 font-normal text-primary">{transferGrade || r.student.grade_level || 'no grade'}{r.section ? ` · ${r.section}` : ''}</span>
                                 : <span className="text-muted-foreground">Not selected</span>}
                             </td>
                           )}
