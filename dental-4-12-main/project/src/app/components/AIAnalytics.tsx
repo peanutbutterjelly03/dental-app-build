@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Brain, ChevronDown, CircleDashed, ChevronLeft, ChevronRight, ClipboardList, Loader2, ShieldAlert, ShieldCheck, TriangleAlert, type LucideIcon } from 'lucide-react';
+import { Brain, ChevronDown, CircleDashed, ChevronLeft, ChevronRight, ClipboardList, Loader2, ShieldAlert, SlidersHorizontal, ShieldCheck, TriangleAlert, type LucideIcon } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router';
 import { apiClient } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -7,6 +7,7 @@ import { useRiskClassification, type RiskCandidate } from '../hooks/useRiskClass
 import { PageHeader } from './PageHeader';
 import { AGE_GROUPS } from '../utils/age';
 import { formatDate } from '../utils/localDate';
+import { Pagination } from './Pagination';
 import { SkeletonStatGrid, SkeletonTable } from './Skeleton';
 import { Notice } from './Notice';
 import { RiskReviewDialog, LevelChip } from './risk/RiskReviewDialog';
@@ -34,7 +35,6 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'not_checked', label: 'Not checked yet' },
   { key: 'all', label: 'All students' },
 ];
-const PAGE_SIZE = 25;
 
 interface ModelStatus {
   status: string;
@@ -99,6 +99,7 @@ export const AIAnalytics = () => {
   const [ageGroup, setAgeGroup] = useState('all');
   const [sort, setSort] = useState<'priority' | 'name'>('priority');
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
   const [moreOpen, setMoreOpen] = useState(false);
   const [reviewing, setReviewing] = useState<RiskCandidate | null>(null);
   const [serviceDown, setServiceDown] = useState(false);
@@ -106,7 +107,7 @@ export const AIAnalytics = () => {
   const [bulk, setBulk] = useState<{ done: number; total: number; failed: number } | null>(null);
 
   // Any filter change goes back to page 1: page 3 of a smaller set may not exist.
-  useEffect(() => { setPage(0); }, [tab, q, grade, risk, section, gender, ageGroup, sort, selectedSchool, studentId]);
+  useEffect(() => { setPage(0); }, [tab, q, grade, risk, section, gender, ageGroup, sort, selectedSchool, studentId, pageSize]);
 
   const { candidates, total, counts, statusCounts, gradeOptions, sectionOptions, loading, error, reload } = useRiskClassification({
     q,
@@ -119,8 +120,8 @@ export const AIAnalytics = () => {
     ageGroup,
     sort,
     status: tab,
-    limit: PAGE_SIZE,
-    offset: page * PAGE_SIZE,
+    limit: pageSize,
+    offset: page * pageSize,
   });
 
   // The free-tier ML service sleeps after ~15 min idle and takes 30-60 s to
@@ -142,7 +143,7 @@ export const AIAnalytics = () => {
     return () => { cancelled = true; };
   }, []);
 
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const notCheckedOnPage = useMemo(() => candidates.filter((c) => c.status === 'not_checked' && c.latestPreventiveId), [candidates]);
 
   // "Check risk" for the not-checked students ON THIS PAGE: ask the model, then
@@ -242,7 +243,8 @@ export const AIAnalytics = () => {
             })}
           </div>
 
-          <div className="rounded-2xl border border-border bg-card">
+          <div className="overflow-hidden rounded-2xl border border-border bg-card">
+            <div className="h-1.5 bg-yellow-600" aria-hidden="true" />
             {studentId && (
               <div className="flex flex-col gap-2 border-b border-border bg-primary-surface px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
                 <div className="text-foreground">
@@ -254,76 +256,80 @@ export const AIAnalytics = () => {
                 <Link to="/patients"className="font-semibold text-primary hover:underline">← Back to Students</Link>
               </div>
             )}
-            {/* Filters */}
-            <div className="flex flex-col gap-2 p-4 sm:flex-row sm:flex-wrap">
-              <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by student name"
-                aria-label="Search by student name" className={`${selectCls} min-w-0 flex-1`} />
-              <select value={grade} onChange={(e) => { setGrade(e.target.value); setSection('all'); }} aria-label="Grade" className={selectCls}>
-                <option value="all">All grades</option>
-                {gradeOptions.map((g) => <option key={g} value={g}>{g}</option>)}
-              </select>
-              <select value={risk} onChange={(e) => setRisk(e.target.value)} aria-label="Risk level" className={selectCls}>
-                <option value="all">All risk levels</option>
-                <option value="High">High risk</option>
-                <option value="Medium">Medium risk</option>
-                <option value="Low">Low risk</option>
-                <option value="Unassessed">No result yet</option>
-              </select>
-              <div className="relative">
-                <button type="button" onClick={() => setMoreOpen((v) => !v)} aria-expanded={moreOpen}
-                  className={`${selectCls} inline-flex w-full items-center justify-between gap-2 sm:w-auto`}>
-                  More filters <ChevronDown className="h-4 w-4" />
-                </button>
-                {moreOpen && (
-                  <div className="absolute right-0 z-20 mt-2 w-64 space-y-2 rounded-xl border border-border bg-card p-3 shadow-lg">
-                    <select value={section} onChange={(e) => setSection(e.target.value)} aria-label="Section" className={`${selectCls} w-full`}>
-                      <option value="all">All sections</option>
-                      {sectionOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                    <select value={gender} onChange={(e) => setGender(e.target.value)} aria-label="Sex" className={`${selectCls} w-full`}>
-                      <option value="all">Male and female</option>
-                      <option value="Male">Male</option>
-                      <option value="Female">Female</option>
-                    </select>
-                    <select value={ageGroup} onChange={(e) => setAgeGroup(e.target.value)} aria-label="Age group" className={`${selectCls} w-full`}>
-                      <option value="all">All ages</option>
-                      {AGE_GROUPS.map((a) => <option key={a} value={a}>{a} years</option>)}
-                    </select>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Tabs: scroll sideways on a phone */}
-            <div className="overflow-x-auto border-b border-border">
-              <div className="flex min-w-max gap-2 px-4">
+            {/* Tabs on the left; search and one Filters button on the right. */}
+            <div className="flex flex-col gap-2 border-b-2 border-slate-200 px-4 pt-2 lg:flex-row lg:items-end lg:justify-between">
+              <div className="-mb-0.5 flex min-w-0 gap-6 overflow-x-auto">
                 {TABS.map(({ key, label }) => {
                   const n = key === 'all' ? statusCounts.all : statusCounts[key];
                   const on = tab === key;
                   return (
                     <button key={key} type="button" onClick={() => setTab(key)} aria-pressed={on}
-                      className={`-mb-px flex items-center gap-2 border-b-2 px-3 py-3 text-sm ${on ? 'border-primary font-semibold text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
-                      {label}
-                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground">{n}</span>
+                      className={`whitespace-nowrap border-b-[3px] px-0.5 py-3 text-[15px] font-bold ${on ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
+                      {label}<span className="ml-1.5 text-[13px] font-normal text-muted-foreground tabular-nums">{n}</span>
                     </button>
                   );
                 })}
               </div>
-            </div>
-
-            <div className="flex flex-col gap-2 bg-muted/40 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-muted-foreground">
-                {sort === 'priority'
-                  ? <>Listed in order: <strong className="text-foreground">most urgent first</strong> (High risk that needs review, then Medium, then the rest)</>
-                  : <>Listed in order: <strong className="text-foreground">name, A to Z</strong></>}
+              <div className="relative flex flex-wrap items-center gap-2 pb-2">
+                <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by student name"
+                  aria-label="Search by student name" className={`${selectCls} min-w-0 flex-1 lg:w-64 lg:flex-none`} />
+                <button type="button" onClick={() => setMoreOpen((v) => !v)} aria-expanded={moreOpen}
+                  className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover">
+                  <SlidersHorizontal className="h-4 w-4" /> Filters
+                  <span className="grid h-5 min-w-5 place-items-center rounded-full bg-white px-1 text-[11px] font-bold text-primary">
+                    {[grade, risk, section, gender, ageGroup].filter((v) => v !== 'all').length}
+                  </span>
+                </button>
+                {moreOpen && (
+                  <div className="absolute right-0 top-full z-20 mt-2 w-72 space-y-3 rounded-2xl border border-border bg-card p-4 shadow-lg">
+                    <label className="block text-sm font-semibold text-foreground">Grade
+                      <select value={grade} onChange={(e) => { setGrade(e.target.value); setSection('all'); }} aria-label="Grade" className={`${selectCls} mt-1 w-full font-normal`}>
+                        <option value="all">All grades</option>
+                        {gradeOptions.map((g) => <option key={g} value={g}>{g}</option>)}
+                      </select>
+                    </label>
+                    <label className="block text-sm font-semibold text-foreground">Risk level
+                      <select value={risk} onChange={(e) => setRisk(e.target.value)} aria-label="Risk level" className={`${selectCls} mt-1 w-full font-normal`}>
+                        <option value="all">All risk levels</option>
+                        <option value="High">High risk</option>
+                        <option value="Medium">Medium risk</option>
+                        <option value="Low">Low risk</option>
+                        <option value="Unassessed">No result yet</option>
+                      </select>
+                    </label>
+                    <label className="block text-sm font-semibold text-foreground">Section
+                      <select value={section} onChange={(e) => setSection(e.target.value)} aria-label="Section" className={`${selectCls} mt-1 w-full font-normal`}>
+                        <option value="all">All sections</option>
+                        {sectionOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </label>
+                    <label className="block text-sm font-semibold text-foreground">Sex
+                      <select value={gender} onChange={(e) => setGender(e.target.value)} aria-label="Sex" className={`${selectCls} mt-1 w-full font-normal`}>
+                        <option value="all">Male and female</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                      </select>
+                    </label>
+                    <label className="block text-sm font-semibold text-foreground">Age group
+                      <select value={ageGroup} onChange={(e) => setAgeGroup(e.target.value)} aria-label="Age group" className={`${selectCls} mt-1 w-full font-normal`}>
+                        <option value="all">All ages</option>
+                        {AGE_GROUPS.map((a) => <option key={a} value={a}>{a} years</option>)}
+                      </select>
+                    </label>
+                    <label className="block text-sm font-semibold text-foreground">Order by
+                      <select value={sort} onChange={(e) => setSort(e.target.value as 'priority' | 'name')} aria-label="Order by" className={`${selectCls} mt-1 w-full font-normal`}>
+                        <option value="priority">Most urgent first</option>
+                        <option value="name">Name, A to Z</option>
+                      </select>
+                    </label>
+                    <p className="text-xs text-muted-foreground">
+                      {sort === 'priority'
+                        ? 'Most urgent first: High risk that needs review, then Medium, then the rest.'
+                        : 'Listed by name, A to Z.'}
+                    </p>
+                  </div>
+                )}
               </div>
-              <label className="flex items-center gap-2 text-muted-foreground">
-                Order by
-                <select value={sort} onChange={(e) => setSort(e.target.value as 'priority' | 'name')} className={selectCls}>
-                  <option value="priority">Most urgent first</option>
-                  <option value="name">Name, A to Z</option>
-                </select>
-              </label>
             </div>
 
             {tab === 'not_checked' && isDentist && notCheckedOnPage.length > 0 && (
@@ -368,7 +374,7 @@ export const AIAnalytics = () => {
                     return (
                       <tr key={c.id}>
                         <td className="px-4 py-3">
-                          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-muted text-xs tabular-nums text-muted-foreground">{page * PAGE_SIZE + i + 1}</span>
+                          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-muted text-xs tabular-nums text-muted-foreground">{page * pageSize + i + 1}</span>
                         </td>
                         <td className="px-4 py-3 font-medium text-foreground">{c.name}</td>
                         <td className="px-4 py-3"><RiskCell c={c} level={lvl} /></td>
@@ -401,15 +407,19 @@ export const AIAnalytics = () => {
               </table>
             </div>
 
-            <div className="flex flex-col gap-2 border-t border-border px-4 py-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-              <span>Showing {candidates.length} of {total} students</span>
-              <div className="flex items-center gap-2">
-                <span>Rows per page: {PAGE_SIZE} · Page {page + 1} of {pageCount}</span>
-                <button type="button" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} aria-label="Previous page"
-                  className="rounded-lg border border-border p-1 disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button>
-                <button type="button" onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))} disabled={page >= pageCount - 1} aria-label="Next page"
-                  className="rounded-lg border border-border p-1 disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
-              </div>
+            <div className="border-t border-border px-4 py-3">
+              <Pagination
+                page={page + 1}
+                pageCount={pageCount}
+                pageSize={pageSize}
+                from={total === 0 ? 0 : page * pageSize + 1}
+                to={page * pageSize + candidates.length}
+                total={total}
+                onPage={(p) => setPage(p - 1)}
+                onPageSize={(n) => setPageSize(n)}
+                noun="students"
+                detail={selectedSchool ? `at ${selectedSchool}` : undefined}
+              />
             </div>
           </div>
         </>
