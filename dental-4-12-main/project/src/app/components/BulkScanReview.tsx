@@ -172,7 +172,7 @@ export const BulkScanReview = () => {
   // thin gridlines on every cell, softly banded rows.
   const head: CSSProperties = {
     position: 'sticky', top: 0, zIndex: 3, background: NAVY, color: '#fff', textAlign: 'left', whiteSpace: 'nowrap',
-    padding: '0.5625rem 0.75rem', fontSize: '0.71875rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+    padding: '0.5625rem 0.75rem', fontSize: '0.78125rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
     borderRight: '0.0625rem solid rgba(255,255,255,0.18)', borderBottom: `0.0625rem solid ${NAVY}`,
   };
   const cell: CSSProperties = {
