@@ -1389,7 +1389,9 @@ export const PatientList = () => {
                             className="w-4 h-4 accent-primary align-middle"
                           />
                         )
-                      ) : pager.from + i}
+                      ) : (
+                        <span className="grid h-7 w-7 place-items-center rounded-full bg-slate-200/70 text-xs text-slate-600">{pager.from + i}</span>
+                      )}
                     </td>
                     <td className="px-4 py-2.5 font-medium text-foreground">
                       <div className="flex items-center gap-3">
