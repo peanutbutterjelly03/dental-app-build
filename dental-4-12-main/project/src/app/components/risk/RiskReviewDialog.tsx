@@ -413,8 +413,25 @@ export function RiskReviewDialog({
                   </span>
                 )],
                 ['Your notes', notes.trim() ? <span key="n" className="break-words">{notes.trim()}</span> : <span key="n" className="text-muted-foreground">None</span>],
-                ['Treatments accepted', <span key="a" className="font-semibold">{acceptedCount}</span>],
-                ['Treatments skipped', <span key="k" className="font-semibold">{skippedCount}</span>],
+                ['Treatments accepted', (
+                  <div key="a">
+                    <span className="font-semibold">{acceptedCount}</span>
+                    {treatments.filter((t) => decisions[keyOf(t)]?.decision === 'accepted').map((t) => (
+                      <div key={keyOf(t)} className="text-sm text-foreground">{nameOf(t.code)} <span className="text-muted-foreground">· {t.tooth ? `Tooth ${t.tooth}` : 'Whole mouth'}</span></div>
+                    ))}
+                  </div>
+                )],
+                ['Treatments skipped', (
+                  <div key="k">
+                    <span className="font-semibold">{skippedCount}</span>
+                    {treatments.filter((t) => decisions[keyOf(t)]?.decision === 'skipped').map((t) => (
+                      <div key={keyOf(t)} className="text-sm text-foreground">
+                        {nameOf(t.code)} <span className="text-muted-foreground">· {t.tooth ? `Tooth ${t.tooth}` : 'Whole mouth'}</span>
+                        {decisions[keyOf(t)]?.reason && <div className="text-xs text-muted-foreground">Reason: {decisions[keyOf(t)].reason}</div>}
+                      </div>
+                    ))}
+                  </div>
+                )],
                 ['Still to decide', <span key="d" className="font-semibold">{treatments.length - decided}</span>],
               ] as const).map(([label, value]) => (
                 <div key={label} className="flex items-start justify-between gap-4 py-3 text-sm">
@@ -423,7 +440,7 @@ export function RiskReviewDialog({
                 </div>
               ))}
             </dl>
-            <p className="mt-3 text-sm text-muted-foreground">
+            <p className={`mt-3 ${canSave ? 'text-sm text-muted-foreground' : 'text-xs text-destructive'}`}>
               {canSave ? 'Saving records this review under your name in the audit trail.' : 'Only the dentist can save a risk review. You can read it, but saving is left to the dentist.'}
             </p>
             {saveError && <p className="mt-2 text-sm text-destructive" role="alert">{saveError}</p>}
