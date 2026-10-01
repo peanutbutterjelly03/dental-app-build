@@ -99,6 +99,15 @@ export const AIAnalytics = () => {
   const [gender, setGender] = useState('all');
   const [ageGroup, setAgeGroup] = useState('all');
   const [sort, setSort] = useState<'priority' | 'name'>('priority');
+  const [noticeOpen, setNoticeOpen] = useState(() => {
+    try { return localStorage.getItem('risk-notice-open') !== 'false'; } catch { return true; }
+  });
+  const toggleNotice = () => {
+    setNoticeOpen((o) => {
+      try { localStorage.setItem('risk-notice-open', String(!o)); } catch { /* storage unavailable: still works for this visit */ }
+      return !o;
+    });
+  };
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -196,26 +205,58 @@ export const AIAnalytics = () => {
         description="Check each student's cavity risk, review it, and confirm the treatments that follow."
       />
 
-      <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-        <strong>Computer-assisted screening, not a diagnosis.</strong> The system only suggests. Nothing counts
-        until the dentist reviews it, and every step is saved in the audit trail.
-      </div>
-
-      {serviceDown && (
-        <Notice variant="warning">
-          The prediction service is not responding. It sleeps when idle and usually wakes within a minute; this
-          page keeps checking. Reviews of results already on record work as normal.
-        </Notice>
-      )}
-      {modelStatus?.model?.synthetic_data && (
-        <Notice variant="warning">
-          <span>
-            The current model ({modelStatus.model.display_name}) was trained on <strong>synthetic placeholder
-            data</strong>. Its suggestions are for demonstration and pipeline testing only until it is retrained
-            on real IPTR records.
-          </span>
-        </Notice>
-      )}
+      {/* How to read this page + system status. Can be hidden; the choice is
+          remembered in this browser only. The synthetic-data flag stays visible even
+          when hidden (it must show until the model is retrained on real records). */}
+      {(() => {
+        const synthetic = !!modelStatus?.model?.synthetic_data;
+        const statusPill = serviceDown
+          ? <span className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-[13px] font-semibold text-amber-800"><span className="h-2 w-2 rounded-full bg-amber-600" />Prediction service waking up</span>
+          : modelStatus
+            ? <span className="inline-flex items-center gap-2 rounded-full bg-green-100 px-3 py-1 text-[13px] font-semibold text-green-800"><span className="h-2 w-2 rounded-full bg-green-600" />Prediction service ready</span>
+            : <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-[13px] font-semibold text-slate-600"><span className="h-2 w-2 rounded-full bg-slate-400" />Checking the prediction service</span>;
+        const toggle = (
+          <button type="button" onClick={toggleNotice} aria-expanded={noticeOpen}
+            className="inline-flex flex-shrink-0 items-center gap-1 self-start rounded-full border border-border px-3 py-1 text-xs font-semibold text-primary hover:bg-gray-50">
+            {noticeOpen ? 'Hide' : 'Expand'}
+            <ChevronDown className={`h-4 w-4 transition-transform ${noticeOpen ? 'rotate-180' : ''}`} />
+          </button>
+        );
+        return noticeOpen ? (
+          <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 lg:flex-row lg:items-start">
+            <div className="grid min-w-0 flex-1 gap-4 lg:grid-cols-[1.2fr_1px_1fr]">
+              <div>
+                <div className="mb-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">How to read this page</div>
+                <div className="text-sm font-bold text-foreground">Computer-assisted screening, not a diagnosis.</div>
+                <ul className="mt-1.5 space-y-1 text-[13px] text-slate-700">
+                  <li>✓ The system only suggests.</li>
+                  <li>✓ Nothing counts until the dentist reviews it.</li>
+                  <li>✓ Every step is saved in the audit trail.</li>
+                </ul>
+              </div>
+              <div className="hidden bg-border lg:block" aria-hidden="true" />
+              <div>
+                <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">System status</div>
+                {statusPill}
+                {serviceDown && (
+                  <p className="mt-2 text-[12.5px] text-muted-foreground">It sleeps when idle and usually wakes within a minute. This page keeps checking. Reviews of results already on record work as normal.</p>
+                )}
+                {synthetic && (
+                  <p className="mt-2 text-[12.5px] text-amber-800">The current model ({modelStatus?.model?.display_name}) was trained on <strong>synthetic placeholder data</strong>. Its suggestions are for demonstration and pipeline testing only until it is retrained on real IPTR records.</p>
+                )}
+              </div>
+            </div>
+            {toggle}
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card px-4 py-2.5">
+            <span className="text-sm font-bold text-foreground">Computer-assisted screening, not a diagnosis.</span>
+            {statusPill}
+            {synthetic && <span className="rounded-full bg-amber-100 px-3 py-1 text-[13px] font-semibold text-amber-800">Synthetic data model</span>}
+            <span className="ml-auto">{toggle}</span>
+          </div>
+        );
+      })()}
 
       {loading && candidates.length === 0 ? (
         <div className="space-y-4" aria-busy="true" aria-label="Loading students">
