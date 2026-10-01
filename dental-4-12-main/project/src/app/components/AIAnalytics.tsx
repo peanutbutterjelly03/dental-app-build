@@ -348,7 +348,7 @@ export const AIAnalytics = () => {
 
             {/* Table: scrolls inside its own container on narrow screens */}
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1100px] text-sm">
+              <table className="w-full min-w-[900px] text-sm">
                 <thead>
                   <tr className="bg-gray-100 text-left align-bottom text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                     <th rowSpan={2} className="px-4 py-3">#</th>
@@ -359,11 +359,11 @@ export const AIAnalytics = () => {
                     <th rowSpan={2} className="px-4 py-3 text-right">Actions</th>
                   </tr>
                   <tr className="bg-gray-100 text-left align-bottom text-[11px] font-normal normal-case tracking-normal text-slate-500">
-                    <th className="px-3 py-2 text-left font-normal">With Caries Experience</th>
-                    <th className="px-3 py-2 text-left font-normal">With Caries Experience in Temporary Teeth</th>
-                    <th className="px-3 py-2 text-left font-normal">With Caries Experience in Permanent Dentition</th>
-                    <th className="px-3 py-2 text-left font-normal">With Active Dental Caries</th>
-                    <th className="px-3 py-2 text-left font-normal">Number of Caries Free Teeth</th>
+                    <th className="w-[88px] max-w-[88px] px-2 py-2 text-left font-normal leading-tight">With Caries Experience</th>
+                    <th className="w-[88px] max-w-[88px] px-2 py-2 text-left font-normal leading-tight">With Caries Experience in Temporary Teeth</th>
+                    <th className="w-[88px] max-w-[88px] px-2 py-2 text-left font-normal leading-tight">With Caries Experience in Permanent Dentition</th>
+                    <th className="w-[88px] max-w-[88px] px-2 py-2 text-left font-normal leading-tight">With Active Dental Caries</th>
+                    <th className="w-[88px] max-w-[88px] px-2 py-2 text-left font-normal leading-tight">Number of Caries Free Teeth</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -383,11 +383,11 @@ export const AIAnalytics = () => {
                         <td className="px-4 py-3"><RiskCell c={c} level={lvl} /></td>
                         {charted ? (
                           <>
-                            <td className="px-3 py-3 text-left"><YesNo value={c.caries.withCariesExperience} /></td>
-                            <td className="px-3 py-3 text-left"><YesNo value={c.caries.inTemporaryTeeth} /></td>
-                            <td className="px-3 py-3 text-left"><YesNo value={c.caries.inPermanentDentition} /></td>
-                            <td className="px-3 py-3 text-left"><YesNo value={c.caries.withActiveCaries} /></td>
-                            <td className="px-3 py-3 text-left tabular-nums">{c.caries.cariesFreeTeeth ?? '—'}</td>
+                            <td className="px-2 py-3 text-left"><YesNo value={c.caries.withCariesExperience} /></td>
+                            <td className="px-2 py-3 text-left"><YesNo value={c.caries.inTemporaryTeeth} /></td>
+                            <td className="px-2 py-3 text-left"><YesNo value={c.caries.inPermanentDentition} /></td>
+                            <td className="px-2 py-3 text-left"><YesNo value={c.caries.withActiveCaries} /></td>
+                            <td className="px-2 py-3 text-left tabular-nums">{c.caries.cariesFreeTeeth ?? '—'}</td>
                           </>
                         ) : (
                           <td colSpan={5} className="px-3 py-3 text-left text-muted-foreground">Not charted this school year</td>
