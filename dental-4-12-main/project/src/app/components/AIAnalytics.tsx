@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Brain, ChevronDown, CircleDashed, ChevronLeft, ChevronRight, ClipboardList, Loader2, ShieldAlert, SlidersHorizontal, ShieldCheck, TriangleAlert, type LucideIcon } from 'lucide-react';
+import { Brain, ChevronDown, CircleDashed, ChevronLeft, ChevronRight, ClipboardList, Loader2, Search, ShieldAlert, SlidersHorizontal, ShieldCheck, TriangleAlert, type LucideIcon } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router';
 import { apiClient } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -244,7 +244,6 @@ export const AIAnalytics = () => {
           </div>
 
           <div className="overflow-hidden rounded-2xl border border-border bg-card">
-            <div className="h-1.5 bg-yellow-600" aria-hidden="true" />
             {studentId && (
               <div className="flex flex-col gap-2 border-b border-border bg-primary-surface px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
                 <div className="text-foreground">
@@ -271,8 +270,12 @@ export const AIAnalytics = () => {
                 })}
               </div>
               <div className="relative flex flex-wrap items-center gap-2 pb-2">
-                <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by student name"
-                  aria-label="Search by student name" className={`${selectCls} min-w-0 flex-1 lg:w-64 lg:flex-none`} />
+                <div className="relative min-w-0 flex-1 lg:w-72 lg:flex-none">
+                  <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#94A3B8]" />
+                  <input type="text" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by student name..."
+                    aria-label="Search by student name"
+                    className="w-full rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] py-2.5 pl-12 pr-4 text-sm placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#16214F]/30" />
+                </div>
                 <button type="button" onClick={() => setMoreOpen((v) => !v)} aria-expanded={moreOpen}
                   className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover">
                   <SlidersHorizontal className="h-4 w-4" /> Filters
