@@ -241,8 +241,6 @@ export const AIAnalytics = () => {
               );
             })}
           </div>
-            ))}
-          </div>
 
           <div className="rounded-2xl border border-border bg-card">
             {studentId && (
