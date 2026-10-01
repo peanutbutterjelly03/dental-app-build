@@ -126,7 +126,7 @@ const VerifyOne = ({ handoff, position, onDone, onBack }: {
   const fileUrl = useMemo(() => (handoff.sourceFile ? URL.createObjectURL(handoff.sourceFile) : null), [handoff.sourceFile]);
   useEffect(() => () => { if (fileUrl) URL.revokeObjectURL(fileUrl); }, [fileUrl]);
   const isPdf = handoff.sourceFile?.type === 'application/pdf' || /\.pdf$/i.test(handoff.sourceFileName);
-  const viewUrl = handoff.sourcePreviewUrl ?? (isPdf ? fileUrl : null);
+  const viewUrl = handoff.sourcePreviewUrl ?? fileUrl;
   const downloadSource = () => {
     const href = fileUrl ?? handoff.sourcePreviewUrl;
     if (!href) return;
@@ -303,15 +303,6 @@ const VerifyOne = ({ handoff, position, onDone, onBack }: {
                 style={{ fontSize: '0.78125rem', color: '#273A78', fontWeight: 600, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
               >
                 View full size &rarr;
-              </button>
-            )}
-            {(fileUrl || handoff.sourcePreviewUrl) && (
-              <button
-                type="button"
-                onClick={downloadSource}
-                style={{ fontSize: '0.78125rem', color: '#273A78', fontWeight: 600, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
-              >
-                Download file
               </button>
             )}
           </div>
@@ -528,11 +519,33 @@ const VerifyOne = ({ handoff, position, onDone, onBack }: {
 
       <PreviewModal
         open={showSourcePreview}
-        kind={handoff.sourcePreviewUrl ? 'image' : 'pdf'}
+        kind={handoff.sourcePreviewUrl ? 'image' : isPdf ? 'pdf' : 'excel'}
         title={handoff.sourceFileName}
         url={viewUrl}
         onClose={() => setShowSourcePreview(false)}
         onDownload={downloadSource}
+        content={handoff.sourceRecords?.length ? (
+          <table style={{ borderCollapse: 'collapse', fontSize: '0.78125rem', background: '#fff' }}>
+            <thead>
+              <tr>
+                <th style={{ position: 'sticky', top: 0, background: '#F1F5F9', padding: '0.375rem 0.625rem', textAlign: 'left', color: '#67687A' }}>#</th>
+                {Object.keys(handoff.sourceRecords[0]).map((k) => (
+                  <th key={k} style={{ position: 'sticky', top: 0, background: '#F1F5F9', padding: '0.375rem 0.625rem', textAlign: 'left', whiteSpace: 'nowrap', color: '#67687A' }}>{k}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {handoff.sourceRecords.map((rec, ri) => (
+                <tr key={ri} style={{ background: ri === handoff.sourceRowIndex ? '#EEF2FF' : undefined }}>
+                  <td style={{ padding: '0.3125rem 0.625rem', borderTop: '0.0625rem solid #E2E8F0', color: '#67687A' }}>{ri + 1}</td>
+                  {Object.keys(handoff.sourceRecords![0]).map((k) => (
+                    <td key={k} style={{ padding: '0.3125rem 0.625rem', borderTop: '0.0625rem solid #E2E8F0', whiteSpace: 'nowrap', fontWeight: ri === handoff.sourceRowIndex ? 700 : 400 }}>{String(rec[k] ?? '')}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : undefined}
       />
     </div>
   );

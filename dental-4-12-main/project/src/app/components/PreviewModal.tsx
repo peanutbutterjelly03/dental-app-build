@@ -14,9 +14,11 @@ interface PreviewModalProps {
   url: string | null;
   onClose: () => void;
   onDownload: () => void;
+  /** For kind "excel": a preview of the sheet itself, shown in place of the "download it" note. */
+  content?: React.ReactNode;
 }
 
-export function PreviewModal({ open, kind, title, url, onClose, onDownload }: PreviewModalProps) {
+export function PreviewModal({ open, kind, title, url, onClose, onDownload, content }: PreviewModalProps) {
   if (!open) return null;
 
   return (
@@ -38,7 +40,7 @@ export function PreviewModal({ open, kind, title, url, onClose, onDownload }: Pr
     >
       <div
         className={`flex max-h-[90vh] w-full flex-col overflow-hidden rounded-2xl bg-card shadow-2xl ${
-          kind === 'pdf' || kind === 'image' ? 'max-w-5xl' : 'max-w-md'
+          kind === 'pdf' || kind === 'image' || (kind === 'excel' && content) ? 'max-w-5xl' : 'max-w-md'
         }`}
         onClick={(e) => e.stopPropagation()}
       >
@@ -66,7 +68,9 @@ export function PreviewModal({ open, kind, title, url, onClose, onDownload }: Pr
             <iframe src={url} title={title} className="h-[65vh] w-full rounded-lg border-0 bg-white" />
           )}
 
-          {url && kind === 'excel' && (
+          {url && kind === 'excel' && content && <div className="overflow-auto">{content}</div>}
+
+          {url && kind === 'excel' && !content && (
             <div className="flex min-h-[180px] flex-col items-center justify-center gap-3 text-center px-4">
               <p className="text-sm text-muted-foreground">
                 Excel workbooks can't be previewed in the browser. Download it to open in Excel or Sheets.
@@ -80,7 +84,7 @@ export function PreviewModal({ open, kind, title, url, onClose, onDownload }: Pr
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border bg-card px-5 py-4">
-          {url && (
+          {url && kind !== 'excel' && (
             <a
               href={url}
               target="_blank"

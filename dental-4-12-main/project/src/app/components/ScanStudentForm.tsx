@@ -35,6 +35,9 @@ export type ExtractedHandoff = {
   sourceFile?: File;
   /** The spreadsheet row this student came from (column header to value). */
   sourceRecord?: Record<string, string>;
+  /** Every row of the spreadsheet, and which one this student is, for the full-size preview. */
+  sourceRecords?: Record<string, string>[];
+  sourceRowIndex?: number;
   /** The IPTR Year 1-5 tick grid (O2b, 2026-10-01). Computed by the OCR but
    *  dropped here until now; absent for a spreadsheet upload. */
   ticks?: { findings: IptrCheckboxFinding[]; confidence: number; reason?: string };
@@ -70,7 +73,7 @@ export const ScanStudentForm = () => {
     ? (err instanceof Error ? err.message : 'Could not read the file. Check the column headers and try again.')
     : 'Could not read the image. Try a clearer photo or enter details manually.');
 
-  const handoffFromRecord = (rec: Record<string, string>, file: File): ExtractedHandoff => {
+  const handoffFromRecord = (rec: Record<string, string>, file: File, all?: Record<string, string>[], rowIndex?: number): ExtractedHandoff => {
         const get = (...keys: string[]) => { for (const k of keys) if (rec[k]) return rec[k]; return ''; };
         const sexRaw = get('sex', 'gender');
         const gradeRaw = get('grade_level', 'grade', 'gradelevel');
@@ -103,14 +106,16 @@ export const ScanStudentForm = () => {
           sourcePreviewUrl: null,
           sourceFile: file,
           sourceRecord: rec,
+          sourceRecords: all,
+          sourceRowIndex: rowIndex,
         };
   };
 
   const readOne = async (file: File): Promise<ExtractedHandoff> => {
       let handoff: ExtractedHandoff;
       if (isSpreadsheet(file.name)) {
-        const [rec] = await parseSpreadsheetRecords(file);
-        handoff = handoffFromRecord(rec, file);
+        const records = await parseSpreadsheetRecords(file);
+        handoff = handoffFromRecord(records[0], file, records, 0);
       } else {
         // Dynamic import keeps tesseract.js + pdfjs-dist (~1.5MB) out of the
         // main bundle -- only staff who actually scan a form download them.
@@ -165,7 +170,7 @@ export const ScanStudentForm = () => {
             if (isSpreadsheet(file.name)) {
               const records = await parseSpreadsheetRecords(file);
               if (!records.length) throw new Error('No rows found in the file.');
-              records.forEach((rec) => queue.push(handoffFromRecord(rec, file)));
+              records.forEach((rec, ri) => queue.push(handoffFromRecord(rec, file, records, ri)));
             } else {
               queue.push(await readOne(file));
             }
