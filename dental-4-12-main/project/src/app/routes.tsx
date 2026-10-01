@@ -20,6 +20,7 @@ import { ArchiveManagement } from './components/ArchiveManagement';
 import { UpdateSchoolYear } from './components/UpdateSchoolYear';
 import { ScanStudentForm } from './components/ScanStudentForm';
 import { VerifyStudentForm } from './components/VerifyStudentForm';
+import { BulkScanReview } from './components/BulkScanReview';
 
 const DentalChartKeyed = () => { const { id } = useParams(); return <DentalChart key={id} />; };
 
@@ -36,6 +37,7 @@ export const router = createBrowserRouter([
       { path: "students/update-school-year", Component: UpdateSchoolYear },
       { path: "students/scan", Component: ScanStudentForm },
       { path: "students/scan/review", Component: VerifyStudentForm },
+      { path: "students/scan/bulk", Component: BulkScanReview },
       { path: "dental-charts", Component: DentalChartNav },
       { path: "dental-chart/:id", Component: DentalChartKeyed },
       { path: "treatment-records", Component: TreatmentRecords },

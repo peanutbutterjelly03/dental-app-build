@@ -58,9 +58,15 @@ export const VerifyStudentForm = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
-  const queue = (location.state as { queue?: ExtractedHandoff[] } | null)?.queue ?? null;
-  const [index, setIndex] = useState(0);
+  const nav = location.state as { queue?: ExtractedHandoff[]; startIndex?: number; returnTo?: string; saved?: number[] } | null;
+  const queue = nav?.queue ?? null;
+  // Opened from the bulk review list: start at the chosen student, remember who was
+  // saved, and go back to that list instead of ending the batch.
+  const returnTo = nav?.returnTo ?? null;
+  const [index, setIndex] = useState(nav?.startIndex ?? 0);
   const [outcomes, setOutcomes] = useState<BatchOutcome[]>([]);
+  const [savedIdx, setSavedIdx] = useState<number[]>(nav?.saved ?? []);
+  const backToList = (saved: number[] = savedIdx) => navigate(returnTo ?? '/students/scan', returnTo ? { state: { queue, saved } } : undefined);
 
   // No queue (direct visit, or a page refresh: router state doesn't survive
   // one) means there's nothing to verify.
@@ -69,6 +75,13 @@ export const VerifyStudentForm = () => {
 
   const done = (outcome: BatchOutcome) => {
     const all = [...outcomes, outcome];
+    const saved = outcome === 'saved' ? [...savedIdx, index] : savedIdx;
+    setSavedIdx(saved);
+    if (index + 1 >= queue.length && returnTo) {
+      toast.success(batchSummary(all));
+      backToList(saved);
+      return;
+    }
     if (index + 1 < queue.length) {
       setOutcomes(all);
       setIndex(index + 1);
@@ -85,15 +98,18 @@ export const VerifyStudentForm = () => {
       handoff={queue[index]}
       position={queue.length > 1 ? { index, total: queue.length } : null}
       onDone={done}
+      onBack={returnTo ? () => backToList() : null}
     />
   );
 };
 
-const VerifyOne = ({ handoff, position, onDone }: {
+const VerifyOne = ({ handoff, position, onDone, onBack }: {
   handoff: ExtractedHandoff;
   /** Where this form sits in a batch; null for a single scan. */
   position: { index: number; total: number } | null;
   onDone: (outcome: BatchOutcome) => void;
+  /** Set when opened from the bulk review list: Back and Stop return to it. */
+  onBack?: (() => void) | null;
 }) => {
   const navigate = useNavigate();
   const { selectedSchool } = useAuth();
@@ -216,7 +232,7 @@ const VerifyOne = ({ handoff, position, onDone }: {
         </div>
         <button
           type="button"
-          onClick={() => navigate('/students/scan')}
+          onClick={() => (onBack ? onBack() : navigate('/students/scan'))}
           style={{ cursor: 'pointer', boxSizing: 'border-box', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5625rem 1rem', borderRadius: '0.625rem', fontSize: '0.8125rem', fontWeight: 600, color: '#141413', border: '0.0625rem solid #E2E8F0', background: '#fff' }}
         >
           <svg width="12.8" height="12.8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
@@ -450,7 +466,7 @@ const VerifyOne = ({ handoff, position, onDone }: {
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.25rem' }}>
         <button
           type="button"
-          onClick={() => navigate('/students/scan')}
+          onClick={() => (onBack ? onBack() : navigate('/students/scan'))}
           style={{ cursor: 'pointer', boxSizing: 'border-box', padding: '0.6875rem 1.25rem', borderRadius: '0.625rem', fontSize: '0.875rem', fontWeight: 600, color: '#141413', border: '0.0625rem solid #E2E8F0', background: '#fff' }}
         >
           {position ? 'Stop batch' : 'Cancel'}

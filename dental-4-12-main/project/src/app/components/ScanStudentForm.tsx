@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { CameraCapture } from './CameraCapture';
 import { parseSpreadsheetRecords, normalizeSex, normalizeGrade } from '../utils/studentImport';
@@ -40,6 +40,9 @@ const ACCEPT = 'image/png,image/jpeg,image/jpg,application/pdf,text/csv,.csv,.xl
 
 export const ScanStudentForm = () => {
   const navigate = useNavigate();
+  // The top OCR button opens this page with ?bulk=1: many students at once, reviewed
+  // as a list first. Add Student > Scan Form (OCR) has no flag: one student.
+  const bulk = useSearchParams()[0].get('bulk') === '1';
   const { selectedSchool } = useAuth();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -63,10 +66,7 @@ export const ScanStudentForm = () => {
     ? (err instanceof Error ? err.message : 'Could not read the file. Check the column headers and try again.')
     : 'Could not read the image. Try a clearer photo or enter details manually.');
 
-  const readOne = async (file: File): Promise<ExtractedHandoff> => {
-      let handoff: ExtractedHandoff;
-      if (isSpreadsheet(file.name)) {
-        const [rec] = await parseSpreadsheetRecords(file);
+  const handoffFromRecord = (rec: Record<string, string>, file: File): ExtractedHandoff => {
         const get = (...keys: string[]) => { for (const k of keys) if (rec[k]) return rec[k]; return ''; };
         const sexRaw = get('sex', 'gender');
         const gradeRaw = get('grade_level', 'grade', 'gradelevel');
@@ -90,7 +90,7 @@ export const ScanStudentForm = () => {
         };
         if (normalizeSex(sexRaw)) extractedKeys.push('gender');
         if (gradeRaw && normalizeGrade(gradeRaw)) extractedKeys.push('grade');
-        handoff = {
+        return {
           newPatient: { ...BLANK_NEW_PATIENT, ...fields, school: selectedSchool ?? '' },
           confidences: {},
           extractedKeys,
@@ -98,6 +98,13 @@ export const ScanStudentForm = () => {
           sourceFileName: file.name,
           sourcePreviewUrl: null,
         };
+  };
+
+  const readOne = async (file: File): Promise<ExtractedHandoff> => {
+      let handoff: ExtractedHandoff;
+      if (isSpreadsheet(file.name)) {
+        const [rec] = await parseSpreadsheetRecords(file);
+        handoff = handoffFromRecord(rec, file);
       } else {
         // Dynamic import keeps tesseract.js + pdfjs-dist (~1.5MB) out of the
         // main bundle -- only staff who actually scan a form download them.
@@ -141,6 +148,33 @@ export const ScanStudentForm = () => {
     setError(null);
     setProcessing(true);
     try {
+      if (bulk) {
+        // Bulk: a spreadsheet gives one student PER ROW; an image or PDF gives one per file.
+        const queue: ExtractedHandoff[] = [];
+        for (const [i, file] of files.entries()) {
+          setReading(i);
+          setProgress(0);
+          try {
+            if (isSpreadsheet(file.name)) {
+              const records = await parseSpreadsheetRecords(file);
+              if (!records.length) throw new Error('No rows found in the file.');
+              records.forEach((rec) => queue.push(handoffFromRecord(rec, file)));
+            } else {
+              queue.push(await readOne(file));
+            }
+          } catch (err) {
+            queue.push({
+              readError: readError(file.name, err),
+              newPatient: { ...BLANK_NEW_PATIENT, school: selectedSchool ?? '' },
+              confidences: {}, extractedKeys: [], ocrSourceLabel: 'scanned form',
+              sourceFileName: file.name,
+              sourcePreviewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
+            });
+          }
+        }
+        navigate('/students/scan/bulk', { state: { queue } });
+        return;
+      }
       // One file: exactly as before, a read failure stays on this page.
       if (files.length === 1) {
         setReading(0);
@@ -187,7 +221,9 @@ export const ScanStudentForm = () => {
         <div>
           <div style={{ fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#67687A' }}>Students &middot; OCR</div>
           <h1 style={{ margin: '0.125rem 0 0', fontSize: '1.625rem', fontWeight: 700 }}>Scan a Student Form</h1>
-          <p style={{ margin: '0.25rem 0 0', fontSize: '0.875rem', color: '#67687A' }}>Capture a photo of the DOH IPTR form, or upload a file. Matching fields will be filled in for you to verify.</p>
+          <p style={{ margin: '0.25rem 0 0', fontSize: '0.875rem', color: '#67687A' }}>{bulk
+            ? 'Upload a spreadsheet with many students, or several forms. Every student found is listed for you to review before anything is saved.'
+            : 'Capture a photo of the DOH IPTR form, or upload a file. Matching fields will be filled in for you to verify.'}</p>
         </div>
       </div>
 

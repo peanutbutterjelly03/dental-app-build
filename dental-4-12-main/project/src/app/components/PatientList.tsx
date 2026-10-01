@@ -1076,7 +1076,7 @@ export const PatientList = () => {
               back if 0e ever ships. Kept standalone (user, 2026-09-29: "I
               never said delete, I just said add") alongside Add Student's
               own OCR option below, not replaced by it. */}
-          <button onClick={() => navigate('/students/scan')} className="flex items-center gap-2 px-4 py-2 border border-primary text-primary rounded-full hover:bg-primary-surface text-sm font-medium">
+          <button onClick={() => navigate('/students/scan?bulk=1')} className="flex items-center gap-2 px-4 py-2 border border-primary text-primary rounded-full hover:bg-primary-surface text-sm font-medium">
             <Upload className="w-4 h-4" /> OCR
           </button>
           {/* Add Student also offers OCR as a second entry point (designed on
