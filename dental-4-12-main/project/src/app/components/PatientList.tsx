@@ -1395,8 +1395,8 @@ export const PatientList = () => {
                 const isQueued = queuePosition !== -1;
                 const gc = getGradeColor(student.grade);
                 return (
-                  <tr key={student.id} {...activatable(() => { if (!student.pending) navigate(`/dental-chart/${student.id}?tab=history`); })} className={`h-[72px] hover:bg-canvas transition-colors cursor-pointer ${student.pending ? 'opacity-70' : ''}`}>
-                    <td className="px-4 py-2.5 sm:pl-6 text-xs text-muted-foreground tabular-nums" onClick={(e) => e.stopPropagation()}>
+                  <tr key={student.id} {...activatable(() => { if (!student.pending) navigate(`/dental-chart/${student.id}?tab=history`); })} className={`h-14 hover:bg-canvas transition-colors cursor-pointer ${student.pending ? 'opacity-70' : ''}`}>
+                    <td className="px-4 py-1.5 sm:pl-6 text-xs text-muted-foreground tabular-nums" onClick={(e) => e.stopPropagation()}>
                       {selectMode || bulkQueueMode ? (
                         !student.pending && (
                           <input
@@ -1411,7 +1411,7 @@ export const PatientList = () => {
                         <span className="grid h-7 w-7 place-items-center rounded-full bg-slate-200/70 text-xs text-slate-600">{pager.from + i}</span>
                       )}
                     </td>
-                    <td className="px-4 py-2.5 font-medium text-foreground">
+                    <td className="px-4 py-1.5 font-medium text-foreground">
                       <div className="flex items-center gap-3">
                         <span style={{ backgroundColor: gc.light, color: gc.solid }} className="w-8 h-8 shrink-0 rounded-full grid place-items-center text-xs font-bold">
                           {initials(student.name)}
@@ -1428,12 +1428,12 @@ export const PatientList = () => {
                         (activatable). The chip's card and review dialog render
                         inside this cell, so both must stop here, or typing a
                         space in the review notes would navigate away. */}
-                    <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                    <td className="px-4 py-1.5" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                       {!student.pending && (
                         <StudentRiskChip studentId={student.id} review={student.riskReview} canSave={user?.role === 'dentist'} onSaved={reloadStudents} />
                       )}
                     </td>
-                    <td className="px-4 py-2.5 text-muted-foreground" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-4 py-1.5 text-muted-foreground" onClick={(e) => e.stopPropagation()}>
                       {bulkQueueMode && !student.pending ? (
                         <button
                           onClick={() => toggleGradeCriterionQ(student.grade)}
@@ -1446,7 +1446,7 @@ export const PatientList = () => {
                         <GradePill grade={student.grade} />
                       )}
                     </td>
-                    <td className="px-4 py-2.5 text-muted-foreground" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-4 py-1.5 text-muted-foreground" onClick={(e) => e.stopPropagation()}>
                       {bulkQueueMode && !student.pending ? (
                         <button
                           onClick={() => toggleSectionCriterionQ(student.section)}
@@ -1459,10 +1459,10 @@ export const PatientList = () => {
                         student.section
                       )}
                     </td>
-                    <td className="px-4 py-2.5 text-muted-foreground">{student.gender}</td>
-                    <td className="px-4 py-2.5 text-muted-foreground">{age ?? '—'}</td>
-                    <td className="px-4 py-2.5">{!student.pending && <PipelineStatusPill status={student.pipelineStatus} isRpcDueThisMonth={rpcDueThisMonthIds.has(student.id)} />}</td>
-                    <td className="px-4 py-2.5 sm:pr-6">
+                    <td className="px-4 py-1.5 text-muted-foreground">{student.gender}</td>
+                    <td className="px-4 py-1.5 text-muted-foreground">{age ?? '—'}</td>
+                    <td className="px-4 py-1.5">{!student.pending && <PipelineStatusPill status={student.pipelineStatus} isRpcDueThisMonth={rpcDueThisMonthIds.has(student.id)} />}</td>
+                    <td className="px-4 py-1.5 sm:pr-6">
                       {!student.pending && (
                         <button
                           onClick={(e) => {

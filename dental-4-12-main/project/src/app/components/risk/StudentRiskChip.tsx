@@ -40,7 +40,7 @@ export function StudentRiskChip({
 
   if (review.status === 'reviewed' && review.level) {
     return (
-      <div className="flex flex-col items-start gap-0.5">
+      <div className="flex flex-col items-start gap-0">
         <LevelChip level={review.level} small />
         <span className="whitespace-nowrap text-xs text-green-700">✓ Reviewed{review.reviewedAt ? ` · ${formatDate(review.reviewedAt)}` : ''}</span>
       </div>
@@ -83,7 +83,7 @@ export function StudentRiskChip({
       <button
         type="button"
         onClick={openCard}
-        className="flex flex-col items-start gap-0.5 text-left"
+        className="flex flex-col items-start gap-0 text-left"
         aria-label={`Needs review${review.level ? `, suggested ${review.level} risk` : ''}. Open details`}
       >
         <span className={`inline-flex items-center rounded-full border border-dashed border-current bg-card px-2 py-0.5 text-[12.5px] font-semibold ${review.level ? LEVEL_TEXT[review.level] : 'text-muted-foreground'}`}>
