@@ -747,12 +747,12 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                         <th className="w-9 px-3 py-2">
                           <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label={allSelected ? 'Deselect all students' : 'Select all students'} className="h-4 w-4 cursor-pointer align-middle accent-primary" />
                         </th>
-                        <th className="whitespace-nowrap px-3 py-2 text-left text-[12.5px] font-normal text-muted-foreground">Student</th>
-                        <th className="whitespace-nowrap px-3 py-2 text-left text-[12.5px] font-normal text-muted-foreground">{mode === 'transfer' ? 'Current' : `Now (${fromYear})`}</th>
-                        {mode === 'transfer' && <th className="whitespace-nowrap px-3 py-2 text-left text-[12.5px] font-normal text-blue-700">Will become</th>}
-                        {mode === 'promote' && <th className="whitespace-nowrap px-3 py-2 text-left text-[12.5px] font-normal text-muted-foreground">In {toYear}</th>}
-                        {mode === 'promote' && <th className="px-3 py-2 text-left text-[12.5px] font-normal text-muted-foreground">Action</th>}
-                        <th className="whitespace-nowrap px-3 py-2 text-left text-[12.5px] font-normal text-muted-foreground" title={`Section in ${mode === 'promote' ? toYear : fromYear}`}>Section</th>
+                        <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-normal text-muted-foreground">Student</th>
+                        <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-normal text-muted-foreground">{mode === 'transfer' ? 'Current' : `Now (${fromYear})`}</th>
+                        {mode === 'transfer' && <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-normal text-blue-700">Will become</th>}
+                        {mode === 'promote' && <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-normal text-muted-foreground">In {toYear}</th>}
+                        {mode === 'promote' && <th className="px-3 py-2 text-left text-[14.5px] font-normal text-muted-foreground">Action</th>}
+                        <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-normal text-muted-foreground" title={`Section in ${mode === 'promote' ? toYear : fromYear}`}>Section</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
