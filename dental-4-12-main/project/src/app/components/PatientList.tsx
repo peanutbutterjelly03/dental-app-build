@@ -1160,8 +1160,12 @@ export const PatientList = () => {
                 </span>
                 <span style={{ color: kickerColor.solid }} className="text-xs font-bold uppercase tracking-wider">{kickerLabel}</span>
               </div>
-              <h1 className="text-2xl font-bold text-foreground">Student Records</h1>
-              <p className="text-sm text-muted-foreground mt-0.5">{schoolStudents.length} students{selectedSchool ? '' : ' across 3 schools'}</p>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <h1 className="text-2xl font-bold text-foreground">Student Records</h1>
+                <span style={{ backgroundColor: kickerColor.light, color: kickerColor.solid }} className="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">
+                  {schoolStudents.length} {schoolStudents.length === 1 ? 'STUDENT' : 'STUDENTS'}{selectedSchool ? '' : ' ACROSS 3 SCHOOLS'}
+                </span>
+              </div>
             </div>
             {/* Annual rollover — was "Promote / Assign" (a modal, one grade
                 at a time). Now a full page: school-wide clear + reassign +
