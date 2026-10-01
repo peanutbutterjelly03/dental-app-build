@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Eye, FileText, X, School as SchoolIcon, List, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Users, Upload, CheckCircle, AlertCircle, ScanLine, GraduationCap, MoreVertical, ListChecks, Archive as ArchiveIcon, Copy, ListPlus } from 'lucide-react';
+import { Plus, Eye, FileText, X, School as SchoolIcon, List, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Users, Upload, CheckCircle, AlertCircle, ScanLine, CalendarClock, MoreVertical, ListChecks, Archive as ArchiveIcon, Copy, ListPlus } from 'lucide-react';
 import { ConfirmDialog } from './ConfirmDialog';
 import { formatDate } from '../utils/localDate';
 import { OCR_CONFIDENCE_THRESHOLD, type IptrOcrFieldKey, type IptrCheckboxFinding } from '../utils/iptrOcrShared';
@@ -1208,7 +1208,7 @@ export const PatientList = () => {
                   aria-label={schoolYearNeedsUpdate ? `Update School Year Information, ${schoolYearPendingCount} need a grade or section` : 'Update School Year Information'}
                   className={`relative grid h-[38px] w-[38px] place-items-center rounded-[10px] text-white shadow-sm transition-colors hover:brightness-110 ${schoolYearNeedsUpdate ? 'bg-amber-500' : 'bg-primary'}`}
                 >
-                  <GraduationCap className="h-[19px] w-[19px]" strokeWidth={1.25} />
+                  <CalendarClock className="h-[19px] w-[19px]" strokeWidth={1.5} />
                   {schoolYearNeedsUpdate && (
                     <span className="absolute -right-1.5 -top-1.5 grid h-[18px] min-w-[18px] place-items-center rounded-full border-2 border-amber-500 bg-white px-1 text-[11px] font-bold leading-none text-amber-700">
                       {schoolYearPendingCount}

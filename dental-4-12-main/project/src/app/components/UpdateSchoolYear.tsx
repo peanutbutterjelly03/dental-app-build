@@ -36,7 +36,7 @@ type Tab = 'promote' | 'transfer';
 export const UpdateSchoolYear = () => {
   const { user, selectedSchool } = useAuth();
   const toast = useToast();
-  const canUse = user?.role === 'dentist' || user?.role === 'dental_aide';
+  const canUse = user?.role === 'dentist' || user?.role === 'dental_aide' || user?.role === 'system_admin';
 
   const { students: allStudents, reload: reloadStudents } = useStudents();
   const [schools, setSchools] = useState<ApiSchool[]>([]);
@@ -247,7 +247,7 @@ export const UpdateSchoolYear = () => {
         <Link to="/patients" aria-label="Back to Students" title="Back to Students" className="inline-flex items-center justify-center w-9 h-9 rounded-full text-muted-foreground hover:text-foreground hover:bg-gray-100">
           <ArrowLeft className="w-5 h-5" />
         </Link>
-        <Notice variant="error">Updating the school year is limited to the dentist and dental aide.</Notice>
+        <Notice variant="error">Updating the school year is limited to the dentist, dental aide and system admin.</Notice>
       </div>
     );
   }
