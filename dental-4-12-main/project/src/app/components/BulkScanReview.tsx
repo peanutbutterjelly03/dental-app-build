@@ -86,8 +86,10 @@ export const BulkScanReview = () => {
   );
 
   const shell: CSSProperties = {
-    background: '#F6F9FC', minHeight: '100%', padding: '0.25rem 3.5rem 2.5rem', fontFamily: 'var(--font-sans)', color: '#141413',
-    minWidth: 0, maxWidth: '100%', boxSizing: 'border-box', overflow: 'hidden',
+    // The PAGE never scrolls: it is exactly the screen below the top bar, and only the
+    // grid (or the cards) inside it scrolls, both ways, like a spreadsheet pane.
+    background: '#F6F9FC', height: 'calc(100vh - 3.25rem)', padding: '0.25rem 3.5rem 0.75rem', fontFamily: 'var(--font-sans)', color: '#141413',
+    minWidth: 0, maxWidth: '100%', boxSizing: 'border-box', overflow: 'hidden', display: 'flex', flexDirection: 'column',
   };
 
   // A refresh drops router state, so there is nothing to review.
@@ -150,7 +152,7 @@ export const BulkScanReview = () => {
   return (
     <div style={shell}>
       {/* Header, same shape as the Scan and Verify pages */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem', flexShrink: 0 }}>
         <div style={{ width: '3.5rem', height: '3.5rem', borderRadius: '1rem', background: '#F4F7FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           <svg width="23.8" height="23.8" viewBox="0 0 24 24" fill="none" stroke={NAVY} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>
         </div>
@@ -171,7 +173,7 @@ export const BulkScanReview = () => {
       </div>
 
       {/* Summary, filter and the Grid / Cards switch sit directly above the list */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.875rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem', flexShrink: 0 }}>
         <span style={chip}><b>{rows.length}</b> found</span>
         <span style={chip}><b style={{ color: '#15803D' }}>{ready}</b> ready</span>
         <span style={chip}><b style={{ color: '#B91C1C' }}>{fixes}</b> need fixes</span>
@@ -194,12 +196,12 @@ export const BulkScanReview = () => {
         </div>
       </div>
 
-      {shown.length === 0 && <p style={{ fontSize: '0.875rem', color: MUTED }}>No student needs fixes.</p>}
+      {shown.length === 0 && <p style={{ fontSize: '0.875rem', color: MUTED, flexShrink: 0 }}>No student needs fixes.</p>}
 
       {shown.length > 0 && view === 'grid' && (
         // The pane scrolls on its own (both ways) and fills the screen below the header,
         // like a spreadsheet: the header row and Student column never leave the frame.
-        <div style={{ maxHeight: 'calc(100vh - 17rem)', minHeight: '16rem', maxWidth: '100%', overflow: 'auto', background: '#fff', border: `0.0625rem solid ${GRID_LINE}`, borderRadius: '0.75rem' }}>
+        <div style={{ flex: '1 1 0', minHeight: 0, minWidth: 0, maxWidth: '100%', overflow: 'auto', background: '#fff', border: `0.0625rem solid ${GRID_LINE}`, borderRadius: '0.75rem' }}>
           <table style={{ borderCollapse: 'separate', borderSpacing: 0, width: '100%' }}>
             <thead>
               <tr>
@@ -223,7 +225,7 @@ export const BulkScanReview = () => {
       )}
 
       {shown.length > 0 && view === 'cards' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(17rem, 1fr))', gap: '1rem' }}>
+        <div style={{ flex: '1 1 0', minHeight: 0, overflow: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(17rem, 1fr))', gap: '1rem', alignContent: 'start' }}>
           {shown.map((r) => {
             const p = r.h.newPatient;
             return (
@@ -246,10 +248,6 @@ export const BulkScanReview = () => {
           })}
         </div>
       )}
-      <p style={{ margin: '0.625rem 0 0', fontSize: '0.75rem', color: MUTED }}>
-        {view === 'grid' ? 'Scroll inside the grid: the header row and the Student column stay in view. ' : ''}
-        Click a student, or Open full form, to check and save that student.
-      </p>
     </div>
   );
 };
