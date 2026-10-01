@@ -211,7 +211,7 @@ export const AIAnalytics = () => {
         title="Risk Classification"
         description="Check each student's cavity risk, review it, and confirm the treatments that follow."
         action={(
-          <div className="flex translate-y-2 items-center gap-2 self-start sm:self-center">
+          <div className="flex translate-y-4 items-center gap-2 self-start sm:-translate-x-4 sm:self-center">
             {synthetic && <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">Synthetic data model</span>}
             <button type="button" onClick={toggleNotice} aria-expanded={noticeOpen}
               aria-label="Disclaimer: computer-assisted screening, not a diagnosis"
