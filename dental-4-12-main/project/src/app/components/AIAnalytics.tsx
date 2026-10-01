@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Brain, ChevronDown, CircleDashed, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Brain, ChevronDown, CircleDashed, ChevronLeft, ChevronRight, ClipboardList, Loader2, ShieldAlert, ShieldCheck, TriangleAlert, type LucideIcon } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router';
 import { apiClient } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -175,12 +175,12 @@ export const AIAnalytics = () => {
     setBulk((b) => (b && b.failed ? b : null));
   };
 
-  const cards = [
-    { label: 'Needs your review', value: statusCounts.needs_review, note: 'waiting for the dentist', tone: 'text-primary' },
-    { label: 'High risk', value: counts.High, tone: 'text-red-600' },
-    { label: 'Medium risk', value: counts.Medium, tone: 'text-amber-700' },
-    { label: 'Low risk', value: counts.Low, tone: 'text-green-700' },
-    { label: 'Not checked yet', value: statusCounts.not_checked, note: 'no result yet', tone: 'text-muted-foreground' },
+  const cards: { label: string; value: number; note?: string; tone: string; icon: LucideIcon; bg: string; fg: string }[] = [
+    { label: 'Needs your review', value: statusCounts.needs_review, note: 'waiting for the dentist', tone: 'text-primary', icon: ClipboardList, bg: '#E8ECF6', fg: '#273A78' },
+    { label: 'High risk', value: counts.High, tone: 'text-red-600', icon: TriangleAlert, bg: '#FEE2E2', fg: '#DC2626' },
+    { label: 'Medium risk', value: counts.Medium, tone: 'text-amber-700', icon: ShieldAlert, bg: '#FEF3C7', fg: '#B45309' },
+    { label: 'Low risk', value: counts.Low, tone: 'text-green-700', icon: ShieldCheck, bg: '#DCFCE7', fg: '#15803D' },
+    { label: 'Not checked yet', value: statusCounts.not_checked, note: 'no result yet', tone: 'text-muted-foreground', icon: CircleDashed, bg: '#F1F5F9', fg: '#64748B' },
   ];
 
   const selectCls = 'rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring';
@@ -224,13 +224,23 @@ export const AIAnalytics = () => {
         <div className="py-12 text-center text-sm text-destructive">{error}</div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-            {cards.map((c) => (
-              <div key={c.label} className="rounded-2xl border border-border bg-card px-5 py-4">
-                <div className="text-sm text-muted-foreground">{c.label}</div>
-                <div className={`mt-1 text-3xl font-bold tabular-nums ${c.tone}`}>{c.value}</div>
-                {c.note && <div className="mt-1 text-xs text-muted-foreground">{c.note}</div>}
-              </div>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+            {cards.map((c) => {
+              const Icon = c.icon;
+              return (
+                <div key={c.label} title={c.note} className="flex flex-col rounded-xl border border-border bg-card p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+                  <span style={{ backgroundColor: c.bg, color: c.fg }} className="mb-4 grid h-8 w-8 flex-shrink-0 place-items-center rounded-xl">
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="truncate text-[12px] font-bold text-foreground">{c.label}</div>
+                    <div className={`mt-1 text-[22px] font-extrabold leading-none tabular-nums ${c.tone}`}>{c.value}</div>
+                    <div className="mt-0.5 text-[10px] font-thin text-muted-foreground">{c.value === 1 ? 'student' : 'students'}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
             ))}
           </div>
 
