@@ -1340,7 +1340,21 @@ export const PatientList = () => {
             a sticky `<tr>` rendered as a visual duplicate mid-table in some
             browsers. */}
         <div ref={rowsBoxRef} className="min-h-0 flex-1 overflow-auto">
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[1000px] table-fixed text-sm">
+            {/* Fixed column widths (user, 2026-10-01): with auto layout the
+                spare width went mostly to Risk, leaving a wide gap before
+                Grade. Student takes the largest share; the rest sit close. */}
+            <colgroup>
+              <col className="w-16" />
+              <col style={{ width: '21%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '13%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '6%' }} />
+              <col style={{ width: '13%' }} />
+              <col className="w-[120px]" />
+            </colgroup>
             <thead>
               <tr className="border-b border-border">
                 <th className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 sm:pl-6 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -1381,7 +1395,7 @@ export const PatientList = () => {
                 const isQueued = queuePosition !== -1;
                 const gc = getGradeColor(student.grade);
                 return (
-                  <tr key={student.id} {...activatable(() => { if (!student.pending) navigate(`/dental-chart/${student.id}?tab=history`); })} className={`hover:bg-canvas transition-colors cursor-pointer ${student.pending ? 'opacity-70' : ''}`}>
+                  <tr key={student.id} {...activatable(() => { if (!student.pending) navigate(`/dental-chart/${student.id}?tab=history`); })} className={`h-[72px] hover:bg-canvas transition-colors cursor-pointer ${student.pending ? 'opacity-70' : ''}`}>
                     <td className="px-4 py-2.5 sm:pl-6 text-xs text-muted-foreground tabular-nums" onClick={(e) => e.stopPropagation()}>
                       {selectMode || bulkQueueMode ? (
                         !student.pending && (
