@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
-import { Eye, Users, Calendar, Clipboard, ClipboardList, Shield, Stethoscope, SlidersHorizontal, PanelLeftClose, PanelLeftOpen, X, ChevronDown, MoreVertical } from 'lucide-react';
+import { Eye, Users, Calendar, Clipboard, ClipboardList, Shield, Stethoscope, SlidersHorizontal, PanelLeftClose, PanelLeftOpen, X, ChevronDown, MoreVertical, CircleDashed } from 'lucide-react';
+import { LevelChip } from './risk/RiskReviewDialog';
 import { GradePill } from './GradePill';
 import { PipelineStatusPill } from './PipelineStatusPill';
 import { getSchoolColor } from '../utils/schoolColors';
@@ -898,9 +899,11 @@ export const DentalChartNav = () => {
                     </td>
                     <td className="px-4 py-2.5">
                       {p.riskLevel ? (
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${RISK_BADGE[p.riskLevel]}`}>{p.riskLevel.toUpperCase()}</span>
+                        <LevelChip level={p.riskLevel as 'High' | 'Medium' | 'Low'} small />
                       ) : (
-                        <span className="text-[10px] font-light text-muted-foreground/50">Not assessed</span>
+                        <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-normal text-slate-500">
+                          <CircleDashed className="h-3.5 w-3.5" aria-hidden="true" /> Not assessed
+                        </span>
                       )}
                     </td>
                     <td className="px-4 py-2.5 w-36"><PipelineStatusPill status={p.pipelineStatus} isRpcDueThisMonth={rpcDueThisMonthIds.has(p.id)} /></td>
