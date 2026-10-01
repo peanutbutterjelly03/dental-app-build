@@ -41,13 +41,13 @@ export function StudentRiskChip({
   if (review.status === 'reviewed' && review.level) {
     return (
       <div className="flex flex-col items-start gap-0.5">
-        <LevelChip level={review.level} />
-        <span className="whitespace-nowrap text-xs text-green-700">✓ Reviewed{review.reviewedAt ? ` · ${formatDate(review.reviewedAt)}` : ''}</span>
+        <LevelChip level={review.level} small />
+        <span className="whitespace-nowrap text-[11px] text-green-700">✓ Reviewed{review.reviewedAt ? ` · ${formatDate(review.reviewedAt)}` : ''}</span>
       </div>
     );
   }
-  if (review.status === 'not_checked') return <span className="whitespace-nowrap text-xs text-muted-foreground">Not checked yet</span>;
-  if (review.status === 'no_visit') return <span className="whitespace-nowrap text-xs text-muted-foreground">No visit yet</span>;
+  if (review.status === 'not_checked') return <span className="whitespace-nowrap text-[11px] text-muted-foreground">Not checked yet</span>;
+  if (review.status === 'no_visit') return <span className="whitespace-nowrap text-[11px] text-muted-foreground">No visit yet</span>;
 
   const openCard = async () => {
     setOpen(true);
@@ -80,10 +80,10 @@ export function StudentRiskChip({
         className="flex flex-col items-start gap-0.5 text-left"
         aria-label={`Needs review${review.level ? `, suggested ${review.level} risk` : ''}. Open details`}
       >
-        <span className={`inline-flex items-center rounded-full border border-dashed border-amber-400 bg-card px-2.5 py-0.5 text-sm font-semibold ${review.level ? LEVEL_TEXT[review.level] : 'text-muted-foreground'}`}>
+        <span className={`inline-flex items-center rounded-full border border-dashed border-amber-400 bg-card px-2 py-px text-xs font-semibold ${review.level ? LEVEL_TEXT[review.level] : 'text-muted-foreground'}`}>
           {review.level ? `${review.level} risk` : 'No level'}
         </span>
-        <span className="whitespace-nowrap text-xs font-medium text-amber-800">Needs review</span>
+        <span className="whitespace-nowrap text-[11px] font-medium text-amber-800">Needs review</span>
       </button>
 
       {open && !reviewing && (

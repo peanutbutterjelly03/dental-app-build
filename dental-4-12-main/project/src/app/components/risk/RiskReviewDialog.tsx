@@ -58,8 +58,8 @@ const keyOf = (t: SuggestedTreatment) => `${t.code}:${t.tooth ?? 'mouth'}`;
 const nameOf = (code: string) => treatmentCodes.find((t) => t.code === code)?.label ?? code;
 const yesNo = (b: boolean) => (b ? 'Yes' : 'No');
 
-export function LevelChip({ level }: { level: RiskLevel }) {
-  return <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-sm font-semibold ${LEVEL_CHIP[level]}`}>{level} risk</span>;
+export function LevelChip({ level, small = false }: { level: RiskLevel; small?: boolean }) {
+  return <span className={`inline-flex items-center rounded-full border font-semibold ${small ? 'px-2 py-px text-xs' : 'px-2.5 py-0.5 text-sm'} ${LEVEL_CHIP[level]}`}>{level} risk</span>;
 }
 
 export function RiskReviewDialog({
