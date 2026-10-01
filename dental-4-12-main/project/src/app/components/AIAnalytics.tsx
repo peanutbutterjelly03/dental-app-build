@@ -275,7 +275,8 @@ export const AIAnalytics = () => {
                   <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#94A3B8]" />
                   <input type="text" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by student name..."
                     aria-label="Search by student name"
-                    className="w-full rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] py-2.5 pl-12 pr-4 text-sm placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#16214F]/30" />
+                    className="w-full rounded-2xl bg-[#F8FAFC] py-3.5 pl-12 pr-4 text-sm placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#16214F]/30"
+                    style={{ border: '1px solid #E2E8F0' }} />
                 </div>
                 <button type="button" onClick={() => setMoreOpen((v) => !v)} aria-expanded={moreOpen}
                   className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover">
@@ -359,12 +360,12 @@ export const AIAnalytics = () => {
                     <th rowSpan={2} className="align-middle px-3 py-3 text-left">Treatment Recommendation</th>
                     <th rowSpan={2} className="align-middle px-4 py-3 text-right">Actions</th>
                   </tr>
-                  <tr className="bg-gray-100 text-left align-bottom text-[11px] font-normal normal-case tracking-normal text-slate-500">
-                    <th className="w-[88px] max-w-[88px] px-2 py-2 text-left font-normal leading-tight">With Caries Experience</th>
-                    <th className="w-[88px] max-w-[88px] px-2 py-2 text-left font-normal leading-tight">With Caries Experience in Temporary Teeth</th>
-                    <th className="w-[88px] max-w-[88px] px-2 py-2 text-left font-normal leading-tight">With Caries Experience in Permanent Dentition</th>
-                    <th className="w-[88px] max-w-[88px] px-2 py-2 text-left font-normal leading-tight">With Active Dental Caries</th>
-                    <th className="w-[88px] max-w-[88px] px-2 py-2 text-left font-normal leading-tight">Number of Caries Free Teeth</th>
+                  <tr className="bg-gray-100 text-left align-top text-[11px] font-normal normal-case tracking-normal text-slate-500">
+                    <th className="align-top w-[88px] max-w-[88px] px-2 py-2 text-left font-normal leading-tight">With Caries Experience</th>
+                    <th className="align-top w-[88px] max-w-[88px] px-2 py-2 text-left font-normal leading-tight">With Caries Experience in Temporary Teeth</th>
+                    <th className="align-top w-[88px] max-w-[88px] px-2 py-2 text-left font-normal leading-tight">With Caries Experience in Permanent Dentition</th>
+                    <th className="align-top w-[88px] max-w-[88px] px-2 py-2 text-left font-normal leading-tight">With Active Dental Caries</th>
+                    <th className="align-top w-[88px] max-w-[88px] px-2 py-2 text-left font-normal leading-tight">Number of Caries Free Teeth</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
