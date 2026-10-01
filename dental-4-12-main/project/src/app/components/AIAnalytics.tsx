@@ -336,7 +336,6 @@ export const AIAnalytics = () => {
                   <tr className="bg-muted/60 text-left align-bottom text-xs font-semibold text-foreground">
                     <th className="px-4 py-3">#</th>
                     <th className="px-4 py-3">Student</th>
-                    <th className="px-4 py-3">Grade / Section</th>
                     <th className="px-4 py-3">Risk</th>
                     <th className="px-3 py-3 text-center">With caries experience</th>
                     <th className="px-3 py-3 text-center">In temporary teeth</th>
@@ -349,7 +348,7 @@ export const AIAnalytics = () => {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {candidates.length === 0 ? (
-                    <tr><td colSpan={11} className="px-4 py-10 text-center text-muted-foreground">No students match.</td></tr>
+                    <tr><td colSpan={10} className="px-4 py-10 text-center text-muted-foreground">No students match.</td></tr>
                   ) : candidates.map((c, i) => {
                     const lvl = displayLevel(c);
                     const charted = c.teeth.length > 0;
@@ -361,7 +360,6 @@ export const AIAnalytics = () => {
                           <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-muted text-xs tabular-nums text-muted-foreground">{page * PAGE_SIZE + i + 1}</span>
                         </td>
                         <td className="px-4 py-3 font-medium text-foreground">{c.name}</td>
-                        <td className="px-4 py-3 text-muted-foreground">{[c.grade, c.section].filter(Boolean).join(' · ')}</td>
                         <td className="px-4 py-3"><RiskCell c={c} level={lvl} /></td>
                         {charted ? (
                           <>
