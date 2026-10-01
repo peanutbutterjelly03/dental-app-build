@@ -87,18 +87,21 @@ const PasswordField = ({ id, value, onChange }: { id: string; value: string; onC
           autoComplete="current-password"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full rounded-xl border border-border bg-card py-2.5 pl-3.5 pr-11 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          className="w-full rounded-xl border border-border bg-card py-2.5 pl-3.5 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
         />
-        <button
-          type="button"
-          onClick={() => setShown((v) => !v)}
-          aria-label={shown ? 'Hide password' : 'Show password'}
-          aria-pressed={shown}
-          title={shown ? 'Hide password' : 'Show password'}
-          className="absolute right-1.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg text-muted-foreground hover:bg-gray-100 hover:text-foreground"
-        >
-          {shown ? <EyeOff className="h-[18px] w-[18px]" /> : <Eye className="h-[18px] w-[18px]" />}
-        </button>
+        {/* Only offered once something has been typed: there is nothing to reveal before that. */}
+        {value.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setShown((v) => !v)}
+            aria-label={shown ? 'Hide password' : 'Show password'}
+            aria-pressed={shown}
+            title={shown ? 'Hide password' : 'Show password'}
+            className="absolute right-2 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-gray-100 hover:text-foreground"
+          >
+            {shown ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -443,7 +446,7 @@ export const UpdateSchoolYear = () => {
           </div>
         </div>
         <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center">
-          <p className="flex-1 text-sm text-white/90">{heroText}</p>
+          <p className="flex-1 text-xs text-white/90">{heroText}</p>
           {isAdmin && !allStarted && (
             <button onClick={() => openDialog({ kind: 'startAll' })} disabled={!sy.status} className="flex-shrink-0 rounded-xl bg-rose-700 px-5 py-2.5 text-sm font-bold text-white hover:bg-rose-800 disabled:opacity-50">
               Start new school year for all schools{toClearStudents > 0 ? ` (${toClearStudents})` : ''}

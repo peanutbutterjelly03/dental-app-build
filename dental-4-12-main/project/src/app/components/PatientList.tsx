@@ -1153,7 +1153,7 @@ export const PatientList = () => {
           list caps at `cardHeight` and scrolls internally, tab included. */}
       <div ref={cardRef} className={`flex flex-col bg-card border border-border shadow-sm overflow-clip ${hideAtEdge ? 'rounded-t-2xl' : 'rounded-2xl'} ${hidePagination ? '-mb-4 md:-mb-8' : ''}`} style={{ [hidePagination ? 'maxHeight' : 'height']: cardHeight ?? undefined }}>
         <div ref={cardHeaderRef} className="sticky z-40 space-y-4 border-b border-border bg-card p-5 sm:p-6" style={{ top: stickyTop.cardHeader }}>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
+          <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 mb-2">
                 <span style={{ backgroundColor: kickerColor.light }} className="w-6 h-6 rounded-md grid place-items-center">
@@ -1168,125 +1168,121 @@ export const PatientList = () => {
                 </span>
               </div>
             </div>
-            {/* Search, Update School Year and more-options on top; the filters
-                directly under, so the top row is exactly as wide as the filters. */}
-            <div className="flex flex-col gap-2.5">
-              <div className="flex items-center gap-2">
-                <ListSearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search student, grade, or section" className="min-w-0 flex-1" />
-                <div className="flex items-center gap-2">
-                  {selectMode && tickedIds.size > 0 && (
-                    <button
-                      onClick={() => { setArchivePassword(''); setArchivePasswordError(null); setConfirmArchiveTicked(true); }}
-                      title="Archive"
-                      aria-label={`Archive ${tickedIds.size} selected`}
-                      className="p-2 rounded-full border border-destructive text-destructive hover:bg-danger-surface"
-                    >
-                      <ArchiveIcon className="w-4 h-4" />
-                    </button>
-                  )}
-                  {/* Annual rollover (see UpdateSchoolYear.tsx): school-wide clear +
-                      reassign + archive. Solid navy icon button beside the more-options
-                      button; turns amber with a count while pupils still lack a grade or
-                      section (the same check that doubles as "rollover not finished"). */}
-                  {canAddStudent && !selectMode && !bulkQueueMode && (
-                    <button
-                      onClick={() => navigate('/students/update-school-year')}
-                      title={schoolYearNeedsUpdate ? `Update School Year: ${schoolYearPendingCount} ${schoolYearPendingCount === 1 ? 'pupil needs' : 'pupils need'} a grade or section` : 'Update School Year'}
-                      aria-label={schoolYearNeedsUpdate ? `Update School Year Information, ${schoolYearPendingCount} need a grade or section` : 'Update School Year Information'}
-                      className={`relative grid h-[38px] w-[38px] place-items-center rounded-[10px] text-white transition-colors hover:brightness-110 ${schoolYearNeedsUpdate ? 'bg-amber-500' : 'bg-primary'}`}
-                    >
-                      <CalendarClock className="h-[19px] w-[19px]" strokeWidth={1.5} />
-                      {schoolYearNeedsUpdate && (
-                        <span className="absolute -right-1.5 -top-1.5 grid h-[18px] min-w-[18px] place-items-center rounded-full border-2 border-amber-500 bg-white px-1 text-[11px] font-bold leading-none text-amber-700">
-                          {schoolYearPendingCount}
-                        </span>
-                      )}
-                    </button>
-                  )}
-                  {selectMode ? (
-                    <button onClick={exitSelectMode}
-                      className="text-sm font-medium text-foreground border border-border rounded-full px-3 py-2 hover:bg-canvas">
-                      Done
-                    </button>
-                  ) : (
-                    <div className="relative">
-                      <button
-                        ref={listMenuBtnRef}
-                        onClick={toggleListMenu}
-                        disabled={bulkQueueMode}
-                        className={`flex items-center justify-center h-[38px] w-[38px] rounded-[10px] bg-primary text-white ${bulkQueueMode ? 'opacity-40 cursor-not-allowed' : 'hover:brightness-110'}`}
-                        title="More options"
-                      >
-                        <MoreVertical className="w-4 h-4" />
-                      </button>
-                      {showListMenu && !bulkQueueMode && (
-                        <>
-                          <div className="fixed inset-0 z-10" onClick={() => setShowListMenu(false)} />
-                          {/* ⚠ FIXED, not absolute. This card is `overflow-hidden`,
-                              and a clipping ancestor cuts an absolutely positioned
-                              menu off at its edge — the school-year menu looked like
-                              a dead button for exactly that reason. Positioned from
-                              the trigger's own rect so no ancestor can clip it. */}
-                          {/* Hugs its content width (user, 2026-09-27) -- was a
-                              fixed w-44 wider than any of these three labels
-                              need. Title Case, no trailing ellipsis. Order:
-                              Archive Students, Find Duplicates, Queue (user,
-                              2026-09-27 -- Queue moved last; "Select Students"
-                              renamed to "Archive Students" since that's the
-                              only thing this mode's select-then-act flow does). */}
-                          <div
-                            style={listMenuAt ? { top: listMenuAt.top, right: listMenuAt.right } : undefined}
-                            className="fixed z-50 bg-card border border-border rounded-xl shadow-md py-1 w-max"
-                          >
-                            <button
-                              onClick={() => { setSelectMode(true); setShowListMenu(false); }}
-                              className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-canvas flex items-center gap-2"
-                            >
-                              <ListChecks className="w-3.5 h-3.5" /> Archive Students
-                            </button>
-                            <button
-                              onClick={() => { setShowListMenu(false); setShowDuplicates(true); void loadDuplicates(); }}
-                              className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-canvas flex items-center gap-2"
-                            >
-                              <Copy className="w-3.5 h-3.5" /> Find Duplicates
-                            </button>
-                            {/* Queue (user, 2026-09-27): the Bulk Queue
-                                counterpart to Dental Charts' own Dequeue flow --
-                                a SEPARATE mode from "Archive Students" above, not
-                                another action inside it. Turns on bulkQueueMode,
-                                which reveals checkboxes AND makes each row's
-                                Grade/Section clickable, plus the dark bar below
-                                the header (see bulkQueueMode block after the
-                                table). */}
-                            <button
-                              onClick={() => { setBulkQueueMode(true); setShowListMenu(false); }}
-                              className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-canvas flex items-center gap-2"
-                            >
-                              <ListPlus className="w-3.5 h-3.5" /> Bulk Queue
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-              <FilterSelect value={gradeFilter} onChange={v => { setGradeFilter(v); setSectionFilter('all'); }} label="All Grades"
-                options={[{ value: NO_GRADE, label: 'No Grade' }, ...GRADES.map(g => ({ value: g, label: g }))]} />
-              <FilterSelect value={sectionFilter} onChange={setSectionFilter} label="All Sections"
-                options={[{ value: NO_SECTION, label: 'No Section' }, ...allSections.map(s => ({ value: s, label: s }))]} />
-              <FilterSelect value={genderFilter} onChange={setGenderFilter} label="All Genders"
-                options={[{ value:'Male', label:'Male' }, { value:'Female', label:'Female' }]} />
-              <FilterSelect value={ageGroupFilter} onChange={setAgeGroupFilter} label="All Age Groups"
-                options={[{ value:'4 & below', label:'4 & below' }, { value:'5-9', label:'5-9' }, { value:'10-14', label:'10-14' }, { value:'15-19', label:'15-19' }, { value:'20 & above', label:'20 & above' }]} />
-              {hasActiveFilters && (
-                <button onClick={clearFilters} className="flex items-center gap-1 px-3 py-2 text-sm text-destructive border border-destructive/20 rounded-full hover:bg-danger-surface">
-                  <X className="w-3 h-3" /> Clear All
+            <div className="flex flex-shrink-0 items-center gap-2">
+              {selectMode && tickedIds.size > 0 && (
+                <button
+                  onClick={() => { setArchivePassword(''); setArchivePasswordError(null); setConfirmArchiveTicked(true); }}
+                  title="Archive"
+                  aria-label={`Archive ${tickedIds.size} selected`}
+                  className="p-2 rounded-full border border-destructive text-destructive hover:bg-danger-surface"
+                >
+                  <ArchiveIcon className="w-4 h-4" />
                 </button>
               )}
-              </div>
+              {/* Annual rollover (see UpdateSchoolYear.tsx): school-wide clear +
+                  reassign + archive. Solid navy icon button beside the more-options
+                  button; turns amber with a count while pupils still lack a grade or
+                  section (the same check that doubles as "rollover not finished"). */}
+              {canAddStudent && !selectMode && !bulkQueueMode && (
+                <button
+                  onClick={() => navigate('/students/update-school-year')}
+                  title={schoolYearNeedsUpdate ? `Update School Year: ${schoolYearPendingCount} ${schoolYearPendingCount === 1 ? 'pupil needs' : 'pupils need'} a grade or section` : 'Update School Year'}
+                  aria-label={schoolYearNeedsUpdate ? `Update School Year Information, ${schoolYearPendingCount} need a grade or section` : 'Update School Year Information'}
+                  className={`relative grid h-[38px] w-[38px] place-items-center rounded-[10px] text-white transition-colors hover:brightness-110 ${schoolYearNeedsUpdate ? 'bg-amber-500' : 'bg-primary'}`}
+                >
+                  <CalendarClock className="h-[19px] w-[19px]" strokeWidth={1.5} />
+                  {schoolYearNeedsUpdate && (
+                    <span className="absolute -right-1.5 -top-1.5 grid h-[18px] min-w-[18px] place-items-center rounded-full border-2 border-amber-500 bg-white px-1 text-[11px] font-bold leading-none text-amber-700">
+                      {schoolYearPendingCount}
+                    </span>
+                  )}
+                </button>
+              )}
+              {selectMode ? (
+                <button onClick={exitSelectMode}
+                  className="text-sm font-medium text-foreground border border-border rounded-full px-3 py-2 hover:bg-canvas">
+                  Done
+                </button>
+              ) : (
+                <div className="relative">
+                  <button
+                    ref={listMenuBtnRef}
+                    onClick={toggleListMenu}
+                    disabled={bulkQueueMode}
+                    className={`flex items-center justify-center h-[38px] w-[38px] rounded-[10px] bg-primary text-white ${bulkQueueMode ? 'opacity-40 cursor-not-allowed' : 'hover:brightness-110'}`}
+                    title="More options"
+                  >
+                    <MoreVertical className="w-4 h-4" />
+                  </button>
+                  {showListMenu && !bulkQueueMode && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setShowListMenu(false)} />
+                      {/* ⚠ FIXED, not absolute. This card is `overflow-hidden`,
+                          and a clipping ancestor cuts an absolutely positioned
+                          menu off at its edge — the school-year menu looked like
+                          a dead button for exactly that reason. Positioned from
+                          the trigger's own rect so no ancestor can clip it. */}
+                      {/* Hugs its content width (user, 2026-09-27) -- was a
+                          fixed w-44 wider than any of these three labels
+                          need. Title Case, no trailing ellipsis. Order:
+                          Archive Students, Find Duplicates, Queue (user,
+                          2026-09-27 -- Queue moved last; "Select Students"
+                          renamed to "Archive Students" since that's the
+                          only thing this mode's select-then-act flow does). */}
+                      <div
+                        style={listMenuAt ? { top: listMenuAt.top, right: listMenuAt.right } : undefined}
+                        className="fixed z-50 bg-card border border-border rounded-xl shadow-md py-1 w-max"
+                      >
+                        <button
+                          onClick={() => { setSelectMode(true); setShowListMenu(false); }}
+                          className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-canvas flex items-center gap-2"
+                        >
+                          <ListChecks className="w-3.5 h-3.5" /> Archive Students
+                        </button>
+                        <button
+                          onClick={() => { setShowListMenu(false); setShowDuplicates(true); void loadDuplicates(); }}
+                          className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-canvas flex items-center gap-2"
+                        >
+                          <Copy className="w-3.5 h-3.5" /> Find Duplicates
+                        </button>
+                        {/* Queue (user, 2026-09-27): the Bulk Queue
+                            counterpart to Dental Charts' own Dequeue flow --
+                            a SEPARATE mode from "Archive Students" above, not
+                            another action inside it. Turns on bulkQueueMode,
+                            which reveals checkboxes AND makes each row's
+                            Grade/Section clickable, plus the dark bar below
+                            the header (see bulkQueueMode block after the
+                            table). */}
+                        <button
+                          onClick={() => { setBulkQueueMode(true); setShowListMenu(false); }}
+                          className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-canvas flex items-center gap-2"
+                        >
+                          <ListPlus className="w-3.5 h-3.5" /> Bulk Queue
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
+          </div>
+
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-2">
+            <ListSearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search student, grade, or section" />
+            <FilterSelect value={gradeFilter} onChange={v => { setGradeFilter(v); setSectionFilter('all'); }} label="All Grades"
+              options={[{ value: NO_GRADE, label: 'No Grade' }, ...GRADES.map(g => ({ value: g, label: g }))]} />
+            <FilterSelect value={sectionFilter} onChange={setSectionFilter} label="All Sections"
+              options={[{ value: NO_SECTION, label: 'No Section' }, ...allSections.map(s => ({ value: s, label: s }))]} />
+            <FilterSelect value={genderFilter} onChange={setGenderFilter} label="All Genders"
+              options={[{ value:'Male', label:'Male' }, { value:'Female', label:'Female' }]} />
+            <FilterSelect value={ageGroupFilter} onChange={setAgeGroupFilter} label="All Age Groups"
+              options={[{ value:'4 & below', label:'4 & below' }, { value:'5-9', label:'5-9' }, { value:'10-14', label:'10-14' }, { value:'15-19', label:'15-19' }, { value:'20 & above', label:'20 & above' }]} />
+            {hasActiveFilters && (
+              <button onClick={clearFilters} className="flex items-center gap-1 px-3 py-2 text-sm text-destructive border border-destructive/20 rounded-full hover:bg-danger-surface">
+                <X className="w-3 h-3" /> Clear All
+              </button>
+            )}
           </div>
         </div>
 

@@ -126,7 +126,7 @@ export function StudentRiskChip({
                   )}
                 </div>
                 <p className="rounded-lg bg-muted px-2.5 py-1.5 text-xs text-muted-foreground">Not counted in reports until the dentist reviews it.</p>
-                <div className="flex flex-col gap-2 sm:flex-row-reverse">
+                <div className="flex flex-col gap-2 pt-3 sm:flex-row-reverse">
                   <button type="button" onClick={() => setReviewing(true)}
                     className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover">
                     Review now
