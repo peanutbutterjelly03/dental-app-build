@@ -486,7 +486,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
           <div className="w-full sm:w-60">
             <div className="mb-1 flex justify-between text-xs">
               <b className="truncate text-foreground">{grade === UNASSIGNED ? 'Unassigned' : grade}{section ? ` · ${section}` : ''}</b>
-              <span className="text-muted-foreground">{movedCount} of {rows.length} moved</span>
+              <span className="text-muted-foreground">{movedCount} of {rows.length} promoted</span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-gray-200">
               <div className="h-full bg-green-600 transition-all" style={{ width: `${rows.length ? (movedCount / rows.length) * 100 : 0}%` }} />
@@ -700,25 +700,12 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
               {/* Count, status filter and search. VIEW filters only -- they never
                   change which students the run touches, which is why the counts
                   on the left still read from every row. */}
-              <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
-                <span className="text-[14.5px] font-normal text-foreground">{rows.length} student{rows.length === 1 ? '' : 's'}</span>
-                <span className="text-[12.5px] text-muted-foreground">· {selected.size} selected</span>
-                {mode === 'promote' && (
-                  <div className="flex gap-1.5 sm:ml-2">
-                    {([['all', 'All'], ['todo', `Not yet moved · ${rows.length - movedCount}`], ['moved', `Moved · ${movedCount}`]] as const).map(([k, t]) => (
-                      <button
-                        key={k}
-                        type="button"
-                        onClick={() => setStatusFilter(k)}
-                        aria-pressed={statusFilter === k}
-                        className={`rounded-full px-3 py-1 text-[12.5px] font-normal ${statusFilter === k ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-100 text-muted-foreground hover:bg-gray-200'}`}
-                      >
-                        {t}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <div className="relative w-full sm:ml-auto sm:w-60">
+              <div className={`flex flex-wrap items-center justify-between gap-3 px-4 pt-3 ${mode === 'promote' ? '' : 'border-b border-border pb-3'}`}>
+                <div>
+                  <div className="text-[17px] font-bold leading-tight text-foreground">{rows.length} student{rows.length === 1 ? '' : 's'}</div>
+                  <div className="text-[12.5px] text-muted-foreground">{selected.size} selected</div>
+                </div>
+                <div className="relative w-full sm:w-60">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <input
                     value={search}
@@ -734,11 +721,30 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                   )}
                 </div>
               </div>
+              {mode === 'promote' && (
+                <div className="mt-2 flex gap-6 overflow-x-auto border-b-2 border-slate-200 px-4">
+                  {([['all', 'All', rows.length], ['todo', 'Not yet promoted', rows.length - movedCount], ['moved', 'Promoted', movedCount]] as const).map(([k, t, n]) => (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => setStatusFilter(k)}
+                      aria-pressed={statusFilter === k}
+                      className={`-mb-0.5 whitespace-nowrap border-b-[3px] py-2.5 text-[14px] font-semibold ${statusFilter === k ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                    >
+                      {t}<span className="ml-1.5 text-[12.5px] font-normal text-muted-foreground">{n}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {visibleRows.length === 0 && (
-                <p className="px-4 py-6 text-[14.5px] text-muted-foreground">
-                  No student matches{search ? <> “{search}”</> : ' this filter'}. The {rows.length} in this list are still counted — the search and filter only change what is shown.
-                </p>
+                <div className="grid min-h-[16rem] flex-1 content-start justify-items-center px-8 pb-8 pt-20 text-center">
+                  <div>
+                    <Users className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+                    <p className="text-sm font-semibold text-foreground">No students {search ? `match “${search}”` : 'match this filter'}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Try another filter or clear the search. All {rows.length} students are still counted.</p>
+                  </div>
+                </div>
               )}
 
               {/* overflow-x-auto: wide tables scroll inside their own container,
