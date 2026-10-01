@@ -13,6 +13,7 @@ import { Notice } from './Notice';
 import { RiskReviewDialog, LevelChip } from './risk/RiskReviewDialog';
 import { displayLevel, type RiskReviewStatus } from '../../../shared/riskCandidates';
 import { suggestTreatments } from '../../../shared/riskTreatments';
+import { treatmentCodes } from '../../../shared/treatmentCodes';
 
 // Risk Classification (2026-10-01): the classmate's design, replacing the
 // Sprint 21g queue + inline validation panel. Plan and decisions: HANDOFF
@@ -355,7 +356,7 @@ export const AIAnalytics = () => {
                     <th rowSpan={2} className="px-4 py-3">Student</th>
                     <th rowSpan={2} className="px-4 py-3">Risk</th>
                     <th colSpan={5} className="border-b-2 border-slate-400 px-3 py-2 text-center text-[11px] font-bold uppercase tracking-wider text-slate-500">Caries Experience</th>
-                    <th rowSpan={2} className="px-3 py-3 text-center">Treatments</th>
+                    <th rowSpan={2} className="px-3 py-3 text-left">Treatment Recommendation</th>
                     <th rowSpan={2} className="px-4 py-3 text-right">Actions</th>
                   </tr>
                   <tr className="bg-gray-100 text-left align-bottom text-[11px] font-normal normal-case tracking-normal text-slate-500">
@@ -372,7 +373,18 @@ export const AIAnalytics = () => {
                   ) : candidates.map((c, i) => {
                     const lvl = displayLevel(c);
                     const charted = c.teeth.length > 0;
-                    const toDecide = c.status === 'needs_review' ? suggestTreatments(c.teeth, c.suggestion?.level ?? null).length : null;
+                    // What the system recommends: from the suggestion while it waits, from the
+                    // confirmed level once the dentist has reviewed it. Computed, never filled in.
+                    const recommended = c.status === 'not_checked' || c.status === 'no_visit'
+                      ? null
+                      : suggestTreatments(c.teeth, c.status === 'reviewed' ? lvl : c.suggestion?.level ?? null);
+                    const recGroups = recommended
+                      ? Object.values(recommended.reduce<Record<string, { code: string; teeth: number }>>((acc, t) => {
+                          acc[t.code] = acc[t.code] ?? { code: t.code, teeth: 0 };
+                          if (t.tooth !== null) acc[t.code].teeth += 1;
+                          return acc;
+                        }, {}))
+                      : null;
                     const canOpen = c.status === 'needs_review' || c.status === 'not_checked';
                     return (
                       <tr key={c.id}>
@@ -392,8 +404,20 @@ export const AIAnalytics = () => {
                         ) : (
                           <td colSpan={5} className="px-3 py-3 text-left text-muted-foreground">Not charted this school year</td>
                         )}
-                        <td className="px-3 py-3 text-center text-foreground">
-                          {toDecide !== null ? `${toDecide} to decide` : c.status === 'reviewed' ? 'Decided' : '—'}
+                        <td className="px-3 py-3 text-foreground">
+                          {recGroups === null
+                            ? <span className="text-muted-foreground">Not checked yet</span>
+                            : recGroups.length === 0
+                              ? <span className="text-muted-foreground">None recommended</span>
+                              : (
+                                <div className="flex flex-wrap gap-1">
+                                  {recGroups.map((g) => (
+                                    <span key={g.code} className="whitespace-nowrap rounded-full border border-border bg-muted px-2 py-0.5 text-xs">
+                                      {treatmentCodes.find((t) => t.code === g.code)?.label ?? g.code}{g.teeth > 1 ? ` (${g.teeth} teeth)` : ''}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                         </td>
                         <td className="px-4 py-3 text-right">
                           {canOpen && (
