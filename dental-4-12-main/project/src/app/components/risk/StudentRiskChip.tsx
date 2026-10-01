@@ -48,7 +48,7 @@ export function StudentRiskChip({
   }
   if (review.status === 'not_checked' || review.status === 'no_visit') {
     return (
-      <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-[12.5px] font-normal text-slate-500">
+      <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-normal text-slate-500">
         <CircleDashed className="h-3.5 w-3.5" aria-hidden="true" />
         {review.status === 'not_checked' ? 'Not checked' : 'No visit'}
       </span>
