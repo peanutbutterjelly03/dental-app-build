@@ -402,7 +402,16 @@ export const AIAnalytics = () => {
                             <td className="px-2 py-3 text-left tabular-nums">{c.caries.cariesFreeTeeth ?? '—'}</td>
                           </>
                         ) : (
-                          <td colSpan={5} className="px-3 py-3 text-left text-muted-foreground">Not charted this school year</td>
+                          <td colSpan={5} className="px-3 py-2.5">
+                            <div className="flex items-center gap-2.5 rounded-xl border border-dashed border-slate-300 px-3 py-1.5"
+                              style={{ backgroundImage: 'repeating-linear-gradient(135deg, #fafbfc, #fafbfc 8px, #f4f6f9 8px, #f4f6f9 16px)' }}>
+                              <span className="grid h-6 w-6 flex-shrink-0 place-items-center rounded-lg bg-slate-200 text-slate-500"><CircleDashed className="h-3.5 w-3.5" aria-hidden="true" /></span>
+                              <div className="min-w-0">
+                                <div className="text-[12px] font-semibold leading-tight text-foreground">No dental chart this school year</div>
+                                <div className="text-[11px] leading-tight text-muted-foreground">Caries results appear here once the student is charted.</div>
+                              </div>
+                            </div>
+                          </td>
                         )}
                         <td className="px-3 py-3 text-foreground">
                           {recGroups === null
