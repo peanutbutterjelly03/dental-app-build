@@ -82,6 +82,9 @@ function SectionCombo({ value, onChange, options, disabled, ariaLabel, className
   );
 }
 
+/** Pseudo-grade for the "no grade or section yet" shortcut. */
+const UNASSIGNED = '__unassigned__';
+
 export const GRADES = ['Kinder','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10'];
 
 /** The grade after `g`, or null for the exit year (Grade 10 leaves). */
@@ -167,9 +170,10 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
     if (!schoolId || !grade) { setStudents([]); return; }
     let cancelled = false;
     setLoading(true);
-    const params = new URLSearchParams({ school_id: schoolId, grade_level: grade });
+    const params = new URLSearchParams({ school_id: schoolId });
+    if (grade !== UNASSIGNED) params.set('grade_level', grade);
     apiClient.get<ApiStudent[]>(`/students?${params}`)
-      .then((rows) => { if (!cancelled) setStudents(rows); })
+      .then((rows) => { if (!cancelled) setStudents(grade === UNASSIGNED ? rows.filter((x) => !x.grade_level || !x.section) : rows); })
       .catch(() => { if (!cancelled) setStudents([]); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -499,10 +503,11 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
               <label className={label} htmlFor="pa-grade">Grade <span className="ml-1.5 rounded-full bg-green-100 px-2 py-0.5 align-[1px] text-[11px] font-bold text-green-800">Current</span></label>
               <select id="pa-grade" value={grade} onChange={(e) => { setGrade(e.target.value); setSection(''); setSelected(new Set()); }} className={`w-full ${field}`} aria-label="Grade">
                 <option value="">Choose a grade…</option>
+                {mode === 'transfer' && <option value={UNASSIGNED}>No grade or section yet</option>}
                 {GRADES.map((g) => <option key={g}>{g}</option>)}
               </select>
               <label className={`${label} !mt-3`} htmlFor="pa-section">Section <span className="ml-1.5 rounded-full bg-green-100 px-2 py-0.5 align-[1px] text-[11px] font-bold text-green-800">Current</span></label>
-              <select id="pa-section" value={section} onChange={(e) => setSection(e.target.value)} className={`w-full ${field}`} aria-label="Section" disabled={!grade}>
+              <select id="pa-section" value={section} onChange={(e) => setSection(e.target.value)} className={`w-full ${field}`} aria-label="Section" disabled={!grade || grade === UNASSIGNED}>
                 <option value="">Every section</option>
                 {sections.map((s) => <option key={s}>{s}</option>)}
               </select>
@@ -514,7 +519,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
             <div className="space-y-2">
               <div className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2">
                 <div className="text-[11px] font-semibold text-muted-foreground">Now</div>
-                <div className="text-sm font-bold text-foreground">{grade ? `${grade}${section ? ` · ${section}` : ''}` : <span className="font-normal text-muted-foreground">Pick a grade in step 1</span>}</div>
+                <div className="text-sm font-bold text-foreground">{grade ? (grade === UNASSIGNED ? 'No grade or section yet' : `${grade}${section ? ` · ${section}` : ''}`) : <span className="font-normal text-muted-foreground">Pick a grade in step 1</span>}</div>
               </div>
               <div className="text-center text-3xl font-bold leading-none text-muted-foreground" aria-hidden="true">↓</div>
               <div className={`space-y-3 rounded-lg border-2 p-3 ${mode === 'promote' ? 'border-red-400 bg-red-50' : 'border-green-500 bg-green-50'}`}>
@@ -529,7 +534,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                     <div id="pa-to" className="rounded-lg border border-slate-400 bg-slate-50 px-3 py-2.5 text-sm font-medium text-primary"><span className="flex items-center justify-between gap-2"><span>{grade ? (target ?? `Stays in ${grade}`) : ''}</span><span className="text-xs font-normal text-muted-foreground">Automatic</span></span></div>
                   ) : (
                     <select id="pa-to" value={transferGrade} onChange={(e) => setTransferGrade(e.target.value)} className={`w-full ${field} font-medium text-primary`} aria-label="Move to grade">
-                      <option value="">Stay in their current grade</option>
+                      <option value="">{grade === UNASSIGNED ? 'Choose a grade…' : 'Stay in their current grade'}</option>
                       {GRADES.map((g) => <option key={g}>{g}</option>)}
                     </select>
                   )}
@@ -598,7 +603,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
             <div className="mb-1 flex items-center gap-2"><span className="grid h-6 w-6 place-items-center rounded-full bg-primary text-xs font-bold text-white">3</span><span className="text-base font-bold text-foreground">Tick the students, then confirm</span></div>
             <button
               onClick={mode === 'transfer' ? runTransfer : run}
-              disabled={running || (mode === 'transfer' ? transferPicked.length === 0 : toApply.length === 0)}
+              disabled={running || (mode === 'transfer' ? transferPicked.length === 0 || (grade === UNASSIGNED && !transferGrade) : toApply.length === 0)}
               className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
             >
               {running ? 'Working…'
@@ -623,8 +628,8 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
           </div>
 
           <div className="space-y-1 border-t border-border pt-3 text-sm">
-            {onShowUnassigned && unassignedCount > 0 && (
-              <button type="button" onClick={onShowUnassigned} className="flex w-full items-center gap-2 rounded-md px-1 py-1.5 text-left font-semibold text-primary hover:bg-primary/5">
+            {mode === 'transfer' && unassignedCount > 0 && (
+              <button type="button" onClick={() => { setGrade(UNASSIGNED); setSection(''); setSelected(new Set()); }} className="flex w-full items-center gap-2 rounded-md px-1 py-1.5 text-left font-semibold text-primary hover:bg-primary/5">
                 <ListChecks className="h-4 w-4" /> Students without a grade
                 <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">{unassignedCount}</span>
               </button>
@@ -724,9 +729,9 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                           <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label={allSelected ? 'Deselect all students' : 'Select all students'} className="h-4 w-4 cursor-pointer align-middle accent-primary" />
                         </th>
                         <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-foreground">Student</th>
-                        <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-foreground">{mode === 'transfer' ? 'Current' : `Now (${fromYear})`}</th>
+                        <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-foreground">Current</th>
                         {mode === 'transfer' && <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-green-700">Will update to <span className="ml-1 rounded-full bg-green-200 px-2 py-px text-[10px] font-semibold text-green-800">{fromYear}</span></th>}
-                        {mode === 'promote' && <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-green-700">In {toYear}</th>}
+                        {mode === 'promote' && <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-red-700">Promote to <span className="ml-1 rounded-full bg-red-200 px-2 py-px text-[10px] font-semibold text-red-800">{toYear}</span></th>}
                         {mode === 'promote' && <th className="px-3 py-2 text-left text-[14.5px] font-bold text-foreground">Action</th>}
                         <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-foreground" title={`Section in ${mode === 'promote' ? toYear : fromYear}`}>Section</th>
                       </tr>
@@ -742,9 +747,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                           </td>
                           <td className="whitespace-nowrap px-3 py-2 font-normal text-foreground">{surnameFirst(r.student)}</td>
                           <td className="whitespace-nowrap px-3 py-2 text-[12.5px] text-muted-foreground">
-                            {mode === 'transfer'
-                              ? <span className="rounded-md bg-green-100 px-2 py-0.5 font-normal text-green-800">{r.student.grade_level || 'no grade'}{r.student.section ? ` · ${r.student.section}` : ''}</span>
-                              : <>{r.student.grade_level || 'no grade'}{r.student.section ? ` · ${r.student.section}` : ''}</>}
+                            <span className="rounded-md bg-green-100 px-2 py-0.5 font-normal text-green-800">{r.student.grade_level || 'no grade'}{r.student.section ? ` · ${r.student.section}` : ''}</span>
                           </td>
                           {mode === 'transfer' && (
                             <td className="whitespace-nowrap px-3 py-2 text-[12.5px]">
@@ -758,7 +761,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                               {(() => {
                                 const g = gradeFor(r.student.grade_level ?? '', r.action);
                                 return g
-                                  ? <span className="inline-flex rounded-full border border-green-600 bg-green-50 px-2.5 py-0.5 text-[12.5px] font-normal text-green-700">{g}{r.section ? ` · ${r.section}` : ''}</span>
+                                  ? <span className="inline-flex rounded-full border border-red-400 bg-red-50 px-2.5 py-0.5 text-[12.5px] font-normal text-red-700">{g}{r.section ? ` · ${r.section}` : ''}</span>
                                   : <span className="text-[12.5px] text-muted-foreground">No grade above</span>;
                               })()}
                             </td>

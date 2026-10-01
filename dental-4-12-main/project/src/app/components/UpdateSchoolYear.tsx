@@ -656,6 +656,7 @@ export const UpdateSchoolYear = () => {
                     schoolId={schoolId}
                     schoolName={selectedSchool}
                     nextYearStarted={nextYearStarted}
+                    unassignedCount={unassignedCount}
                   />
                 </div>
                 {locked && (
