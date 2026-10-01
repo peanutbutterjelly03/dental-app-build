@@ -472,14 +472,15 @@ export const DentalChartNav = () => {
             // Same hover spec as Dashboard's own SummaryCell (user,
             // 2026-09-26): -translate-y + primary-tinted border + the exact
             // shadow, not a generic hover:shadow-md.
-            className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6 shadow-[0_4px_20px_rgba(0,0,0,0.06)] cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_10px_30px_rgba(15,23,42,0.08)] focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-2"
+            className="flex flex-col rounded-xl border border-border bg-card p-4 shadow-sm cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-2"
           >
-            <span style={{ backgroundColor: bg, color: fg }} className="w-10 h-10 flex-shrink-0 rounded-xl grid place-items-center">
+            <span style={{ backgroundColor: bg, color: fg }} className="w-8 h-8 flex-shrink-0 rounded-xl grid place-items-center mb-4">
               <Icon className="w-4 h-4" />
             </span>
             <div className="min-w-0">
-              <div className="text-[11px] font-bold text-foreground truncate">{label}</div>
-              <div className="text-2xl font-bold text-foreground">{value}</div>
+              <div className="text-[12px] font-bold text-foreground truncate">{label}</div>
+              <div className="text-[22px] leading-none font-extrabold text-foreground mt-1">{value}</div>
+              <div className="text-[10px] font-thin text-muted-foreground mt-0.5">{value === 1 ? 'student' : 'students'}</div>
             </div>
           </div>
         ))}
