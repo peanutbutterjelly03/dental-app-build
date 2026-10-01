@@ -128,7 +128,7 @@ const DialogShell = ({ icon, iconBg, title, children, onClose, busy }: { icon: R
   <Modal onClose={onClose} closeDisabled={busy} maxWidth="max-w-md" rounded="rounded-2xl">
     <div className="p-6">
       <div className="flex gap-3">
-        <span className={`grid h-11 w-11 flex-shrink-0 place-items-center rounded-2xl ${iconBg}`}>{icon}</span>
+        <span className={`grid h-10 w-10 flex-shrink-0 place-items-center rounded-2xl ${iconBg}`}>{icon}</span>
         <h2 className="self-center text-lg font-bold text-foreground">{title}</h2>
       </div>
       {children}
@@ -622,8 +622,8 @@ export const UpdateSchoolYear = () => {
         <>
           <div className="grid gap-3 sm:grid-cols-2">
             {([
-              { id: 'assign' as const, icon: <GraduationCap className="h-5 w-5" />, title: 'Assign', sub: `Fix a student's grade or section for ${fromYear}. This does not start a new school year.`, locked: false },
-              { id: 'promotion' as const, icon: nextYearStarted ? <Repeat className="h-5 w-5" /> : <Lock className="h-5 w-5" />, title: 'Learners Promotion and Retention', sub: `Promote, retain or skip a grade for students finishing ${fromYear}, and place them in ${toYear}.`, locked: !nextYearStarted },
+              { id: 'assign' as const, icon: <GraduationCap className="h-5 w-5" />, title: 'Assign Grade and Section', sub: `Change a student's grade or section in ${fromYear}.`, locked: false },
+              { id: 'promotion' as const, icon: nextYearStarted ? <Repeat className="h-5 w-5" /> : <Lock className="h-5 w-5" />, title: 'Learners Promotion and Retention', sub: `Promote, retain or skip a grade into ${toYear}.`, locked: !nextYearStarted },
             ]).map((t) => (
               <button
                 key={t.id}
@@ -632,10 +632,10 @@ export const UpdateSchoolYear = () => {
                 aria-pressed={tab === t.id}
                 className={`flex items-center gap-3 rounded-xl border-2 p-3 text-left ${tab === t.id ? 'border-primary bg-primary/5' : t.locked ? 'border-dashed border-slate-300 bg-slate-100 hover:bg-slate-50' : 'border-slate-300 bg-white hover:bg-gray-50'}`}
               >
-                <span className={`grid h-11 w-11 flex-shrink-0 place-items-center rounded-xl ${tab === t.id ? 'bg-primary text-white' : 'bg-slate-200 text-slate-700'}`}>{t.icon}</span>
+                <span className={`grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl ${tab === t.id ? 'bg-primary text-white' : 'bg-slate-200 text-slate-700'}`}>{t.icon}</span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[17px] font-bold text-foreground">{t.title}</span>
-                  <span className="block text-[13.5px] text-muted-foreground">{t.sub}</span>
+                  <span className="block text-[15.5px] font-bold leading-tight text-foreground">{t.title}</span>
+                  <span className="block text-[12.5px] text-muted-foreground">{t.sub}</span>
                 </span>
                 {t.locked && <span className="flex-shrink-0 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11.5px] font-bold text-amber-800">Opens with {toYear}</span>}
               </button>

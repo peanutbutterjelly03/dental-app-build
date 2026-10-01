@@ -720,7 +720,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
               {/* overflow-x-auto: wide tables scroll inside their own container,
                   never the page (CLAUDE.md, phone width). */}
               {visibleRows.length > 0 && (
-                <div className="max-h-[75vh] flex-1 overflow-auto">
+                <div className="min-h-[24rem] flex-1 basis-0 overflow-auto">
                   <table className="w-full border-collapse text-[14.5px]">
                     <thead>
                       <tr>
