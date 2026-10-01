@@ -353,12 +353,12 @@ export const AIAnalytics = () => {
               <table className="w-full min-w-[900px] text-sm">
                 <thead>
                   <tr className="bg-gray-100 text-left align-bottom text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    <th rowSpan={2} className="align-top px-4 py-3">#</th>
-                    <th rowSpan={2} className="align-top px-4 py-3">Student</th>
-                    <th rowSpan={2} className="align-top px-4 py-3">Risk</th>
+                    <th rowSpan={2} className="align-middle px-4 py-3">#</th>
+                    <th rowSpan={2} className="align-middle px-4 py-3">Student</th>
+                    <th rowSpan={2} className="align-middle px-4 py-3">Risk</th>
                     <th colSpan={5} className="border-b-2 border-slate-400 px-3 py-2 text-center text-[11px] font-bold uppercase tracking-wider text-slate-500">Caries Experience</th>
-                    <th rowSpan={2} className="align-top px-3 py-3 text-left">Treatment Recommendation</th>
-                    <th rowSpan={2} className="align-top px-4 py-3 text-left">Actions</th>
+                    <th rowSpan={2} className="align-middle px-3 py-3 text-left">Treatment Recommendation</th>
+                    <th rowSpan={2} className="align-middle px-4 py-3 text-right">Actions</th>
                   </tr>
                   <tr className="bg-gray-100 text-left align-top text-[11px] font-normal normal-case tracking-normal text-slate-500">
                     <th className="align-top w-[88px] max-w-[88px] px-2 py-2 text-left font-normal leading-tight">With Caries Experience</th>
