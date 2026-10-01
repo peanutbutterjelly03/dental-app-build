@@ -520,8 +520,8 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
               <div className={`space-y-3 rounded-lg border-2 p-3 ${mode === 'promote' ? 'border-red-400 bg-red-50' : 'border-green-500 bg-green-50'}`}>
                 <div className="flex items-center gap-2 text-sm font-bold">
                   {mode === 'promote'
-                    ? <><span className="text-red-700">Promotion</span><span className="rounded-full bg-red-200 px-2.5 py-0.5 text-[11.5px] font-semibold text-red-800">{toYear}</span></>
-                    : <><span className="text-green-700">Will update to</span><span className="rounded-full bg-green-200 px-2.5 py-0.5 text-[11.5px] font-semibold text-green-800">{fromYear}</span></>}
+                    ? <><span className="text-red-700">Promotion</span><span className="rounded-full bg-red-200 px-2 py-px text-[10px] font-semibold text-red-800">{toYear}</span></>
+                    : <><span className="text-green-700">Will update to</span><span className="rounded-full bg-green-200 px-2 py-px text-[10px] font-semibold text-green-800">{fromYear}</span></>}
                 </div>
                 <div>
                   <label className={label} htmlFor="pa-to">Grade</label>
@@ -725,7 +725,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                         </th>
                         <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-foreground">Student</th>
                         <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-foreground">{mode === 'transfer' ? 'Current' : `Now (${fromYear})`}</th>
-                        {mode === 'transfer' && <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-green-700">Will update to <span className="ml-1 rounded-full bg-green-200 px-2 py-0.5 text-[11.5px] font-semibold text-green-800">{fromYear}</span></th>}
+                        {mode === 'transfer' && <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-green-700">Will update to <span className="ml-1 rounded-full bg-green-200 px-2 py-px text-[10px] font-semibold text-green-800">{fromYear}</span></th>}
                         {mode === 'promote' && <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-green-700">In {toYear}</th>}
                         {mode === 'promote' && <th className="px-3 py-2 text-left text-[14.5px] font-bold text-foreground">Action</th>}
                         <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-foreground" title={`Section in ${mode === 'promote' ? toYear : fromYear}`}>Section</th>
