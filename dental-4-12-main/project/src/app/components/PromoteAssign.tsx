@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, GraduationCap, Search, X } from 'lucide-react';
+import { ArrowRight, GraduationCap, Lock, Search, X } from 'lucide-react';
 import { apiClient, ApiError } from '../api/client';
 import type { ApiStudent, ApiStudentIptr } from '../api/types';
 import { Notice } from './Notice';
@@ -62,10 +62,16 @@ interface RowState {
   existingIptr?: ApiStudentIptr;
 }
 
-export const PromoteAssign = ({ onClose, schoolId, schoolName }: {
+export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted = true }: {
   onClose: () => void;
   schoolId: string | undefined;
   schoolName: string;
+  /** False until the School Year has been started for this school (by the
+   *  System Admin, for every school or by approving a request). Promoting opens
+   *  the next year's records, which the server refuses before then, so the
+   *  button is locked here rather than left to fail. Defaults to true so any
+   *  other caller is unchanged. */
+  nextYearStarted?: boolean;
 }) => {
   const toast = useToast();
   const fromYear = schoolYearLabel();
@@ -76,7 +82,8 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName }: {
   //  · transfer — moves pupils between grade/section WITHIN the current year,
   //    creating no year record at all. Requested 2026-09-04: "sections can
   //    change mid year", so a reshuffle of 30 pupils was 30 separate edits.
-  const [mode, setMode] = useState<'promote' | 'transfer'>('promote');
+  const [mode, setMode] = useState<'promote' | 'transfer'>(nextYearStarted ? 'promote' : 'transfer');
+  useEffect(() => { if (!nextYearStarted) setMode('transfer'); }, [nextYearStarted]);
   const [transferGrade, setTransferGrade] = useState('');
   const [grade, setGrade] = useState('');
   const [section, setSection] = useState('');
@@ -405,11 +412,15 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName }: {
             type="button"
             onClick={() => { setMode(m); setSelected(new Set()); setResult(null); }}
             aria-pressed={mode === m}
-            className={`flex-1 sm:flex-none px-4 py-2 text-sm font-medium ${
+            disabled={m === 'promote' && !nextYearStarted}
+            title={m === 'promote' && !nextYearStarted ? `Opens when ${toYear} starts for ${schoolName}` : undefined}
+            className={`flex-1 sm:flex-none px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-muted-foreground ${
               mode === m ? 'bg-primary text-white' : 'bg-card text-foreground hover:bg-gray-50'
             }`}
           >
-            {m === 'promote' ? `Promote to ${toYear}` : `Transfer within ${fromYear}`}
+            {m === 'promote'
+              ? <>{!nextYearStarted && <Lock className="mr-1.5 inline h-3.5 w-3.5 align-[-2px]" />}Promote to {toYear}</>
+              : `Transfer within ${fromYear}`}
           </button>
         ))}
       </div>

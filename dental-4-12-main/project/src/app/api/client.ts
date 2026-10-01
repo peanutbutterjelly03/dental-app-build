@@ -68,8 +68,10 @@ async function request<T>(path: string, options: RequestInit = {}, isRetry = fal
 // "synced later" risk prediction is meaningless, so it's never queued either.
 // /twofa/ management is a live email round-trip (send code / confirm code) —
 // queueing it offline would fake success without any code ever being sent.
+// /school-year/* carries a password and starts a school year for real -- a
+// "synced later" start, or a password replayed from storage, is never wanted.
 function isNeverQueuedPath(path: string): boolean {
-  return path.startsWith('/auth/') || path.startsWith('/predictions') || path.includes('/twofa/');
+  return path.startsWith('/auth/') || path.startsWith('/predictions') || path.includes('/twofa/') || path.startsWith('/school-year');
 }
 
 // "View as" preview (utils/viewAs.ts): while the System Admin previews another

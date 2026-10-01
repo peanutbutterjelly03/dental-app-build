@@ -1,42 +1,111 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { ArrowLeft, GraduationCap, Repeat, Archive as ArchiveIcon, School as SchoolIcon } from 'lucide-react';
+import {
+  ArrowLeft, ArrowRight, Bell, BellRing, CalendarDays, CircleCheck, CircleX, Clock, GraduationCap,
+  Hourglass, Info, Lock, Repeat, Archive as ArchiveIcon, School as SchoolIcon, TriangleAlert,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useStudents } from '../hooks/useStudents';
+import { useSchoolYear, type SchoolYearSchool } from '../hooks/useSchoolYear';
 import { apiClient, ApiError } from '../api/client';
 import type { ApiSchool } from '../api/types';
 import { Notice } from './Notice';
 import { useToast } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
-import { schoolYearLabel, nextSchoolYear } from '../utils/schoolYear';
+import { Modal } from './Modal';
+import { schoolYearLabel, nextSchoolYear, schoolYearEnd } from '../utils/schoolYear';
+import { plannedStartProblem } from '../../../shared/schoolYearRollover';
 import { GRADES, PromoteAssign } from './PromoteAssign';
 
 // ─── Update School Year ──────────────────────────────────────────────────────
-// Replaces the old "Promote / Assign" entry point. Two things live here that
-// didn't before:
-//   • "Start New School Year" — a school-wide clear of grade/section, for the
-//     April/May rollover when the whole roster needs a clean slate rather than
-//     one grade at a time. Each student's OUTGOING grade/section is written to
-//     their STUDENT_IPTR for the year just ending first, so the history survives
-//     the clear (same "STUDENT = current enrolment, STUDENT_IPTR = per-year
-//     record" split PromoteAssign already uses, just run backward-in-time).
-//   • Bulk Transfer — search/select any set of students and move them to a
-//     target grade+section together, or archive them, without picking a
-//     single existing grade first. Cleared ("unassigned") students surface
-//     under their own filter so nobody stays invisible after the clear.
+// Rules (user, 2026-10-01):
+//   • Only the SYSTEM ADMIN starts a new school year, and the button starts it
+//     for EVERY school at once: grade and section are cleared for all pupils,
+//     each one's outgoing values saved to their IPTR first.
+//   • A dentist or dental aide can ask, ONCE A YEAR, for their own school to
+//     start early. The System Admin approves (only that school is cleared) or
+//     declines. Every step shows on this page and in the Notifications module.
+//   • The System Admin may set the date the next year begins, for the next year
+//     only. Changing it, and starting every school, both ask for the password.
+//   • Until a school has started, nobody else can create that year's IPTR --
+//     enforced by the API (schoolYearController.guardNextYearIptr), not just
+//     by the locks below.
+// The clearing itself now runs on the server (it used to run, pupil by pupil, in
+// the browser); see schoolYearController.startSchool.
 //
-// No new persisted setting for "when" the school year turns over — the user
-// confirmed the existing School Year picker (schoolYearLabel/nextSchoolYear)
-// is enough; DepEd's June–April calendar is already encoded there.
+// Still here, unchanged:
+//   • Bulk Transfer -- search/select any set of students and move them to a
+//     target grade+section together, or archive them. Cleared ("unassigned")
+//     students surface under their own filter so nobody stays invisible.
 
 const UNASSIGNED = '__unassigned__';
 
 type Tab = 'promote' | 'transfer';
 
+type Dialog =
+  | { kind: 'startAll' }
+  | { kind: 'plan' }
+  | { kind: 'ask' }
+  | { kind: 'approve'; school: SchoolYearSchool }
+  | { kind: 'decline'; school: SchoolYearSchool };
+
+const parseYmd = (s: string) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtLong = (s: string) => parseYmd(s).toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+const fmtStamp = (iso: string) => new Date(iso).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+const pad = (n: number) => String(n).padStart(2, '0');
+const toYmd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const plural = (n: number, one: string, many = `${one}s`) => (n === 1 ? one : many);
+
+const Chip = ({ tone, children }: { tone: 'green' | 'amber' | 'blue' | 'gray'; children: React.ReactNode }) => {
+  const cls = { green: 'bg-green-100 text-green-800', amber: 'bg-amber-100 text-amber-800', blue: 'bg-indigo-100 text-indigo-800', gray: 'bg-slate-100 text-slate-600' }[tone];
+  return <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${cls}`}>{children}</span>;
+};
+
+const Strip = ({ tone, icon, children, actions }: { tone: 'amber' | 'blue' | 'green'; icon: React.ReactNode; children: React.ReactNode; actions?: React.ReactNode }) => {
+  const cls = {
+    amber: 'bg-amber-50 border-amber-300 text-amber-900',
+    blue: 'bg-blue-50 border-blue-200 text-blue-900',
+    green: 'bg-green-50 border-green-200 text-green-900',
+  }[tone];
+  return (
+    <div className={`flex flex-col gap-3 rounded-2xl border px-4 py-3 text-sm sm:flex-row sm:items-center ${cls}`}>
+      <div className="flex min-w-0 flex-1 items-start gap-3"><span className="mt-0.5 flex-shrink-0">{icon}</span><div className="min-w-0">{children}</div></div>
+      {actions && <div className="flex flex-shrink-0 flex-wrap gap-2">{actions}</div>}
+    </div>
+  );
+};
+
+const PasswordField = ({ id, value, onChange }: { id: string; value: string; onChange: (v: string) => void }) => (
+  <div className="mt-4">
+    <label htmlFor={id} className="mb-1.5 block text-sm font-semibold text-foreground">Your password</label>
+    <input
+      id={id}
+      type="password"
+      autoComplete="current-password"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full rounded-xl border border-border bg-card px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+    />
+  </div>
+);
+
+const DialogShell = ({ icon, iconBg, title, children, onClose, busy }: { icon: React.ReactNode; iconBg: string; title: string; children: React.ReactNode; onClose: () => void; busy: boolean }) => (
+  <Modal onClose={onClose} closeDisabled={busy} maxWidth="max-w-md" rounded="rounded-2xl">
+    <div className="p-6">
+      <div className="flex gap-3">
+        <span className={`grid h-11 w-11 flex-shrink-0 place-items-center rounded-2xl ${iconBg}`}>{icon}</span>
+        <h2 className="self-center text-lg font-bold text-foreground">{title}</h2>
+      </div>
+      {children}
+    </div>
+  </Modal>
+);
+
 export const UpdateSchoolYear = () => {
   const { user, selectedSchool } = useAuth();
   const toast = useToast();
-  const canUse = user?.role === 'dentist' || user?.role === 'dental_aide' || user?.role === 'system_admin';
+  const isAdmin = user?.role === 'system_admin';
+  const canUse = user?.role === 'dentist' || user?.role === 'dental_aide' || isAdmin;
 
   const { students: allStudents, reload: reloadStudents } = useStudents();
   const [schools, setSchools] = useState<ApiSchool[]>([]);
@@ -45,19 +114,20 @@ export const UpdateSchoolYear = () => {
   const school = schools.find((s) => s.school_name === selectedSchool);
   const schoolId = school?._id;
 
-  const fromYear = schoolYearLabel();
-  const toYear = nextSchoolYear(fromYear);
+  const sy = useSchoolYear(canUse);
+  const fromYear = sy.status?.currentYear ?? schoolYearLabel();
+  const toYear = sy.status?.nextYear ?? nextSchoolYear(fromYear);
 
-  // ⚠ NO SEASONAL LOCK (Sprint 185, the user's call). The March–August window
-  // came in with her file; this app never had one. It made the rollover
-  // impossible for seven months of the year unless a SYSTEM ADMIN first ticked
-  // a box on another screen — a second account, to do a thing the dentist is
-  // already trusted to do. The button is destructive and already behind a
-  // confirmation; a calendar month is not what makes it safe.
-  //
-  // `allow_school_year_override` stays on the SCHOOL model and in School
-  // Management. It no longer gates anything here, and is left as the record of
-  // a per-school setting rather than ripped out of a schema on a Friday.
+  // This school's standing (the school in view), and the whole picture for the System Admin.
+  const mySchool = sy.status?.schools.find((s) => s.name === selectedSchool) ?? null;
+  const nextYearStarted = mySchool?.status === 'started';
+  const allSchools = sy.status?.schools ?? [];
+  const startedCount = allSchools.filter((s) => s.status === 'started').length;
+  const allStarted = allSchools.length > 0 && startedCount === allSchools.length;
+  const waiting = allSchools.filter((s) => s.status === 'requested');
+  const toClear = allSchools.filter((s) => s.status !== 'started');
+  const toClearStudents = toClear.reduce((n, s) => n + s.assigned, 0);
+  const plannedStart = sy.status?.plannedStart ?? null;
 
   const [tab, setTab] = useState<Tab>('promote');
 
@@ -68,49 +138,44 @@ export const UpdateSchoolYear = () => {
     [allStudents, selectedSchool],
   );
   const unassignedCount = useMemo(() => roster.filter((s) => !s.grade || !s.section).length, [roster]);
-  const stillAssignedCount = useMemo(() => roster.filter((s) => s.grade || s.section).length, [roster]);
 
-  // ── Start New School Year (clear + preserve history) ────────────────────
-  const [showWipeConfirm, setShowWipeConfirm] = useState(false);
-  const [wiping, setWiping] = useState(false);
-  const [wipeProgress, setWipeProgress] = useState(0);
-  const [wipeResult, setWipeResult] = useState<{ cleared: number; failed: string[] } | null>(null);
+  // ── Starting the year (server-side) ──────────────────────────────────────
+  const [dialog, setDialog] = useState<Dialog | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [dialogError, setDialogError] = useState<string | null>(null);
+  const [password, setPassword] = useState('');
+  const [planDate, setPlanDate] = useState('');
+  const [planSure, setPlanSure] = useState(false);
 
-  const runWipe = async () => {
-    setWiping(true);
-    setWipeResult(null);
-    setWipeProgress(0);
-    const toClear = roster.filter((s) => s.grade || s.section);
-    let cleared = 0;
-    const failed: string[] = [];
-    for (const s of toClear) {
-      try {
-        // Snapshot the OUTGOING year first. A 409 means one already exists for
-        // fromYear (opened at intake, per Sprint 69) — that already carries the
-        // truth, so it is left alone rather than overwritten.
-        try {
-          await apiClient.post('/student-iptrs', {
-            student_id: s.id,
-            school_year: fromYear,
-            grade_level: s.grade,
-            section: s.section || null,
-          });
-        } catch (err) {
-          if (!(err instanceof ApiError && err.status === 409)) throw err;
-        }
-        await apiClient.put(`/students/${s.id}`, { grade_level: '', section: '' });
-        cleared += 1;
-      } catch (err) {
-        failed.push(`${s.name} — ${err instanceof ApiError ? err.message : 'failed'}`);
-      }
-      setWipeProgress((p) => p + 1);
+  const openDialog = (d: Dialog) => {
+    setDialog(d);
+    setDialogError(null);
+    setPassword('');
+    setPlanSure(false);
+    setPlanDate(plannedStart ?? '');
+  };
+  const closeDialog = () => { if (!busy) setDialog(null); };
+
+  const planBounds = useMemo(() => {
+    const first = new Date(schoolYearEnd(new Date()).getTime() + 1);
+    first.setHours(0, 0, 0, 0);
+    return { min: toYmd(first), max: toYmd(new Date(first.getFullYear(), 11, 31)) };
+  }, []);
+
+  /** Runs one action, refreshes everything it can have changed, and reports. */
+  const act = async (fn: () => Promise<unknown>, ok: string | ((r: any) => string)) => {
+    setBusy(true);
+    setDialogError(null);
+    try {
+      const result = await fn();
+      toast.success(typeof ok === 'function' ? ok(result) : ok);
+      setDialog(null);
+      await Promise.all([sy.reload(), reloadStudents()]);
+    } catch (err) {
+      setDialogError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
+    } finally {
+      setBusy(false);
     }
-    setWipeResult({ cleared, failed });
-    setWiping(false);
-    setShowWipeConfirm(false);
-    await reloadStudents();
-    if (cleared > 0) toast.success(`${cleared} student${cleared === 1 ? '' : 's'} cleared for ${toYear}. Their ${fromYear} grade and section are recorded in their IPTR.`);
-    if (failed.length > 0) toast.error(`${failed.length} could not be cleared — see the summary below.`);
   };
 
   // ── Bulk Transfer tab ─────────────────────────────────────────────────
@@ -241,115 +306,219 @@ export const UpdateSchoolYear = () => {
   const field = 'border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring';
 
   // ── Guards ────────────────────────────────────────────────────────────
+  const backLink = (
+    <Link to="/patients" aria-label="Back to Students" title="Back to Students" className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-gray-100 hover:text-foreground">
+      <ArrowLeft className="h-5 w-5" />
+    </Link>
+  );
+
   if (!canUse) {
     return (
       <div className="space-y-4">
-        <Link to="/patients" aria-label="Back to Students" title="Back to Students" className="inline-flex items-center justify-center w-9 h-9 rounded-full text-muted-foreground hover:text-foreground hover:bg-gray-100">
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
+        {backLink}
         <Notice variant="error">Updating the school year is limited to the dentist, dental aide and system admin.</Notice>
       </div>
     );
   }
 
-  if (!selectedSchool) {
+  // The System Admin sees every school; everyone else works on the school in view.
+  if (!isAdmin && !selectedSchool) {
     return (
       <div className="space-y-4">
-        <Link to="/patients" aria-label="Back to Students" title="Back to Students" className="inline-flex items-center justify-center w-9 h-9 rounded-full text-muted-foreground hover:text-foreground hover:bg-gray-100">
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
-        {/* ⚠ The old text said "from the Students page", which is where the
-            school USED to be chosen — a dropdown in the sidebar. It is picked
-            on Switch School now, so the instruction sent people somewhere that
-            cannot do it, and the screen looked broken rather than gated.
-            The way out is a button, not a sentence. */}
+        {backLink}
+        {/* ⚠ The way out is a button, not a sentence: the school is picked on
+            Switch School, and a gate that only describes that looks broken. */}
         <Notice variant="warning">
           This runs one school at a time, and you are viewing <strong>All schools</strong>. Choose a school to continue.
         </Notice>
-        <Link
-          to="/select-school"
-          className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-white hover:bg-primary-hover"
-        >
-          <SchoolIcon className="w-4 h-4" /> Switch School
+        <Link to="/select-school" className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-white hover:bg-primary-hover">
+          <SchoolIcon className="h-4 w-4" /> Switch School
         </Link>
       </div>
     );
   }
 
+  const staffStatus = mySchool?.status ?? 'not_started';
+  const nextChip = isAdmin
+    ? allStarted ? <Chip tone="green"><CircleCheck className="h-3.5 w-3.5" /> Started</Chip>
+      : startedCount > 0 ? <Chip tone="blue">{startedCount} of {allSchools.length} started</Chip>
+      : <Chip tone="amber"><Clock className="h-3.5 w-3.5" /> Not started</Chip>
+    : staffStatus === 'started' ? <Chip tone="green"><CircleCheck className="h-3.5 w-3.5" /> Started</Chip>
+      : staffStatus === 'requested' ? <Chip tone="amber"><Hourglass className="h-3.5 w-3.5" /> Request sent</Chip>
+      : <Chip tone="amber"><Clock className="h-3.5 w-3.5" /> Not started</Chip>;
+
+  const heroText = isAdmin
+    ? allStarted
+      ? <>{toYear} has started for all {allSchools.length} schools.</>
+      : <>Starting {toYear} clears grade and section for <b>{toClearStudents} {plural(toClearStudents, 'student')} in {toClear.length === allSchools.length ? `all ${allSchools.length}` : toClear.length} {plural(toClear.length, 'school')}</b>. Each student's {fromYear} grade and section are saved to their record first.</>
+    : staffStatus === 'started'
+      ? <>{toYear} has started for {selectedSchool}. You can now move students up.</>
+      : <>The System Admin starts {toYear} for every school{plannedStart ? <> on {fmtLong(plannedStart)}</> : ''}. Need it sooner? You can ask the System Admin to start it early for <b>your school only</b>, once a year.</>;
+
   return (
     <div className="space-y-4">
+      {/* Arrow and title share one row; the title is centred on the arrow. */}
       <div>
-        <Link to="/patients" aria-label="Back to Students" title="Back to Students" className="inline-flex items-center justify-center w-9 h-9 rounded-full text-muted-foreground hover:text-foreground hover:bg-gray-100">
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
-        <h1 className="text-2xl font-bold text-primary mt-2">Update School Year</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          {selectedSchool} · {fromYear} <Repeat className="w-3 h-3 inline mx-1" /> {toYear}
+        <div className="flex items-center gap-2">
+          {backLink}
+          <h1 className="text-2xl font-bold leading-none text-primary">Update School Year</h1>
+        </div>
+        <p className="mt-1.5 flex items-center gap-1.5 pl-11 text-sm text-muted-foreground">
+          {isAdmin ? 'All schools' : selectedSchool} · {fromYear} <ArrowRight className="h-3.5 w-3.5" /> {toYear}
         </p>
       </div>
 
-      {/* Start New School Year — the school-wide clear. Idempotent: already-
-          cleared students (empty grade/section) are simply not touched, so
-          re-running it after some reassignment has already happened is safe. */}
-      <div className="bg-card rounded-xl border border-border p-4 space-y-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {sy.error && <Notice variant="error">{sy.error}</Notice>}
+
+      {/* System Admin: every early request waiting for an answer */}
+      {isAdmin && waiting.map((s) => (
+        <Strip
+          key={s.id}
+          tone="amber"
+          icon={<BellRing className="h-5 w-5 text-amber-700" />}
+          actions={<>
+            <button onClick={() => openDialog({ kind: 'decline', school: s })} className="rounded-xl border border-border bg-white px-4 py-2 text-sm font-bold text-foreground hover:bg-gray-50">Decline</button>
+            <button onClick={() => openDialog({ kind: 'approve', school: s })} className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white hover:bg-primary-hover">Approve for this school</button>
+          </>}
+        >
+          <b>{s.requestedBy ?? 'A staff member'}</b> asked to start {toYear} early for <b>{s.name}</b>{s.requestedAt ? <> on {fmtStamp(s.requestedAt)}</> : ''}.
+        </Strip>
+      ))}
+
+      {/* Everyone else: where their one request stands */}
+      {!isAdmin && staffStatus === 'requested' && (
+        <Strip tone="amber" icon={<Hourglass className="h-5 w-5 text-amber-700" />} actions={<Chip tone="amber">Waiting</Chip>}>
+          <b>Request sent</b>{mySchool?.requestedAt ? <> {fmtStamp(mySchool.requestedAt)}</> : ''}. Waiting for the System Admin.
+        </Strip>
+      )}
+      {!isAdmin && staffStatus === 'declined' && (
+        <Strip tone="blue" icon={<CircleX className="h-5 w-5 text-red-700" />} actions={<Chip tone="gray">Used</Chip>}>
+          <b>Declined.</b> You have used this year's early request. {toYear} starts for every school{plannedStart ? <> on {fmtLong(plannedStart)}</> : ''}.
+        </Strip>
+      )}
+      {!isAdmin && staffStatus === 'started' && (
+        <Strip tone="green" icon={<CircleCheck className="h-5 w-5 text-green-700" />} actions={<Chip tone="green">Started</Chip>}>
+          <b>{mySchool?.startKind === 'early' ? 'Approved.' : `${toYear} has started.`}</b> {mySchool?.startKind === 'early' ? `${toYear} has started for your school.` : 'You can now move students up.'}
+        </Strip>
+      )}
+
+      {/* The banner: now -> next, the planned date, and the one big action */}
+      <div className="rounded-2xl p-5 text-white sm:p-7" style={{ background: 'linear-gradient(135deg,#1e2c63,#273a78)' }}>
+        <div className="flex flex-wrap items-center gap-x-8 gap-y-4">
           <div>
-            <h2 className="text-sm font-bold text-foreground">Start {toYear}</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {stillAssignedCount > 0
-                  ? `Clears grade and section for ${stillAssignedCount} student${stillAssignedCount === 1 ? '' : 's'} still carrying their ${fromYear} assignment. Each one's ${fromYear} grade and section is saved to their IPTR first.`
-                  : `Every active student here has already been cleared for ${toYear}.`}
-            </p>
+            <div className="text-xs font-bold tracking-widest text-white/70">NOW</div>
+            <div className="text-2xl font-extrabold sm:text-3xl">{fromYear.replace('-', '–')}</div>
+            <div className="mt-1"><Chip tone="green"><CircleCheck className="h-3.5 w-3.5" /> Running</Chip></div>
           </div>
-          <button
-            onClick={() => setShowWipeConfirm(true)}
-            disabled={stillAssignedCount === 0 || wiping}
-            className="flex-shrink-0 px-3 py-1.5 bg-destructive text-white rounded-lg text-xs font-medium hover:opacity-90 disabled:opacity-50"
-          >
-            {wiping ? `Clearing… ${wipeProgress}/${stillAssignedCount}` : `Start New School Year (${stillAssignedCount})`}
-          </button>
-        </div>
-        {unassignedCount > 0 && (
-          <button
-            onClick={() => { setTab('transfer'); setFromGrade(UNASSIGNED); setFromSection(''); }}
-            className="text-xs font-medium text-primary hover:underline"
-          >
-            {unassignedCount} student{unassignedCount === 1 ? '' : 's'} unassigned for {toYear} — view them
-          </button>
-        )}
-        {wipeResult && (
-          <Notice variant={wipeResult.failed.length ? 'error' : 'success'}>
-            {wipeResult.cleared} cleared, saved to their {fromYear} IPTR.
-            {wipeResult.failed.length > 0 && (
-              <ul className="mt-1 list-disc list-inside">{wipeResult.failed.map((f) => <li key={f}>{f}</li>)}</ul>
+          <ArrowRight className="hidden h-8 w-8 text-white/60 sm:block" />
+          <div>
+            <div className="text-xs font-bold tracking-widest text-white/70">NEXT</div>
+            <div className="text-2xl font-extrabold sm:text-3xl">{toYear.replace('-', '–')}</div>
+            <div className="mt-1">{nextChip}</div>
+          </div>
+          <div className="sm:ml-auto sm:text-right">
+            <div className="text-xs text-white/75">{isAdmin ? 'Planned start for all schools' : 'Planned start'}</div>
+            <div className="my-1 text-base font-extrabold">{plannedStart ? fmtLong(plannedStart) : 'Not set yet'}</div>
+            {isAdmin && !allStarted && (
+              <button onClick={() => openDialog({ kind: 'plan' })} className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-2 text-sm font-bold text-primary hover:bg-white/90">
+                <Lock className="h-4 w-4" /> {plannedStart ? 'Change date' : 'Set date'}
+              </button>
             )}
-          </Notice>
-        )}
+          </div>
+        </div>
+        <div className="mt-5 flex flex-col gap-4 border-t border-white/20 pt-5 sm:flex-row sm:items-center">
+          <p className="flex-1 text-sm text-white/90">{heroText}</p>
+          {isAdmin && !allStarted && (
+            <button onClick={() => openDialog({ kind: 'startAll' })} disabled={!sy.status} className="flex-shrink-0 rounded-xl bg-rose-700 px-5 py-2.5 text-sm font-bold text-white hover:bg-rose-800 disabled:opacity-50">
+              Start new school year for all schools{toClearStudents > 0 ? ` (${toClearStudents})` : ''}
+            </button>
+          )}
+          {!isAdmin && staffStatus === 'not_started' && (
+            <button onClick={() => openDialog({ kind: 'ask' })} disabled={!mySchool} className="inline-flex flex-shrink-0 items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-primary hover:bg-white/90 disabled:opacity-50">
+              <Bell className="h-4 w-4" /> Ask to start early
+            </button>
+          )}
+          {!isAdmin && (staffStatus === 'requested' || staffStatus === 'declined') && (
+            <span className="inline-flex flex-shrink-0 items-center gap-2 rounded-xl bg-white/15 px-5 py-2.5 text-sm font-bold text-white/80">
+              <Lock className="h-4 w-4" /> {staffStatus === 'requested' ? 'Request sent' : 'Request used'}
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 border-b border-border">
-        <button
-          onClick={() => setTab('promote')}
-          className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 -mb-px ${tab === 'promote' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-        >
-          <GraduationCap className="w-4 h-4" /> Assign
-        </button>
-        <button
-          onClick={() => setTab('transfer')}
-          className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 -mb-px ${tab === 'transfer' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-        >
-          <Repeat className="w-4 h-4" /> Bulk Assignment
-        </button>
-      </div>
-
-      {tab === 'promote' && (
-        <div className="bg-card rounded-xl border border-border">
-          <PromoteAssign onClose={() => void reloadStudents()} schoolId={schoolId} schoolName={selectedSchool} />
+      {/* System Admin: how each school stands */}
+      {isAdmin && (
+        <div className="overflow-hidden rounded-2xl border border-border bg-card">
+          <div className="border-b border-border px-5 py-4">
+            <h2 className="text-sm font-bold text-foreground">Schools</h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">The big button above starts every school at once. A school can also start early if you approve its request.</p>
+          </div>
+          {allSchools.length === 0 && <p className="px-5 py-6 text-sm text-muted-foreground">{sy.loading ? 'Loading…' : 'No schools yet.'}</p>}
+          {allSchools.map((s, i) => (
+            <div key={s.id} className={`flex flex-wrap items-center gap-3 px-5 py-3.5 ${i ? 'border-t border-border/60' : ''}`}>
+              <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-xl bg-indigo-100 text-indigo-800"><SchoolIcon className="h-[18px] w-[18px]" /></span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-bold text-foreground">{s.name}</div>
+                <div className="text-xs text-muted-foreground">{s.students} {plural(s.students, 'student')}</div>
+              </div>
+              {s.status === 'started' && <Chip tone="green">Started{s.startKind === 'early' ? ' early' : ''}</Chip>}
+              {s.status === 'requested' && <Chip tone="amber"><Hourglass className="h-3 w-3" /> Early request</Chip>}
+              {s.status === 'declined' && <Chip tone="gray">Request declined</Chip>}
+              {s.status === 'not_started' && <Chip tone="gray">Not started</Chip>}
+              {s.status === 'requested' && (
+                <div className="flex gap-2">
+                  <button onClick={() => openDialog({ kind: 'decline', school: s })} className="rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-bold text-foreground hover:bg-gray-50">Decline</button>
+                  <button onClick={() => openDialog({ kind: 'approve', school: s })} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white hover:bg-primary-hover">Approve</button>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
 
-      {tab === 'transfer' && (
+      {/* Moving students: one school at a time */}
+      {!selectedSchool ? (
+        <Notice variant="warning">To move students up or between sections, choose a school with Switch School.</Notice>
+      ) : (
+        <>
+          {nextYearStarted && unassignedCount > 0 && (
+            <button
+              onClick={() => { setTab('transfer'); setFromGrade(UNASSIGNED); setFromSection(''); }}
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              {unassignedCount} student{unassignedCount === 1 ? '' : 's'} unassigned for {toYear} — view them
+            </button>
+          )}
+
+          <div className="flex gap-1 border-b border-border">
+            <button
+              onClick={() => setTab('promote')}
+              className={`-mb-px flex items-center gap-1.5 border-b-2 px-4 py-2 text-sm font-medium ${tab === 'promote' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+            >
+              <GraduationCap className="h-4 w-4" /> Assign
+            </button>
+            <button
+              onClick={() => setTab('transfer')}
+              className={`-mb-px flex items-center gap-1.5 border-b-2 px-4 py-2 text-sm font-medium ${tab === 'transfer' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+            >
+              <Repeat className="h-4 w-4" /> Bulk Assignment
+            </button>
+          </div>
+
+          {tab === 'promote' && (
+            <div className="rounded-xl border border-border bg-card">
+              <PromoteAssign onClose={() => void reloadStudents()} schoolId={schoolId} schoolName={selectedSchool} nextYearStarted={nextYearStarted} />
+            </div>
+          )}
+
+          {tab === 'transfer' && !nextYearStarted && (
+            <div className="flex items-start gap-3 rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">
+              <Lock className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <p>Bulk Assignment opens when {toYear} starts for {selectedSchool}. {isAdmin ? 'Start the school year above, or approve this school\'s request.' : 'Ask the System Admin to start it early, or wait for the planned start.'}</p>
+            </div>
+          )}
+
+      {tab === 'transfer' && nextYearStarted && (
         <div className="bg-card rounded-xl border border-border p-4 space-y-4">
           {/* Actions sit at the right end of this row rather than under the
               roster: same reason as the Assign tab, and `items-end` already
@@ -504,21 +673,102 @@ export const UpdateSchoolYear = () => {
         </div>
       )}
 
+        </>
+      )}
+
+      {/* ── Dialogs ─────────────────────────────────────────────────────── */}
+      {dialog?.kind === 'startAll' && (
+        <DialogShell title={`Start ${toYear} for all schools?`} icon={<GraduationCap className="h-5 w-5 text-rose-700" />} iconBg="bg-rose-100" onClose={closeDialog} busy={busy}>
+          <p className="mt-3 text-sm text-muted-foreground">Grade and section will be cleared for every student below. Each one's {fromYear} grade and section are saved to their IPTR first. This cannot be undone from this screen.</p>
+          <div className="mt-4 overflow-hidden rounded-xl border border-border text-sm">
+            {toClear.map((s, i) => (
+              <div key={s.id} className={`flex justify-between gap-3 px-3.5 py-2 ${i ? 'border-t border-border/60' : ''}`}><span className="min-w-0 truncate">{s.name}</span><b>{s.assigned}</b></div>
+            ))}
+            <div className="flex justify-between bg-slate-50 px-3.5 py-2.5 font-extrabold"><span>All schools</span><span>{toClearStudents} {plural(toClearStudents, 'student')}</span></div>
+          </div>
+          <PasswordField id="sy-startall-pw" value={password} onChange={setPassword} />
+          {dialogError && <div className="mt-3"><Notice variant="error">{dialogError}</Notice></div>}
+          <div className="mt-5 flex gap-2">
+            <button onClick={closeDialog} disabled={busy} className="flex-1 rounded-xl border border-border px-4 py-2.5 text-sm font-bold hover:bg-gray-50 disabled:opacity-60">Cancel</button>
+            <button
+              onClick={() => void act(() => sy.startAll(password), (r) => `${toYear} started for ${r.schoolsStarted} ${plural(r.schoolsStarted, 'school')}. ${r.studentsCleared} ${plural(r.studentsCleared, 'student')} cleared.`)}
+              disabled={busy || !password}
+              className="flex-[1.4] rounded-xl bg-rose-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-rose-800 disabled:opacity-50"
+            >
+              {busy ? 'Starting…' : 'Start for all schools'}
+            </button>
+          </div>
+        </DialogShell>
+      )}
+
+      {dialog?.kind === 'plan' && (
+        <DialogShell title="Change the start date" icon={<CalendarDays className="h-5 w-5 text-amber-700" />} iconBg="bg-amber-100" onClose={closeDialog} busy={busy}>
+          <div className="mt-4"><Strip tone="amber" icon={<TriangleAlert className="h-5 w-5 text-amber-700" />}>This is a big decision. It sets the start date for {toYear} at every school. It can only be set for the next school year.</Strip></div>
+          <div className="mt-4">
+            <label htmlFor="sy-plan-date" className="mb-1.5 block text-sm font-semibold text-foreground">New start date</label>
+            <input id="sy-plan-date" type="date" min={planBounds.min} max={planBounds.max} value={planDate} onChange={(e) => setPlanDate(e.target.value)} className="w-full rounded-xl border border-border bg-card px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+            {planDate && plannedStartProblem(planDate) && <p className="mt-1.5 text-xs text-destructive">{plannedStartProblem(planDate)}</p>}
+          </div>
+          <label className="mt-4 flex items-start gap-2.5 text-sm">
+            <input type="checkbox" checked={planSure} onChange={(e) => setPlanSure(e.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
+            <span>I understand {toYear} will begin on this date.</span>
+          </label>
+          <PasswordField id="sy-plan-pw" value={password} onChange={setPassword} />
+          {dialogError && <div className="mt-3"><Notice variant="error">{dialogError}</Notice></div>}
+          <div className="mt-5 flex gap-2">
+            <button onClick={closeDialog} disabled={busy} className="flex-1 rounded-xl border border-border px-4 py-2.5 text-sm font-bold hover:bg-gray-50 disabled:opacity-60">Cancel</button>
+            <button
+              onClick={() => void act(() => sy.setPlan(planDate, password), `${toYear} will begin on ${planDate ? fmtLong(planDate) : ''}.`)}
+              disabled={busy || !planSure || !password || !planDate || !!plannedStartProblem(planDate)}
+              className="inline-flex flex-[1.4] items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white hover:bg-primary-hover disabled:opacity-50"
+            >
+              <Lock className="h-4 w-4" /> {busy ? 'Saving…' : 'Confirm'}
+            </button>
+          </div>
+        </DialogShell>
+      )}
+
+      {dialog?.kind === 'ask' && mySchool && (
+        <DialogShell title={`Ask to start ${toYear} early?`} icon={<Bell className="h-5 w-5 text-primary" />} iconBg="bg-indigo-100" onClose={closeDialog} busy={busy}>
+          <p className="mt-3 text-sm text-muted-foreground">The System Admin will be notified. If they approve, grade and section are cleared for <b className="text-foreground">{mySchool.name}</b> only.</p>
+          <div className="mt-4"><Strip tone="amber" icon={<TriangleAlert className="h-5 w-5 text-amber-700" />}>You can ask <b>once a year</b>. You will not be able to send another request for {toYear}.</Strip></div>
+          {dialogError && <div className="mt-3"><Notice variant="error">{dialogError}</Notice></div>}
+          <div className="mt-5 flex gap-2">
+            <button onClick={closeDialog} disabled={busy} className="flex-1 rounded-xl border border-border px-4 py-2.5 text-sm font-bold hover:bg-gray-50 disabled:opacity-60">Cancel</button>
+            <button onClick={() => void act(() => sy.requestEarly(mySchool.id), 'Request sent. The System Admin has been notified.')} disabled={busy} className="flex-[1.4] rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white hover:bg-primary-hover disabled:opacity-50">
+              {busy ? 'Sending…' : 'Send request'}
+            </button>
+          </div>
+        </DialogShell>
+      )}
+
+      {dialog?.kind === 'approve' && (
+        <DialogShell title="Approve the early start?" icon={<BellRing className="h-5 w-5 text-amber-700" />} iconBg="bg-amber-100" onClose={closeDialog} busy={busy}>
+          <p className="mt-3 text-sm text-muted-foreground"><b className="text-foreground">{dialog.school.name}</b> will start {toYear} now. Grade and section are cleared for its <b className="text-foreground">{dialog.school.assigned} {plural(dialog.school.assigned, 'student')} only</b>. Other schools are not affected.</p>
+          {dialog.school.requestedBy && <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground"><Info className="h-3.5 w-3.5" /> Requested by {dialog.school.requestedBy}{dialog.school.requestedAt ? ` on ${fmtStamp(dialog.school.requestedAt)}` : ''}.</p>}
+          {dialogError && <div className="mt-3"><Notice variant="error">{dialogError}</Notice></div>}
+          <div className="mt-5 flex gap-2">
+            <button onClick={closeDialog} disabled={busy} className="flex-1 rounded-xl border border-border px-4 py-2.5 text-sm font-bold hover:bg-gray-50 disabled:opacity-60">Cancel</button>
+            <button
+              onClick={() => void act(() => sy.approve(dialog.school.requestId!), (r) => `${toYear} started for ${dialog.school.name}. ${r.studentsCleared} ${plural(r.studentsCleared, 'student')} cleared.`)}
+              disabled={busy || !dialog.school.requestId}
+              className="flex-[1.4] rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white hover:bg-primary-hover disabled:opacity-50"
+            >
+              {busy ? 'Starting…' : 'Approve for this school'}
+            </button>
+          </div>
+        </DialogShell>
+      )}
+
       <ConfirmDialog
-        open={showWipeConfirm}
-        title={`Start ${toYear} for ${selectedSchool}?`}
-        message={
-          <>
-            This clears grade and section for all {stillAssignedCount} currently-assigned student{stillAssignedCount === 1 ? '' : 's'} at this school.
-            Each one's {fromYear} grade and section is saved to their IPTR record first, so it is not lost. This cannot be undone from this screen —
-            students will need to be reassigned below.
-          </>
-        }
-        confirmLabel={`Clear ${stillAssignedCount} student${stillAssignedCount === 1 ? '' : 's'}`}
+        open={dialog?.kind === 'decline'}
+        title="Decline the early start?"
+        message={dialog?.kind === 'decline' ? <>{dialog.school.name} will start {toYear} with every other school on the planned date. This uses up its one request for the year.</> : ''}
+        confirmLabel="Decline request"
         tone="danger"
-        busy={wiping}
-        onConfirm={runWipe}
-        onCancel={() => setShowWipeConfirm(false)}
+        busy={busy}
+        onConfirm={() => { if (dialog?.kind === 'decline') void act(() => sy.decline(dialog.school.requestId!), 'Request declined.'); }}
+        onCancel={closeDialog}
       />
 
       <ConfirmDialog

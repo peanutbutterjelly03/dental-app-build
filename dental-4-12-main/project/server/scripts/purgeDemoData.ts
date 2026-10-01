@@ -8,7 +8,7 @@ import {
   School, User, Dentist, DentalAide, Student, StudentIptr, MedicalHistory,
   DietarySocialHabits, OralHealthCondition, DentalChart, ToothRecord, Treatment,
   PreventiveCareRecord, RiskStratification, Appointment, DentistRotation, AuditTrail,
-  DayNote, Referral,
+  DayNote, Referral, SchoolYearRollover,
 } from "../models/index.js";
 import mongoose from "mongoose";
 
@@ -66,6 +66,7 @@ const NOT_PURGED: Record<string, string> = {
   DentalAide: "handled below, by demo user id",
   DentistRotation: "handled below, by demo dentist id",
   AuditTrail: "cleared separately below, by affected record id",
+  SchoolYearRollover: "the school-year plan and each school's start/request state; school settings, not patient data, so nothing here is demo",
   DayNote: "written against a DATE and often barangay-wide; not owned by any student, so no demo row can be identified by foreign key",
 };
 

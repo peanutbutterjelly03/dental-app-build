@@ -1,7 +1,12 @@
 import { Router } from "express";
 import mongoose from "mongoose";
+import rateLimit from "express-rate-limit";
 import { getHealth } from "../controllers/healthController.js";
 import { validateStudentValues } from "../../shared/studentValidation.js";
+import {
+  getSchoolYearStatus, setSchoolYearPlan, startAllSchools, requestEarlyStart,
+  approveEarlyStart, declineEarlyStart, guardNextYearIptr, buildSchoolYearNotifications,
+} from "../controllers/schoolYearController.js";
 import { createUser, resetPassword, sendResetLink, initiateTwofa, confirmTwofa, disableTwofa } from "../controllers/userController.js";
 import { createCrudRouter } from "./crudFactory.js";
 import authRoutes from "./authRoutes.js";
@@ -60,6 +65,25 @@ router.get("/health", getHealth);
 // Public, no auth: only whether testing mode is on, so the app can show its
 // banner and unlock "View as" (see isTestingMode in middleware/auth.ts).
 router.get("/config", (_req, res) => { res.json({ testingMode: isTestingMode() }); });
+
+// ── Update School Year (2026-10-01) ──────────────────────────────────────────
+// The System Admin starts the next school year for every school; a dentist or
+// dental aide may ask once a year for their own school to start early. See
+// controllers/schoolYearController.ts. The password-bearing routes share one
+// limiter: a yes/no on a password is an oracle (same reasoning as /auth).
+const schoolYearPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many attempts. Please try again later." },
+});
+router.get("/school-year/status", requireAuth, requireRole(...CLINICAL_WRITE_ROLES), asyncHandler(getSchoolYearStatus));
+router.put("/school-year/plan", schoolYearPasswordLimiter, requireAuth, requireRole(...ADMIN_ONLY), asyncHandler(setSchoolYearPlan));
+router.post("/school-year/start-all", schoolYearPasswordLimiter, requireAuth, requireRole(...ADMIN_ONLY), asyncHandler(startAllSchools));
+router.post("/school-year/request", requireAuth, requireRole("dentist", "dental_aide"), asyncHandler(requestEarlyStart));
+router.post("/school-year/requests/:id/approve", requireAuth, requireRole(...ADMIN_ONLY), asyncHandler(approveEarlyStart));
+router.post("/school-year/requests/:id/decline", requireAuth, requireRole(...ADMIN_ONLY), asyncHandler(declineEarlyStart));
 router.use("/auth", authRoutes);
 // Predictive analytics (Sprint 21e) — proxies to the Python ML service;
 // dentist + system_admin only, every assessment audit-logged.
@@ -309,7 +333,7 @@ router.get("/stats/notifications", requireAuth, asyncHandler(async (req, res) =>
   const EMPTY_RESPONSE = { overdueRpc: 0, appointmentsToday: 0, appointmentsTomorrow: 0, awaitingValidation: 0, consentPending: 0, unmarkedAppointments: [] as unknown[], dayNoteToday: null as string | null };
   // System Admin gets admin alerts instead of the clinical reminders.
   if (req.user?.role === "system_admin") {
-    res.json({ ...EMPTY_RESPONSE, admin: await buildAdminNotifications() });
+    res.json({ ...EMPTY_RESPONSE, admin: await buildAdminNotifications(), schoolYear: { items: await buildSchoolYearNotifications(req) } });
     return;
   }
   const schoolName = typeof req.query.school === "string" ? req.query.school : null;
@@ -474,6 +498,7 @@ router.get("/stats/notifications", requireAuth, asyncHandler(async (req, res) =>
     consentPending,
     unmarkedAppointments,
     dayNoteToday: dayNotes[0]?.note ?? null,
+    schoolYear: { items: await buildSchoolYearNotifications(req) },
   });
 }));
 
@@ -1432,6 +1457,9 @@ router.use("/students", createCrudRouter(Student, {
 // (CLINICAL_READ_ROLES). Reads used to default to every role, so a School Admin
 // could list every pupil's medical history. Three collections stay readable by
 // BHO staff for the named Target Client List / Consent Form (Part B decision).
+// Nobody but the System Admin may create a school year's IPTR before it has
+// started for the student's school (see schoolYearController.ts).
+router.post("/student-iptrs", requireAuth, asyncHandler(guardNextYearIptr));
 router.use("/student-iptrs", createCrudRouter(StudentIptr, { readRoles: CLINICAL_READ_ROLES_AND_BHO, writeRoles: CLINICAL_WRITE_ROLES, archiveRoles: ["system_admin", "dentist"], uniqueBy: ["student_id", "school_year"], filterable: ["student_id"] }));
 router.use("/medical-histories", createCrudRouter(MedicalHistory, { readRoles: CLINICAL_READ_ROLES, writeRoles: CLINICAL_WRITE_ROLES, filterable: ["iptr_id"] }));
 router.use("/dietary-social-habits", createCrudRouter(DietarySocialHabits, { readRoles: CLINICAL_READ_ROLES, writeRoles: CLINICAL_WRITE_ROLES, filterable: ["iptr_id"] }));
