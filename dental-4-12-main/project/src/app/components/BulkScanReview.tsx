@@ -89,7 +89,9 @@ export const BulkScanReview = () => {
     // The PAGE never scrolls: it is exactly the screen below the top bar, and only the
     // grid (or the cards) inside it scrolls, both ways, like a spreadsheet pane.
     background: '#F6F9FC', height: 'calc(100vh - 3.25rem)', padding: '0.25rem 3.5rem 0.75rem', fontFamily: 'var(--font-sans)', color: '#141413',
-    minWidth: 0, maxWidth: '100%', boxSizing: 'border-box', overflow: 'hidden', display: 'flex', flexDirection: 'column',
+    // width 100% + inline-size containment: a wide table inside must never widen the page
+    // (an overflow:auto child still counts toward its ancestors' minimum width otherwise).
+    width: '100%', minWidth: 0, maxWidth: '100%', contain: 'inline-size', boxSizing: 'border-box', overflow: 'hidden', display: 'flex', flexDirection: 'column',
   };
 
   // A refresh drops router state, so there is nothing to review.
@@ -201,7 +203,7 @@ export const BulkScanReview = () => {
       {shown.length > 0 && view === 'grid' && (
         // The pane scrolls on its own (both ways) and fills the screen below the header,
         // like a spreadsheet: the header row and Student column never leave the frame.
-        <div style={{ flex: '1 1 0', minHeight: 0, minWidth: 0, maxWidth: '100%', overflow: 'auto', background: '#fff', border: `0.0625rem solid ${GRID_LINE}`, borderRadius: '0.75rem' }}>
+        <div style={{ flex: '1 1 0', minHeight: 0, width: 0, minWidth: '100%', maxWidth: '100%', overflow: 'auto', background: '#fff', border: `0.0625rem solid ${GRID_LINE}`, borderRadius: '0.75rem' }}>
           <table style={{ borderCollapse: 'separate', borderSpacing: 0, width: '100%' }}>
             <thead>
               <tr>
@@ -225,7 +227,7 @@ export const BulkScanReview = () => {
       )}
 
       {shown.length > 0 && view === 'cards' && (
-        <div style={{ flex: '1 1 0', minHeight: 0, overflow: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(17rem, 1fr))', gap: '1rem', alignContent: 'start' }}>
+        <div style={{ flex: '1 1 0', minHeight: 0, width: 0, minWidth: '100%', overflow: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(17rem, 1fr))', gap: '1rem', alignContent: 'start' }}>
           {shown.map((r) => {
             const p = r.h.newPatient;
             return (
