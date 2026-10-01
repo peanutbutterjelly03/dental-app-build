@@ -801,8 +801,6 @@ export const DentalChartNav = () => {
                 </th>
                 <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">#</th>
                 <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Student</th>
-                <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Grade</th>
-                <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Section</th>
                 <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Risk</th>
                 <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground w-36">Status</th>
                 {/* Position in the actual queue (queueStorage's stored order,
@@ -822,7 +820,7 @@ export const DentalChartNav = () => {
                   {/* Extra top padding (user, 2026-09-27) -- pushes the icon
                       further from the column header row than a plain py-10
                       did, so it doesn't read as cramped against it. */}
-                  <td colSpan={9} className="px-4 pt-20 pb-10 text-center">
+                  <td colSpan={7} className="px-4 pt-20 pb-10 text-center">
                     <div className="w-10 h-10 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
                       <Users className="w-4 h-4 text-muted-foreground/60" />
                     </div>
@@ -870,32 +868,6 @@ export const DentalChartNav = () => {
                         </span>
                         <span className="truncate">{p.name}</span>
                       </div>
-                    </td>
-                    <td className="px-4 py-2.5">
-                      {bulkSelectMode && queuePosition >= 0 ? (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); toggleGradeCriterion(p.grade); }}
-                          title={activeGradeCriteria.has(p.grade) ? `Deselect all of ${p.grade}` : `Select all of ${p.grade}`}
-                          className={`rounded-full ${activeGradeCriteria.has(p.grade) ? 'ring-2 ring-primary' : 'hover:ring-2 hover:ring-primary/30'}`}
-                        >
-                          <GradePill grade={p.grade} />
-                        </button>
-                      ) : (
-                        <GradePill grade={p.grade} />
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5 text-muted-foreground">
-                      {bulkSelectMode && queuePosition >= 0 ? (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); toggleSectionCriterion(p.section); }}
-                          title={activeSectionCriteria.has(p.section) ? `Deselect ${p.section} section` : `Select all of ${p.section} section`}
-                          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${activeSectionCriteria.has(p.section) ? 'bg-foreground text-white' : 'bg-gray-100 text-foreground hover:bg-gray-200'}`}
-                        >
-                          {p.section}
-                        </button>
-                      ) : (
-                        p.section
-                      )}
                     </td>
                     <td className="px-4 py-2.5">
                       {p.riskLevel ? (
