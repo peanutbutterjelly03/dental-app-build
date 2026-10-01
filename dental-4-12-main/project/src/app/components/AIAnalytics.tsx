@@ -354,11 +354,11 @@ export const AIAnalytics = () => {
                     <th rowSpan={2} className="px-4 py-3">#</th>
                     <th rowSpan={2} className="px-4 py-3">Student</th>
                     <th rowSpan={2} className="px-4 py-3">Risk</th>
-                    <th colSpan={5} className="border-b border-border px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-foreground">Caries Experience</th>
+                    <th colSpan={5} className="border-b border-border px-3 py-2 text-center text-[11px] font-bold uppercase tracking-wider text-foreground">Caries Experience</th>
                     <th rowSpan={2} className="px-3 py-3 text-center">Treatments</th>
                     <th rowSpan={2} className="px-4 py-3 text-right">Actions</th>
                   </tr>
-                  <tr className="bg-gray-100 text-left align-bottom text-[12px] font-normal normal-case tracking-normal text-muted-foreground">
+                  <tr className="bg-gray-100 text-left align-bottom text-[11px] font-normal normal-case tracking-normal text-slate-500">
                     <th className="px-3 py-2 text-left font-normal">With Caries Experience</th>
                     <th className="px-3 py-2 text-left font-normal">With Caries Experience in Temporary Teeth</th>
                     <th className="px-3 py-2 text-left font-normal">With Caries Experience in Permanent Dentition</th>
