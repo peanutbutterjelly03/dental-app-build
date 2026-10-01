@@ -345,7 +345,7 @@ export const AIAnalytics = () => {
                     <th rowSpan={2} className="px-4 py-3">#</th>
                     <th rowSpan={2} className="px-4 py-3">Student</th>
                     <th rowSpan={2} className="px-4 py-3">Risk</th>
-                    <th colSpan={5} className="border-b border-border px-3 py-2 text-left text-[12px] font-bold normal-case tracking-normal text-foreground">Caries Experience</th>
+                    <th colSpan={5} className="border-b border-border px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-foreground">Caries Experience</th>
                     <th rowSpan={2} className="px-3 py-3 text-center">Treatments</th>
                     <th rowSpan={2} className="px-4 py-3 text-right">Actions</th>
                   </tr>
