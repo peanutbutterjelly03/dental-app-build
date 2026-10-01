@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router';
-import { Clipboard, Search, Droplet, ShieldCheck, Sparkles, Wrench, Timer, RotateCcw, Scissors, Syringe, MessageCircle, Eye, ChevronUp, MoreVertical, Trash2, Users, type LucideIcon } from 'lucide-react';
+import { Clipboard, Search, Droplet, ShieldCheck, Sparkles, Wrench, Timer, RotateCcw, Scissors, Syringe, MessageCircle, Eye, ChevronUp, MoreVertical, Trash2, Users, CircleDashed, type LucideIcon } from 'lucide-react';
+import { LevelChip } from './risk/RiskReviewDialog';
 import { GradePill } from './GradePill';
 import { PipelineStatusPill } from './PipelineStatusPill';
 import { ListSearchInput } from './ListSearchInput';
@@ -612,9 +613,11 @@ export const TreatmentRecords = () => {
                     <td className="px-4 py-2.5 text-muted-foreground">{t.section}</td>
                     <td className="px-4 py-2.5">
                       {t.riskLevel ? (
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${RISK_BADGE[t.riskLevel]}`}>{t.riskLevel.toUpperCase()}</span>
+                        <LevelChip level={t.riskLevel as 'High' | 'Medium' | 'Low'} small />
                       ) : (
-                        <span className="text-[10px] font-light text-muted-foreground/50">Not assessed</span>
+                        <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-normal text-slate-500">
+                          <CircleDashed className="h-3.5 w-3.5" aria-hidden="true" /> Not assessed
+                        </span>
                       )}
                     </td>
                     <td className="px-4 py-2.5"><PipelineStatusPill status={t.pipelineStatus} isRpcDueThisMonth={rpcDueThisMonthIds.has(t.id)} /></td>
