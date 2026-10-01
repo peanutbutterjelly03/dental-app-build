@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Brain, ChevronDown, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Brain, ChevronDown, CircleDashed, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router';
 import { apiClient } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -47,14 +47,33 @@ function YesNo({ value }: { value: boolean }) {
     : <span className="rounded-md bg-green-50 px-2 py-0.5 text-sm font-semibold text-green-700">No</span>;
 }
 
-function StatusChip({ c }: { c: RiskCandidate }) {
-  if (c.status === 'needs_review') return <span className="whitespace-nowrap rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-sm font-semibold text-amber-800">Needs review</span>;
-  if (c.status === 'reviewed') {
+const LEVEL_TEXT = { High: 'text-red-700', Medium: 'text-amber-800', Low: 'text-green-800' } as const;
+
+/** Risk level with its review status underneath, the same look as the Risk card on the Students list. */
+function RiskCell({ c, level }: { c: RiskCandidate; level: keyof typeof LEVEL_TEXT | null }) {
+  if (c.status === 'reviewed' && level) {
     const at = c.history[c.history.length - 1]?.validatedAt;
-    return <span className="whitespace-nowrap rounded-full border border-green-200 bg-green-50 px-2.5 py-0.5 text-sm font-semibold text-green-800">✓ Reviewed{at ? ` · ${formatDate(at)}` : ''}</span>;
+    return (
+      <div className="flex flex-col items-start gap-0">
+        <LevelChip level={level} small />
+        <span className="whitespace-nowrap text-xs text-green-700">Reviewed{at ? ` · ${formatDate(at)}` : ''}</span>
+      </div>
+    );
   }
-  if (c.status === 'not_checked') return <span className="whitespace-nowrap rounded-full border border-border bg-muted px-2.5 py-0.5 text-sm text-muted-foreground">Not checked yet</span>;
-  return <span className="whitespace-nowrap rounded-full border border-border bg-muted px-2.5 py-0.5 text-sm text-muted-foreground">No visit yet</span>;
+  if (c.status === 'needs_review') {
+    return (
+      <div className="flex flex-col items-start gap-0">
+        <span className={`inline-flex items-center rounded-full border border-dashed border-current bg-card px-2 py-0.5 text-[12.5px] font-semibold ${level ? LEVEL_TEXT[level] : 'text-muted-foreground'}`}>{level ?? 'No level'}</span>
+        <span className="whitespace-nowrap text-xs font-medium text-amber-800">Needs review</span>
+      </div>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-normal text-slate-500">
+      <CircleDashed className="h-3.5 w-3.5" aria-hidden="true" />
+      {c.status === 'not_checked' ? 'Not checked' : 'No visit'}
+    </span>
+  );
 }
 
 export const AIAnalytics = () => {
@@ -319,7 +338,6 @@ export const AIAnalytics = () => {
                     <th className="px-4 py-3">Student</th>
                     <th className="px-4 py-3">Grade / Section</th>
                     <th className="px-4 py-3">Risk</th>
-                    <th className="px-4 py-3">Status</th>
                     <th className="px-3 py-3 text-center">With caries experience</th>
                     <th className="px-3 py-3 text-center">In temporary teeth</th>
                     <th className="px-3 py-3 text-center">In permanent dentition</th>
@@ -331,7 +349,7 @@ export const AIAnalytics = () => {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {candidates.length === 0 ? (
-                    <tr><td colSpan={12} className="px-4 py-10 text-center text-muted-foreground">No students match.</td></tr>
+                    <tr><td colSpan={11} className="px-4 py-10 text-center text-muted-foreground">No students match.</td></tr>
                   ) : candidates.map((c, i) => {
                     const lvl = displayLevel(c);
                     const charted = c.teeth.length > 0;
@@ -344,8 +362,7 @@ export const AIAnalytics = () => {
                         </td>
                         <td className="px-4 py-3 font-medium text-foreground">{c.name}</td>
                         <td className="px-4 py-3 text-muted-foreground">{[c.grade, c.section].filter(Boolean).join(' · ')}</td>
-                        <td className="px-4 py-3">{lvl ? <LevelChip level={lvl} /> : <span className="text-muted-foreground">—</span>}</td>
-                        <td className="px-4 py-3"><StatusChip c={c} /></td>
+                        <td className="px-4 py-3"><RiskCell c={c} level={lvl} /></td>
                         {charted ? (
                           <>
                             <td className="px-3 py-3 text-center"><YesNo value={c.caries.withCariesExperience} /></td>
