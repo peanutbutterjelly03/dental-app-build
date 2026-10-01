@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { REQUIRED_STUDENT_FIELDS } from './PatientList';
@@ -80,6 +80,27 @@ export const BulkScanReview = () => {
   };
   const [onlyFixes, setOnlyFixes] = useState(false);
 
+  // The page must never scroll: only the grid does. The app's own layout puts this page
+  // under a top bar and inside padding, so a fixed `100vh - N` can never be exact. Measure
+  // where the page starts and give it exactly the rest of the screen, minus the layout's
+  // bottom padding, so the document has nothing left to scroll.
+  const shellRef = useRef<HTMLDivElement | null>(null);
+  const [fitHeight, setFitHeight] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const fit = () => {
+      const el = shellRef.current;
+      if (!el) return;
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      const parent = el.parentElement;
+      const pad = parent ? parseFloat(getComputedStyle(parent).paddingBottom) || 0 : 0;
+      setFitHeight(Math.max(240, Math.floor(window.innerHeight - top - pad)));
+    };
+    window.scrollTo(0, 0);
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, []);
+
   const rows: Row[] = useMemo(
     () => (queue ?? []).map((h, index) => ({ index, h, missing: h.readError ? [] : missingOf(h) })),
     [queue],
@@ -88,7 +109,7 @@ export const BulkScanReview = () => {
   const shell: CSSProperties = {
     // The PAGE never scrolls: it is exactly the screen below the top bar, and only the
     // grid (or the cards) inside it scrolls, both ways, like a spreadsheet pane.
-    background: '#F6F9FC', height: 'calc(100vh - 3.25rem)', padding: '0.25rem 3.5rem 0.75rem', fontFamily: 'var(--font-sans)', color: '#141413',
+    background: '#F6F9FC', height: fitHeight ?? 'calc(100vh - 8rem)', padding: '0.25rem 3.5rem 0.75rem', fontFamily: 'var(--font-sans)', color: '#141413',
     // width 100% + inline-size containment: a wide table inside must never widen the page
     // (an overflow:auto child still counts toward its ancestors' minimum width otherwise).
     width: '100%', minWidth: 0, maxWidth: '100%', contain: 'inline-size', boxSizing: 'border-box', overflow: 'hidden', display: 'flex', flexDirection: 'column',
@@ -97,7 +118,7 @@ export const BulkScanReview = () => {
   // A refresh drops router state, so there is nothing to review.
   if (!queue?.length) {
     return (
-      <div style={shell}>
+      <div ref={shellRef} style={shell}>
         <p style={{ fontSize: '0.875rem', color: MUTED }}>There is nothing to review. Upload the file again to start.</p>
         <button type="button" onClick={() => navigate('/students/scan?bulk=1')} style={{ ...primaryBtn, marginTop: '0.75rem' }}>Upload files</button>
       </div>
@@ -152,7 +173,7 @@ export const BulkScanReview = () => {
   };
 
   return (
-    <div style={shell}>
+    <div ref={shellRef} style={shell}>
       {/* Header, same shape as the Scan and Verify pages */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem', flexShrink: 0 }}>
         <div style={{ width: '3.5rem', height: '3.5rem', borderRadius: '1rem', background: '#F4F7FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
