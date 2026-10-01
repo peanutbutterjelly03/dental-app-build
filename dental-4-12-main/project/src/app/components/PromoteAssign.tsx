@@ -697,7 +697,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                   change which students the run touches, which is why the counts
                   on the left still read from every row. */}
               <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
-                <span className="text-[14.5px] font-bold text-foreground">{rows.length} student{rows.length === 1 ? '' : 's'}</span>
+                <span className="text-[14.5px] font-normal text-foreground">{rows.length} student{rows.length === 1 ? '' : 's'}</span>
                 <span className="text-[12.5px] text-muted-foreground">· {selected.size} selected</span>
                 {mode === 'promote' && (
                   <div className="flex gap-1.5 sm:ml-2">
@@ -707,7 +707,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                         type="button"
                         onClick={() => setStatusFilter(k)}
                         aria-pressed={statusFilter === k}
-                        className={`rounded-full px-3 py-1 text-[12.5px] font-semibold ${statusFilter === k ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-100 text-muted-foreground hover:bg-gray-200'}`}
+                        className={`rounded-full px-3 py-1 text-[12.5px] font-normal ${statusFilter === k ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-100 text-muted-foreground hover:bg-gray-200'}`}
                       >
                         {t}
                       </button>
@@ -747,12 +747,12 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                         <th className="w-9 px-3 py-2">
                           <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label={allSelected ? 'Deselect all students' : 'Select all students'} className="h-4 w-4 cursor-pointer align-middle accent-primary" />
                         </th>
-                        <th className="whitespace-nowrap px-3 py-2 text-left text-[12.5px] font-semibold text-muted-foreground">Student</th>
-                        <th className="whitespace-nowrap px-3 py-2 text-left text-[12.5px] font-semibold text-muted-foreground">{mode === 'transfer' ? 'Current' : `Now (${fromYear})`}</th>
-                        {mode === 'transfer' && <th className="whitespace-nowrap px-3 py-2 text-left text-[12.5px] font-normal text-green-700">Will become</th>}
-                        {mode === 'promote' && <th className="whitespace-nowrap px-3 py-2 text-left text-[12.5px] font-semibold text-muted-foreground">In {toYear}</th>}
-                        {mode === 'promote' && <th className="px-3 py-2 text-left text-[12.5px] font-semibold text-muted-foreground">Action</th>}
-                        <th className="whitespace-nowrap px-3 py-2 text-left text-[12.5px] font-semibold text-muted-foreground" title={`Section in ${mode === 'promote' ? toYear : fromYear}`}>Section</th>
+                        <th className="whitespace-nowrap px-3 py-2 text-left text-[12.5px] font-normal text-muted-foreground">Student</th>
+                        <th className="whitespace-nowrap px-3 py-2 text-left text-[12.5px] font-normal text-muted-foreground">{mode === 'transfer' ? 'Current' : `Now (${fromYear})`}</th>
+                        {mode === 'transfer' && <th className="whitespace-nowrap px-3 py-2 text-left text-[12.5px] font-normal text-blue-700">Will become</th>}
+                        {mode === 'promote' && <th className="whitespace-nowrap px-3 py-2 text-left text-[12.5px] font-normal text-muted-foreground">In {toYear}</th>}
+                        {mode === 'promote' && <th className="px-3 py-2 text-left text-[12.5px] font-normal text-muted-foreground">Action</th>}
+                        <th className="whitespace-nowrap px-3 py-2 text-left text-[12.5px] font-normal text-muted-foreground" title={`Section in ${mode === 'promote' ? toYear : fromYear}`}>Section</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -764,27 +764,27 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                           <td className="px-3 py-2">
                             <input type="checkbox" checked={selected.has(r.student._id)} onChange={() => toggleOne(r.student._id)} aria-label={`Select ${surnameFirst(r.student)}`} className="h-4 w-4 cursor-pointer align-middle accent-primary" />
                           </td>
-                          <td className="whitespace-nowrap px-3 py-2 font-medium text-foreground">{surnameFirst(r.student)}</td>
+                          <td className="whitespace-nowrap px-3 py-2 font-normal text-foreground">{surnameFirst(r.student)}</td>
                           <td className="whitespace-nowrap px-3 py-2 text-[12.5px] text-muted-foreground">
                             {mode === 'transfer'
-                              ? <span className="rounded-md bg-green-100 px-2 py-0.5 font-semibold text-green-800">{r.student.grade_level || 'no grade'}{r.student.section ? ` · ${r.student.section}` : ''}</span>
+                              ? <span className="rounded-md bg-green-100 px-2 py-0.5 font-normal text-green-800">{r.student.grade_level || 'no grade'}{r.student.section ? ` · ${r.student.section}` : ''}</span>
                               : <>{r.student.grade_level || 'no grade'}{r.student.section ? ` · ${r.student.section}` : ''}</>}
                           </td>
                           {mode === 'transfer' && (
                             <td className="whitespace-nowrap px-3 py-2 text-[12.5px]">
                               {selected.has(r.student._id)
-                                ? <span className="rounded-full border border-green-600 px-2.5 py-0.5 font-normal text-green-700">{transferGrade || r.student.grade_level || 'no grade'}{r.section ? ` · ${r.section}` : ''}</span>
+                                ? <span className="rounded-full border border-blue-900 px-2.5 py-0.5 font-normal text-blue-700">{transferGrade || r.student.grade_level || 'no grade'}{r.section ? ` · ${r.section}` : ''}</span>
                                 : <span className="text-muted-foreground">Not selected</span>}
                             </td>
                           )}
                           {mode === 'promote' && (
                             <td className="whitespace-nowrap px-3 py-2">
                               {r.alreadyHasYear ? (
-                                <span className="inline-flex rounded-full bg-green-100 px-2.5 py-0.5 text-[11.5px] font-bold text-green-800">
+                                <span className="inline-flex rounded-full bg-green-100 px-2.5 py-0.5 text-[11.5px] font-normal text-green-800">
                                   {r.existingIptr?.grade_level || 'grade not recorded'}{r.existingIptr?.section ? ` · ${r.existingIptr.section}` : ''}
                                 </span>
                               ) : (
-                                <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-[11.5px] font-bold text-slate-600">Not yet</span>
+                                <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-[11.5px] font-normal text-slate-600">Not yet</span>
                               )}
                               {r.alreadyHasYear && r.action === 'update' && <span className="ml-1.5 text-[11.5px] text-amber-700">→ {r.section || 'no section'}</span>}
                             </td>
