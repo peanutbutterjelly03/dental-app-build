@@ -317,7 +317,7 @@ export const AIAnalytics = () => {
                     style={{ border: '1px solid #E2E8F0' }} />
                 </div>
                 <button type="button" onClick={() => setMoreOpen((v) => !v)} aria-expanded={moreOpen}
-                  className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-primary hover:bg-white/90">
+                  className="inline-flex h-[50px] items-center gap-2 rounded-2xl bg-white px-5 text-sm font-semibold text-primary hover:bg-white/90">
                   <SlidersHorizontal className="h-4 w-4" /> Filters
                   <span className="grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[11px] font-bold text-white">
                     {[grade, risk, section, gender, ageGroup].filter((v) => v !== 'all').length}
