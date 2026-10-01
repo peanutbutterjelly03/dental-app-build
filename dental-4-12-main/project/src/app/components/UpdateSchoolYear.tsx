@@ -573,8 +573,8 @@ export const UpdateSchoolYear = () => {
           >
             <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-xl bg-indigo-100 text-indigo-800"><SchoolIcon className="h-[18px] w-[18px]" /></span>
             <div className="min-w-0 flex-1">
-              <h2 className="text-lg font-bold text-foreground">Schools <span className="font-medium text-muted-foreground">· {allSchools.length}</span></h2>
-              <p className="mt-0.5 text-xs font-normal text-muted-foreground">The button above starts every school at once. A school can also start early if you approve its request.</p>
+              <h2 className="flex items-center gap-2 text-lg font-bold leading-tight text-foreground">Schools <span className="grid h-6 min-w-6 place-items-center rounded-full bg-blue-600 px-1.5 text-xs font-bold text-white">{allSchools.length}</span></h2>
+              <p className="text-xs font-normal text-muted-foreground">The button above starts every school at once. A school can also start early if you approve its request.</p>
             </div>
             <span className="flex flex-shrink-0 items-center gap-1 text-xs font-semibold text-primary">
               {schoolsOpen ? 'Hide' : 'Show'}
