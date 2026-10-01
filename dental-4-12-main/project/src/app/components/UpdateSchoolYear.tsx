@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import {
-  ArrowLeft, ArrowRight, Bell, BellRing, CalendarDays, CircleCheck, CircleX, Clock, GraduationCap,
+  ArrowLeft, ArrowRight, Bell, BellRing, CalendarDays, ChevronDown, CircleCheck, CircleX, Clock, Eye, EyeOff, GraduationCap,
   Hourglass, Info, Lock, Repeat, Archive as ArchiveIcon, School as SchoolIcon, TriangleAlert,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -75,19 +75,34 @@ const Strip = ({ tone, icon, children, actions }: { tone: 'amber' | 'blue' | 'gr
   );
 };
 
-const PasswordField = ({ id, value, onChange }: { id: string; value: string; onChange: (v: string) => void }) => (
-  <div className="mt-4">
-    <label htmlFor={id} className="mb-1.5 block text-sm font-semibold text-foreground">Your password</label>
-    <input
-      id={id}
-      type="password"
-      autoComplete="current-password"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="w-full rounded-xl border border-border bg-card px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-    />
-  </div>
-);
+const PasswordField = ({ id, value, onChange }: { id: string; value: string; onChange: (v: string) => void }) => {
+  const [shown, setShown] = useState(false);
+  return (
+    <div className="mt-4">
+      <label htmlFor={id} className="mb-1.5 block text-sm font-semibold text-foreground">Your password</label>
+      <div className="relative">
+        <input
+          id={id}
+          type={shown ? 'text' : 'password'}
+          autoComplete="current-password"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full rounded-xl border border-border bg-card py-2.5 pl-3.5 pr-11 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+        />
+        <button
+          type="button"
+          onClick={() => setShown((v) => !v)}
+          aria-label={shown ? 'Hide password' : 'Show password'}
+          aria-pressed={shown}
+          title={shown ? 'Hide password' : 'Show password'}
+          className="absolute right-1.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg text-muted-foreground hover:bg-gray-100 hover:text-foreground"
+        >
+          {shown ? <EyeOff className="h-[18px] w-[18px]" /> : <Eye className="h-[18px] w-[18px]" />}
+        </button>
+      </div>
+    </div>
+  );
+};
 
 const DialogShell = ({ icon, iconBg, title, children, onClose, busy }: { icon: React.ReactNode; iconBg: string; title: string; children: React.ReactNode; onClose: () => void; busy: boolean }) => (
   <Modal onClose={onClose} closeDisabled={busy} maxWidth="max-w-md" rounded="rounded-2xl">
@@ -130,6 +145,7 @@ export const UpdateSchoolYear = () => {
   const plannedStart = sy.status?.plannedStart ?? null;
 
   const [tab, setTab] = useState<Tab>('promote');
+  const [schoolsOpen, setSchoolsOpen] = useState(true);
 
   // Active, non-pending roster for the school in view. Pending (offline,
   // not-yet-synced) rows have no real _id yet — every action below needs one.
@@ -426,7 +442,7 @@ export const UpdateSchoolYear = () => {
             )}
           </div>
         </div>
-        <div className="mt-5 flex flex-col gap-4 border-t border-white/20 pt-5 sm:flex-row sm:items-center">
+        <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center">
           <p className="flex-1 text-sm text-white/90">{heroText}</p>
           {isAdmin && !allStarted && (
             <button onClick={() => openDialog({ kind: 'startAll' })} disabled={!sy.status} className="flex-shrink-0 rounded-xl bg-rose-700 px-5 py-2.5 text-sm font-bold text-white hover:bg-rose-800 disabled:opacity-50">
@@ -449,12 +465,23 @@ export const UpdateSchoolYear = () => {
       {/* System Admin: how each school stands */}
       {isAdmin && (
         <div className="overflow-hidden rounded-2xl border border-border bg-card">
-          <div className="border-b border-border px-5 py-4">
-            <h2 className="text-sm font-bold text-foreground">Schools</h2>
-            <p className="mt-0.5 text-xs text-muted-foreground">The big button above starts every school at once. A school can also start early if you approve its request.</p>
-          </div>
-          {allSchools.length === 0 && <p className="px-5 py-6 text-sm text-muted-foreground">{sy.loading ? 'Loading…' : 'No schools yet.'}</p>}
-          {allSchools.map((s, i) => (
+          <button
+            type="button"
+            onClick={() => setSchoolsOpen((o) => !o)}
+            aria-expanded={schoolsOpen}
+            className={`flex w-full items-center gap-3 px-5 py-4 text-left hover:bg-gray-50 ${schoolsOpen ? 'border-b border-border' : ''}`}
+          >
+            <div className="min-w-0 flex-1">
+              <h2 className="text-sm font-bold text-foreground">Schools <span className="font-medium text-muted-foreground">· {allSchools.length}</span></h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">The big button above starts every school at once. A school can also start early if you approve its request.</p>
+            </div>
+            <span className="flex flex-shrink-0 items-center gap-1 text-xs font-semibold text-primary">
+              {schoolsOpen ? 'Hide' : 'Show'}
+              <ChevronDown className={`h-4 w-4 transition-transform ${schoolsOpen ? 'rotate-180' : ''}`} />
+            </span>
+          </button>
+          {schoolsOpen && allSchools.length === 0 && <p className="px-5 py-6 text-sm text-muted-foreground">{sy.loading ? 'Loading…' : 'No schools yet.'}</p>}
+          {schoolsOpen && allSchools.map((s, i) => (
             <div key={s.id} className={`flex flex-wrap items-center gap-3 px-5 py-3.5 ${i ? 'border-t border-border/60' : ''}`}>
               <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-xl bg-indigo-100 text-indigo-800"><SchoolIcon className="h-[18px] w-[18px]" /></span>
               <div className="min-w-0 flex-1">
