@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Loader2 } from 'lucide-react';
+import { CircleDashed, Loader2 } from 'lucide-react';
 import { Modal } from '../Modal';
 import { apiClient } from '../../api/client';
 import { formatDate } from '../../utils/localDate';
@@ -46,8 +46,14 @@ export function StudentRiskChip({
       </div>
     );
   }
-  if (review.status === 'not_checked') return <span className="whitespace-nowrap text-xs text-muted-foreground">Not checked yet</span>;
-  if (review.status === 'no_visit') return <span className="whitespace-nowrap text-xs text-muted-foreground">No visit yet</span>;
+  if (review.status === 'not_checked' || review.status === 'no_visit') {
+    return (
+      <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-[12.5px] font-normal text-slate-500">
+        <CircleDashed className="h-3.5 w-3.5" aria-hidden="true" />
+        {review.status === 'not_checked' ? 'Not checked' : 'No visit'}
+      </span>
+    );
+  }
 
   const openCard = async () => {
     setOpen(true);
