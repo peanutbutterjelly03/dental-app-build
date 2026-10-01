@@ -485,7 +485,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
         {mode === 'promote' && rows.length > 0 && (
           <div className="w-full sm:w-60">
             <div className="mb-1 flex justify-between text-xs">
-              <b className="truncate text-foreground">{grade}{section ? ` · ${section}` : ''}</b>
+              <b className="truncate text-foreground">{grade === UNASSIGNED ? 'Unassigned' : grade}{section ? ` · ${section}` : ''}</b>
               <span className="text-muted-foreground">{movedCount} of {rows.length} moved</span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-gray-200">
@@ -504,7 +504,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
               <label className={label} htmlFor="pa-grade">Grade <span className="ml-1.5 rounded-full bg-green-100 px-1.5 py-px align-[1px] text-[10px] font-semibold text-green-800">{mode === 'promote' ? fromYear : 'Current'}</span></label>
               <select id="pa-grade" value={grade} onChange={(e) => { setGrade(e.target.value); setSection(''); setSelected(new Set()); }} className={`w-full ${field}`} aria-label="Grade">
                 <option value="">Choose a grade…</option>
-                {mode === 'transfer' && <option value={UNASSIGNED}>No grade or section yet</option>}
+                <option value={UNASSIGNED}>No grade or section yet</option>
                 {GRADES.map((g) => <option key={g}>{g}</option>)}
               </select>
               <label className={`${label} !mt-3`} htmlFor="pa-section">Section <span className="ml-1.5 rounded-full bg-green-100 px-1.5 py-px align-[1px] text-[10px] font-semibold text-green-800">{mode === 'promote' ? fromYear : 'Current'}</span></label>
@@ -665,7 +665,25 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
             </div>
           )}
 
-          {loading && <p className="text-sm text-muted-foreground">Loading roster…</p>}
+          {loading && (
+            <div className="flex flex-1 flex-col overflow-hidden rounded-xl border-2 border-slate-300 bg-white shadow-sm" role="status" aria-live="polite">
+              <div className="flex items-center gap-3 border-b border-border px-4 py-3">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-primary" aria-hidden="true" />
+                <span className="text-sm font-semibold text-foreground">Loading students…</span>
+                <span className="text-xs text-muted-foreground">This only takes a moment.</span>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {[0, 1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="flex items-center gap-4 px-4 py-3.5">
+                    <span className="h-4 w-4 animate-pulse rounded bg-slate-200" />
+                    <span className="h-3.5 w-40 animate-pulse rounded bg-slate-200" />
+                    <span className="h-5 w-24 animate-pulse rounded-full bg-green-100" />
+                    <span className="ml-auto h-7 w-28 animate-pulse rounded-md bg-slate-100" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {!loading && grade && rows.length === 0 && (
             <div className="grid min-h-64 flex-1 content-start justify-items-center rounded-xl border-2 border-dashed border-slate-300 bg-white px-8 pb-8 pt-28 text-center">
