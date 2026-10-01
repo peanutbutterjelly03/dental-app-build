@@ -13,6 +13,9 @@ import { schoolYearLabel, nextSchoolYear } from "../../shared/schoolYear.js";
  *     year's STUDENT_IPTR. → copies them back from that IPTR.
  *  2. Marked the school "started" for the next year. → sets the row back to
  *     "planned" (not started). Nothing is deleted.
+ *  3. Added an EMPTY next-year IPTR (no grade, no section) to every student so
+ *     the dental chart lists the year. → those empty rows are ARCHIVED (soft
+ *     delete). A next-year IPTR that has a grade is real work and is left alone.
  *
  * A student is restored only if their grade AND section are empty now, the
  * outgoing-year IPTR has a grade or section, and they have no IPTR for the
@@ -49,7 +52,7 @@ async function main() {
       .lean<{ _id: unknown }[]>();
     const ids = empties.map((s) => s._id);
     const inNext = new Set(
-      (await StudentIptr.find({ student_id: { $in: ids }, school_year: next, isArchived: false }).select("student_id").lean<{ student_id: unknown }[]>())
+      (await StudentIptr.find({ student_id: { $in: ids }, school_year: next, isArchived: false, grade_level: { $nin: [null, ""] } }).select("student_id").lean<{ student_id: unknown }[]>())
         .map((i) => String(i.student_id)),
     );
     const iptrs = await StudentIptr.find({ student_id: { $in: ids }, school_year: current, isArchived: false })
@@ -63,6 +66,11 @@ async function main() {
       }
     }
     if (confirm) {
+      const schoolStudents = await Student.find({ school_id: row.school_id, isArchived: false }).select("_id").lean<{ _id: unknown }[]>();
+      await StudentIptr.updateMany(
+        { student_id: { $in: schoolStudents.map((s) => s._id) }, school_year: next, isArchived: false, grade_level: { $in: [null, ""] }, section: { $in: [null, ""] } },
+        { $set: { isArchived: true, archivedAt: new Date() } },
+      );
       await SchoolYearRollover.updateOne(
         { _id: row._id },
         { $set: { status: "planned", start_kind: null, started_by: null, started_at: null } },

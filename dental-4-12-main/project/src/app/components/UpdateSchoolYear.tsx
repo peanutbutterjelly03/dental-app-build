@@ -98,7 +98,10 @@ const PasswordField = ({ id, value, onChange }: { id: string; value: string; onC
         <input
           id={id}
           type={shown ? 'text' : 'password'}
-          autoComplete="current-password"
+          autoComplete="new-password"
+          name="confirm-action-password"
+          data-lpignore="true"
+          data-1p-ignore="true"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           className="w-full rounded-xl border border-border bg-card py-2.5 pl-3.5 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
@@ -884,7 +887,7 @@ export const UpdateSchoolYear = () => {
           <p className="mt-3 text-sm text-muted-foreground">Each student's {fromYear} grade and section stay saved in their IPTR, but nobody can undo the clearing from this screen.</p>
           {dialogError && <div className="mt-3"><Notice variant="error">{dialogError}</Notice></div>}
           <div className="mt-5 flex gap-2">
-            <button onClick={() => { setDialogError(null); setDialog({ kind: 'startAll' }); }} disabled={busy} className="flex-1 rounded-xl border border-border px-4 py-2.5 text-sm font-bold hover:bg-gray-50 disabled:opacity-60">No, go back</button>
+            <button onClick={() => { setDialogError(null); setPassword(''); setDialog({ kind: 'startAll' }); }} disabled={busy} className="flex-1 rounded-xl border border-border px-4 py-2.5 text-sm font-bold hover:bg-gray-50 disabled:opacity-60">No, go back</button>
             <button
               onClick={() => void act(() => sy.startAll(password), (r) => `${toYear} started for ${r.schoolsStarted} ${plural(r.schoolsStarted, 'school')}. ${r.studentsCleared} ${plural(r.studentsCleared, 'student')} cleared.`)}
               disabled={busy || !!lockedReason}

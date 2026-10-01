@@ -97,7 +97,7 @@ async function startSchool(
   // would undo real work. Only students still carrying the OUTGOING year are cleared.
   const alreadyInNext = new Set(
     (
-      await StudentIptr.find({ student_id: { $in: assigned.map((a) => a._id) }, school_year: next, isArchived: false })
+      await StudentIptr.find({ student_id: { $in: assigned.map((a) => a._id) }, school_year: next, isArchived: false, grade_level: { $nin: [null, ""] } })
         .select("student_id")
         .lean<{ student_id: Id }[]>()
     ).map((i) => String(i.student_id)),
@@ -125,6 +125,23 @@ async function startSchool(
     // Only unencrypted columns are written, so the encryption plugin has nothing to act on.
     await Student.updateMany({ _id: { $in: ids } }, { $set: { grade_level: "", section: "" } });
   }
+
+  // Every active student at the school gets the new year on their dental chart
+  // (user, 2026-10-01). It is an EMPTY year, with no grade or section, so the
+  // chart tab lists it straight away; Assign fills it in when the student is
+  // promoted. Archived rows from an earlier undo are brought back, not duplicated.
+  const everyone = await Student.find({ school_id: schoolId, isArchived: false }).select("_id").lean<{ _id: Id }[]>();
+  const everyoneIds = everyone.map((s) => s._id);
+  const existingNext = await StudentIptr.find({ student_id: { $in: everyoneIds }, school_year: next })
+    .select("student_id isArchived")
+    .lean<{ _id: Id; student_id: Id; isArchived?: boolean }[]>();
+  const haveNext = new Set(existingNext.map((i) => String(i.student_id)));
+  const archivedNext = existingNext.filter((i) => i.isArchived).map((i) => i._id);
+  if (archivedNext.length > 0) {
+    await StudentIptr.updateMany({ _id: { $in: archivedNext } }, { $set: { isArchived: false, archivedAt: null, archivedBy: null } });
+  }
+  const toAdd = everyoneIds.filter((id) => !haveNext.has(String(id))).map((id) => ({ student_id: id, school_year: next, grade_level: null, section: null }));
+  if (toAdd.length > 0) await StudentIptr.insertMany(toAdd, { ordered: false });
 
   const now = new Date();
   await SchoolYearRollover.findOneAndUpdate(
@@ -155,7 +172,7 @@ export async function getSchoolYearStatus(req: Request, res: Response) {
     .lean<{ _id: Id; school_id: Id; grade_level?: string | null; section?: string | null }[]>();
   const inNext = new Set(
     (
-      await StudentIptr.find({ school_year: next, isArchived: false }).select("student_id").lean<{ student_id: Id }[]>()
+      await StudentIptr.find({ school_year: next, isArchived: false, grade_level: { $nin: [null, ""] } }).select("student_id").lean<{ student_id: Id }[]>()
     ).map((i) => String(i.student_id)),
   );
   const countOf = new Map<string, { total: number; assigned: number }>();

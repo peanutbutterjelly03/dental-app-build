@@ -193,7 +193,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
   // set. Caught by the verification, not by reading the code.
   useEffect(() => {
     const targetByStudent = new Map(
-      iptrs.filter((i) => i.school_year === toYear).map((i) => [i.student_id, i]),
+      iptrs.filter((i) => i.school_year === toYear && i.grade_level).map((i) => [i.student_id, i]),
     );
     setRows((prev) => {
       const chosen = new Map(prev.map((r) => [r.student._id, r]));
@@ -417,12 +417,19 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
           });
           corrected += 1;
         } else {
-          await apiClient.post('/student-iptrs', {
-            student_id: r.student._id,
-            school_year: toYear,
-            grade_level: newGrade,
-            section: r.section || null,
-          });
+          // Starting the year leaves an EMPTY record for every student (so the dental
+          // chart lists the year). Fill that one in; POSTing would 409 on it.
+          const empty = iptrs.find((i) => i.student_id === r.student._id && i.school_year === toYear && !i.grade_level);
+          if (empty) {
+            await apiClient.put(`/student-iptrs/${empty._id}`, { grade_level: newGrade, section: r.section || null });
+          } else {
+            await apiClient.post('/student-iptrs', {
+              student_id: r.student._id,
+              school_year: toYear,
+              grade_level: newGrade,
+              section: r.section || null,
+            });
+          }
           created += 1;
         }
         // Current enrolment follows — that is what promotion MEANS, and it is
@@ -488,7 +495,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
               aria-pressed={mode === m}
               disabled={m === 'promote' && !nextYearStarted}
               title={m === 'promote' && !nextYearStarted ? `Opens when ${toYear} starts for ${schoolName}` : undefined}
-              className={`flex-1 px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-muted-foreground sm:flex-none ${
+              className={`flex-1 px-5 py-3 text-base font-semibold disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-muted-foreground sm:flex-none ${
                 mode === m ? 'bg-primary text-white' : 'bg-card text-foreground hover:bg-gray-50'
               }`}
             >
@@ -498,7 +505,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
             </button>
           ))}
         </div>
-        <p className="text-xs text-muted-foreground sm:flex-1">
+        <p className="text-sm text-muted-foreground sm:flex-1">
           {mode === 'promote'
             ? <>Start {toYear} for a whole class at once: <span className="font-medium text-foreground">{fromYear}</span> <ArrowRight className="mx-0.5 inline h-3 w-3" /> <span className="font-medium text-foreground">{toYear}</span>.</>
             : <>Fix a student's grade or section for <span className="font-medium text-foreground">{fromYear}</span>. This does not start a new school year.</>}
@@ -602,7 +609,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                 <button type="button" onClick={() => setSelected(new Set())} className="rounded-full bg-white/20 px-2.5 py-0.5 text-xs font-semibold text-white hover:bg-white/30">✕ Clear</button>
               </div>
               <div className="space-y-2 px-3 py-2.5">
-              <div className="text-xs text-muted-foreground">{mode === 'promote' ? 'Pick an action below, or use the Action column.' : 'Press Move below to move them.'}</div>
+              <div className="text-xs text-muted-foreground">{mode === 'promote' ? 'Pick an action below, or use the Action column.' : 'Confirm below to update.'}</div>
               {hiddenSelected > 0 && (
                 <div className="text-xs text-amber-700">{hiddenSelected} hidden by the search or filter. Actions apply to the {selected.size - hiddenSelected} shown.</div>
               )}
