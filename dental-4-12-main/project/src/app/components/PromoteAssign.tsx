@@ -390,7 +390,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
     if (failed.length > 0) toast.error(`${failed.length} could not be moved — see the summary.`);
   };
 
-  // ── Archive ticked pupils ────────────────────────────────────────────────
+  // ── Archive selected pupils ────────────────────────────────────────────────
   // The same soft archive Bulk Assignment offers (PATCH .../archive; a System
   // Admin can restore from Archived Records). Lives here so a pupil who has left
   // can be removed from the very list being promoted.
@@ -419,8 +419,8 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
     if (failed.length > 0) toast.error(`${failed.length} could not be archived: ${failed[0]}`);
   };
 
-  const field = 'border border-border rounded-lg px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-ring';
-  const label = 'mb-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground';
+  const field = 'border border-slate-400 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-ring';
+  const label = 'mb-1 block text-sm font-semibold text-foreground';
   const movedCount = rows.filter((r) => r.alreadyHasYear).length;
 
   return (
@@ -430,7 +430,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
           "promote this pupil", and carrying it into a transfer would apply an
           intent the operator never expressed. */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="flex w-full overflow-hidden rounded-lg border border-border sm:w-auto">
+        <div className="flex w-full overflow-hidden rounded-lg border-2 border-primary sm:w-auto">
           {(['promote', 'transfer'] as const).map((m) => (
             <button
               key={m}
@@ -444,16 +444,16 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
               }`}
             >
               {m === 'promote'
-                ? <>{!nextYearStarted && <Lock className="mr-1.5 inline h-3.5 w-3.5 align-[-2px]" />}Promote to {toYear}</>
-                : `Transfer within ${fromYear}`}
+                ? <>{!nextYearStarted && <Lock className="mr-1.5 inline h-3.5 w-3.5 align-[-2px]" />}Move up to {toYear}</>
+                : `Change grade or section in ${fromYear}`}
             </button>
           ))}
         </div>
         <p className="text-xs text-muted-foreground sm:flex-1">
           {mode === 'promote'
-            ? <>Opens {toYear} for a whole section at once. <span className="font-medium text-foreground">{fromYear}</span> <ArrowRight className="mx-0.5 inline h-3 w-3" /> <span className="font-medium text-foreground">{toYear}</span></>
-            : <>Moves pupils between grade or section <span className="font-medium text-foreground">within {fromYear}</span>. Opens no new year record.</>}
-          {' · '}{schoolName}
+            ? <>Start {toYear} for a whole class at once: <span className="font-medium text-foreground">{fromYear}</span> <ArrowRight className="mx-0.5 inline h-3 w-3" /> <span className="font-medium text-foreground">{toYear}</span>.</>
+            : <>Fix a pupil's grade or section for <span className="font-medium text-foreground">{fromYear}</span>. This does not start a new school year.</>}
+          {' '}School: <span className="font-medium text-foreground">{schoolName}</span>
         </p>
         {mode === 'promote' && rows.length > 0 && (
           <div className="w-full sm:w-60">
@@ -470,43 +470,46 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
 
       <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
         {/* ── Controls ─────────────────────────────────────────────────── */}
-        <div className="space-y-4 rounded-xl border border-border bg-slate-50/60 p-4">
+        <div className="space-y-5 rounded-xl border-2 border-slate-300 bg-white p-4 shadow-sm">
           <div>
-            <div className={label}>1 · Who</div>
-            <div className="space-y-2">
-              <select value={grade} onChange={(e) => { setGrade(e.target.value); setSection(''); setSelected(new Set()); }} className={`w-full ${field}`} aria-label="Grade">
-                <option value="">Select grade…</option>
+            <div className="mb-3 flex items-center gap-2"><span className="grid h-6 w-6 place-items-center rounded-full bg-primary text-xs font-bold text-white">1</span><span className="text-base font-bold text-foreground">Which pupils?</span></div>
+            <div className="space-y-3">
+              <label className={label} htmlFor="pa-grade">Grade</label>
+              <select id="pa-grade" value={grade} onChange={(e) => { setGrade(e.target.value); setSection(''); setSelected(new Set()); }} className={`w-full ${field}`} aria-label="Grade">
+                <option value="">Choose a grade…</option>
                 {GRADES.map((g) => <option key={g}>{g}</option>)}
               </select>
-              <select value={section} onChange={(e) => setSection(e.target.value)} className={`w-full ${field}`} aria-label="Section" disabled={!grade}>
-                <option value="">All sections</option>
+              <label className={`${label} !mt-3`} htmlFor="pa-section">Section <span className="font-normal text-muted-foreground">(optional)</span></label>
+              <select id="pa-section" value={section} onChange={(e) => setSection(e.target.value)} className={`w-full ${field}`} aria-label="Section" disabled={!grade}>
+                <option value="">Every section</option>
                 {sections.map((s) => <option key={s}>{s}</option>)}
               </select>
             </div>
           </div>
 
           <div>
-            <div className={label}>2 · Where</div>
+            <div className="mb-3 flex items-center gap-2"><span className="grid h-6 w-6 place-items-center rounded-full bg-primary text-xs font-bold text-white">2</span><span className="text-base font-bold text-foreground">{mode === 'promote' ? 'Where will they go?' : 'Where should they move?'}</span></div>
             {mode === 'promote' ? (
-              <div className="rounded-lg border border-border bg-card px-3 py-2 text-sm">
+              <div className="rounded-lg border border-slate-400 bg-slate-50 px-3 py-2.5 text-sm">
                 {grade
                   ? <>{grade} <ArrowRight className="mx-0.5 inline h-3.5 w-3.5 text-muted-foreground" /> <b>{target ?? `stays in ${grade}`}</b></>
-                  : <span className="text-muted-foreground">Choose a grade first</span>}
+                  : <span className="text-muted-foreground">Pick a grade in step 1 first</span>}
               </div>
             ) : (
-              <select value={transferGrade} onChange={(e) => setTransferGrade(e.target.value)} className={`w-full ${field}`} aria-label="Move to grade">
-                <option value="">Keep current grade</option>
+              <><label className={label} htmlFor="pa-to">Move them to</label>
+              <select id="pa-to" value={transferGrade} onChange={(e) => setTransferGrade(e.target.value)} className={`w-full ${field}`} aria-label="Move to grade">
+                <option value="">Stay in their current grade</option>
                 {GRADES.map((g) => <option key={g}>{g}</option>)}
-              </select>
+              </select></>
             )}
-            <p className="mt-1.5 text-xs text-muted-foreground">Each pupil's section can be changed in the table.</p>
+            <p className="mt-1.5 text-xs text-muted-foreground">You can change each pupil's section in the list on the right.</p>
           </div>
 
           {/* Tick-and-apply. Appears only with a selection, so the screen is
               unchanged for anyone who never ticks anything. */}
           {selected.size > 0 && (
             <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
-              <div className="text-xs font-semibold text-foreground">{selected.size} ticked</div>
+              <div className="text-xs font-semibold text-foreground">{selected.size} selected</div>
               {hiddenSelected > 0 && (
                 <div className="text-xs text-amber-700">{hiddenSelected} hidden by the search or filter. Actions apply to the {selected.size - hiddenSelected} shown.</div>
               )}
@@ -524,11 +527,12 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                 <input value={bulkSection} onChange={(e) => setBulkSection(e.target.value)} placeholder="Section for all" aria-label="Section to apply to the ticked pupils" className="min-w-0 flex-1 rounded-md border border-border bg-card px-2 py-1 text-xs" />
                 <button type="button" onClick={applyBulkSection} disabled={!bulkSection.trim()} className="rounded-md border border-border bg-card px-2.5 py-1 text-xs hover:bg-gray-50 disabled:opacity-40">Apply</button>
               </div>
-              <button type="button" onClick={() => setSelected(new Set())} className="text-xs text-muted-foreground hover:text-foreground">Clear ticks</button>
+              <button type="button" onClick={() => setSelected(new Set())} className="text-xs text-muted-foreground hover:text-foreground">Clear selection</button>
             </div>
           )}
 
-          <div className="space-y-2 border-t border-border pt-4">
+          <div className="space-y-2 border-t-2 border-slate-200 pt-4">
+            <div className="mb-1 flex items-center gap-2"><span className="grid h-6 w-6 place-items-center rounded-full bg-primary text-xs font-bold text-white">3</span><span className="text-base font-bold text-foreground">Tick the pupils, then confirm</span></div>
             <button
               onClick={mode === 'transfer' ? runTransfer : run}
               disabled={running || (mode === 'transfer' ? transferPicked.length === 0 : toApply.length === 0)}
@@ -536,12 +540,12 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
             >
               {running ? 'Working…'
                 : mode === 'transfer'
-                  ? `Move ${transferPicked.length} pupil${transferPicked.length === 1 ? '' : 's'}`
+                  ? `Move ${transferPicked.length} selected pupil${transferPicked.length === 1 ? '' : 's'}`
                   : toCorrect.length && !toCreate.length
                     ? `Correct ${toCorrect.length} ${toYear} record${toCorrect.length === 1 ? '' : 's'}`
                     : `Open ${toYear} for ${toApply.length}`}
             </button>
-            <button onClick={onClose} disabled={running} className="w-full rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-gray-50 disabled:opacity-50">
+            <button onClick={onClose} disabled={running} className="w-full rounded-lg border border-slate-400 bg-white px-4 py-2 text-sm font-medium text-foreground hover:bg-gray-50 disabled:opacity-50">
               {result ? 'Close' : 'Cancel'}
             </button>
             {rows.length > 0 && mode === 'promote' && (
@@ -553,7 +557,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
             )}
             {rows.length > 0 && mode === 'transfer' && (
               <p className="text-xs text-muted-foreground">
-                <b className="text-foreground">{transferPicked.length}</b> of {rows.length} ticked will move to <b className="text-foreground">{transferGrade || 'their current grade'}</b>. This edits the {fromYear} record and current enrolment. <b className="text-foreground">No new school year is created.</b>
+                <b className="text-foreground">{transferPicked.length}</b> of {rows.length} selected will move to <b className="text-foreground">{transferGrade || 'their current grade'}</b>. This updates their {fromYear} record. <b className="text-foreground">No new school year is started.</b>
               </p>
             )}
           </div>
@@ -561,7 +565,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
           <div className="space-y-1 border-t border-border pt-3 text-sm">
             {onShowUnassigned && unassignedCount > 0 && (
               <button type="button" onClick={onShowUnassigned} className="flex w-full items-center gap-2 rounded-md px-1 py-1.5 text-left font-semibold text-primary hover:bg-primary/5">
-                <ListChecks className="h-4 w-4" /> Pupils with no grade yet
+                <ListChecks className="h-4 w-4" /> Pupils without a grade
                 <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">{unassignedCount}</span>
               </button>
             )}
@@ -569,10 +573,10 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
               type="button"
               onClick={() => setShowArchive(true)}
               disabled={selected.size === 0 || running || archiving}
-              title={selected.size === 0 ? 'Tick the pupils to archive first' : undefined}
+              title={selected.size === 0 ? 'Select the pupils to archive first' : undefined}
               className="flex w-full items-center gap-2 rounded-md px-1 py-1.5 text-left font-semibold text-destructive hover:bg-danger-surface disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
             >
-              <ArchiveIcon className="h-4 w-4" /> Archive ticked pupils
+              <ArchiveIcon className="h-4 w-4" /> Archive selected pupils
             </button>
           </div>
         </div>
@@ -588,11 +592,11 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
           {error && <Notice variant="error">{error}</Notice>}
 
           {!grade && (
-            <div className="grid min-h-64 place-items-center rounded-xl border border-dashed border-border bg-card p-8 text-center">
+            <div className="grid min-h-64 place-items-center rounded-xl border-2 border-dashed border-slate-300 bg-white p-8 text-center">
               <div>
                 <Users className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-                <p className="text-sm font-semibold text-foreground">Choose a grade to see its pupils</p>
-                <p className="mt-1 text-xs text-muted-foreground">Pick a grade on the left. Add a section to narrow it down.</p>
+                <p className="text-sm font-semibold text-foreground">No pupils to show yet</p>
+                <p className="mt-1 text-xs text-muted-foreground">Start with step 1: choose a grade, and the pupils will appear here.</p>
               </div>
             </div>
           )}
@@ -604,13 +608,13 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
           )}
 
           {rows.length > 0 && (
-            <div className="overflow-hidden rounded-xl border border-border bg-card">
+            <div className="overflow-hidden rounded-xl border-2 border-slate-300 bg-white shadow-sm">
               {/* Count, status filter and search. VIEW filters only -- they never
                   change which pupils the run touches, which is why the counts
                   on the left still read from every row. */}
               <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
                 <span className="text-sm font-bold text-foreground">{rows.length} pupil{rows.length === 1 ? '' : 's'}</span>
-                <span className="text-xs text-muted-foreground">· {selected.size} ticked</span>
+                <span className="text-xs text-muted-foreground">· {selected.size} selected</span>
                 {mode === 'promote' && (
                   <div className="flex gap-1.5 sm:ml-2">
                     {([['all', 'All'], ['todo', `Not yet moved · ${rows.length - movedCount}`], ['moved', `Moved · ${movedCount}`]] as const).map(([k, t]) => (
