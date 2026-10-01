@@ -1208,7 +1208,7 @@ export const PatientList = () => {
                   aria-label={schoolYearNeedsUpdate ? `Update School Year Information, ${schoolYearPendingCount} need a grade or section` : 'Update School Year Information'}
                   className={`relative grid h-[38px] w-[38px] place-items-center rounded-[10px] text-white shadow-sm transition-colors hover:brightness-110 ${schoolYearNeedsUpdate ? 'bg-amber-500' : 'bg-primary'}`}
                 >
-                  <GraduationCap className="h-[19px] w-[19px]" strokeWidth={2} />
+                  <GraduationCap className="h-[19px] w-[19px]" strokeWidth={1.25} />
                   {schoolYearNeedsUpdate && (
                     <span className="absolute -right-1.5 -top-1.5 grid h-[18px] min-w-[18px] place-items-center rounded-full border-2 border-amber-500 bg-white px-1 text-[11px] font-bold leading-none text-amber-700">
                       {schoolYearPendingCount}
