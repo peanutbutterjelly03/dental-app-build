@@ -528,7 +528,10 @@ export const DentalChartNav = () => {
               </div>
               <div className="font-bold text-foreground">{spotlightStudent.name}</div>
               {[spotlightStudent.grade, spotlightStudent.section].filter(Boolean).length > 0 && (
-                <span className="-mt-1.5 inline-flex items-center justify-center rounded-full border border-primary/40 bg-primary/5 px-3.5 py-1.5 text-center text-xs font-bold leading-none text-primary">
+                <span
+                  className="-mt-1.5 inline-flex items-center justify-center rounded-full border px-3.5 py-1.5 text-center text-xs font-bold leading-none"
+                  style={{ backgroundColor: getGradeColor(spotlightStudent.grade).light, color: getGradeColor(spotlightStudent.grade).solid, borderColor: getGradeColor(spotlightStudent.grade).solid }}
+                >
                   {[spotlightStudent.grade, spotlightStudent.section].filter(Boolean).join(' · ')}
                 </span>
               )}
