@@ -223,7 +223,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
           return {
             student: s,
             action: existing?.action ?? defaultAction,
-            section: existing ? existing.section : (mode === 'transfer' ? '' : (s.section ?? '')),
+            section: existing ? existing.section : (defaultAction === 'retain' ? (s.section ?? '') : ''),
             alreadyHasYear: !!existingIptr,
             existingIptr,
           };
@@ -322,7 +322,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
       toast.error(`None of the ${picked.length} selected can take that action.`);
       return;
     }
-    setRows((prev) => prev.map((r) => (eligible.has(r.student._id) ? { ...r, action } : r)));
+    setRows((prev) => prev.map((r) => (eligible.has(r.student._id) ? { ...r, action, ...(action === 'retain' ? { section: r.student.section ?? '' } : {}) } : r)));
     // Say what was NOT changed. A bulk action that quietly skips rows is the
     // same class of lie as a filter that changes a label but not the data.
     const skipped = picked.length - eligible.size;
@@ -332,17 +332,13 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
     );
   };
 
-  const applyBulkSection = () => {
-    const value = bulkSection.trim();
-    if (!value) return;
-    const picked = visibleRows.filter((r) => selected.has(r.student._id));
-    if (picked.length === 0) {
-      toast.error('Tick the students first.');
-      return;
-    }
-    const ids = new Set(picked.map((r) => r.student._id));
-    setRows((prev) => prev.map((r) => (ids.has(r.student._id) ? { ...r, section: value } : r)));
-    toast.success(`Section set to "${value}" for ${picked.length} student${picked.length === 1 ? '' : 's'}.`);
+  // Typing in the card's Section box shows up in the list at once, no Apply step.
+  // It goes to the ticked students; on the promotion tab, with nothing ticked, to
+  // everyone listed. A student being retained keeps their previous section.
+  const setBulk = (value: string) => {
+    setBulkSection(value);
+    const everyone = mode === 'promote' && selected.size === 0;
+    setRows((prev) => prev.map((r) => ((everyone || selected.has(r.student._id)) && r.action !== 'retain' ? { ...r, section: value } : r)));
   };
   // Promote is driven by the per-row ACTION; transfer is driven by the
   // SELECTION. Keeping them on different inputs means neither can silently
@@ -557,7 +553,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                         id="pa-bulk-section"
                         type="text"
                         value={bulkSection}
-                        onChange={(e) => { setBulkSection(e.target.value); setSectionMenuOpen(true); }}
+                        onChange={(e) => { setBulk(e.target.value); setSectionMenuOpen(true); }}
                         onFocus={() => setSectionMenuOpen(true)}
                         onBlur={() => setSectionMenuOpen(false)}
                         placeholder="Search or add a section"
@@ -567,7 +563,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                       {sectionMenuOpen && (
                         <div className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-border bg-card shadow-md">
                           {sections.filter((x) => x.toLowerCase().startsWith(bulkSection.trim().toLowerCase())).map((x) => (
-                            <button key={x} type="button" onMouseDown={() => { setBulkSection(x); setSectionMenuOpen(false); }} className="block w-full px-3 py-2 text-left text-sm text-foreground hover:bg-gray-50">{x}</button>
+                            <button key={x} type="button" onMouseDown={() => { setBulk(x); setSectionMenuOpen(false); }} className="block w-full px-3 py-2 text-left text-sm text-foreground hover:bg-gray-50">{x}</button>
                           ))}
                           {bulkSection.trim() && !sections.some((x) => x.toLowerCase() === bulkSection.trim().toLowerCase()) && (
                             <button type="button" onMouseDown={() => setSectionMenuOpen(false)} className="block w-full border-t border-border px-3 py-2 text-left text-sm text-primary hover:bg-primary/5">+ Add "{bulkSection.trim()}" as new section</button>
@@ -576,9 +572,8 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                         </div>
                       )}
                     </div>
-                    <button type="button" onClick={applyBulkSection} disabled={!bulkSection.trim() || selected.size === 0} title={selected.size === 0 ? 'Tick the students first' : undefined} className="rounded-lg border border-slate-400 bg-white px-3 text-sm font-semibold hover:bg-gray-50 disabled:opacity-40">Apply</button>
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">Applies to the selected students. You can also edit each student in the list.</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Shows in the list as you type. You can also edit each student in the list.</p>
                 </div>
               </div>
             </div>
