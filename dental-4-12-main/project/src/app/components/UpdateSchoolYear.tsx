@@ -454,23 +454,23 @@ export const UpdateSchoolYear = () => {
           {backLink}
           <h1 className="text-2xl font-bold leading-none text-primary">Update School Year</h1>
           {isAdmin && (
-            <div className="relative ml-auto">
+            <div className="relative ml-auto mr-3 sm:mr-5">
               <button
                 type="button"
                 onClick={() => setBellOpen((o) => !o)}
                 aria-label={`Early start requests${waiting.length ? `, ${waiting.length} waiting` : ''}`}
                 aria-expanded={bellOpen}
-                className={`grid h-10 w-10 place-items-center rounded-xl border text-primary ${bellOpen ? 'border-primary bg-indigo-50' : 'border-border bg-card hover:bg-gray-50'}`}
+                className={`grid h-12 w-12 place-items-center rounded-xl border text-primary ${bellOpen ? 'border-primary bg-indigo-50' : 'border-border bg-card hover:bg-gray-50'}`}
               >
-                <Bell className="h-5 w-5" />
+                <Bell className="h-6 w-6" />
               </button>
               {waiting.length > 0 && (
-                <span className="pointer-events-none absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full border-2 border-white bg-red-600 px-1 text-[11px] font-bold leading-none text-white">{waiting.length}</span>
+                <span className="pointer-events-none absolute -right-2 -top-2 grid h-6 min-w-6 place-items-center rounded-full border-2 border-white bg-red-600 px-1.5 text-xs font-bold leading-none text-white">{waiting.length}</span>
               )}
               {bellOpen && (
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setBellOpen(false)} />
-                  <div className="absolute right-0 top-12 z-40 w-[min(390px,calc(100vw-2rem))] space-y-2.5 rounded-2xl border border-border bg-card p-3.5 shadow-xl">
+                  <div className="absolute right-0 top-14 z-40 w-[min(390px,calc(100vw-2rem))] space-y-2.5 rounded-2xl border border-border bg-card p-3.5 shadow-xl">
                     <div className="flex items-center gap-2 text-sm font-bold text-foreground">
                       Early start requests
                       {waiting.length > 0 && <Chip tone="amber">{waiting.length} waiting</Chip>}
