@@ -1,6 +1,7 @@
 import "dotenv/config";
 import "../dnsFix.js"; // this machine's Node 24 + Atlas SRV workaround
 import { connectDB } from "../config/db.js";
+import { announceTarget } from "./announceTarget.js";
 import { Student, StudentIptr, PreventiveCareRecord } from "../models/index.js";
 import mongoose from "mongoose";
 
@@ -14,6 +15,7 @@ const ADJUSTMENTS = [
 
 async function main() {
   await connectDB();
+  announceTarget("seedRpcVisit2");
 
   // full_name is encrypted (Sprint 8), so it can't be queried directly by
   // plaintext value — fetch all students and match after Mongoose decrypts

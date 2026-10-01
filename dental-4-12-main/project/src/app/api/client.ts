@@ -1,5 +1,6 @@
 import { enqueueWrite } from '../offline/db';
 import { notifyQueueChange } from '../offline/queueEvents';
+import { loadUserCache } from '../offline/authCache';
 
 export class ApiError extends Error {
   status: number;
@@ -71,7 +72,19 @@ function isNeverQueuedPath(path: string): boolean {
   return path.startsWith('/auth/') || path.startsWith('/predictions') || path.includes('/twofa/');
 }
 
+// "View as" preview (utils/viewAs.ts): while the System Admin previews another
+// role, every data write is refused HERE, before it can reach the server or
+// the offline queue. /auth/* (log in/out), /predictions (a read-like model
+// call) and /twofa/ are exempt: none of them writes a record.
+let viewAsReadOnlyRole: string | null = null;
+export function setViewAsReadOnly(roleLabel: string | null) {
+  viewAsReadOnlyRole = roleLabel;
+}
+
 async function writeRequest<T>(path: string, method: 'POST' | 'PUT' | 'PATCH', body?: unknown): Promise<T> {
+  if (viewAsReadOnlyRole && !isNeverQueuedPath(path)) {
+    throw new ApiError(403, `You are viewing as ${viewAsReadOnlyRole}, a read-only preview. Exit View as to save changes.`);
+  }
   if (isNeverQueuedPath(path)) {
     return request<T>(path, { method, body: body ? JSON.stringify(body) : undefined });
   }
@@ -135,7 +148,12 @@ async function registerBackgroundSync(): Promise<void> {
 
 async function queueWrite<T>(path: string, method: 'POST' | 'PUT' | 'PATCH', body: unknown): Promise<T> {
   const baselineSnapshot = method === 'POST' ? undefined : await captureBaselineSnapshot(path);
-  const queued = await enqueueWrite({ endpoint: path, method, body, baselineSnapshot });
+  // SEC-27: stamp the owner at enqueue, so this write can only ever sync under
+  // the account that made it. `authCache` is the right source — it is written
+  // at login and cleared at logout, and it is readable synchronously here,
+  // where there is no React context to ask.
+  const userId = loadUserCache()?.id;
+  const queued = await enqueueWrite({ endpoint: path, method, body, baselineSnapshot, userId });
   notifyQueueChange();
   registerBackgroundSync();
   // Synthetic optimistic response so calling code (which expects the

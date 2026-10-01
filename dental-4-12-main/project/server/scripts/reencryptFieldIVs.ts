@@ -2,6 +2,7 @@ import "dotenv/config";
 import "../dnsFix.js"; // this machine's Node 24 + Atlas SRV workaround
 import mongoose from "mongoose";
 import { connectDB } from "../config/db.js";
+import { announceTarget } from "./announceTarget.js";
 import { Student, DentalAide, MedicalHistory, Treatment } from "../models/index.js";
 
 // Sprint 26 one-time migration: re-encrypt every encrypted field with a fresh
@@ -18,9 +19,9 @@ import { Student, DentalAide, MedicalHistory, Treatment } from "../models/index.
 // - TAKE AN ATLAS SNAPSHOT FIRST. Run with: npx tsx server/scripts/reencryptFieldIVs.ts --yes
 
 const TARGETS: { name: string; model: mongoose.Model<any>; fields: string[] }[] = [
-  { name: "Student", model: Student, fields: ["full_name", "last_name", "first_name", "middle_name", "address", "contact_number", "guardian_name", "guardian_contact", "philhealth_number", "fourps_id", "place_of_birth", "guardian_occupation"] },
+  { name: "Student", model: Student, fields: ["full_name", "last_name", "first_name", "middle_name", "address", "contact_number", "guardian_name", "guardian_contact", "philhealth_number", "fourps_id"] },
   { name: "DentalAide", model: DentalAide, fields: ["contact_number"] },
-  { name: "MedicalHistory", model: MedicalHistory, fields: ["allergies", "others"] },
+  { name: "MedicalHistory", model: MedicalHistory, fields: ["allergies", "others", "hepatitis_type", "malignancy_details", "blood_transfusion_date", "last_admission", "medication_details", "last_extraction_date", "surgical_details"] },
   { name: "Treatment", model: Treatment, fields: ["diagnosis", "treatment_done"] },
 ];
 
@@ -34,6 +35,7 @@ async function main() {
   }
 
   await connectDB();
+  announceTarget("reencryptFieldIVs");
 
   let totalOk = 0;
   const failures: { collection: string; id: string; error: string }[] = [];

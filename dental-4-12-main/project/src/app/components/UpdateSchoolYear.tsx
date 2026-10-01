@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { ArrowLeft, GraduationCap, Repeat, Archive as ArchiveIcon } from 'lucide-react';
+import { ArrowLeft, GraduationCap, Repeat, Archive as ArchiveIcon, School as SchoolIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useStudents } from '../hooks/useStudents';
 import { apiClient, ApiError } from '../api/client';
@@ -48,13 +48,16 @@ export const UpdateSchoolYear = () => {
   const fromYear = schoolYearLabel();
   const toYear = nextSchoolYear(fromYear);
 
-  // "Start New School Year" is normally only clickable March-August — the
-  // real rollover window — unless a System Admin has flipped this school's
-  // override on (see SchoolManagement). getMonth() is 0-indexed: 2=March,
-  // 7=August.
-  const inRolloverSeason = (() => { const m = new Date().getMonth(); return m >= 2 && m <= 7; })();
-  const overrideAllowed = school?.allow_school_year_override === true;
-  const canStartSchoolYear = inRolloverSeason || overrideAllowed;
+  // ⚠ NO SEASONAL LOCK (Sprint 185, the user's call). The March–August window
+  // came in with her file; this app never had one. It made the rollover
+  // impossible for seven months of the year unless a SYSTEM ADMIN first ticked
+  // a box on another screen — a second account, to do a thing the dentist is
+  // already trusted to do. The button is destructive and already behind a
+  // confirmation; a calendar month is not what makes it safe.
+  //
+  // `allow_school_year_override` stays on the SCHOOL model and in School
+  // Management. It no longer gates anything here, and is left as the record of
+  // a per-school setting rather than ripped out of a schema on a Friday.
 
   const [tab, setTab] = useState<Tab>('promote');
 
@@ -214,12 +217,14 @@ export const UpdateSchoolYear = () => {
   const runArchive = async () => {
     setArchiving(true);
     let archived = 0;
+    let lastArchivedName = '';
     const failed: string[] = [];
     for (const id of selected) {
       const s = roster.find((r) => r.id === id);
       try {
         await apiClient.patch(`/students/${id}/archive`);
         archived += 1;
+        lastArchivedName = s?.name ?? '';
       } catch (err) {
         failed.push(`${s?.name ?? id} — ${err instanceof ApiError ? err.message : 'failed'}`);
       }
@@ -229,7 +234,7 @@ export const UpdateSchoolYear = () => {
     setShowArchiveConfirm(false);
     setSelected(new Set());
     await reloadStudents();
-    if (archived > 0) toast.success(`${archived} student${archived === 1 ? '' : 's'} archived.`);
+    if (archived > 0) toast.success(archived === 1 && lastArchivedName ? `${lastArchivedName} is archived.` : `${archived} student${archived === 1 ? ' is' : 's are'} archived.`);
     if (failed.length > 0) toast.error(`${failed.length} could not be archived — see the summary below.`);
   };
 
@@ -253,7 +258,20 @@ export const UpdateSchoolYear = () => {
         <Link to="/patients" aria-label="Back to Students" title="Back to Students" className="inline-flex items-center justify-center w-9 h-9 rounded-full text-muted-foreground hover:text-foreground hover:bg-gray-100">
           <ArrowLeft className="w-5 h-5" />
         </Link>
-        <Notice variant="warning">Pick a specific school from the Students page first — this runs one school at a time.</Notice>
+        {/* ⚠ The old text said "from the Students page", which is where the
+            school USED to be chosen — a dropdown in the sidebar. It is picked
+            on Switch School now, so the instruction sent people somewhere that
+            cannot do it, and the screen looked broken rather than gated.
+            The way out is a button, not a sentence. */}
+        <Notice variant="warning">
+          This runs one school at a time, and you are viewing <strong>All schools</strong>. Choose a school to continue.
+        </Notice>
+        <Link
+          to="/select-school"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-white hover:bg-primary-hover"
+        >
+          <SchoolIcon className="w-4 h-4" /> Switch School
+        </Link>
       </div>
     );
   }
@@ -278,17 +296,14 @@ export const UpdateSchoolYear = () => {
           <div>
             <h2 className="text-sm font-bold text-foreground">Start {toYear}</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {!canStartSchoolYear
-                ? `Only available March–August. A System Admin can enable it for this school any time from School Management.`
-                : stillAssignedCount > 0
+              {stillAssignedCount > 0
                   ? `Clears grade and section for ${stillAssignedCount} student${stillAssignedCount === 1 ? '' : 's'} still carrying their ${fromYear} assignment. Each one's ${fromYear} grade and section is saved to their IPTR first.`
                   : `Every active student here has already been cleared for ${toYear}.`}
             </p>
           </div>
           <button
             onClick={() => setShowWipeConfirm(true)}
-            disabled={stillAssignedCount === 0 || wiping || !canStartSchoolYear}
-            title={!canStartSchoolYear ? 'Only available March–August, unless a System Admin has enabled it for this school.' : undefined}
+            disabled={stillAssignedCount === 0 || wiping}
             className="flex-shrink-0 px-3 py-1.5 bg-destructive text-white rounded-lg text-xs font-medium hover:opacity-90 disabled:opacity-50"
           >
             {wiping ? `Clearing… ${wipeProgress}/${stillAssignedCount}` : `Start New School Year (${stillAssignedCount})`}
@@ -330,7 +345,7 @@ export const UpdateSchoolYear = () => {
 
       {tab === 'promote' && (
         <div className="bg-card rounded-xl border border-border">
-          <PromoteAssign onClose={() => void reloadStudents()} schoolId={schoolId} schoolName={selectedSchool} allSections={allSections} />
+          <PromoteAssign onClose={() => void reloadStudents()} schoolId={schoolId} schoolName={selectedSchool} />
         </div>
       )}
 

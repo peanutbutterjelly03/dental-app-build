@@ -1,225 +1,130 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
-import { ArrowLeft, Save, Maximize2, Minimize2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Check, Shield, ShieldCheck, ShieldAlert, Users, FileText, Plus, Pencil, Trash2, Brain, Download, X, MoreVertical } from 'lucide-react';
-import { exportDohReportToPdf } from '../utils/exportPdf';
-import { TOPBAR_H } from '../utils/layout';
+import { ArrowLeft, Save, ChevronLeft, ChevronRight, Shield, Users, FileText, Plus, Pencil, Trash2, Download, X, Maximize2, Check, ChevronUp, ChevronDown, ShieldCheck, ShieldAlert, Shield as ShieldIcon, MoreVertical } from 'lucide-react';
+import { buildPagesPdf } from '../utils/exportPdf';
+import { usePreviewModal } from '../hooks/usePreviewModal';
+import { PreviewModal } from './PreviewModal';
 import { getGradeColor } from '../utils/gradeColors';
-import { computeBmi, BMI_NOTE, classifyNutritionalStatus } from '../utils/bmi';
+import { BMI_NOTE } from '../utils/bmi';
 import { useAuth } from '../context/AuthContext';
-import { GradePill } from './GradePill';
 import { useToast } from './Toast';
-import { useStudents } from '../hooks/useStudents';
+import { useStudentNav } from '../hooks/useStudentNav';
+import { validateStudentValues } from '../../../shared/studentValidation';
 import { useDentalChartData } from '../hooks/useDentalChartData';
 import { apiClient, ApiError } from '../api/client';
 import { toLocalDateString, formatDate } from '../utils/localDate';
-import { surnameFirst, surnameFirstWithInitial } from '../utils/studentName';
+import { ageOn } from '../utils/age';
 import { schoolYearLabel } from '../utils/schoolYear';
+import { TOPBAR_H } from '../utils/layout';
+import { surnameFirst, surnameFirstWithInitial } from '../utils/studentName';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
 import { ConfirmDialog } from './ConfirmDialog';
+import { removeQueuedStudentId, getQueuedStudentIds, getEffectiveQueueOrder } from '../utils/queueStorage';
+import { addTreatmentQueueStudentId, getTreatmentQueueStudentIds } from '../utils/treatmentQueueStorage';
+import { invalidateCached } from '../utils/apiCache';
 import { Modal } from './Modal';
 import { useSchools } from '../hooks/useSchools';
+import { SERVICES as CONSENT_SERVICES } from './ConsentForm';
+import { IptrForm, IptrFormPage2 } from './IptrForm';
+import { IptrFormV2 } from './IptrFormV2';
+import { DmftHistoryTab } from './DmftHistoryTab';
+import { AiRiskTab } from './AiRiskTab';
+import { TreatmentHistoryTab } from './TreatmentHistoryTab';
+import { ReferralsTab } from './ReferralsTab';
+import { HistoryTab } from './HistoryTab';
+import { DentalChartTab } from './DentalChartTab';
+import { emptyMed, medDraftFrom, emptyDiet, emptyOral, oralConditionChips, serviceChips, type MedicalHistoryDraft, type DietDraft, type OralDraft, type ServiceField } from './iptrDrafts';
+import type { ReferralType, ApiAppointment } from '../api/types';
+import {
+  sectionBRows,
+  teethByTreatment as teethByTreatmentCode,
+  hasCaries,
+  type ChartedTooth,
+} from '../../../shared/iptrSectionB';
+// The chart's vocabulary and arithmetic — moved out in Sprint 162, unchanged.
+// Re-exported below for the four screens that import these from here.
+import {
+  temporaryTeeth,
+  conditionColors,
+  computeDMFT,
+  WHOLE_MOUTH_TREATMENT_CODES,
+  conditionCodes,
+  treatmentCodes,
+  treatmentLabel,
+  type ChartEntry,
+} from '../utils/dentalChartCodes';
 
-// ─── FDI tooth layout ─────────────────────────────────────────────────────────
-const upperPermanent = [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28];
-const lowerPermanent = [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38];
-const upperTemporary = [55, 54, 53, 52, 51, 61, 62, 63, 64, 65];
-const lowerTemporary = [85, 84, 83, 82, 81, 71, 72, 73, 74, 75];
-const temporaryTeeth = new Set([...upperTemporary, ...lowerTemporary]);
+// REFERRAL_TYPE_LABELS moved to ReferralsTab.tsx with the panel that owns it
+// (Sprint 162c). ⚠ A second copy still lives in Reports.tsx and the two have
+// DRIFTED — see BUG-14.
 
-const conditionColors: Record<string, string> = {
-  '✓': 'bg-green-50 border-green-400',
-  '√': 'bg-green-50 border-green-400',
-  'D': 'bg-red-100 border-red-400',
-  'd': 'bg-red-100 border-red-300',
-  'M': 'bg-slate-200 border-slate-400',
-  'm': 'bg-slate-200 border-slate-300',
-  'F': 'bg-blue-100 border-blue-400',
-  'f': 'bg-blue-100 border-blue-300',
-  'X': 'bg-orange-100 border-orange-400',
-  'x': 'bg-orange-100 border-orange-300',
-  // Legacy: charts saved before the code was corrected to X/x still hold DX/dx.
-  'DX': 'bg-orange-100 border-orange-400',
-  'dx': 'bg-orange-100 border-orange-300',
-  'Un': 'bg-purple-50 border-purple-300',
-  'un': 'bg-purple-50 border-purple-200',
-  'S': 'bg-yellow-50 border-yellow-400',
-  's': 'bg-yellow-50 border-yellow-300',
-  'JC': 'bg-pink-50 border-pink-400',
-  'jc': 'bg-pink-50 border-pink-300',
-  'P': 'bg-indigo-50 border-indigo-400',
-  'p': 'bg-indigo-50 border-indigo-300',
-};
-
-const ALL_SCHOOL_YEARS = ['2023-2024', '2024-2025', '2025-2026', '2026-2027', '2027-2028', '2028-2029', '2029-2030'];
+// Capped at 11 (2026-09-25) -- matching GRADES' own 11 levels (Kinder
+// through Grade 10), the longest a pupil is ever enrolled here. Add Year
+// naturally stops once ALL_SCHOOL_YEARS is exhausted (see getNextSchoolYear),
+// so extending this list is also how the cap would ever need to move.
+const ALL_SCHOOL_YEARS = ['2023-2024', '2024-2025', '2025-2026', '2026-2027', '2027-2028', '2028-2029', '2029-2030', '2030-2031', '2031-2032', '2032-2033', '2033-2034'];
 const GRADES = ['Kinder', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'];
+// Matches PatientList.tsx's own GENDER_SORT_ORDER exactly (user, 2026-09-27)
+// -- the default-context nav below has to sort like that module's table.
+const GENDER_SORT_ORDER: Record<string, number> = { Male: 0, Female: 1 };
 
-type ChartEntry = { condition: string; treatment: string };
-type MedicalHistoryDraft = {
-  allergies: string; hypertension: boolean; diabetes: boolean; bloodDisorders: boolean;
-  cardiovascular: boolean; thyroid: boolean; hepatitis: boolean; malignancy: boolean;
-  hospitalization: boolean; bloodTransfusion: boolean; tattoo: boolean; others: string;
-};
-type DietDraft = {
-  sugarSweetened: boolean; alcoholDrinker: boolean; tobaccoUser: boolean; betelNut: boolean;
-  bodyPiercing: boolean; nailBiting: boolean; thumbsucking: boolean; others: string;
-};
-type OralDraft = {
-  gingivitis: boolean; periodontal: boolean; debris: boolean; calculus: boolean;
-  abnormalGrowth: boolean; cleftLipPalate: boolean; others: string;
-};
-
-/** The DENTAL_CHART record's own fields: the two dates and the per-visit
- *  services. Dates are held as `yyyy-mm-dd` strings so they feed
- *  `<input type="date">` directly. */
-type ServicesDraft = {
-  dateCharted: string; dateTreated: string;
-  oralExamination: boolean; fluorideVarnish: boolean; oralProphylaxis: boolean;
-  consultation: boolean; others: string;
-};
-const emptyServices = (): ServicesDraft => ({
-  dateCharted: '', dateTreated: '',
-  oralExamination: false, fluorideVarnish: false, oralProphylaxis: false, consultation: false, others: '',
-});
-
-const emptyMed = (): MedicalHistoryDraft => ({
-  allergies: '', hypertension: false, diabetes: false, bloodDisorders: false, cardiovascular: false,
-  thyroid: false, hepatitis: false, malignancy: false, hospitalization: false, bloodTransfusion: false,
-  tattoo: false, others: '',
-});
-const emptyDiet = (): DietDraft => ({
-  sugarSweetened: false, alcoholDrinker: false, tobaccoUser: false, betelNut: false,
-  bodyPiercing: false, nailBiting: false, thumbsucking: false, others: '',
-});
-const emptyOral = (): OralDraft => ({
-  gingivitis: false, periodontal: false, debris: false, calculus: false,
-  abnormalGrowth: false, cleftLipPalate: false, others: '',
-});
+// The draft shapes and their empty factories moved to `iptrDrafts.ts` in
+// Sprint 162c — shared by this host, the History tab and the Dental Chart tab.
 
 const formatDateStamp = (dateString?: string | null) => formatDate(dateString, 'No date stamp');
 
-// ─── DMFT calculation ─────────────────────────────────────────────────────────
-const computeDMFT = (chart: Record<number, ChartEntry>) => {
-  let d = 0, m = 0, f = 0, x = 0, D = 0, M = 0, F = 0, X = 0;
-  Object.entries(chart).forEach(([tooth, data]) => {
-    const n = parseInt(tooth);
-    const c = data.condition;
-    if (temporaryTeeth.has(n)) {
-      if (c === 'd') d++;
-      else if (c === 'm') m++;
-      else if (c === 'f') f++;
-      else if (c === 'x' || c === 'dx') x++;
-    } else {
-      if (c === 'D') D++;
-      else if (c === 'M') M++;
-      else if (c === 'F') F++;
-      else if (c === 'X' || c === 'DX') X++;
-    }
-  });
-  return { d, m, f, x, t: d + m + f + x, D, M, F, X, T: D + M + F + X };
+// A school year's date stamp IS its Oral Conditions "Date examined" (user,
+// 2026-09-25): DENTAL_CHART.date_charted, shown only while an oral condition
+// is recorded, so the chip and the field can never disagree. Replaces the
+// separate "Edit date" menu item.
+// ⚠ "An oral condition is recorded" also means a TOOTH condition (user,
+// 2026-09-28: "there is condition marked in the dental chart but there is no
+// date in the Oral Conditions Date examined") -- the whole-mouth chips
+// (Debris, Gingivitis, ...) are not the only thing this form calls an oral
+// condition, and a mouth charted tooth-by-tooth with no whole-mouth finding
+// ticked is still an examined mouth.
+const examinedDate = (
+  oc: { debris?: boolean; gingivitis?: boolean; calculus?: boolean; periodontal_disease?: boolean; cleft_lip_palate?: boolean; abnormal_growth?: boolean; others?: string } | null | undefined,
+  chart: { date_charted?: string } | null | undefined,
+  toothRecords?: { condition?: string }[] | null,
+): string | null => {
+  const examined = (!!oc && (oc.debris || oc.gingivitis || oc.calculus || oc.periodontal_disease || oc.cleft_lip_palate || oc.abnormal_growth || !!oc.others?.trim()))
+    || !!toothRecords?.some((tr) => !!tr.condition);
+  return examined && chart?.date_charted ? chart.date_charted : null;
 };
 
-// Base44-exact condition codes: uppercase=permanent, lowercase=temporary (auto-applied)
-// ─── Per-TOOTH condition codes ────────────────────────────────────────────────
-// Split into two lists on purpose (2026-09-05). The first five are what a
-// screening actually records on nearly every tooth and stay on screen; the rest
-// are genuinely rare findings that were costing four permanent button slots for
-// something used a handful of times a year, so they live behind a "More"
-// dropdown. Both write the same TOOTH_RECORD.condition — the split is purely
-// how often a hand reaches for them, not a difference in kind.
-const commonConditionCodes = [
-  { code: '✓', label: 'Sound / Sealed', perm: '✓', temp: '✓' },
-  { code: 'D', label: 'Decayed', perm: 'D', temp: 'd' },
-  { code: 'M', label: 'Missing', perm: 'M', temp: 'm' },
-  { code: 'F', label: 'Filled', perm: 'F', temp: 'f' },
-  { code: 'X', label: 'Indicated for Extraction', perm: 'X', temp: 'x' },
-];
-const rareConditionCodes = [
-  { code: 'Un', label: 'Unerupted', perm: 'Un', temp: 'un' },
-  { code: 'S', label: 'Supernumerary Tooth', perm: 'S', temp: 's' },
-  { code: 'JC', label: 'Jacket Crown', perm: 'JC', temp: 'jc' },
-  { code: 'P', label: 'Pontic', perm: 'P', temp: 'p' },
-];
-const conditionCodes = [...commonConditionCodes, ...rareConditionCodes];
 
-// ─── Per-HEAD-COUNT oral conditions ───────────────────────────────────────────
-// These describe the MOUTH, not a tooth: you do not have calculus "on tooth 26"
-// for charting purposes, you either have it or you do not. Stored on
-// ORAL_HEALTH_CONDITION, one row per school year, and rendered as chips rather
-// than as palette buttons so the difference is visible rather than remembered.
-const oralConditionChips: { label: string; field: keyof OralDraft }[] = [
-  { label: 'Debris', field: 'debris' },
-  { label: 'Gingivitis', field: 'gingivitis' },
-  { label: 'Calculus', field: 'calculus' },
-  { label: 'Periodontal Disease', field: 'periodontal' },
-  { label: 'Cleft Lip / Palate', field: 'cleftLipPalate' },
-  { label: 'Abnormal Growth', field: 'abnormalGrowth' },
-];
 
-// ─── Per-HEAD-COUNT services ──────────────────────────────────────────────────
-// One per visit, not one per tooth — see the comment on the DentalChart model
-// for why these moved off TOOTH_RECORD.
-const serviceChips: { label: string; field: keyof ServicesDraft }[] = [
-  { label: 'Oral Examination', field: 'oralExamination' },
-  { label: 'Fluoride Varnish', field: 'fluorideVarnish' },
-  { label: 'Oral Prophylaxis', field: 'oralProphylaxis' },
-  { label: 'Consultation', field: 'consultation' },
-];
-
-// Base44-exact treatment codes
-// `local` is the word the clinic and the families actually use. The clinical
-// term stays primary — DOH forms and the manuscript use it — and the local term
-// is shown beside it so staff reading a screen mid-appointment, and a parent
-// looking over their shoulder, both recognise the service. "Pasta" was already
-// carried on TR before this; the rest were added 2026-09-02.
-//
-// ⚠ Only terms the dentist confirms should live here. A wrong local word on a
-// clinical screen is worse than none — leave `local` off rather than guess.
-// FULL code list, in its ORIGINAL order — do not reorder. `Reports.tsx` builds
-// the DOH treatment report's ROWS from this array, so the order here is the
-// order of rows on an official form, and RPCTracking/Dashboard resolve stored
-// codes to labels through it. OEX/FV/OP moved to DENTAL_CHART as per-visit
-// services and TR was retired as a duplicate of PF (both read "Pasta"), but all
-// four stay listed: historical TOOTH_RECORDs still carry them, and a code with
-// no entry here renders as a bare acronym.
-export const treatmentCodes = [
-  { code: 'OEX', label: 'Oral Exam / Checkup', local: 'Tingin' },
-  { code: 'FV', label: 'Fluoride Varnish' },
-  { code: 'PFS', label: 'Pit and Fissure Sealant' },
-  { code: 'OP', label: 'Oral Prophylaxis', local: 'Linis' },
-  { code: 'PF', label: 'Permanent Filling', local: 'Pasta' },
-  { code: 'TF', label: 'Temporary Filling', local: 'Pansamantalang pasta' },
-  { code: 'TR', label: 'Tooth Restoration', local: 'Pasta' },
-  { code: 'X', label: 'Extraction', local: 'Bunot' },
-  { code: 'SDF', label: 'Silver Diamine Fluoride' },
-];
-
-// The five that genuinely happen TO A TOOTH, and so are the only ones the
-// odontogram palette offers. Derived from the list above rather than retyped,
-// so a label fix cannot drift between the palette and the report.
-const TOOTH_TREATMENT_ORDER = ['PFS', 'PF', 'TF', 'X', 'SDF'] as const;
-export const toothTreatmentCodes = TOOTH_TREATMENT_ORDER.map(
-  (code) => treatmentCodes.find((t) => t.code === code)!,
+// The form downloads (user, 2026-09-24): ONE solid "Download PDF" button in
+// the primary blue (#273A78, the user's chosen shade) that opens a menu of the
+// two forms (user's pick "3", icon "F"). The page icons are blue-themed too. `paper`/`letters` let the same page icon sit white on
+// the red button and red on the white menu.
+const PdfPageIcon = ({ paper, fold, letters, className = 'h-5 w-5' }: { paper: string; fold: string; letters: string; className?: string }) => (
+  <svg viewBox="0 0 24 24" className={`shrink-0 ${className}`} aria-hidden="true">
+    <path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z" fill={paper} />
+    <path d="M15 2v5h5" fill={fold} />
+    <text x="12" y="17.3" fontSize="6.3" fontWeight="800" fill={letters} textAnchor="middle" fontFamily="inherit">PDF</text>
+  </svg>
 );
 
-/** "Extraction (Bunot)" where a local term exists, otherwise just the label. */
-export const treatmentLabel = (t: { label: string; local?: string }) =>
-  t.local ? `${t.label} (${t.local})` : t.label;
 
-// ─── Main component ───────────────────────────────────────────────────────────
-// Survives the per-patient REMOUNT. `routes.tsx` renders <DentalChart key={id} />,
-// so stepping to the next patient tears this component down and every useState
-// goes back to its initial value — which is why removing the old "reset on id
-// change" effect did not make the collapse stick. Holding the flag in module
-// scope is the smallest thing that outlives the remount; it is per-tab session
-// state on purpose (a fresh page load starts expanded again), so it is not
-// worth a context or a storage key.
+// Charting mode survives the remount between students (Sprint 153).
+//
+// ⚠ MODULE SCOPE ON PURPOSE. routes.tsx keys this component by `:id`, so
+// stepping to the next child UNMOUNTS and remounts it — any useState would
+// reset to false and drop the dentist out of full screen on every single
+// student, which is the one thing the mode exists to avoid. It is session
+// state, not record state, so it belongs neither in the URL nor in the DB.
+let chartingModeMemo = false;
+
+// Whether the patient card is expanded, also across the remount (Sprint 166).
+// ⚠ Same reason as `chartingModeMemo` above: routes.tsx keys this component by
+// `:id`, so Next student remounts it and a useState would spring the card back
+// open on every child. Collapsing it is a decision about how you want to WORK,
+// not a fact about one pupil, so it should outlive the pupil.
 let basicInfoExpandedMemo = true;
 
-// Focus mode has to survive the same remount: stepping to the next student is
-// the WHOLE POINT of it, and `routes.tsx` keys DentalChart by :id, so without
-// this the overlay would close on every "Next student" click.
-let focusModeMemo = false;
-
+// ─── Main component ───────────────────────────────────────────────────────────
 export const DentalChart = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -231,46 +136,143 @@ export const DentalChart = () => {
   const canEditInfo = canEditHistory;
   const staffNameLabel = user?.role === 'dental_aide' ? 'Dental Aide' : 'Dentist';
 
-  const { students: allStudents } = useStudents();
+  // Was useStudents() — the whole roster via /stats/student-rows — used ONLY to
+  // build the prev/next nav below (backlog #39). The slim endpoint returns the
+  // three fields the nav reads instead of ~13 joined across six collections.
+  const { entries: allStudents } = useStudentNav();
   // School list comes from the DB now, not a hardcoded array (Sprint 60).
   const { schoolNames } = useSchools();
   const { student, schoolName, years, dentists, loading, error, reload } = useDentalChartData(id);
   const currentDentist = dentists.find((d) => d.user_id === user?.id);
 
-  // Real patient nav (school-scoped like every list page, sorted by name for a stable, predictable order)
-  const navList = useMemo(
-    () => (selectedSchool ? allStudents.filter((s) => s.school === selectedSchool) : [...allStudents]).sort((a, b) => a.name.localeCompare(b.name)),
-    [allStudents, selectedSchool],
-  );
-  const navIndex = navList.findIndex((s) => s.id === id);
-  const prevPatient = navIndex > 0 ? navList[navIndex - 1] : null;
-  const nextPatient = navIndex >= 0 && navIndex < navList.length - 1 ? navList[navIndex + 1] : null;
-
+  // ⚠ 'appointments' (the Consent tab) is gone as of Sprint 171 — six tabs,
+  // hers. Consent lives on the History banner, which is where she put it.
   type TabKey = 'history' | 'chart' | 'records' | 'treatments' | 'referrals' | 'ai';
   type IptrContext = 'default' | 'dental-queue' | 'risk' | 'treatment';
   const iptrContext = (searchParams.get('context') as IptrContext) || 'default';
-  // Charting mode is session state, not URL state, so a jump to the next
-  // student has to land back on the CHART tab. Without this the remount opened
-  // on History, and the "close charting mode if the tab is not chart" effect
-  // then shut the overlay a beat later — the dentist ended up on the wrong tab
-  // of the next child every single time, which defeats the whole loop.
-  const initialTab = (searchParams.get('tab') as TabKey) || (focusModeMemo ? 'chart' : 'history');
+  // Layout/tabs treat dental-queue AND treatment exactly like default (user,
+  // 2026-09-27 for dental-queue; user, 2026-09-28 for treatment, after
+  // several rounds of individually patching context-specific hides kept
+  // missing spots: "rewrite the code that when open chart is click in the
+  // treatment queue submodule, then it will access the IPTR page with all
+  // the functions" -- rather than keep threading `layoutContext ===
+  // 'treatment'` exceptions through every panel one at a time, treatment now
+  // collapses into 'default' at this single point, same as dental-queue
+  // already does, so nothing downstream needs its own case for it.
+  // `iptrContext` itself (NOT layoutContext) stays distinct for the things
+  // that SHOULD still differ per module: the prev/next nav order below, the
+  // save-then-navigate-to-AI-Analytics behavior further down, the sidebar
+  // highlight (Root.tsx reads the raw ?context= query param, not this
+  // value), and the Back button's destination.
+  const layoutContext = (iptrContext === 'dental-queue' || iptrContext === 'treatment') ? 'default' : iptrContext;
+
+  // Appointments-today, fetched ONLY for the dental-queue nav below (user,
+  // 2026-09-27): "Next" has to agree with the Queue # shown on the Dental
+  // Charts page itself, which bypasses raw queue position for students with
+  // an appointment today -- not just the order they were added to the
+  // queue. getEffectiveQueueOrder (shared with DentalChartNav) needs this
+  // same set to compute that identical order.
+  const [queueAppointmentsTodayIds, setQueueAppointmentsTodayIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (iptrContext !== 'dental-queue') return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const appts = await apiClient.get<ApiAppointment[]>('/appointments');
+        const today = toLocalDateString(new Date());
+        const ids = new Set(
+          appts.filter((a) => !a.isArchived && toLocalDateString(new Date(a.appointment_datetime)) === today).map((a) => a.student_id),
+        );
+        if (!cancelled) setQueueAppointmentsTodayIds(ids);
+      } catch {
+        // Best-effort -- nav just falls back to raw queue order below.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [iptrContext]);
+
+  // Real patient nav (school-scoped like every list page, sorted by name for
+  // a stable, predictable order) -- EXCEPT from the Charting Queue (user,
+  // 2026-09-27): "the next student should be the next student in the
+  // charting queue", BY QUEUE NUMBER (the same appointments-today-bypass
+  // order the queue table itself shows), not the raw order students were
+  // added to the queue. Opened from Treatment (user, 2026-09-28: "the next
+  // student should also be based depending on whose the student in the
+  // next treatment queue") gets the same treatment, against the Treatment
+  // Queue's own order instead -- that queue has no appointments-today
+  // bypass, so it's just the stored order as-is.
+  const queueNavList = useMemo(() => {
+    if (iptrContext === 'dental-queue') {
+      const byId = new Map(allStudents.map((s) => [s.id, s]));
+      const ordered = getEffectiveQueueOrder(getQueuedStudentIds(), queueAppointmentsTodayIds);
+      return ordered.map((qid) => byId.get(qid)).filter((s): s is (typeof allStudents)[number] => !!s);
+    }
+    if (iptrContext === 'treatment') {
+      const byId = new Map(allStudents.map((s) => [s.id, s]));
+      return getTreatmentQueueStudentIds().map((qid) => byId.get(qid)).filter((s): s is (typeof allStudents)[number] => !!s);
+    }
+    return null;
+  }, [iptrContext, allStudents, queueAppointmentsTodayIds]);
+  const navList = useMemo(() => {
+    if (queueNavList) return queueNavList;
+    const scoped = selectedSchool ? allStudents.filter((s) => s.school === selectedSchool) : [...allStudents];
+    // Opened from Student Records (iptrContext === 'default', no ?context=)
+    // sorts the SAME way that module's own table does -- grade, section,
+    // gender, surname, first name -- not plain alphabetical (user,
+    // 2026-09-27: "the next student should be the next student in the
+    // student list, not alphabetical"). risk context keeps the simple
+    // alphabetical fallback, unaffected (dental-queue and treatment never
+    // reach here -- queueNavList above already returned for both).
+    if (iptrContext === 'default') {
+      return [...scoped].sort((a, b) =>
+        (GRADES.indexOf(a.grade) - GRADES.indexOf(b.grade)) ||
+        a.section.localeCompare(b.section) ||
+        ((GENDER_SORT_ORDER[a.gender] ?? 2) - (GENDER_SORT_ORDER[b.gender] ?? 2)) ||
+        (a.lastName || a.name).localeCompare(b.lastName || b.name) ||
+        (a.firstName ?? '').localeCompare(b.firstName ?? '')
+      );
+    }
+    return [...scoped].sort((a, b) => a.name.localeCompare(b.name));
+  }, [queueNavList, allStudents, selectedSchool, iptrContext]);
+  const navIndex = navList.findIndex((s) => s.id === id);
+  const prevPatient = navIndex > 0 ? navList[navIndex - 1] : null;
+  const nextPatient = navIndex >= 0 && navIndex < navList.length - 1 ? navList[navIndex + 1] : null;
+  const [chartingMode, setChartingModeState] = useState(chartingModeMemo);
+  const setChartingMode = (on: boolean) => { chartingModeMemo = on; setChartingModeState(on); };
+  // An explicit ?tab= still wins — a deep link says where to land. Otherwise a
+  // remount inside charting mode has to come back to the CHART tab, or the
+  // dentist arrives at the next child on History with the mode still on.
+  // Opened from Treatment (user, 2026-09-28: "the dental chart should be
+  // the default view") always lands on Chart too, same as charting mode,
+  // independent of whether charting mode itself is on.
+  const initialTab = (searchParams.get('tab') as TabKey) || (chartingModeMemo || iptrContext === 'treatment' ? 'chart' : 'history');
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
+  // Her labels and her order (Sprint 162). "Caries Risk Assessment" says what
+  // the tab actually holds where "Risk Classification" only named the output,
+  // and it moves up because a dentist reads risk before treatment history.
+  //
+  // ⚠ CONSENT IS OURS AND STAYS. Her branch has no Consent tab at all — six
+  // tabs to our seven — but the tab holds the signed Pahintulot and the consent
+  // status, which is a real screen with real data behind it. Adopting a tab
+  // ORDER is not a reason to delete a feature, so it keeps the slot it had.
   const allTabs: { key: TabKey; label: string }[] = [
-    { key: 'history', label: 'History' },
+    { key: 'history', label: 'Medical History' },
     { key: 'chart', label: 'Dental Chart' },
     { key: 'ai', label: 'Caries Risk Assessment' },
-    { key: 'treatments', label: 'Treatment History' },
-    { key: 'records', label: 'DMFT History' },
-    { key: 'referrals', label: 'Referrals' },
+    { key: 'treatments', label: 'Treatment' },
+    { key: 'records', label: 'Dental History' },
+    { key: 'referrals', label: 'Notes & Referrals' },
   ];
+  // Keyed on layoutContext, not iptrContext (user, 2026-09-27) -- dental-
+  // queue used to restrict this to just History + Chart; it now shows every
+  // tab, same as opening a chart from the Students module. Treatment used to
+  // restrict this to just Chart + Treatment too; user, 2026-09-28: "all tabs
+  // in the IPTR should still be accessible" from there as well -- only the
+  // DEFAULT tab (see initialTab below) is treatment-specific now, not which
+  // tabs are reachable.
   const visibleTabs = (
-    iptrContext === 'dental-queue'
-      ? allTabs.filter((tab) => tab.key === 'history' || tab.key === 'chart')
-      : iptrContext === 'risk'
+    layoutContext === 'risk'
       ? allTabs.filter((tab) => tab.key === 'ai')
-      : iptrContext === 'treatment'
-      ? allTabs.filter((tab) => tab.key === 'chart' || tab.key === 'treatments')
       : allTabs
   );
 
@@ -290,59 +292,147 @@ export const DentalChart = () => {
   // longer flip a medical flag. A brand-new/empty year auto-enters edit mode.
   const [editMode, setEditMode] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // Chart-specific save blocker (a tooth with a treatment but no condition).
+  // Shown between the code palette and the odontogram, where the fix is made,
+  // instead of in the header strip far above it (user, 2026-09-24).
+  const [chartError, setChartError] = useState<string | null>(null);
+  // The Download PDF menu in the header. Declared up here with the other hooks:
+  // the header renders after the loading/error early returns.
+  const [pdfMenuOpen, setPdfMenuOpen] = useState(false);
+  const pdfMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!pdfMenuOpen) return;
+    const onDown = (e: MouseEvent | TouchEvent) => {
+      if (!pdfMenuRef.current?.contains(e.target as Node)) setPdfMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setPdfMenuOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('touchstart', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('touchstart', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [pdfMenuOpen]);
+
   const [editingInfo, setEditingInfo] = useState(false);
-  // Extra confirm step before entering edit mode and before the save that
-  // leaves it, at the user's request — separate from infoSaving, which only
-  // covers the request itself.
-  const [confirmOpenEdit, setConfirmOpenEdit] = useState(false);
-  const [confirmSaveInfo, setConfirmSaveInfo] = useState(false);
-  const [confirmEditChart, setConfirmEditChart] = useState(false);
-  // Switching tabs mid-edit is allowed — it's a warning, not a lock — but
-  // silently discarding an in-progress edit on a stray click is worse than
-  // asking once. Stores which tab was clicked so onConfirm can still go there.
-  const [pendingTabSwitch, setPendingTabSwitch] = useState<TabKey | null>(null);
-  // Collapses the Patient Info Card down to just name + grade/section pills
-  // — the birthday/contact/address grid is useful but not something every
-  // screen visit needs looking at.
-  // Deliberately NOT reset per student (was, briefly) — collapsing it once
-  // should stay collapsed through Next/Prev navigation until the user
-  // explicitly expands it again, per request. Seeded from and written back to
-  // the module-scope memo above, because Next/Prev remounts this component.
-  const [basicInfoExpanded, setBasicInfoExpanded] = useState(basicInfoExpandedMemo);
-  useEffect(() => { basicInfoExpandedMemo = basicInfoExpanded; }, [basicInfoExpanded]);
   const [draftInfo, setDraftInfo] = useState<Partial<typeof student>>({});
-  // Year-scoped grade/section, drafted separately from STUDENT even though
-  // they share the one Edit button — the save below writes to both records.
-  const [draftYear, setDraftYear] = useState<{ grade_level: string; section: string }>({ grade_level: '', section: '' });
+  // Height and weight live on the SELECTED YEAR's IPTR, not on STUDENT, so they
+  // are drafted separately even though they share the one Edit button — the
+  // save below writes to both records (Sprint 68).
+  const [draftYear, setDraftYear] = useState<{ height_cm: string; weight_kg: string; grade_level: string; section: string }>({ height_cm: '', weight_kg: '', grade_level: '', section: '' });
   const [infoSaving, setInfoSaving] = useState(false);
   const [infoError, setInfoError] = useState<string | null>(null);
-  // Year menu (3-dot, replacing the old "Edit Years" toggle + per-row trash
-  // icon, 2026-09-04): Add/Edit/Delete all operate on the SELECTED year tab
-  // and all three go through the same password re-confirmation as the
-  // bulk-archive flow elsewhere in the app, so this can't be idly repeated.
+  const [infoMissing, setInfoMissing] = useState<Set<string>>(new Set());
   const [yearMenuOpen, setYearMenuOpen] = useState(false);
-  const [pendingYearAction, setPendingYearAction] = useState<'add' | 'edit' | 'delete' | null>(null);
-  // Which year "Add" targets — the menu offers today's real school year and
-  // the one after this student's latest record as two separate choices.
-  const [addYearTarget, setAddYearTarget] = useState<string | null>(null);
-  const [editYearDateValue, setEditYearDateValue] = useState('');
-  const [yearActionPassword, setYearActionPassword] = useState('');
-  const [yearActionPasswordError, setYearActionPasswordError] = useState<string | null>(null);
-  const [yearActionBusy, setYearActionBusy] = useState(false);
-  const yearActionPasswordFieldName = useRef(`confirm-${Math.random().toString(36).slice(2)}`).current;
+  // ⚠ The menu is rendered FIXED, positioned from the button, because the year
+  // strip is `overflow-x-auto` — and once overflow applies on one axis the
+  // browser clips the other too. An absolutely positioned dropdown opened
+  // inside it rendered at full size and was cut off by the strip, which looked
+  // exactly like the button doing nothing.
+  const yearMenuBtnRef = useRef<HTMLButtonElement | null>(null);
+  const [yearMenuAt, setYearMenuAt] = useState<{ top: number; right: number } | null>(null);
+  const openYearMenu = () => {
+    const r = yearMenuBtnRef.current?.getBoundingClientRect();
+    if (r) setYearMenuAt({ top: r.bottom + 4, right: Math.max(8, window.innerWidth - r.right) });
+    setYearMenuOpen((v) => !v);
+  };
   const headerRowRef = useRef<HTMLDivElement | null>(null);
   // Wraps the record body for the PDF export, excluding the sticky toolbar —
   // a downloaded patient record should not carry Edit/Save buttons.
   const recordRef = useRef<HTMLDivElement | null>(null);
-  const [pdfBusy, setPdfBusy] = useState(false);
+  // The off-screen DOH form captured by the IPTR PDF button (Sprint 135).
+  const iptrFormRef = useRef<HTMLDivElement | null>(null);
+  const iptrFormPage2Ref = useRef<HTMLDivElement | null>(null);
+  const iptrFormV2Ref = useRef<HTMLDivElement | null>(null);
+  // Sprint 148 — WHICH charting of the year is being viewed. Null means "the
+  // latest", which is what the hook already hands over.
+  //
+  // ⚠ Until now the screen rendered the OLDEST charting of the year and hid
+  // every later one: 22 of 26 IPTRs on dev have two or more, and a pupil with
+  // three showed 3 of their 4 tooth records. A dentist looking at August's
+  // findings while January's existed is reading a stale mouth.
+  // `?chart=<id>` lands directly on one charting — Record Visit's "chart now"
+  // navigates here with the charting it just created (Sprint 149).
+  // Sprint 152 — the code palette's WORDS live here now, adopted from the
+  // collaborator's design. Her reasoning: the odontogram needs the codes, not
+  // the glossary, and a chairside screen has no room for both.
+  const [legendOpen, setLegendOpen] = useState(false);
+  const [selectedChartId, setSelectedChartId] = useState<string | null>(
+    searchParams.get('chart'),
+  );
+  // ⚠ NO RESET EFFECT HERE, and that is the point. Two attempts failed: an
+  // effect keyed on `selectedYear` fires on mount AND again when the year
+  // index resolves once the data loads, and both runs wiped the `?chart=`
+  // deep link that Record Visit's "chart now" navigates with — the charting
+  // was created and listed, and the screen still opened on a different one.
+  //
+  // A stale id needs no clearing: the lookup below falls back to the latest
+  // charting when the id is not in the year on display, so an id from another
+  // year is simply ignored. Both breakages typechecked and built cleanly.
+  const { preview, building: pdfBusy, previewPdf, closePreview, confirmDownload } = usePreviewModal();
   const tabsRowRef = useRef<HTMLDivElement | null>(null);
   const [stickyOffsets, setStickyOffsets] = useState({ tabsTop: 0, yearTop: 0 });
-  // Pristine JSON snapshot of the drafts, captured the moment they're loaded
-  // from the server (see the draft-sync effect below) — compared against the
-  // live drafts to tell a genuine edit from just having entered edit mode.
-  const editBaselineRef = useRef<string>('');
 
-  const currentYearData = years[selectedYear];
+  const currentYearDataRaw = years[selectedYear];
+  // The hook defaults to the latest charting; this swaps in whichever one the
+  // dentist picked, with its own tooth records.
+  //
+  // ⚠ useMemo IS LOAD-BEARING, not a micro-optimisation (Sprint 154). The
+  // spread built a NEW OBJECT on every render, and the draft-sync effect below
+  // lists `currentYearData` in its deps — so picking a charting, or arriving on
+  // a `?chart=` deep link, put the screen in an INFINITE RENDER LOOP: effect →
+  // setDraftChart(new object) → render → new currentYearData → effect. Measured
+  // at 6,656 DOM mutations in 2 seconds on an idle page. Because that effect
+  // ends in `setEditMode(...)`, Edit Chart could never stay on either: every
+  // charting reached through the picker was silently read-only.
+  //
+  // It typechecked, it built, and the page LOOKED right — the loop is invisible
+  // until you count renders or try to edit.
+  const currentYearData = useMemo(
+    () => (currentYearDataRaw && selectedChartId
+      ? {
+          ...currentYearDataRaw,
+          dentalChart: currentYearDataRaw.charts.find((c) => c._id === selectedChartId) ?? currentYearDataRaw.dentalChart,
+          toothRecords: currentYearDataRaw.toothRecordsByChart[selectedChartId] ?? currentYearDataRaw.toothRecords,
+        }
+      : currentYearDataRaw),
+    [currentYearDataRaw, selectedChartId],
+  );
+  // Visit 1 / Visit 2 on Treatments Given (2026-09-25, reworked same day):
+  // both visits share ONE dental chart now instead of each getting its own —
+  // "there should be an indication like (V1)/(V2)" on the teeth themselves,
+  // not two separate chartings. `activeVisit` picks which visit's SERVICES
+  // are being viewed/edited and which visit number gets tagged onto any
+  // tooth charted while it's selected; it does NOT change which chart or
+  // tooth records are shown (there's only ever the one).
+  const visit1 = currentYearData?.preventivesByVisitNumber?.[1];
+  const visit2 = currentYearData?.preventivesByVisitNumber?.[2];
+  // Whether a visit's RECORD is backed by real content (any service ticked,
+  // or any tooth tagged to it), not just whether the row exists (user,
+  // 2026-09-28: "when oral conditions and treatment and dental chart is
+  // empty ... visit 2 should be hidden again too"). Visit 1's record is
+  // exempt from archiving (it always stays), so it can go back to "empty"
+  // after a clear-everything save while still technically existing --
+  // Visit 2 should only be offered once Visit 1 has real data again, not
+  // merely because its row is still sitting there. "Visit 1" here is the
+  // same catch-all Treatment Summary's own V1/V2 split uses: visit_number 1
+  // AND untagged/legacy teeth.
+  const hasRealVisitData = (visitNumber: 1 | 2, record?: typeof visit1) => {
+    if (!record) return false;
+    if ([record.oral_screening, record.oral_prophylaxis, record.fluoride_varnish, record.oral_hygiene_instruction, record.consultation].some((v) => v === true)) return true;
+    const teeth = currentYearData?.toothRecords ?? [];
+    return visitNumber === 2 ? teeth.some((tr) => tr.visit_number === 2) : teeth.some((tr) => (tr.visit_number ?? 1) !== 2);
+  };
+  const visit1HasData = hasRealVisitData(1, visit1);
+  const visit2HasData = hasRealVisitData(2, visit2);
+  const [explicitVisit, setExplicitVisit] = useState<1 | 2 | null>(null);
+  // No explicit pick yet — default to Visit 2 once Visit 1 is recorded and
+  // Visit 2 isn't: the next thing to do, not a re-read of what's already
+  // recorded.
+  const activeVisit: 1 | 2 = explicitVisit ?? (visit1HasData && !visit2 ? 2 : 1);
+  const activeVisitRecord = activeVisit === 1 ? visit1 : visit2;
 
   // Draft (editable) copies of the current year's real data -- initialized
   // from real records when the selected year changes, persisted for real on
@@ -352,24 +442,84 @@ export const DentalChart = () => {
   const [draftMed, setDraftMed] = useState<MedicalHistoryDraft>(emptyMed());
   const [draftDiet, setDraftDiet] = useState<DietDraft>(emptyDiet());
   const [draftOral, setDraftOral] = useState<OralDraft>(emptyOral());
-  const [draftServices, setDraftServices] = useState<ServicesDraft>(emptyServices());
-  const [othersServiceOpen, setOthersServiceOpen] = useState(false);
-  const [rareConditionsOpen, setRareConditionsOpen] = useState(false);
-  const [legendOpen, setLegendOpen] = useState(false);
-  const [focusMode, setFocusMode] = useState(focusModeMemo);
-  useEffect(() => { focusModeMemo = focusMode; }, [focusMode]);
-  const [pendingNextStudent, setPendingNextStudent] = useState<string | null>(null);
-  // Height/weight live on the SELECTED YEAR's IPTR (Sprint 68) and are edited
-  // from the History tab, alongside the rest of that year's clinical record —
-  // not from the student-info modal, which only ever touched name/contact/
-  // enrolment fields.
+  // Services given at the visit this charting belongs to (Sprint 154).
+  // ⚠ null, not false. PREVENTIVE_CARE_RECORD defaults every service to null
+  // and its own comment says why: `false` claims on a form filed with the City
+  // Health Office that a service was WITHHELD, where null reads "not
+  // recorded". A checkbox is binary, so unticking writes null back — never
+  // false. "Explicitly not done" has no tick on the paper form either.
+  // Her Physical Measurements block owns these (Sprint 173). They used to be
+  // typed inside the Edit Student Info panel and read back as three grey rows
+  // on the patient card — two different places for one record. One editor now.
   const [draftMeasure, setDraftMeasure] = useState({ height_cm: '', weight_kg: '', temperature_c: '', blood_pressure: '' });
-  // "Others" is a chip that reveals its text field rather than the field
-  // always being visible — open state is separate from the text itself so a
-  // click opens an EMPTY field, and existing saved text opens it on load.
-  const [othersMedOpen, setOthersMedOpen] = useState(false);
-  const [othersDietOpen, setOthersDietOpen] = useState(false);
+  // Kept ONE PER VISIT, not one shared slot for "whichever tab is active"
+  // (fixed 2026-09-28: "when i uncheck anything in visit 2 ... go to visit 1
+  // and made edits ... when i save, the unchecked boxes in visit 2 gets
+  // checked again"). A single shared draft meant switching tabs overwrote
+  // whatever was in progress for the visit being left with that visit's
+  // last-SAVED data, and Save only ever wrote the currently-active visit —
+  // so an in-progress Visit 2 uncheck was silently discarded the moment the
+  // dentist switched to Visit 1, never reaching the server at all.
+  const emptyServiceDraft: Record<ServiceField, boolean | null> = {
+    oral_screening: null, oral_prophylaxis: null, fluoride_varnish: null, oral_hygiene_instruction: null, consultation: null,
+  };
+  const [draftServicesByVisit, setDraftServicesByVisit] = useState<Record<1 | 2, Record<ServiceField, boolean | null>>>({
+    1: emptyServiceDraft, 2: emptyServiceDraft,
+  });
+  const [draftVisitDateByVisit, setDraftVisitDateByVisit] = useState<Record<1 | 2, string>>({ 1: '', 2: '' });
+  // Everything below this line still reads/writes "draftServices" /
+  // "draftVisitDate" as if it were the old single slot — these are thin
+  // views onto the active visit's slot in the map above, so none of that
+  // code had to change.
+  const draftServices = draftServicesByVisit[activeVisit];
+  const draftVisitDate = draftVisitDateByVisit[activeVisit];
+  const setDraftServices = (next: Record<ServiceField, boolean | null>) =>
+    setDraftServicesByVisit((prev) => ({ ...prev, [activeVisit]: next }));
+  const setDraftVisitDate = (next: string | ((prev: string) => string)) =>
+    setDraftVisitDateByVisit((prev) => ({
+      ...prev,
+      [activeVisit]: typeof next === 'function' ? (next as (prev: string) => string)(prev[activeVisit]) : next,
+    }));
+  // LIVE version of "has real content", reflecting the in-progress DRAFT
+  // rather than the last-SAVED record (user, 2026-09-28: "it should be real
+  // time ... the moment that visit 1 is empty, it should hide the visit 2
+  // button automatically"). visit1HasData/visit2HasData above are
+  // deliberately saved-data-only (they seed the initial date display on
+  // load, see the population effect below); this is what the Visit 2 button
+  // and the tab-reset safeguard watch, so unchecking Visit 1's last service
+  // or clearing its last tooth hides Visit 2 immediately while editing,
+  // without waiting for Save.
+  const draftVisitHasData = (n: 1 | 2) =>
+    Object.values(draftServicesByVisit[n]).some((v) => v === true)
+    || Object.values(draftChart).some((e) => e.condition && (n === 2 ? e.visitNumber === 2 : (e.visitNumber ?? 1) !== 2));
+  const visit1HasDataLive = draftVisitHasData(1);
+  // Visit 2's button hides the moment Visit 1 goes empty (live, above), but
+  // an explicit pick of Visit 2 from BEFORE that happened would otherwise
+  // stick -- `??` only falls back to the default when explicitVisit is null,
+  // so unchecking Visit 1 down to empty while Visit 2 is the open tab would
+  // leave the panel showing Visit 2's (now-hidden-button) content with no
+  // visible way back. Snap back to the default the instant that combination
+  // occurs.
+  useEffect(() => {
+    if (!visit1HasDataLive && explicitVisit === 2) setExplicitVisit(null);
+  }, [visit1HasDataLive, explicitVisit]);
+
+  const [draftChartDate, setDraftChartDate] = useState('');
   const [othersOralOpen, setOthersOralOpen] = useState(false);
+  // Her card collapses (Sprint 164). Identity is checked once on arrival and
+  // then only gets in the way of the tab below it.
+  const [basicInfoExpanded, setBasicInfoExpandedState] = useState(basicInfoExpandedMemo);
+  const setBasicInfoExpanded = (next: boolean | ((v: boolean) => boolean)) => {
+    setBasicInfoExpandedState((prev) => {
+      const value = typeof next === 'function' ? next(prev) : next;
+      basicInfoExpandedMemo = value;
+      return value;
+    });
+  };
+  // Consent is confirmed against the FORM, not against a bare "are you sure"
+  // (Sprint 169, hers). `revert` distinguishes the two directions.
+  const [confirmConsent, setConfirmConsent] = useState<{ schoolYear: string; revert: boolean } | null>(null);
+  const [rareConditionsOpen, setRareConditionsOpen] = useState(false);
 
   useEffect(() => {
     if (!currentYearData) {
@@ -377,75 +527,47 @@ export const DentalChart = () => {
       setDraftMed(emptyMed());
       setDraftDiet(emptyDiet());
       setDraftOral(emptyOral());
-      setDraftServices(emptyServices());
-      setDraftMeasure({ height_cm: '', weight_kg: '', temperature_c: '', blood_pressure: '' });
-      setOthersMedOpen(false);
-      setOthersDietOpen(false);
       setOthersOralOpen(false);
+      setDraftMeasure({ height_cm: '', weight_kg: '', temperature_c: '', blood_pressure: '' });
+      setDraftChartDate('');
       setEditMode(false);
-      editBaselineRef.current = '';
       return;
     }
     const chart: Record<number, ChartEntry> = {};
     for (const tr of currentYearData.toothRecords) {
-      chart[tr.tooth_number] = { condition: tr.condition, treatment: tr.treatment_code ?? '' };
+      chart[tr.tooth_number] = { condition: tr.condition, treatment: tr.treatment_code ?? '', visitNumber: tr.visit_number ?? null };
     }
     setDraftChart(chart);
 
     const mh = currentYearData.medicalHistory;
-    const medSnapshot = mh ? {
-      allergies: mh.allergies, hypertension: mh.hypertension, diabetes: mh.diabetes_mellitus,
-      bloodDisorders: false, cardiovascular: mh.cardiovascular_disease, thyroid: mh.thyroid_disorders,
-      hepatitis: mh.hepatitis_disorders, malignancy: mh.malignancy, hospitalization: mh.previous_hospitalization,
-      bloodTransfusion: mh.blood_transfusion, tattoo: mh.tattoo, others: mh.others,
-    } : emptyMed();
-    setDraftMed(medSnapshot);
+    setDraftMed(mh ? medDraftFrom(mh) : emptyMed());
 
     const dh = currentYearData.dietaryHabits;
-    const dietSnapshot = dh ? {
+    setDraftDiet(dh ? {
       sugarSweetened: dh.sugar_beverages, alcoholDrinker: dh.alcohol_drinker, tobaccoUser: dh.tobacco_user,
       betelNut: dh.betel_nut_chewer, bodyPiercing: dh.body_piercing, nailBiting: dh.nail_biting, thumbsucking: dh.thumb_sucking,
-      others: dh.others ?? '',
-    } : emptyDiet();
-    setDraftDiet(dietSnapshot);
+    } : emptyDiet());
 
-    const oc = currentYearData.oralCondition;
-    const oralSnapshot = oc ? {
-      gingivitis: oc.gingivitis, periodontal: oc.periodontal_disease, debris: oc.debris, calculus: oc.calculus,
-      abnormalGrowth: oc.abnormal_growth, cleftLipPalate: oc.cleft_lip_palate, others: oc.others,
-    } : emptyOral();
-    setDraftOral(oralSnapshot);
-
-    const dc = currentYearData.dentalChart;
-    const servicesSnapshot: ServicesDraft = dc ? {
-      dateCharted: dc.date_charted ? dc.date_charted.slice(0, 10) : '',
-      dateTreated: dc.date_treated ? dc.date_treated.slice(0, 10) : '',
-      oralExamination: dc.oral_examination ?? false,
-      fluorideVarnish: dc.fluoride_varnish ?? false,
-      oralProphylaxis: dc.oral_prophylaxis ?? false,
-      consultation: dc.consultation ?? false,
-      others: dc.treatment_others ?? '',
-    } : emptyServices();
-    setDraftServices(servicesSnapshot);
-    setOthersServiceOpen(!!dc?.treatment_others);
-
-    setOthersMedOpen(!!mh?.others);
-    setOthersDietOpen(!!dh?.others);
-    setOthersOralOpen(!!oc?.others);
-
-    const measureSnapshot = {
+    const examined = examinedDate(currentYearData.oralCondition, currentYearData.dentalChart, currentYearData.toothRecords);
+    setDraftChartDate(examined ? new Date(examined).toISOString().slice(0, 10) : '');
+    setDraftMeasure({
       height_cm: currentYearData.iptr.height_cm != null ? String(currentYearData.iptr.height_cm) : '',
       weight_kg: currentYearData.iptr.weight_kg != null ? String(currentYearData.iptr.weight_kg) : '',
       temperature_c: currentYearData.iptr.temperature_c != null ? String(currentYearData.iptr.temperature_c) : '',
       blood_pressure: currentYearData.iptr.blood_pressure ?? '',
-    };
-    setDraftMeasure(measureSnapshot);
-
-    // Pristine snapshot for the unsaved-edit warning — compared against the
-    // live drafts in isEditDirty() so switching tabs without having changed
-    // anything (or on a still-empty new sheet) never pops the "leave without
-    // saving?" dialog.
-    editBaselineRef.current = JSON.stringify({ chart, med: medSnapshot, diet: dietSnapshot, oral: oralSnapshot, measure: measureSnapshot, services: servicesSnapshot });
+    });
+    const oc = currentYearData.oralCondition;
+    setDraftOral(oc ? {
+      gingivitis: oc.gingivitis, periodontal: oc.periodontal_disease, debris: oc.debris, calculus: oc.calculus,
+      abnormalGrowth: oc.abnormal_growth, cleftLipPalate: oc.cleft_lip_palate,
+      oralHygiene: oc.oral_hygiene, others: oc.others,
+    } : emptyOral());
+    // "Others" is ticked (box open) whenever there is already text to show,
+    // not just when the dentist just clicked it this session -- otherwise a
+    // record with real "others" text loaded with the box hidden and the chip
+    // looking ticked from `draftOral.others` alone, one state describing two
+    // different things.
+    setOthersOralOpen(!!oc?.others);
 
     // Empty year (nothing recorded yet) exists to be filled — drop clinical
     // staff straight into edit mode; anything with data opens as a read view.
@@ -456,38 +578,45 @@ export const DentalChart = () => {
     );
   }, [selectedYear, currentYearData, user?.role]);
 
+  // Treatments Given's services/date follow BOTH visits' own SOURCE records,
+  // not the whole draft-population effect above -- a SEPARATE effect on
+  // purpose, so loading a new student/year only refreshes the services
+  // cards, not in-progress unsaved teeth/history edits (which would be lost
+  // if this were folded into the effect above, since that one fully
+  // re-syncs everything from source data on every dependency change).
+  // ⚠ Deliberately NOT keyed on `activeVisit`/`activeVisitRecord` -- that was
+  // the bug (see the draft-state comment above): re-deriving on every tab
+  // switch overwrote whichever visit's checkboxes were being left. This
+  // fires once per real data load (or after Save's `reload()`) and fills
+  // BOTH visits' slots, so switching tabs afterward just changes which slot
+  // is on screen -- it never touches either slot's contents.
+  useEffect(() => {
+    const forVisit = (visit: typeof visit1, hasData: boolean) => ({
+      date: visit && hasData ? new Date(visit.visit_date).toISOString().slice(0, 10) : '',
+      services: {
+        oral_screening: visit?.oral_screening ?? null,
+        oral_prophylaxis: visit?.oral_prophylaxis ?? null,
+        fluoride_varnish: visit?.fluoride_varnish ?? null,
+        oral_hygiene_instruction: visit?.oral_hygiene_instruction ?? null,
+        consultation: visit?.consultation ?? null,
+      },
+    });
+    const v1 = forVisit(visit1, visit1HasData);
+    const v2 = forVisit(visit2, visit2HasData);
+    setDraftServicesByVisit({ 1: v1.services, 2: v2.services });
+    setDraftVisitDateByVisit({ 1: v1.date, 2: v2.date });
+  }, [currentYearData, visit1, visit2, visit1HasData, visit2HasData]);
+
   // Effective edit rights: role AND edit mode. Aides keep read-only here —
   // they could tick history boxes before, but Save was always dentist-only,
   // so those edits silently went nowhere (dead UI, now honest).
-  // Escape exits focus mode, and the page behind is frozen while it is open —
-  // a fixed overlay over a scrollable page otherwise scroll-chains on a
-  // trackpad and the record moves behind it.
-  useEffect(() => {
-    if (!focusMode) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setFocusMode(false); };
-    document.addEventListener('keydown', onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
-  }, [focusMode]);
-
-  // Focus mode is only meaningful on the chart tab — leaving it open while the
-  // user switches tabs would hide the tab they just chose.
-  useEffect(() => { if (activeTab !== 'chart') setFocusMode(false); }, [activeTab]);
-
-  // "Next student" from inside focus mode. Never silently discards: an unsaved
-  // draft stops the jump and asks first, which is the one thing a continuous
-  // charting loop must not get wrong.
-  const goToStudent = (studentId: string) => navigate(`/dental-chart/${studentId}`);
-  // Generalised over direction — the guard is identical going back, and having
-  // Previous skip it would be the one hole in "never lose an unsaved chart".
-  const requestStudentJump = (target: { id: string } | null) => {
-    if (!target) return;
-    if (editMode && isEditDirty()) setPendingNextStudent(target.id);
-    else goToStudent(target.id);
-  };
-
   const editingChart = canEdit && editMode;
+  // A picked code belongs to an editing session: leaving edit mode (Save,
+  // Cancel, or a view-only role) drops it, so view mode never shows a
+  // highlighted code or its "Click teeth to apply" hint.
+  useEffect(() => {
+    if (!editingChart) { setSelectedCondition(null); setSelectedTreatment(null); }
+  }, [editingChart]);
   const editingHistory = canEditHistory && editMode;
 
   const cancelEdit = async () => {
@@ -495,29 +624,173 @@ export const DentalChart = () => {
     await reload(); // refetch → draft-sync effect resets all drafts
   };
 
-  // True only once something in the drafts actually differs from the
-  // pristine snapshot taken when they were loaded — entering edit mode (or
-  // a still-blank new sheet) alone is not "dirty".
-  const isEditDirty = () =>
-    JSON.stringify({ chart: draftChart, med: draftMed, diet: draftDiet, oral: draftOral, measure: draftMeasure, services: draftServices }) !== editBaselineRef.current;
+  // ── Charting mode (Sprint 153) ──────────────────────────────────────────
+  // Adopted from the collaborator's `majorUpdates` branch: a full-screen
+  // surface for the loop the dentist actually repeats at a school — chart a
+  // mouth, save, next child — instead of charting inside a record page with a
+  // nav rail, a status strip and six tabs around it.
+  //
+  // Escape leaves. A mode with no keyboard way out is a trap on a laptop.
+  useEffect(() => {
+    if (!chartingMode) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setChartingMode(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [chartingMode]);
 
-  // Warns before leaving an actual in-progress edit for another tab, but
-  // never blocks it — confirming discards the edit (via cancelEdit) and
-  // switches. No warning if nothing was actually changed.
-  const handleTabSwitch = (key: TabKey) => {
-    if (editMode && key !== activeTab && isEditDirty()) {
-      setPendingTabSwitch(key);
-    } else {
-      setActiveTab(key);
-    }
+  // Leaving the chart tab leaves the mode. Full screen over History would hide
+  // the tab strip that got you there.
+  useEffect(() => {
+    if (activeTab !== 'chart' && chartingModeMemo) setChartingMode(false);
+  }, [activeTab]);
+
+  // ⚠ Stepping to another student while edit mode is on DISCARDS the draft —
+  // nothing is written until Save Chart. That hole already existed on the
+  // header's prev/next buttons; charting mode makes stepping the main loop, so
+  // it is guarded here for both. Confirm-and-lose, never lose silently.
+  const [pendingNav, setPendingNav] = useState<{ id: string; name: string } | null>(null);
+  // Preserves ?context= across Prev/Next (user, 2026-09-27): without this,
+  // the FIRST click off a dental-queue (or risk/treatment) link worked, but
+  // landing on a bare `/dental-chart/:id` dropped the context, so the very
+  // next Prev/Next silently fell back to the default alphabetical nav list.
+  const navQuery = iptrContext !== 'default' ? `?context=${iptrContext}` : '';
+  // Only warn when there's actually something to lose (user, 2026-09-27) --
+  // being in edit mode with nothing typed or ticked yet is not "unsaved
+  // work", so Prev/Next/Back should just navigate silently in that case.
+  // Checks every field the Medical History and Dental Chart tabs write:
+  // per-tooth conditions/treatments, whole-mouth services, medical history
+  // flags/text, dietary/social habits, and oral conditions.
+  const hasUnsavedChartContent =
+    Object.values(draftChart).some((e) => e.condition || e.treatment) ||
+    Object.values(draftServicesByVisit[1]).some((v) => v === true) ||
+    Object.values(draftServicesByVisit[2]).some((v) => v === true) ||
+    Object.values(draftMed).some((v) => v === true || (typeof v === 'string' && v.trim() !== '')) ||
+    Object.values(draftDiet).some((v) => v === true) ||
+    Object.values(draftOral).some((v) => v === true || (typeof v === 'string' && v.trim() !== ''));
+  const goToStudent = (target: { id: string; name: string } | null) => {
+    if (!target) return;
+    if (editMode && hasUnsavedChartContent) { setPendingNav(target); return; }
+    navigate(`/dental-chart/${target.id}${navQuery}`);
   };
 
   const currentChart = draftChart;
+
+  // Earliest a visit's "Date treated" is allowed to be (user, 2026-09-28:
+  // "it should be impossible to mark a date for treatment past the oral
+  // condition ... same with visit 2, it cannot be past treatment visit 1").
+  // Visit 1 can't be earlier than the oral exam that found what it treats;
+  // Visit 2 can't be earlier than either that exam OR Visit 1. Feeds the
+  // date input's `min` (greys out the disallowed range in the calendar
+  // picker) -- handleSave re-checks the same ordering server-side-adjacent,
+  // since `min` alone doesn't stop a typed value.
+  const visitDateMin = activeVisit === 1
+    ? draftChartDate
+    : [draftChartDate, draftVisitDateByVisit[1]].filter(Boolean).sort().pop() || '';
+
+  // Same ordering rule as `visitDateMin`, as an always-current message
+  // instead of a min/max comparison -- shared by the live banner below AND
+  // handleSave's own guard, so the two can never disagree (user, 2026-09-28:
+  // "this warning should be real time to changes too. it should show and
+  // hide when necessary"). `min` alone only stops the calendar picker; this
+  // is what catches a typed value and what the live banner explains.
+  const computeDateOrderError = (): string | null => {
+    const v1Date = draftVisitDateByVisit[1];
+    const v2Date = draftVisitDateByVisit[2];
+    if (v1Date && draftChartDate && v1Date < draftChartDate) {
+      return `Visit 1's Date treated (${formatDate(v1Date)}) can't be before the oral exam's Date examined (${formatDate(draftChartDate)}).`;
+    }
+    if (v2Date && v1Date && v2Date < v1Date) {
+      return `Visit 2's Date treated (${formatDate(v2Date)}) can't be before Visit 1's Date treated (${formatDate(v1Date)}).`;
+    }
+    if (v2Date && !v1Date && draftChartDate && v2Date < draftChartDate) {
+      return `Visit 2's Date treated (${formatDate(v2Date)}) can't be before the oral exam's Date examined (${formatDate(draftChartDate)}).`;
+    }
+    return null;
+  };
+  const dateOrderError = editingChart ? computeDateOrderError() : null;
+  // Gates the Treatments Given checkboxes on EITHER Oral Conditions OR a
+  // charted Tooth Condition Code having something marked -- the "no
+  // treatment without a condition" rule, widened 2026-09-28 after the
+  // whole-mouth-chips-only version hid Treatments Given even with a real
+  // tooth condition charted and nothing else: "either Oral Conditions or
+  // the Tooth Condition Codes is filled then the Treatments Given will
+  // show, but for Tooth Treatment Codes to show, Tooth Condition Codes
+  // should be marked" -- Tooth Treatment Codes stays gated on
+  // chartedConditionCount alone (its sibling check below), unchanged.
+  const hasOralConditionMarked = oralConditionChips.some(({ field }) => draftOral[field]) || othersOralOpen
+    || Object.values(currentChart).some((e) => e.condition);
+
+  // ── IPTR Section B + per-tooth treatment summary (Sprint 151) ───────────
+  //
+  // Design adopted from the collaborator's `majorUpdates` branch; the rows and
+  // the two readings of the form are hers. The derivation lives in
+  // `shared/iptrSectionB.ts` so this panel and the PRINTED Form 1 cannot
+  // disagree about the same pupil — they now compute from one function.
+  //
+  // ⚠ Reads the odontogram being EDITED, so the numbers move as the dentist
+  // charts. That is the point: a summary that only updated on save would be
+  // wrong for as long as the chart was open.
+  const chartedTeeth: ChartedTooth[] = useMemo(
+    () => Object.entries(currentChart).map(([tooth, entry]) => ({
+      tooth: Number(tooth),
+      condition: entry.condition,
+      treatment: entry.treatment,
+    })),
+    [currentChart],
+  );
+  const indicateNumberRows = useMemo(() => sectionBRows(chartedTeeth), [chartedTeeth]);
+  const treatmentTeeth = useMemo(() => teethByTreatmentCode(chartedTeeth), [chartedTeeth]);
+  // Treatment Summary's Visit 1 / Visit 2 columns (2026-09-25) -- the shared
+  // teethByTreatment function is untouched (IptrFormV2's printed Form 1 also
+  // calls it, and the paper form has no visit split to show); this just
+  // pre-filters its input by the tooth's visit_number tag before calling it,
+  // twice. "Visit 1" is the catch-all (visit_number 1 AND untagged/legacy
+  // teeth charted outside the visit flow), so nothing charted before this
+  // feature existed silently disappears from the summary; "Visit 2" is
+  // strictly visit_number 2.
+  const treatmentTeethVisit1 = useMemo(
+    () => teethByTreatmentCode(chartedTeeth.filter((t) => currentChart[t.tooth]?.visitNumber !== 2)),
+    [chartedTeeth, currentChart],
+  );
+  const treatmentTeethVisit2 = useMemo(
+    () => teethByTreatmentCode(chartedTeeth.filter((t) => currentChart[t.tooth]?.visitNumber === 2)),
+    [chartedTeeth, currentChart],
+  );
+  const perToothTreatmentRows = useMemo(
+    () => treatmentCodes.filter(
+      (t) => !WHOLE_MOUTH_TREATMENT_CODES.includes(t.code) || (treatmentTeeth[t.code]?.length ?? 0) > 0,
+    ),
+    [treatmentTeeth],
+  );
+
+  // Whole-mouth findings. ⚠ Dental Caries is DERIVED from the teeth, never a
+  // separate tick — caries is recorded tooth by tooth, and a second source for
+  // one fact eventually disagrees with the first.
+  const presentOralConditions = useMemo(() => [
+    { label: 'Dental Caries', present: hasCaries(chartedTeeth) },
+    { label: 'Gingivitis', present: draftOral.gingivitis },
+    { label: 'Periodontal Disease', present: draftOral.periodontal },
+    { label: 'Debris', present: draftOral.debris },
+    { label: 'Calculus', present: draftOral.calculus },
+    { label: 'Abnormal Growth', present: draftOral.abnormalGrowth },
+    { label: 'Cleft Lip / Palate', present: draftOral.cleftLipPalate },
+  ], [chartedTeeth, draftOral]);
+  // "Orally Fit Child" — AUTOMATIC. Rule (user, 2026-09-24): Yes ONLY when
+  // teeth have been charted and EVERY charted tooth is Sound (✓), with none
+  // of the oral conditions above present. An uncharted mouth is not "fit",
+  // it is unexamined, so it stays blank. A treatment code on a sound tooth
+  // (e.g. a sealant) does not block it: ✓ is the form's "Sound/Sealed".
+  // Not stored anywhere; recomputed from the chart, so it can never drift.
+  const isOrallyFitChild = useMemo(() => {
+    // A tooth just emptied in the draft (no code at all) is not charted.
+    const teeth = chartedTeeth.filter((t) => t.condition || t.treatment);
+    return teeth.length > 0
+      && teeth.every((t) => t.condition === '✓' || t.condition === '√')
+      && !presentOralConditions.some((c) => c.present);
+  },
+    [presentOralConditions, chartedTeeth],
+  );
   const dmft = computeDMFT(currentChart);
-  // Same condition the draft-sync effect uses to auto-enter edit mode for a
-  // never-touched year — reused here to hide Cancel on a brand-new sheet,
-  // since there's nothing saved yet to cancel back to.
-  const isNewYearSheet = !!currentYearData && !currentYearData.medicalHistory && !currentYearData.oralCondition && currentYearData.toothRecords.length === 0;
   // Coloured by the SELECTED YEAR's grade, not the student's current one — a
   // 2025-2026 record tinted with this year's grade colour is the same quiet
   // lie the text labels used to tell. An unrecorded year falls through to
@@ -528,27 +801,10 @@ export const DentalChart = () => {
   // staleness: viewing a 2025-2026 record showed the age the pupil is now, and
   // on a DOH form age at examination is clinical data. Anchored to that year's
   // charting date when one exists, otherwise to the start of that school year.
-  const computeAge = (birthday: string, on: Date) => {
-    if (!birthday) return 0;
-    const birth = new Date(birthday);
-    if (Number.isNaN(birth.getTime())) return 0;
-    let age = on.getFullYear() - birth.getFullYear();
-    const m = on.getMonth() - birth.getMonth();
-    if (m < 0 || (m === 0 && on.getDate() < birth.getDate())) age--;
-    return age;
-  };
-
-  // Same anchor as computeAge, but to the month — Nutritional Status is
-  // classified by exact age in months against the DOH/DepEd BMI-for-Age
-  // table, not the rounded-down year computeAge gives.
-  const computeAgeMonths = (birthday: string, on: Date) => {
-    if (!birthday) return null;
-    const birth = new Date(birthday);
-    if (Number.isNaN(birth.getTime())) return null;
-    let months = (on.getFullYear() - birth.getFullYear()) * 12 + (on.getMonth() - birth.getMonth());
-    if (on.getDate() < birth.getDate()) months--;
-    return Math.max(0, months);
-  };
+  // BUG-02: the shared `ageOn`. The local copy returned 0 for a missing or
+  // unreadable birthday, which printed "Age 0", a fabricated value; callers now
+  // get null and print a dash.
+  const computeAge = (birthday: string, on: Date) => ageOn(birthday, on);
 
   /** June 1 of a "YYYY-YYYY" school year. */
   const schoolYearAnchor = (sy: string | undefined): Date | null => {
@@ -556,48 +812,170 @@ export const DentalChart = () => {
     return Number.isFinite(first) && first > 0 ? new Date(first, 5, 1) : null;
   };
 
-  const handleToothClick = (toothNumber: number) => {
+  // Dates follow what is painted (user, 2026-09-24, replacing the earlier
+  // "fill both dates, never overwrite" rule): applying a CONDITION code stamps
+  // today on the oral-condition "Date examined"; applying a TREATMENT code
+  // stamps today on the active visit's Treatments Given date. Toggling a code
+  // off or erasing a tooth changes no date.
+  const stampConditionDate = () => setDraftChartDate(toLocalDateString(new Date()));
+  const stampTreatmentDate = () => setDraftVisitDate(toLocalDateString(new Date()));
+
+  // "Date examined" tracks whether ANY oral condition chip (Others included)
+  // is currently ticked (2026-09-25) -- auto-filled with today the moment
+  // the first one is, cleared back to blank the moment the last one is
+  // unticked. Takes the post-toggle values directly rather than reading
+  // state back after setDraftOral/setOthersOralOpen, which would still be
+  // last render's values inside the same event handler.
+  // ⚠ Only clears the date when no CHARTED TOOTH is left either (2026-09-28
+  // fix) -- a mouth charted tooth-by-tooth with no whole-mouth chip ticked
+  // is still examined, so untoggling the last chip must not blank a date
+  // that a tooth condition still justifies.
+  const syncChartDateFromConditions = (oral: OralDraft, othersOpen: boolean) => {
+    const anyTicked = oralConditionChips.some(({ field }) => oral[field]) || othersOpen
+      || Object.values(currentChart).some((e) => e.condition);
+    setDraftChartDate(anyTicked ? (draftChartDate || toLocalDateString(new Date())) : '');
+  };
+  // Same rule for "Date treated" against the Treatments Given chips -- ALSO
+  // checks a tooth charted for the active visit (2026-09-28 fix, same
+  // reasoning as Date examined above): a visit recorded purely as tooth
+  // work, no whole-mouth service ticked, is still a real visit.
+  const syncVisitDateFromServices = (services: Record<ServiceField, boolean | null>) => {
+    const anyTicked = serviceChips.some(({ field }) => services[field] === true)
+      || Object.values(currentChart).some((e) => e.condition && (activeVisit === 2 ? e.visitNumber === 2 : (e.visitNumber ?? 1) !== 2));
+    setDraftVisitDate(anyTicked ? (draftVisitDate || toLocalDateString(new Date())) : '');
+  };
+  // Re-derives BOTH dates from a chart snapshot that already includes the
+  // tooth mutation just made (user, 2026-09-28, repeated report: "the date
+  // should be emptied too when there is no marked oral conditions and Tooth
+  // Condition Codes ... it must be real time when changes are made").
+  // Painting/erasing a tooth previously only touched draftChart -- nothing
+  // re-checked the dates afterward, so a tooth that was the LAST thing
+  // keeping a date alive left it stuck once cleared. Takes the merged
+  // snapshot as an argument rather than reading `draftChart` back, which
+  // would still be this render's PRE-mutation value (the same stale-read
+  // trap the comment above already calls out for the checkbox handlers).
+  const syncDatesFromChart = (mergedChart: Record<number, ChartEntry>) => {
+    const anyOralReal = oralConditionChips.some(({ field }) => draftOral[field]) || othersOralOpen
+      || Object.values(mergedChart).some((e) => e.condition);
+    if (!anyOralReal) setDraftChartDate('');
+    ([1, 2] as const).forEach((n) => {
+      const anyServiceTicked = Object.values(draftServicesByVisit[n]).some((v) => v === true);
+      const anyToothReal = Object.values(mergedChart).some((e) => e.condition && (n === 2 ? e.visitNumber === 2 : (e.visitNumber ?? 1) !== 2));
+      if (!anyServiceTicked && !anyToothReal) {
+        setDraftVisitDateByVisit((prev) => (prev[n] ? { ...prev, [n]: '' } : prev));
+      }
+    });
+  };
+
+  // Paint-stroke state (2026-09-25) -- "hold and continuously mark": pressing
+  // down on a tooth and dragging applies the same action to every tooth the
+  // pointer passes over, like a paint tool, instead of one click per tooth.
+  // The action (apply this code, or clear) is decided ONCE, from the tooth
+  // the stroke started on -- exactly what a single click already decided --
+  // and reapplied verbatim to every tooth the drag enters afterward. A later
+  // tooth is never independently re-toggled, or half a stroke would paint on
+  // and the other half paint off.
+  const isPaintingRef = useRef(false);
+  const paintActionRef = useRef<'condition' | 'treatment' | 'erase' | null>(null);
+  const paintValueRef = useRef('');
+
+  const applyToothPaint = (toothNumber: number, action: 'condition' | 'treatment' | 'erase', value: string) => {
     const isTemp = temporaryTeeth.has(toothNumber);
-    if (selectedCondition) {
-      const codeObj = conditionCodes.find((c) => c.code === selectedCondition);
-      const code = codeObj ? (isTemp ? codeObj.temp : codeObj.perm) : selectedCondition;
-      const current = currentChart[toothNumber]?.condition;
-      if (current !== code) stampDate('dateCharted');
-      setDraftChart((prev) => ({
-        ...prev,
-        [toothNumber]: { condition: current === code ? '' : code, treatment: prev[toothNumber]?.treatment || '' },
-      }));
-    } else if (selectedTreatment) {
-      const current = currentChart[toothNumber]?.treatment;
-      if (current !== selectedTreatment) stampDate('dateTreated');
-      setDraftChart((prev) => ({
-        ...prev,
-        [toothNumber]: { condition: prev[toothNumber]?.condition || '', treatment: current === selectedTreatment ? '' : selectedTreatment },
-      }));
+    let nextEntry: ChartEntry;
+    if (action === 'condition') {
+      const codeObj = conditionCodes.find((c) => c.code === value);
+      const code = value ? (codeObj ? (isTemp ? codeObj.temp : codeObj.perm) : value) : '';
+      nextEntry = { condition: code, treatment: currentChart[toothNumber]?.treatment || '', visitNumber: activeVisit };
+    } else if (action === 'treatment') {
+      nextEntry = { condition: currentChart[toothNumber]?.condition || '', treatment: value, visitNumber: activeVisit };
     } else {
-      // No code selected: clicking a tooth empties it. This used to be a dead
+      // No code selected: painting a tooth empties it. This used to be a dead
       // click, which meant the ONLY way to remove a code was to first hunt down
       // the matching code in the palette and click the tooth again — you had to
       // know what was already there to get rid of it.
       //
       // Clears BOTH condition and treatment on purpose: with neither brush
       // active the intent is "empty this tooth". Removing just one is still
-      // possible the precise way — select that exact code and click to toggle
-      // it off. Nothing persists until Save Chart, and Cancel Edit discards it.
-      setDraftChart((prev) => ({
-        ...prev,
-        [toothNumber]: { condition: '', treatment: '' },
-      }));
+      // possible the precise way — select that exact code and paint the tooth
+      // to toggle it off. Nothing persists until Save Chart, and Cancel Edit
+      // discards it.
+      nextEntry = { condition: '', treatment: '', visitNumber: null };
+    }
+    setDraftChart((prev) => ({ ...prev, [toothNumber]: nextEntry }));
+    // Toggling a code OFF or erasing empties the date the instant nothing
+    // real is left -- toggling one ON is already handled by
+    // stampConditionDate/stampTreatmentDate below, which unconditionally
+    // stamp today whenever a real value is applied. Merges against
+    // `currentChart` (this render's pre-mutation snapshot) plus THIS
+    // tooth's new entry, not a re-read of draftChart, which wouldn't
+    // reflect this change yet.
+    syncDatesFromChart({ ...currentChart, [toothNumber]: nextEntry });
+  };
+
+  const handleToothPointerDown = (toothNumber: number) => {
+    isPaintingRef.current = true;
+    setChartError(null);
+    if (selectedCondition) {
+      const isTemp = temporaryTeeth.has(toothNumber);
+      const codeObj = conditionCodes.find((c) => c.code === selectedCondition);
+      const code = codeObj ? (isTemp ? codeObj.temp : codeObj.perm) : selectedCondition;
+      const current = currentChart[toothNumber]?.condition;
+      const value = current === code ? '' : selectedCondition;
+      paintActionRef.current = 'condition';
+      paintValueRef.current = value;
+      if (value) stampConditionDate();
+      applyToothPaint(toothNumber, 'condition', value);
+    } else if (selectedTreatment) {
+      const current = currentChart[toothNumber]?.treatment;
+      const value = current === selectedTreatment ? '' : selectedTreatment;
+      paintActionRef.current = 'treatment';
+      paintValueRef.current = value;
+      if (value) stampTreatmentDate();
+      applyToothPaint(toothNumber, 'treatment', value);
+    } else {
+      paintActionRef.current = 'erase';
+      paintValueRef.current = '';
+      applyToothPaint(toothNumber, 'erase', '');
     }
   };
+
+  const handleToothPointerEnter = (toothNumber: number) => {
+    if (!isPaintingRef.current || !paintActionRef.current) return;
+    applyToothPaint(toothNumber, paintActionRef.current, paintValueRef.current);
+  };
+
+  // Drag continuation needs a WINDOW-level listener, not onPointerEnter on
+  // each tooth: touch does not fire pointerenter on the elements a finger
+  // passes over (the browser keeps touch pointer events implicitly targeted
+  // at the element the touch started on), so elementFromPoint at the
+  // pointer's live position is what makes the drag itself work at a tablet or
+  // phone width, not only with a mouse.
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      if (!isPaintingRef.current) return;
+      const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+      const toothEl = el?.closest<HTMLElement>('[data-tooth]');
+      const num = toothEl ? Number(toothEl.dataset.tooth) : NaN;
+      if (!Number.isNaN(num)) handleToothPointerEnter(num);
+    };
+    const onUp = () => {
+      isPaintingRef.current = false;
+      paintActionRef.current = null;
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+  }, [activeVisit]);
 
   useEffect(() => {
     const measureStickyOffsets = () => {
       const headerHeight = headerRowRef.current?.offsetHeight ?? 0;
       const tabsHeight = tabsRowRef.current?.offsetHeight ?? 0;
-      // Measured from the bottom of the fixed status strip, not from 0 — the
-      // toolbar above already pins at TOPBAR_H, so anything stacking under it
-      // has to carry that offset too or it slides beneath the strip.
       setStickyOffsets({ tabsTop: TOPBAR_H + headerHeight, yearTop: TOPBAR_H + headerHeight + tabsHeight });
     };
     measureStickyOffsets();
@@ -626,16 +1004,12 @@ export const DentalChart = () => {
   // student_id + school_year); this stops the second request being sent at all.
   const [addingYear, setAddingYear] = useState(false);
 
-  // Takes the target year explicitly now (2026-09-04) — the year menu offers
-  // BOTH today's real school year and "next after this student's latest
-  // record" as separate choices, since those can differ (a student with a
-  // gap in their records — last one 2024-2025 while today is really
-  // 2026-2027 — needs to jump to the real current year, not just the one
-  // immediately after their last). The uniqueBy(student_id, school_year)
-  // constraint server-side still blocks a genuine duplicate; this only adds
-  // a second legitimate choice, not a way around that.
-  const handleAddYear = async (targetYear: string) => {
-    if (!targetYear || !id || addingYear) return;
+  const handleAddYear = async (target?: string) => {
+    // ⚠ Takes a TARGET now (Sprint 172). A pupil with a gap — last record
+    // 2024-2025 while today is 2026-2027 — needs to jump to the ACTUAL current
+    // year, not merely the one after their last. Her menu offers both.
+    const nextYear = target ?? getNextSchoolYear();
+    if (!nextYear || !id || addingYear) return;
     setAddingYear(true);
     try {
       // Stamp the grade and section the student is in AS OF THIS YEAR'S
@@ -644,12 +1018,12 @@ export const DentalChart = () => {
       // student is promoted.
       await apiClient.post('/student-iptrs', {
         student_id: id,
-        school_year: targetYear,
+        school_year: nextYear,
         grade_level: student?.grade_level ?? null,
         section: student?.section ?? null,
       });
       await reload();
-      toast.success(`School year ${targetYear} added.`);
+      toast.success(`School year ${nextYear} added.`);
     } catch (err) {
       setSaveError(err instanceof ApiError ? err.message : 'Failed to add school year');
     } finally {
@@ -657,63 +1031,69 @@ export const DentalChart = () => {
     }
   };
 
+  const [confirmDeleteYear, setConfirmDeleteYear] = useState<number | null>(null);
+  const [confirmSaveInfo, setConfirmSaveInfo] = useState(false);
+  // Save Changes is only live once something actually differs from the
+  // record (user, 2026-09-25). Blank and missing count as the same value.
+  const infoDirty = !!draftInfo && !!student && (
+    (Object.keys(draftInfo) as (keyof typeof draftInfo)[]).some((k) => String(draftInfo[k] ?? '') !== String((student as any)[k] ?? ''))
+    || draftYear.grade_level !== (years[selectedYear]?.iptr.grade_level ?? '')
+    || draftYear.section !== (years[selectedYear]?.iptr.section ?? '')
+  );
+  // Step-up check before removing a school year (Sprint 178, hers). ⚠ A random
+  // field name: the literal string "password" in a name or id is what several
+  // autofill engines key off, even with autocomplete overridden, and this must
+  // never be filled for you.
+  const [yearPassword, setYearPassword] = useState('');
+  const [yearPasswordError, setYearPasswordError] = useState<string | null>(null);
+  const yearPasswordField = useRef(`confirm-${Math.random().toString(36).slice(2)}`).current;
+  const [deletingYear, setDeletingYear] = useState(false);
+
   const handleDeleteYear = async (yearIndex: number) => {
     if (!canEdit || years.length <= 1) return;
     const iptrId = years[yearIndex]?.iptr._id;
     if (!iptrId) return;
-    await apiClient.patch(`/student-iptrs/${iptrId}/archive`);
-    setSelectedYear((prev) => (prev === yearIndex ? Math.max(0, yearIndex - 1) : prev > yearIndex ? prev - 1 : prev));
-    await reload();
-    toast.success('School year removed.');
+    try {
+      await apiClient.patch(`/student-iptrs/${iptrId}/archive`);
+      setSelectedYear((prev) => (prev === yearIndex ? Math.max(0, yearIndex - 1) : prev > yearIndex ? prev - 1 : prev));
+      await reload();
+      toast.success('School year removed.');
+    } catch (err) {
+      setSaveError(err instanceof ApiError ? err.message : 'Failed to remove school year');
+    }
   };
 
-  const closeYearAction = () => {
-    setPendingYearAction(null);
-    setAddYearTarget(null);
-    setYearActionPassword('');
-    setYearActionPasswordError(null);
-  };
-
-  // All three (Add/Edit/Delete) re-verify the signed-in user's own password
-  // first — same step-up check the bulk-archive flow uses (PatientList.tsx)
-  // — before the actual write runs, so this is never a single unguarded click.
-  const runYearAction = async () => {
-    if (!pendingYearAction) return;
-    if (!yearActionPassword) {
-      setYearActionPasswordError('Enter your password to confirm.');
+  const confirmDeleteYearNow = async () => {
+    if (confirmDeleteYear === null) return;
+    if (!yearPassword) {
+      setYearPasswordError('Enter your password to confirm.');
       return;
     }
-    setYearActionBusy(true);
+    setDeletingYear(true);
+    // ⚠ Re-verify the SIGNED-IN user's own password first — hers does this for
+    // every year action, and removing a year archives that year's whole record:
+    // its chart, tooth records, medical, dietary and oral history. A second
+    // click is not a check; a shared machine at a school clinic makes that
+    // difference real.
     try {
-      await apiClient.post('/auth/verify-password', { password: yearActionPassword });
+      await apiClient.post('/auth/verify-password', { password: yearPassword });
     } catch (err) {
-      setYearActionBusy(false);
-      setYearActionPasswordError(err instanceof ApiError ? err.message : 'Could not verify password.');
+      setDeletingYear(false);
+      setYearPasswordError(err instanceof ApiError ? err.message : 'Could not verify password.');
       return;
     }
     try {
-      if (pendingYearAction === 'add') {
-        if (addYearTarget) await handleAddYear(addYearTarget);
-      } else if (pendingYearAction === 'edit') {
-        const iptrId = years[selectedYear]?.iptr._id;
-        if (iptrId) {
-          await apiClient.put(`/student-iptrs/${iptrId}`, { date_opened: editYearDateValue || null });
-          await reload();
-          toast.success('School year date updated.');
-        }
-      } else if (pendingYearAction === 'delete') {
-        await handleDeleteYear(selectedYear);
-      }
-      closeYearAction();
-    } catch (err) {
-      setYearActionPasswordError(err instanceof ApiError ? err.message : 'Action failed.');
+      await handleDeleteYear(confirmDeleteYear);
+      setConfirmDeleteYear(null);
+      setYearPassword('');
+      setYearPasswordError(null);
     } finally {
-      setYearActionBusy(false);
+      setDeletingYear(false);
     }
   };
 
   useEffect(() => {
-    if (!canEdit) { setYearMenuOpen(false); setPendingYearAction(null); }
+    if (!canEdit) setYearMenuOpen(false);
   }, [canEdit]);
 
   // Persists the current year's chart + medical/diet/oral history for real.
@@ -721,19 +1101,54 @@ export const DentalChart = () => {
     if (!currentYearData || !id) return;
     setSaving(true);
     setSaveError(null);
+    setChartError(null);
     try {
       // Teeth are dentist-only (aides save History & Oral); the chart record
       // is only created when there are real tooth changes to persist — an
       // aide saving history must not require (or fabricate) a dentist chart.
-      const chartWrites: Promise<unknown>[] = [];
       const existingByTooth = new Map(currentYearData.toothRecords.map((tr) => [tr.tooth_number, tr]));
+      // ToothRecord.condition is required (non-empty) on the backend. A tooth
+      // emptied completely (no condition, no treatment) is RETIRED: its saved
+      // record is archived, never deleted (CLAUDE.md soft-delete rule). This
+      // used to silently skip cleared teeth, so removing every code and saving
+      // "succeeded" while the old codes came straight back on reload.
+      // A tooth left with a treatment but no condition cannot be stored, so it
+      // stops the save with a message instead of being dropped quietly.
+      if (canEdit) {
+        const orphaned = Object.entries(draftChart)
+          .filter(([, entry]) => entry.condition === '' && entry.treatment !== '')
+          .map(([toothStr]) => toothStr);
+        if (orphaned.length) {
+          const message = `Tooth ${orphaned.join(', ')} has a treatment but no condition. Add a condition or remove the treatment, then save.`;
+          setChartError(message);
+          toast.error(message);
+          return;
+        }
+        // A visit cannot have happened before the oral exam that found what
+        // it's treating, and Visit 2 cannot happen before Visit 1 (user,
+        // 2026-09-28: "it should be impossible to mark a date for treatment
+        // past the oral condition ... same with visit 2, it cannot be past
+        // treatment visit 1"). The date inputs' own `min` already greys this
+        // out in the calendar picker, but a typed value bypasses that.
+        // `computeDateOrderError` is the SAME function the live banner below
+        // reads on every render, so Save can never block on a message the
+        // banner didn't already show (or vice versa) -- no setChartError
+        // here, since that banner is already on screen; the toast is just
+        // Save's own "that's why nothing happened" confirmation.
+        const dateOrderMessage = computeDateOrderError();
+        if (dateOrderMessage) {
+          toast.error(dateOrderMessage);
+          return;
+        }
+      }
+      const clearedRecords = canEdit
+        ? Object.entries(draftChart)
+            .filter(([, entry]) => entry.condition === '' && entry.treatment === '')
+            .map(([toothStr]) => existingByTooth.get(Number(toothStr)))
+            .filter((tr): tr is NonNullable<typeof tr> => !!tr)
+        : [];
       const pendingTeeth = canEdit
         ? Object.entries(draftChart)
-            // ToothRecord.condition is required (non-empty) on the backend --
-            // a tooth toggled back to "cleared" (empty string) has nothing
-            // valid to persist. Its local draft state just won't be sent; on
-            // reload it reverts to its last real saved value, if any, rather
-            // than crashing the save with a validation error.
             .filter(([, entry]) => entry.condition !== '')
             .filter(([toothStr, entry]) => {
               const existing = existingByTooth.get(Number(toothStr));
@@ -741,53 +1156,50 @@ export const DentalChart = () => {
             })
         : [];
 
-      // Per-visit services live on DENTAL_CHART, so recording one now creates
-      // the chart record even when no tooth changed — previously the record
-      // only existed once a tooth was charted.
-      const serviceBody = {
-        // Falls back to today only when nothing was ever stamped or typed —
-        // date_charted is required by the model.
-        date_charted: draftServices.dateCharted || toLocalDateString(new Date()),
-        date_treated: draftServices.dateTreated || null,
-        oral_examination: draftServices.oralExamination,
-        fluoride_varnish: draftServices.fluorideVarnish,
-        oral_prophylaxis: draftServices.oralProphylaxis,
-        consultation: draftServices.consultation,
-        treatment_others: draftServices.others,
-      };
-      const servicesRecorded =
-        draftServices.oralExamination || draftServices.fluorideVarnish ||
-        draftServices.oralProphylaxis || draftServices.consultation ||
-        draftServices.others.trim() !== '' || draftServices.dateTreated !== '';
-
+      // A service ticked with zero tooth changes (2026-09-25) must still get a
+      // chart to attach its new RPC visit to -- not only pendingTeeth.length,
+      // or a Treatments-Given-only save on a pupil's first-ever charting this
+      // year would have nowhere to write the visit. Checked across BOTH
+      // visits' drafts (2026-09-28 fix) -- Save now persists whichever visit
+      // was actually edited, not just whichever tab happens to be open.
+      const hasAnyServiceForVisit = (n: 1 | 2) => Object.values(draftServicesByVisit[n]).some((v) => v === true);
+      const hasAnyService = hasAnyServiceForVisit(1) || hasAnyServiceForVisit(2);
+      // A treatment charted on a tooth also opens its visit (user,
+      // 2026-09-24): the treatment is tagged with this visit's number, so the
+      // visit it belongs to must exist even when no service is ticked.
+      const chartsTreatment = pendingTeeth.some(([, entry]) => entry.treatment !== '');
       let chartId = currentYearData.dentalChart?._id;
-      if (!chartId && canEdit && (pendingTeeth.length > 0 || servicesRecorded)) {
+      // A Date examined alone also opens the chart, since that is where the
+      // date lives (and what the school-year stamp reads).
+      if (!chartId && (pendingTeeth.length > 0 || hasAnyService || (!!draftChartDate && !!currentDentist))) {
         if (!currentDentist) throw new Error('No dentist record linked to your account.');
         const created = await apiClient.post<{ _id: string }>('/dental-charts', {
           iptr_id: currentYearData.iptr._id,
           dentist_id: currentDentist._id,
-          ...serviceBody,
+          date_charted: draftChartDate || toLocalDateString(new Date()),
         });
         chartId = created._id;
-      } else if (chartId && canEdit) {
-        chartWrites.push(apiClient.put(`/dental-charts/${chartId}`, serviceBody));
       }
 
+      // visit_number tags which visit this tooth's CURRENT treatment belongs
+      // to (2026-09-25) -- Visit 1 and Visit 2 share this one chart, so this
+      // is what lets the odontogram and Treatment Summary show "(V1)"/"(V2)"
+      // instead of the two visits' teeth work being indistinguishable. Reads
+      // each tooth's OWN tag (set when it was painted -- see applyToothPaint
+      // below), not the tab active at save time (2026-09-28 fix): a tooth
+      // painted under Visit 2 then left behind by switching to Visit 1 must
+      // still save as Visit 2's, not get silently relabeled Visit 1's.
       const toothWrites = pendingTeeth.map(([toothStr, entry]) => {
         const toothNumber = Number(toothStr);
         const existing = existingByTooth.get(toothNumber);
-        const body = { chart_id: chartId, tooth_number: toothNumber, condition: entry.condition, treatment_code: entry.treatment };
+        const body = { chart_id: chartId, tooth_number: toothNumber, condition: entry.condition, treatment_code: entry.treatment, visit_number: entry.visitNumber ?? activeVisit };
         return existing ? apiClient.put(`/tooth-records/${existing._id}`, body) : apiClient.post('/tooth-records', body);
       });
+      toothWrites.push(...clearedRecords.map((tr) => apiClient.patch(`/tooth-records/${tr._id}/archive`)));
 
-      const medBody = {
-        iptr_id: currentYearData.iptr._id,
-        allergies: draftMed.allergies, hypertension: draftMed.hypertension, diabetes_mellitus: draftMed.diabetes,
-        cardiovascular_disease: draftMed.cardiovascular, thyroid_disorders: draftMed.thyroid,
-        hepatitis_disorders: draftMed.hepatitis, malignancy: draftMed.malignancy,
-        previous_hospitalization: draftMed.hospitalization, previous_surgical: false,
-        blood_transfusion: draftMed.bloodTransfusion, tattoo: draftMed.tattoo, others: draftMed.others,
-      };
+      // The draft already uses MEDICAL_HISTORY's field names (2026-09-24), so
+      // it is sent as-is. `previous_surgical` used to be hard-coded false here.
+      const medBody = { iptr_id: currentYearData.iptr._id, ...draftMed };
       const medWrite = currentYearData.medicalHistory
         ? apiClient.put(`/medical-histories/${currentYearData.medicalHistory._id}`, medBody)
         : apiClient.post('/medical-histories', medBody);
@@ -795,38 +1207,101 @@ export const DentalChart = () => {
       const dietBody = {
         iptr_id: currentYearData.iptr._id, sugar_beverages: draftDiet.sugarSweetened, alcohol_drinker: draftDiet.alcoholDrinker,
         tobacco_user: draftDiet.tobaccoUser, betel_nut_chewer: draftDiet.betelNut, body_piercing: draftDiet.bodyPiercing,
-        nail_biting: draftDiet.nailBiting, thumb_sucking: draftDiet.thumbsucking, others: draftDiet.others,
+        nail_biting: draftDiet.nailBiting, thumb_sucking: draftDiet.thumbsucking,
       };
       const dietWrite = currentYearData.dietaryHabits
         ? apiClient.put(`/dietary-social-habits/${currentYearData.dietaryHabits._id}`, dietBody)
         : apiClient.post('/dietary-social-habits', dietBody);
 
       const oralBody = {
-        // oral_hygiene has no input on this screen anymore (2026-09-04) — the
-        // model still requires a non-empty value, so a fixed placeholder is
-        // sent rather than leaving the field to silently rot at whatever it
-        // last held.
-        iptr_id: currentYearData.iptr._id, oral_hygiene: 'Not assessed', gingivitis: draftOral.gingivitis,
+        iptr_id: currentYearData.iptr._id, oral_hygiene: draftOral.oralHygiene || 'Not assessed', gingivitis: draftOral.gingivitis,
         periodontal_disease: draftOral.periodontal, debris: draftOral.debris, calculus: draftOral.calculus,
         abnormal_growth: draftOral.abnormalGrowth, cleft_lip_palate: draftOral.cleftLipPalate, others: draftOral.others,
-        // Written from the DERIVED value, not from a chip — see isOrallyFit.
-        // Keeping the column truthful matters: the Target Client List reads it.
-        orally_fit_child: isOrallyFit,
       };
       const oralWrite = currentYearData.oralCondition
         ? apiClient.put(`/oral-health-conditions/${currentYearData.oralCondition._id}`, oralBody)
         : apiClient.post('/oral-health-conditions', oralBody);
 
-      // Blank clears the measurement rather than storing 0, which would read
-      // as "measured at zero" and feed a nonsense BMI (Sprint 68).
-      const measureWrite = apiClient.put(`/student-iptrs/${currentYearData.iptr._id}`, {
-        height_cm: draftMeasure.height_cm.trim() === '' ? null : Number(draftMeasure.height_cm),
-        weight_kg: draftMeasure.weight_kg.trim() === '' ? null : Number(draftMeasure.weight_kg),
-        temperature_c: draftMeasure.temperature_c.trim() === '' ? null : Number(draftMeasure.temperature_c),
+      // ── The active visit's services and date (Sprint 154; unlocked and
+      //    reworked 2026-09-25) ────────────────────────────────────────────
+      // Ticking a service here no longer requires an RPC visit to already
+      // exist — it IS what creates one now, per the user's explicit
+      // direction that RPC should be derived from the chart and never the
+      // other way around. Visit 1 and Visit 2 are found directly by
+      // visit_number on THIS iptr (preventivesByVisitNumber), independent of
+      // chart linkage, since both visits now share one chart instead of each
+      // getting their own.
+      const extraWrites: Promise<unknown>[] = [];
+      // Measurements belong to the YEAR's record. Blank clears back to null
+      // rather than storing 0, which would read as "measured at zero" and feed
+      // a nonsense BMI.
+      const num = (v: string) => (v.trim() === '' ? null : Number(v));
+      extraWrites.push(apiClient.put(`/student-iptrs/${currentYearData.iptr._id}`, {
+        height_cm: num(draftMeasure.height_cm),
+        weight_kg: num(draftMeasure.weight_kg),
+        temperature_c: num(draftMeasure.temperature_c),
         blood_pressure: draftMeasure.blood_pressure.trim(),
-      });
+      }));
+      // A visit emptied completely (every service unticked, no tooth work
+      // left tagged to it) is RETIRED like a cleared tooth above -- archived,
+      // not left behind as a phantom "visit exists but has nothing in it"
+      // record. Visit 1 is exempt (it stays visible even empty -- see the
+      // tab above), so only Visit 2 can disappear this way (user,
+      // 2026-09-28: "i remove all the treatment and conditions in the visit
+      // 2 ... there is not visit 2 anymore"). Everything downstream
+      // (pipeline status, RPC due dates) reads LIVE preventive-care-records,
+      // so this one archive is what makes "no Visit 2" propagate everywhere
+      // else automatically, without a second update pass.
+      //
+      // Built for BOTH visits, not just the active tab (2026-09-28 fix): the
+      // per-visit draft slots above mean either visit's checkboxes may have
+      // been edited this session, so Save must persist whichever one(s)
+      // actually changed, not only whichever tab happened to be open when
+      // the button was clicked.
+      const remainingVisitTeeth = (n: 1 | 2) => pendingTeeth.some(([, entry]) => (entry.visitNumber ?? activeVisit) === n)
+        || Array.from(existingByTooth.values()).some((tr) => tr.visit_number === n && !clearedRecords.includes(tr));
+      const chartsTreatmentForVisit = (n: 1 | 2) => pendingTeeth.some(([, entry]) => entry.treatment !== '' && (entry.visitNumber ?? activeVisit) === n);
+      const buildVisitWrite = (n: 1 | 2) => {
+        const services = draftServicesByVisit[n];
+        const visitDate = draftVisitDateByVisit[n];
+        const record = n === 1 ? visit1 : visit2;
+        const hasAnyServiceN = hasAnyServiceForVisit(n);
+        const nowEmptyN = !hasAnyServiceN && !remainingVisitTeeth(n);
+        if (record) {
+          if (n === 2 && nowEmptyN) return apiClient.patch(`/preventive-care-records/${record._id}/archive`);
+          return apiClient.put(`/preventive-care-records/${record._id}`, {
+            ...services,
+            ...(visitDate ? { visit_date: visitDate } : {}),
+          });
+        }
+        if (hasAnyServiceN || chartsTreatmentForVisit(n)) {
+          return apiClient.post('/preventive-care-records', {
+            iptr_id: currentYearData.iptr._id,
+            visit_date: visitDate || draftChartDate || toLocalDateString(new Date()),
+            visit_number: n,
+            ...services,
+          });
+        }
+        return null;
+      };
+      const visit1Write = buildVisitWrite(1);
+      const visit2Write = buildVisitWrite(2);
+      if (visit1Write) extraWrites.push(visit1Write);
+      if (visit2Write) extraWrites.push(visit2Write);
+      const savedChartId = currentYearData.dentalChart?._id;
+      if (savedChartId && draftChartDate
+          && draftChartDate !== new Date(currentYearData.dentalChart!.date_charted).toISOString().slice(0, 10)) {
+        extraWrites.push(apiClient.put(`/dental-charts/${savedChartId}`, { date_charted: draftChartDate }));
+      }
 
-      await Promise.all([...chartWrites, ...toothWrites, medWrite, dietWrite, oralWrite, measureWrite]);
+      await Promise.all([...toothWrites, medWrite, dietWrite, oralWrite, ...extraWrites]);
+      // Student Records' Status column and the Charting Queue's own status
+      // both read /stats/student-rows -- without this, either would keep
+      // showing this pupil's PRE-save pipeline stage until something else
+      // happened to invalidate the cache (user, 2026-09-28: "status should
+      // be real time... without refreshing the page").
+      invalidateCached('/stats/student-rows');
+      invalidateCached('/stats/student-nav');
       await reload();
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -836,7 +1311,20 @@ export const DentalChart = () => {
       // toast is what actually confirms the save. One message, not four:
       // the writes above are a single user action, not four separate ones.
       toast.success('Chart saved.');
-      if (iptrContext === 'dental-queue') setTimeout(() => navigate('/ai-analytics'), 450);
+      // A charted student no longer belongs in the Dental Charts queue --
+      // user, 2026-09-26: "when dental chart is marked or updated, the
+      // queue should be gone" for that pupil. Harmless if they were never
+      // queued (removeQueuedStudentId no-ops).
+      removeQueuedStudentId(id);
+      // Auto-queue for Treatment (user, 2026-09-28): any save that leaves
+      // behind a charted tooth condition/treatment or a ticked oral health
+      // condition queues this pupil for the Treatment submodule -- checked
+      // against the SAVED state, not just this save's delta, so a chart
+      // that already had decay marked queues again on every later save too.
+      const hasChartOrOralConditionData =
+        Object.values(draftChart).some((e) => e.condition || e.treatment) ||
+        Object.values(draftOral).some((v) => v === true || (typeof v === 'string' && v.trim() !== ''));
+      if (hasChartOrOralConditionData) addTreatmentQueueStudentId(id);
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'Failed to save';
       setSaveError(message);
@@ -852,19 +1340,13 @@ export const DentalChart = () => {
     }
   }, [activeTab, visibleTabs]);
 
-  // Marking consent complete is one-way — there is no unchecking it back to
-  // pending once confirmed (see the Consent tab checkbox, which is disabled
-  // the moment it's complete). So this only ever moves pending → complete,
-  // gated behind a confirmation dialog warning exactly that.
-  const [confirmConsentTarget, setConfirmConsentTarget] = useState<{ iptrId: string; schoolYear: string } | null>(null);
-
-  // Takes an explicit iptrId rather than reading `years[selectedYear]` — the
-  // Consent tab shows every year's own container at once (each renewed
-  // separately, see StudentIptr.ts), so a toggle must name which year's
-  // record it is updating instead of assuming "whichever year is selected".
-  const handleToggleConsent = async (iptrId: string, checked: boolean) => {
-    if (!canEdit) return;
+  const handleToggleConsent = async (checked: boolean) => {
+    const iptrId = yearIptr?._id;
+    if (!iptrId || !canEdit) return;
     try {
+      // ⚠ The YEAR's record, not the student's. `consent_given_at` is stamped
+      // server-side by the model hook — a client-supplied "when was consent
+      // given" is not evidence of anything.
       await apiClient.put(`/student-iptrs/${iptrId}`, { consent_status: checked ? 'complete' : 'pending' });
       await reload();
       toast.success(checked ? 'Consent marked complete.' : 'Consent marked pending.');
@@ -878,6 +1360,8 @@ export const DentalChart = () => {
     setDraftInfo({ ...student });
     const iptr = years[selectedYear]?.iptr;
     setDraftYear({
+      height_cm: iptr?.height_cm != null ? String(iptr.height_cm) : '',
+      weight_kg: iptr?.weight_kg != null ? String(iptr.weight_kg) : '',
       // Deliberately NOT falling back to the student's current grade. A blank
       // means "never recorded for this year", and pre-filling today's grade
       // would let one careless Save stamp it onto an old year — the exact lie
@@ -886,19 +1370,70 @@ export const DentalChart = () => {
       section: iptr?.section ?? '',
     });
     setInfoError(null);
+    setInfoMissing(new Set());
     setEditingInfo(true);
+  };
+
+  // Same required fields as Add New Student (PatientList REQUIRED_STUDENT_FIELDS,
+  // user 2026-09-25): checked BEFORE the confirm step, so the dialog never
+  // asks to save a form that would be refused.
+  const requiredInfo = (d: typeof draftInfo) => [
+    { key: 'last_name', label: 'Last Name', on: true },
+    { key: 'first_name', label: 'First Name', on: true },
+    { key: 'birthday', label: 'Birthdate', on: true },
+    { key: 'sex', label: 'Sex', on: true },
+    { key: 'grade_level', label: 'Grade', on: !d.is_not_student },
+    { key: 'section', label: 'Section', on: !d.is_not_student },
+    { key: 'fourps_id', label: '4Ps ID', on: !!d.is_4ps },
+  ].filter((f) => f.on);
+  // Red " *" only while the field is required right now (Grade/Section drop
+  // it under "Not a Student"), and the per-field line after a refused save.
+  const infoReq = (key: string) => requiredInfo(draftInfo).some((f) => f.key === key) ? <span className="text-destructive"> *</span> : null;
+  const infoMiss = (key: string) => infoMissing.has(key) ? <p className="mt-1 text-xs text-destructive">This field is required.</p> : null;
+  const handleSaveInfoClick = () => {
+    if (!draftInfo) return;
+    const missing = requiredInfo(draftInfo).filter(({ key }) => !String((draftInfo as Record<string, unknown>)[key] ?? '').trim());
+    setInfoMissing(new Set(missing.map((m) => m.key)));
+    if (missing.length) { setInfoError(`Please fill in: ${missing.map((m) => m.label).join(', ')}.`); return; }
+    setInfoError(null);
+    setConfirmSaveInfo(true);
   };
 
   const handleSaveInfo = async () => {
     if (!id || !draftInfo) return;
+    // Same shared rules as the Add form and the bulk import (Sprint 120). Only
+    // ONE of the 27 records on file fails them (a contact number), so this
+    // blocks almost nothing that already exists -- but it does mean a legacy
+    // bad value must be corrected before that pupil can be edited, which is
+    // the point. Undefined fields are skipped, so editing a name never trips
+    // on a phone the encoder is not looking at.
+    const problems = validateStudentValues({
+      lastName: draftInfo.last_name,
+      firstName: draftInfo.first_name,
+      middleName: draftInfo.middle_name,
+      birthdate: draftInfo.birthday ? String(draftInfo.birthday).slice(0, 10) : undefined,
+      contactNumber: draftInfo.contact_number,
+      guardianContact: draftInfo.guardian_contact,
+    });
+    if (problems.length) {
+      setInfoError(problems.join(' '));
+      return;
+    }
     setInfoSaving(true);
     setInfoError(null);
     try {
-      await apiClient.put(`/students/${id}`, draftInfo);
-      // Two writes because the panel edits two records.
+      // No PhilHealth number means no PhilHealth status (user, 2026-09-24).
+      await apiClient.put(`/students/${id}`, (draftInfo.philhealth_number ?? '').trim() ? draftInfo : { ...draftInfo, philhealth_status: 'None' });
+      // Two writes because the panel edits two records. Blank clears the
+      // measurement rather than storing 0, which would read as "measured at
+      // zero" and feed a nonsense BMI.
       const iptrId = years[selectedYear]?.iptr._id;
       if (iptrId) {
         await apiClient.put(`/student-iptrs/${iptrId}`, {
+          // ⚠ height_cm/weight_kg deliberately NOT written here (Sprint 173).
+          // Physical Measurements on the History tab owns them now; sending
+          // them from this panel too would let a stale draft overwrite a fresh
+          // measurement depending on which save ran last.
           // Editable so a RETAINED pupil, or a section moved mid-year, can be
           // corrected on the year it belongs to — the dentist's own example.
           // Blank clears back to "not recorded" rather than writing "".
@@ -906,6 +1441,13 @@ export const DentalChart = () => {
           section: draftYear.section.trim() === '' ? null : draftYear.section,
         });
       }
+      // This page never mounts useStudents/useStudentNav's own reload path,
+      // so a PUT here has to invalidate their shared caches directly (user,
+      // 2026-09-27) -- otherwise Student Records or the next chart's own
+      // Prev/Next nav would keep showing this student's PRE-edit name/grade/
+      // section until the cache's safety-net TTL expired.
+      invalidateCached('/stats/student-rows');
+      invalidateCached('/stats/student-nav');
       await reload();
       toast.success('Student info updated.');
       setEditingInfo(false);
@@ -916,163 +1458,31 @@ export const DentalChart = () => {
     }
   };
 
-  const ToothButton = ({ num }: { num: number }) => {
-    const data = currentChart[num];
-    const cond = data?.condition || '';
-    const treat = data?.treatment || '';
-    const colorClass = conditionColors[cond] || conditionColors[cond.toLowerCase()] || 'bg-card border-border';
-    const isSelected = editingChart && (selectedCondition || selectedTreatment);
-    const hoverClass = isSelected
-      ? 'hover:border-teal-500 hover:ring-2 hover:ring-teal-300 hover:bg-teal-50 cursor-pointer'
-      : 'cursor-default';
-    return (
-      <button
-        onClick={() => editingChart && handleToothClick(num)}
-        // Grows to fill the card instead of leaving ~100px of slack on each
-        // side, capped so the boxes stay tooth-shaped rather than becoming wide
-        // rectangles on a large screen. flex-1 is also what keeps the primary
-        // row aligned with the permanent one -- both rows are 16 equal slots.
-        className={`relative flex h-[52px] min-w-[40px] max-w-[56px] flex-1 flex-col items-center justify-between rounded-md border-2 px-0.5 py-1 text-center transition-all md:h-[64px] ${colorClass} ${hoverClass}`}
-      >
-        <div className="text-[8px] font-medium text-slate-500 leading-none">{num}</div>
-        {cond && <div className="text-[11px] md:text-sm font-bold text-slate-700 leading-none">{cond}</div>}
-        {/* Blue, not teal: the palette selects conditions in teal and
-            treatments in blue, but this rendered the treatment code in the
-            condition colour, crossing the two vocabularies on the teeth. */}
-        {treat && <div className="text-[8px] md:text-[10px] font-semibold text-blue-700 leading-none">{treat}</div>}
-      </button>
-    );
-  };
-
-  // A primary arch holds 10 teeth against the permanent arch's 16. The three
-  // missing positions at each end are the molars that have no primary
-  // predecessor (18/17/16 and 26/27/28), so blank slots there put every
-  // primary tooth under its successor. Same flex sizing as ToothButton, so the
-  // columns cannot drift apart.
-  const padToArch = (teeth: number[]) => [
-    ...Array.from({ length: 3 }, (_, i) => <div key={`pad-l${i}`} aria-hidden className="min-w-[40px] max-w-[56px] flex-1" />),
-    ...teeth.map((n) => <ToothButton key={n} num={n} />),
-    ...Array.from({ length: 3 }, (_, i) => <div key={`pad-r${i}`} aria-hidden className="min-w-[40px] max-w-[56px] flex-1" />),
-  ];
-
   const chartedConditionCount = Object.values(currentChart).filter((e) => e.condition).length;
   const chartedTreatmentCount = Object.values(currentChart).filter((e) => e.treatment).length;
+  // Tooth Treatment Codes hides once no tooth carries a condition (below) --
+  // an armed selectedTreatment would otherwise still apply on the next
+  // tooth click even while its own palette (and "Click teeth to apply" hint)
+  // is off screen. Cleared the instant the palette itself would hide.
+  useEffect(() => {
+    if (chartedConditionCount === 0) setSelectedTreatment(null);
+  }, [chartedConditionCount]);
 
   // Clears one vocabulary across every tooth, leaving the other untouched.
   // Draft-only: nothing reaches the DB until Save, so Cancel still undoes it.
   const clearAll = (field: 'condition' | 'treatment') => {
-    setDraftChart((prev) => {
-      const next: Record<number, ChartEntry> = {};
-      Object.entries(prev).forEach(([tooth, entry]) => {
-        next[Number(tooth)] = { ...entry, [field]: '' };
-      });
-      return next;
+    const next: Record<number, ChartEntry> = {};
+    Object.entries(currentChart).forEach(([tooth, entry]) => {
+      next[Number(tooth)] = { ...entry, [field]: '' };
     });
+    setDraftChart(next);
+    // Same live re-derivation as a single tooth paint/erase -- clearing
+    // every condition at once can just as easily be the thing that empties
+    // the last real content behind a date.
+    syncDatesFromChart(next);
     setConfirmClear(null);
   };
 
-  // "Orally Fit Child" is DERIVED, never ticked by hand: it is true when the
-  // mouth has actually been charted and no tooth carries decay, missing,
-  // filled or indicated-for-extraction. Deriving it is the only way it can be
-  // trusted — a hand-ticked box can contradict the odontogram sitting directly
-  // above it. Un/S/JC/P do not disqualify: they are anatomical findings, not
-  // caries experience. An empty chart is NOT orally fit — nothing was examined.
-  const isOrallyFit = useMemo(() => {
-    const charted = Object.values(currentChart).filter((e) => e.condition !== '');
-    if (charted.length === 0) return false;
-    return !charted.some((e) => ['D', 'd', 'M', 'm', 'F', 'f', 'X', 'x', 'DX', 'dx'].includes(e.condition));
-  }, [currentChart]);
-
-  // The chart record only exists once something has been saved, so before the
-  // first save `date_charted` is missing and the row read "—" on a sheet that
-  // plainly HAD been opened. Falls back to the same value the year chips show
-  // (`date_opened`, else `created_at`), so the two never disagree on screen.
-  const examinationDate = (() => {
-    const raw = draftServices.dateCharted
-      || currentYearData?.dentalChart?.date_charted
-      || currentYearData?.iptr.date_opened
-      || currentYearData?.iptr.created_at;
-    return raw ? formatDate(raw) : '';
-  })();
-  const treatmentDate = draftServices.dateTreated ? formatDate(draftServices.dateTreated) : '';
-
-  // Stamps a date the FIRST time something is recorded, and never overwrites
-  // one that already exists — the field stays editable, and silently resetting
-  // a date the clinician typed would be worse than leaving it blank.
-  const stampDate = (which: 'dateCharted' | 'dateTreated') =>
-    setDraftServices((prev) => (prev[which] ? prev : { ...prev, [which]: toLocalDateString(new Date()) }));
-
-  // DOH IPTR section "B. Indicate Number", computed from the odontogram — the
-  // paper form's exact rows, in the paper form's order. Every figure is derived;
-  // none of it is typed, so it cannot disagree with the teeth above it.
-  //
-  // Two deliberate readings of the form:
-  //  · "Present" EXCLUDES teeth recorded missing or unerupted. A tooth that is
-  //    not in the mouth cannot be counted as present.
-  //  · The temporary block is "dfx", not "dmfx", and the form has no "missing
-  //    (m)" row — primary teeth exfoliate naturally, so a missing one is not a
-  //    caries outcome. Followed exactly rather than "corrected".
-  const indicateNumberRows = useMemo(() => {
-    const charted = Object.entries(currentChart)
-      .map(([n, e]) => ({ n: Number(n), c: e.condition }))
-      .filter((e) => e.c !== '');
-    const perm = charted.filter((e) => !temporaryTeeth.has(e.n));
-    const temp = charted.filter((e) => temporaryTeeth.has(e.n));
-    const teethWhere = (list: typeof charted, codes: string[]) =>
-      list.filter((e) => codes.includes(e.c)).map((e) => e.n).sort((a, b) => a - b);
-    const teethWhereNot = (list: typeof charted, codes: string[]) =>
-      list.filter((e) => !codes.includes(e.c)).map((e) => e.n).sort((a, b) => a - b);
-    return [
-      { label: 'No. of Permanent Teeth Present', teeth: teethWhereNot(perm, ['M', 'Un']) },
-      { label: 'No. of Permanent Sound Teeth', teeth: teethWhere(perm, ['✓']) },
-      { label: 'No. of Decayed Teeth (D)', teeth: teethWhere(perm, ['D']) },
-      { label: 'No. of Missing Teeth (M)', teeth: teethWhere(perm, ['M']) },
-      { label: 'No. of Filled Teeth (F)', teeth: teethWhere(perm, ['F']) },
-      { label: 'No. of Teeth for Extraction (X)', teeth: teethWhere(perm, ['X']) },
-      { label: 'No. of DMFX Teeth', teeth: teethWhere(perm, ['D', 'M', 'F', 'X']) },
-      { label: 'No. of Temporary Teeth Present', teeth: teethWhereNot(temp, ['m', 'un']) },
-      { label: 'No. of Temporary Sound Teeth', teeth: teethWhere(temp, ['✓']) },
-      { label: 'No. of Decayed Teeth (d)', teeth: teethWhere(temp, ['d']) },
-      { label: 'No. of Filled Teeth (f)', teeth: teethWhere(temp, ['f']) },
-      { label: 'No. of Teeth for Extraction (x)', teeth: teethWhere(temp, ['x']) },
-      { label: 'No. of dfx Teeth', teeth: teethWhere(temp, ['d', 'f', 'x']) },
-    ];
-  }, [currentChart]);
-
-  // Per-tooth treatment summary: which TEETH carry each code, not just how
-  // many. A count answered "3 fillings" without ever saying which three, which
-  // is the question the dentist and the DOH form both actually ask. Sorted
-  // numerically so 8 does not come after 46.
-  const teethByTreatment = useMemo(() => {
-    const byCode: Record<string, number[]> = {};
-    for (const [toothStr, entry] of Object.entries(currentChart)) {
-      if (!entry.treatment) continue;
-      (byCode[entry.treatment] ??= []).push(Number(toothStr));
-    }
-    for (const list of Object.values(byCode)) list.sort((a, b) => a - b);
-    return byCode;
-  }, [currentChart]);
-
-  // Present-oral-condition rows. Dental Caries is DERIVED from the odontogram
-  // (any tooth marked D or d) rather than from a chip — caries is recorded
-  // tooth by tooth, so asking the user to also tick a "caries" chip would be
-  // two sources for one fact, and they would disagree. Everything else comes
-  // from the whole-mouth chips.
-  const presentOralConditions = useMemo(() => {
-    // 'D' OR 'd' — a tooth stores codeObj.perm for a permanent tooth and
-    // codeObj.temp for a primary one, so testing only 'D' silently missed
-    // every primary-tooth caries. Same reason computeDMFT counts both cases.
-    const hasCaries = Object.values(currentChart).some((e) => e.condition === 'D' || e.condition === 'd');
-    return [
-      { label: 'Dental Caries', present: hasCaries },
-      { label: 'Gingivitis', present: draftOral.gingivitis },
-      { label: 'Periodontal Disease', present: draftOral.periodontal },
-      { label: 'Debris', present: draftOral.debris },
-      { label: 'Calculus', present: draftOral.calculus },
-      { label: 'Abnormal Growth', present: draftOral.abnormalGrowth },
-      { label: 'Cleft Lip / Palate', present: draftOral.cleftLipPalate },
-    ];
-  }, [currentChart, draftOral]);
 
   // Treatment History tab -- combined across all school years, most recent first.
   const allTreatments = useMemo(
@@ -1117,8 +1527,110 @@ export const DentalChart = () => {
     }
   };
 
+  // ── Referrals (Sprint 127) ──────────────────────────────────────────────
+  // Combined across school years, most recent first — the same shape as
+  // Treatment History above, because it answers the same kind of question.
+  const allReferrals = useMemo(
+    () => years.flatMap((y) => y.referrals).sort((a, b) => b.date_issued.localeCompare(a.date_issued)),
+    [years],
+  );
+
+  const [showAddReferral, setShowAddReferral] = useState(false);
+  const [referralForm, setReferralForm] = useState({
+    date: toLocalDateString(new Date()),
+    referralType: 'higher_level' as ReferralType,
+    facility: '',
+    reason: '',
+    followUp: '',
+    notes: '',
+  });
+  const [referralSaving, setReferralSaving] = useState(false);
+  const [referralError, setReferralError] = useState<string | null>(null);
+
+  const handleAddReferral = async () => {
+    if (!currentYearData) {
+      setReferralError('This student has no record for the selected school year.');
+      return;
+    }
+    // `date_issued` is required on the model. Without this check, clearing the
+    // date posts an empty string, Mongoose casting fails, and the raw server
+    // validation string surfaces in the panel.
+    if (!referralForm.date || !referralForm.facility.trim() || !referralForm.reason.trim()) {
+      setReferralError('Date issued, facility and reason are required.');
+      return;
+    }
+    setReferralSaving(true);
+    setReferralError(null);
+    try {
+      await apiClient.post('/referrals', {
+        iptr_id: currentYearData.iptr._id,
+        // Nullable on the model: an aide can record a referral, and no dentist
+        // record is linked to an aide's account.
+        dentist_id: currentDentist?._id ?? null,
+        referral_type: referralForm.referralType,
+        date_issued: referralForm.date,
+        facility_name: referralForm.facility.trim(),
+        reason: referralForm.reason.trim(),
+        notes: referralForm.notes.trim(),
+        // `status` and `follow_up_date` are deliberately left to the model's
+        // defaults unless a date is typed — referrals are ISSUE-ONLY until the
+        // dentist confirms that closing one out is a real part of her workflow.
+        ...(referralForm.followUp ? { follow_up_date: referralForm.followUp } : {}),
+      });
+      await reload();
+      toast.success('Referral recorded.');
+      setReferralForm({
+        date: toLocalDateString(new Date()),
+        referralType: 'higher_level',
+        facility: '',
+        reason: '',
+        followUp: '',
+        notes: '',
+      });
+      setShowAddReferral(false);
+    } catch (err) {
+      setReferralError(err instanceof ApiError ? err.message : 'Failed to save referral');
+    } finally {
+      setReferralSaving(false);
+    }
+  };
+
   const showStickyYearBar = activeTab === 'history' || activeTab === 'chart';
-  const backPath = iptrContext === 'risk' ? '/ai-analytics' : iptrContext === 'treatment' ? '/treatment-records' : '/dental-charts';
+  // Was: 'default' fell through to the same '/dental-charts' as the queue
+  // context (user, 2026-09-27) -- opened from Student Records, Back must
+  // return to Student Records, not the Dental Charts queue it never came
+  // from.
+  const backPath =
+    iptrContext === 'risk' ? '/ai-analytics'
+    : iptrContext === 'treatment' ? '/treatment-records'
+    : iptrContext === 'dental-queue' ? '/dental-charts'
+    : '/patients';
+
+  // ⚠ ABOVE THE EARLY RETURNS ON PURPOSE. This is a HOOK, and the
+  // `if (loading)` / `if (error)` guards below return before the rest of the
+  // component runs — a useMemo placed after them runs on some renders and
+  // not others, which is exactly the "Rendered more hooks than during the
+  // previous render" crash that blanked this page in c0ce442b. tsc and the
+  // build were clean for it; only opening the screen showed it.
+  // ⚠ Consent is per SCHOOL YEAR (Sprint 167). Reading STUDENT.consent_status
+  // said a pupil who consented once had consented forever — a 2023 signature
+  // authorising 2026 treatment.
+  // ⚠ Age in MONTHS at this year's measurement anchor, not today — the
+  // DOH/DepEd BMI-for-Age table is banded by month, and a pupil measured in
+  // August is not the age they are in June. Same reasoning as patientAge
+  // (Sprint 57b).
+  const patientAgeMonths = useMemo(() => {
+    // Reads the year off `years[selectedYear]` rather than the `yearIptr`
+    // const, which is declared further down — a hook cannot depend on a
+    // binding that does not exist yet at this point in the component.
+    const schoolYear = years[selectedYear]?.iptr.school_year;
+    if (!student?.birthday || !schoolYear) return null;
+    const born = new Date(student.birthday);
+    if (Number.isNaN(born.getTime())) return null;
+    // End of the school year: June 30 of its second half.
+    const anchor = new Date(Number(String(schoolYear).slice(0, 4)) + 1, 5, 30);
+    return (anchor.getFullYear() - born.getFullYear()) * 12 + (anchor.getMonth() - born.getMonth());
+  }, [student?.birthday, years, selectedYear]);
 
   if (loading) {
     return (
@@ -1142,7 +1654,6 @@ export const DentalChart = () => {
     ?? schoolYearAnchor(years[selectedYear]?.iptr.school_year)
     ?? new Date();
   const patientAge = computeAge(student.birthday, ageAnchor);
-  const patientAgeMonths = computeAgeMonths(student.birthday, ageAnchor);
 
   // Grade and section AS OF THE SELECTED SCHOOL YEAR (Sprint 57a). These used
   // to read `student.grade_level`, which is a single current value — so opening
@@ -1154,45 +1665,72 @@ export const DentalChart = () => {
   // fallback to the student's current grade: that fallback IS the bug. They
   // render as "not recorded", which is honest about what the system knows.
   const yearIptr = years[selectedYear]?.iptr;
+  const consentComplete = yearIptr?.consent_status === 'complete';
   const yearGrade = yearIptr?.grade_level ?? null;
   const yearSection = yearIptr?.section ?? null;
-  // Same per-year rule as grade above: consent is obtained for this school
-  // year's IPTR, never inherited from another year.
-  const consentComplete = yearIptr?.consent_status === 'complete';
 
   // The patient's own record as a PDF — Sprint 52 named this "the one export a
-  // clinic actually needs (a patient's own record for their file)" and left it
-  // unbuilt. Captures the record body, not the sticky toolbar.
-  const onIptrPdf = async () => {
-    if (!recordRef.current) return;
-    setPdfBusy(true);
-    try {
-      const who = surnameFirst(student).replace(/[^\w]+/g, '-');
-      await exportDohReportToPdf(recordRef.current, `IPTR_${who}.pdf`);
-    } finally {
-      setPdfBusy(false);
+  // clinic actually needs (a patient's own record for their file)".
+  //
+  // ⚠ Sprint 135 changed WHAT is captured. It used to capture `recordRef`, the
+  // on-screen record region: the patient-info card, the tab strip, the Edit
+  // buttons, whatever tab happened to be open. That is a screenshot of the app,
+  // and it is the document a family or a referral is handed. It now captures
+  // the real DOH form, built to the scan in the manuscript (Appendix G).
+  //
+  // `iptrFormRef` renders off-screen rather than conditionally: html2canvas
+  // needs a laid-out element, so `display: none` would capture nothing.
+  // ⚠ Declared at the TOP of the component with the other hooks, not here:
+  // this function sits after the `if (loading)` / `if (error)` early returns,
+  // and a hook after a conditional return changes the hook ORDER between
+  // renders ("Rendered more hooks than during the previous render").
+  // ⚠ TWO IPTR FORMS ARE VALID AT ONCE (user, 2026-09-05), so this is a CHOICE,
+  // not a single action. `patient` is the Taguig City Health Office "Individual
+  // PATIENT Treatment Record" (manuscript Appendix G, two pages); `form1` is
+  // the DOH Center for Health Development "Individual Treatment Record". They
+  // are different documents and are never merged.
+  const onIptrPdf = (which: 'patient' | 'form1') => {
+    const who = surnameFirst(student).replace(/[^\w]+/g, '-');
+    if (which === 'form1') {
+      if (!iptrFormV2Ref.current) return;
+      const el = iptrFormV2Ref.current;
+      previewPdf('Individual Treatment Record (DOH Form 1)', `ITR_Form1_${who}.pdf`, () => buildPagesPdf([el]));
+      return;
     }
+    if (!iptrFormRef.current) return;
+    // TWO PDF PAGES, because that form is a two-page form (Sprint 136).
+    // Capturing both into one tall page would produce a document that is not
+    // the form.
+    const pages = [iptrFormRef.current, iptrFormPage2Ref.current].filter((el): el is HTMLDivElement => el !== null);
+    previewPdf('Individual PATIENT Treatment Record', `IPTR_${who}.pdf`, () => buildPagesPdf(pages));
   };
 
-  // Capped at 5xl, then at 80%, both left idle gutters on laptop/desktop
-  // widths that every other page in the app (Students, Dashboard,
-  // Appointments) doesn't have — full width now, matching them exactly.
+  // ⚠ THE WIDTH. This wrapper carried `max-w-5xl mx-auto` — a 1024px cap with
+  // the leftover space split either side — which is why the record screen sat
+  // in a narrow column while every other screen in the app ran the full width
+  // of the content area. Hers is `w-full`, and hers is right here: the
+  // odontogram is 32 teeth across and the summaries are a two-column grid,
+  // both of which were being squeezed for no reason. Sprint 165.
   return (
     <div className="space-y-4 w-full">
+      {/* The printable form, off-screen. Kept mounted so the PDF button has a
+          laid-out element to capture; `aria-hidden` so it is not read twice by
+          a screen reader, and it carries `.form-print` so a browser print of
+          this page produces the FORM, not the app. */}
+      <div aria-hidden className="fixed -left-[10000px] top-0">
+        <div ref={iptrFormRef}><IptrForm student={student} years={years} dentists={dentists} /></div>
+        <div ref={iptrFormPage2Ref}><IptrFormPage2 years={years} /></div>
+        <div ref={iptrFormV2Ref}><IptrFormV2 student={student} schoolName={schoolName} years={years} /></div>
+      </div>
       {/* Sticky header row */}
-      {/* `bg-canvas`, not `bg-gray-50`: this row is sticky so it MUST stay
-          opaque or scrolled content shows through it, but at gray-50 it was a
-          slightly different tone from the page behind it and read as a tinted
-          band. Matching the page background makes the fill invisible while
-          keeping it opaque. */}
-      <div ref={headerRowRef} style={{ top: TOPBAR_H }} className="sticky z-40 bg-canvas pb-2">
+      <div ref={headerRowRef} className="sticky z-40 bg-gray-50 pt-3 pb-2" style={{ top: TOPBAR_H }}>
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-3 min-w-0">
           <Link to={backPath} className="p-2 hover:bg-gray-100 rounded-lg shrink-0">
             <ArrowLeft className="w-4 h-4 text-muted-foreground" />
           </Link>
           <div className="min-w-0">
-            <h1 className="text-lg font-bold text-primary">Individual Patient Treatment Record</h1>
+            <h1 className="text-lg font-bold text-foreground">Individual Patient Treatment Record</h1>
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -1202,40 +1740,71 @@ export const DentalChart = () => {
               file with no filing purpose. Sprint 52 removed the bulk patient
               exports for exactly that reason and named THIS as the one export
               a clinic actually needs. */}
-          <button
-            onClick={onIptrPdf}
-            disabled={pdfBusy}
-            title="Download this patient's record as a PDF"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs border border-border rounded-lg hover:bg-gray-50 disabled:opacity-50"
-          >
-            <Download className="w-3.5 h-3.5" />{pdfBusy ? 'Preparing…' : 'PDF'}
-          </button>
-          <div className="hidden sm:flex items-center gap-1 border border-border rounded-lg overflow-hidden">
+          {/* Both forms are in use, so both are offered, and the menu says
+              WHICH with a one-line description, instead of a single button
+              silently picking one. */}
+          <div ref={pdfMenuRef} className="relative">
             <button
-              onClick={() => prevPatient && navigate(`/dental-chart/${prevPatient.id}`)}
+              type="button"
+              onClick={() => setPdfMenuOpen((v) => !v)}
+              disabled={pdfBusy}
+              aria-haspopup="menu"
+              aria-expanded={pdfMenuOpen}
+              className="flex h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-60"
+            >
+              <Download className="h-4 w-4" />
+              {pdfBusy ? 'Preparing…' : 'Download PDF'}
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${pdfMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {pdfMenuOpen && (
+              <div role="menu" className="absolute right-0 top-[calc(100%+6px)] z-50 w-[270px] rounded-xl border border-border bg-card p-1.5 shadow-[0_10px_30px_rgba(15,23,42,0.12)]">
+                {([
+                  ['patient', 'IPTR', 'Individual Patient Treatment Record, 2 pages'],
+                  ['form1', 'Form 1', 'Individual Treatment Record (DOH)'],
+                ] as const).map(([which, name, desc]) => (
+                  <button key={which} type="button" role="menuitem"
+                    onClick={() => { setPdfMenuOpen(false); onIptrPdf(which); }}
+                    className="flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-primary-surface">
+                    <PdfPageIcon paper="#273A78" fold="#8FA0CF" letters="#fff" className="mt-0.5 h-6 w-6" />
+                    <span className="min-w-0">
+                      <span className="block text-xs font-bold text-foreground">{name}</span>
+                      <span className="block text-[11px] text-muted-foreground">{desc}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="hidden sm:flex h-9 items-stretch rounded-lg border-2 border-sidebar-bg bg-white overflow-hidden">
+            <button
+              onClick={() => goToStudent(prevPatient)}
               disabled={!prevPatient}
               title={prevPatient ? `← ${prevPatient.name}` : undefined}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-gray-100 disabled:opacity-30 disabled:cursor-default border-r border-border"
+              className="flex items-center gap-1.5 px-3 text-xs font-semibold text-sidebar-bg hover:bg-primary-surface disabled:opacity-30 disabled:cursor-default border-r-2 border-sidebar-bg"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
               {/* Surname, not the given name: the list is ordered by surname,
                   so the button must name the same thing you are stepping through. */}
               {prevPatient ? <span className="max-w-[80px] truncate">{prevPatient.lastName || prevPatient.name}</span> : 'First'}
             </button>
-            <span className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1 px-3 text-xs font-semibold text-sidebar-bg">
               <Users className="w-3 h-3" />
               {navIndex >= 0 ? `${navIndex + 1}/${navList.length}` : '—'}
             </span>
             <button
-              onClick={() => nextPatient && navigate(`/dental-chart/${nextPatient.id}`)}
+              onClick={() => goToStudent(nextPatient)}
               disabled={!nextPatient}
               title={nextPatient ? `${nextPatient.name} →` : undefined}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-gray-100 disabled:opacity-30 disabled:cursor-default border-l border-border"
+              className="flex items-center gap-1.5 px-3 text-xs font-semibold text-sidebar-bg hover:bg-primary-surface disabled:opacity-30 disabled:cursor-default border-l-2 border-sidebar-bg"
             >
               {nextPatient ? <span className="max-w-[80px] truncate">{nextPatient.lastName || nextPatient.name}</span> : 'Last'}
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
+          {/* The year arrows are gone (Sprint 163, her header). The year CHIPS
+              row directly under the tab strip already selects the school year,
+              names its exam date and shows its DMFT — two controls for one
+              choice, one of which said less. */}
         </div>
       </div>
       </div>
@@ -1244,24 +1813,42 @@ export const DentalChart = () => {
           the PDF captures. */}
       <div ref={recordRef} className="space-y-4">
       {/* Patient Info Card */}
-      <div className="bg-card rounded-xl border border-border p-4 w-full">
-          <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <div style={{ backgroundColor: gc.light, color: gc.solid }} className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0">
+      <div className={`bg-card rounded-xl border-2 border-primary shadow-[0_8px_24px_rgba(15,23,42,0.08)] ${!basicInfoExpanded ? 'py-2 px-4' : 'p-4'}`}>
+        {/* Editing opens the "Edit Basic Information" window below (user,
+            2026-09-25), laid out like Add New Student; the card keeps showing
+            the record behind it. */}
+        {(
+          <>
+            <div className={`flex items-start justify-between ${basicInfoExpanded ? 'mb-3' : ''}`}>
+              <div className="flex items-center gap-3">
+                <div style={{ backgroundColor: gc.light, color: gc.solid }} className="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg">
                   {[student.first_name?.[0], student.last_name?.[0]].filter(Boolean).join('') || student.full_name?.[0]}
                 </div>
                 <div>
-                  <div className="text-sm font-bold text-foreground">{surnameFirstWithInitial(student)}</div>
+                  <div className="font-bold text-foreground">{surnameFirstWithInitial(student)}</div>
                   <div className="flex items-center gap-2 mt-1">
-                    {yearGrade && <GradePill grade={yearGrade} />}
-                    {yearSection && <span style={{ color: gc.solid }} className="text-xs font-medium">{yearSection}</span>}
+                    {/* Nothing when the year has no recorded grade — the detail
+                        line directly above already says so, and repeating it
+                        here just doubled the same sentence. */}
+                    {/* "Grade 3-Bunga" as plain text, no pill (user, 2026-09-24):
+                        grade, dash and section all in the grade's colour-coding
+                        colour (user, same day), same size, not bold. Same design as the
+                        charting-mode header below. */}
+                    {(yearGrade || yearSection) && (
+                      <span className="whitespace-nowrap text-xs font-normal">
+                        {yearGrade && <span style={{ color: getGradeColor(yearGrade).solid }}>{yearGrade}</span>}
+                        {yearGrade && yearSection && <span style={{ color: getGradeColor(yearGrade).solid }}>-</span>}
+                        {yearSection && <span style={yearGrade ? { color: getGradeColor(yearGrade).solid } : undefined} className={yearGrade ? undefined : 'text-foreground'}>{yearSection}</span>}
+                      </span>
+                    )}
                     {student.is_4ps && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">4Ps</span>}
                   </div>
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
-                {/* Read-only here on purpose — consent has its own tab and its
-                    own toggle. Editing student info must never touch it. */}
+                {/* Her chips. ⚠ READ-ONLY here on purpose — consent has its own
+                    tab and its own toggle, and editing student info must never
+                    reach it. */}
                 <span
                   title={`${consentComplete ? 'Consent obtained' : 'Consent pending'} for ${yearIptr?.school_year ?? 'this year'}`}
                   className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${consentComplete ? 'bg-success-surface text-success' : 'bg-warning-surface text-warning'}`}
@@ -1269,255 +1856,129 @@ export const DentalChart = () => {
                   {consentComplete ? <ShieldCheck className="w-3.5 h-3.5" /> : <ShieldAlert className="w-3.5 h-3.5" />}
                   {consentComplete ? 'Consent Complete' : 'Consent Pending'}
                 </span>
-                {/* Moved beside Consent status, on the right — still readable
-                    while the card is collapsed. Blue/pink instead of neutral
-                    gray so it reads at a glance, not just on close reading. */}
+                {/* Colour rather than neutral grey, so sex reads at a glance —
+                    and it stays visible while the card is collapsed. */}
                 {student.sex && (
                   <span className={`text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${student.sex === 'Male' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}`}>
                     {student.sex}
                   </span>
                 )}
                 {canEditInfo && (
-                  <button onClick={() => setConfirmOpenEdit(true)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-lg text-muted-foreground hover:bg-gray-50">
+                  <button onClick={openEditInfo} className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-lg text-muted-foreground hover:bg-gray-50">
                     <Pencil className="w-3 h-3" /> Edit
                   </button>
                 )}
+                {/* ⚠ The button CARRIES ITS LABEL WHEN COLLAPSED. The state
+                    persists across pupils (Sprint 166), so a bare chevron meant
+                    the birthday, address, PhilHealth and guardian simply were
+                    not there on every record for the rest of the session, with
+                    nothing on screen saying they could come back. Reported as
+                    "basic patient info missing", which is exactly right: hidden
+                    content needs a way in that reads as one. */}
                 <button
                   onClick={() => setBasicInfoExpanded((v) => !v)}
                   title={basicInfoExpanded ? 'Hide basic information' : 'Show basic information'}
-                  className="flex items-center gap-1.5 px-2 py-1.5 text-xs border border-border rounded-lg text-muted-foreground hover:bg-gray-50"
+                  aria-label={basicInfoExpanded ? 'Hide basic information' : 'Show basic information'}
+                  aria-expanded={basicInfoExpanded}
+                  className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium border border-border rounded-lg text-muted-foreground hover:bg-gray-50"
                 >
                   {basicInfoExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  {!basicInfoExpanded && 'Basic info'}
                 </button>
               </div>
             </div>
             {basicInfoExpanded && (
-              <div className="space-y-3 text-sm border-t border-border pt-4 mt-4">
-                {/* Height/Weight/BMI live on the History tab's Physical
-                    Measurements block, not here — this card stays to
-                    identity/contact facts, not clinical measurements. */}
-                {[
-                  [['Birthday', formatDate(student.birthday)], ['Age', `${patientAge} years`], ['Place of Birth', student.place_of_birth || '—'], ['Sex', student.sex]],
-                  [['Address', student.address], ['Occupation', student.guardian_occupation || '—'], ['Contact', student.contact_number || '—']],
-                  [['Guardian', student.guardian_name || '—'], ['Guardian Contact', student.guardian_contact || '—']],
-                  [['PhilHealth', `${student.philhealth_number || '—'} (${student.philhealth_status || 'None'})`], ['4Ps / NHTS', student.is_4ps ? 'Yes' : 'No']],
-                ].map((row, i) => (
-                  <div key={i} className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3">
-                    {row.map(([label, val]) => (
-                      <div key={label}>
-                        <div className="text-xs text-muted-foreground font-medium mb-0.5">{label}</div>
-                        <div className="text-foreground font-medium">{val}</div>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+              {[
+                // "May 30, 2013", not 2013-05-30 — hers, and it is what a person
+                // reads a birthday as.
+                // Her field ORDER, not just her fields: Birthday, Age, Place of
+                // Birth, Sex — then Address, Occupation, Contact.
+                ['Birthday', student.birthday ? formatDate(student.birthday) : '—'],
+                ['Age', patientAge === null ? '—' : `${patientAge} years`],
+                ['Place of Birth', student.place_of_birth || '—'],
+                ['Sex', student.sex],
+                ['Address', student.address],
+                // Guardian's occupation — the label is "Occupation" on the paper
+                // IPTR and on her card, so it stays that word here too.
+                ['Occupation', student.guardian_occupation || '—'],
+                ['Contact', student.contact_number || '—'],
+                ['Guardian', student.guardian_name || '—'],
+                ['Guardian Contact', student.guardian_contact || '—'],
+                ['PhilHealth', student.philhealth_number ? `${student.philhealth_number} (${student.philhealth_status || 'None'})` : '—'],
+                // ⚠ Height, Weight and BMI are NOT here any more (Sprint 173,
+                // hers). This card is identity and contact facts; a clinical
+                // measurement belongs with the rest of the measurements, on
+                // History, where it is also entered.
+              ].map(([label, val]) => (
+                <div key={label}>
+                  <div className="text-muted-foreground font-medium">{label}</div>
+                  <div className="text-foreground" title={label === 'BMI' ? BMI_NOTE : undefined}>{val}</div>
+                </div>
+              ))}
+            </div>
             )}
+          </>
+        )}
       </div>
 
-      {/* Edit Student Information — mirrors Add Student's modal chrome and
-          field styling (PatientList.tsx) so editing feels like the same form,
-          not a cramped second UI. */}
-      {editingInfo && (
-        // closeDisabled is unconditional (not just while saving) — Esc and a
-        // backdrop click must never lose a half-filled edit; only the header
-        // X and the footer Cancel close it.
-        <Modal onClose={() => setEditingInfo(false)} maxWidth="max-w-4xl" closeDisabled>
-          <div className="flex items-start justify-between gap-3 p-6 border-b">
-            <div>
-              <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-primary mb-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-primary" /> Basic Information
-              </div>
-              <h2 className="text-lg font-bold text-foreground">Update Student Information</h2>
-            </div>
-            <button onClick={() => setEditingInfo(false)} className="text-muted-foreground hover:text-muted-foreground"><X className="w-5 h-5" /></button>
-          </div>
-          <div className="p-6 space-y-4">
-            {infoError && <p className="text-xs text-destructive">{infoError}</p>}
-            {/* Three boxes, matching the DOH IPTR paper form. full_name is
-                derived server-side from these, so it is not edited directly. */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Last Name<span className="text-destructive"> *</span></label>
-                <input type="text" value={draftInfo.last_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, last_name: e.target.value.toUpperCase() }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">First Name<span className="text-destructive"> *</span></label>
-                <input type="text" value={draftInfo.first_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, first_name: e.target.value.toUpperCase() }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Middle Name</label>
-                <input type="text" value={draftInfo.middle_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, middle_name: e.target.value.toUpperCase() }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Birthday<span className="text-destructive"> *</span></label>
-                <input type="date" value={draftInfo.birthday?.slice(0, 10) ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, birthday: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Age</label>
-                <input type="text" readOnly disabled value={draftInfo.birthday ? computeAge(draftInfo.birthday, new Date()) : ''} placeholder="Automatically calculated"
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-muted text-muted-foreground cursor-not-allowed" />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Sex<span className="text-destructive"> *</span></label>
-              <div className="grid grid-cols-2 gap-2">
-                {(['Male', 'Female'] as const).map((g) => (
-                  <button
-                    key={g}
-                    type="button"
-                    onClick={() => setDraftInfo((p) => ({ ...p, sex: g }))}
-                    className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                      draftInfo.sex === g ? 'bg-primary text-white border-primary' : 'border-border text-foreground hover:bg-canvas'
-                    }`}
-                  >
-                    {g}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {/* ── Current enrolment ── read by rosters and the appointment
-                picker; required, same as Add Student's Grade/Section. */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">
-                  Grade <span className="font-normal">· current</span><span className="text-destructive"> *</span>
-                </label>
-                <select value={draftInfo.grade_level ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, grade_level: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-card">
-                  {GRADES.map((g) => <option key={g}>{g}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">
-                  Section <span className="font-normal">· current</span><span className="text-destructive"> *</span>
-                </label>
-                <input type="text" value={draftInfo.section ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, section: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-              </div>
-            </div>
-            {/* The year-scoped Grade/Section fields that used to sit here
-                (Sprint 57a) were removed from this modal at the user's
-                request (2026-09-04) — draftYear/handleSaveInfo still exist
-                and still round-trip the current values on Save, so nothing
-                downstream (DOH reports reading a past year's own grade)
-                changed; there is just no UI control to edit them here
-                anymore. Grade/section for a year are still set automatically
-                when the year is created (Add Student, Promote/Assign,
-                Update School Year), which is how they're set in practice. */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Place of Birth<span className="text-muted-foreground font-normal"> (Optional)</span></label>
-                <input type="text" value={draftInfo.place_of_birth ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, place_of_birth: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Contact Number<span className="text-muted-foreground font-normal"> (Optional)</span></label>
-                <input type="text" value={draftInfo.contact_number ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, contact_number: e.target.value }))}
-                  placeholder="09XX-XXX-XXXX" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Guardian Name<span className="text-muted-foreground font-normal"> (Optional)</span></label>
-                <input type="text" value={draftInfo.guardian_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, guardian_name: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Guardian Contact<span className="text-muted-foreground font-normal"> (Optional)</span></label>
-                <input type="text" value={draftInfo.guardian_contact ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, guardian_contact: e.target.value }))}
-                  placeholder="09XX-XXX-XXXX" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Occupation<span className="text-muted-foreground font-normal"> (Optional)</span></label>
-              <input type="text" value={draftInfo.guardian_occupation ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, guardian_occupation: e.target.value }))}
-                className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">PhilHealth Number<span className="text-muted-foreground font-normal"> (Optional)</span></label>
-                <input type="text" value={draftInfo.philhealth_number ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, philhealth_number: e.target.value }))}
-                  placeholder="XX-XXXXXXXXX-X" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">PhilHealth Status</label>
-                <select value={draftInfo.philhealth_status ?? 'None'} onChange={(e) => setDraftInfo((p) => ({ ...p, philhealth_status: e.target.value as 'None' | 'Principal' | 'Dependent' }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-card">
-                  <option>Dependent</option><option>Principal</option><option>None</option>
-                </select>
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">School</label>
-              <select value={schoolName} disabled className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-muted text-muted-foreground">
-                {schoolNames.map((s) => <option key={s}>{s}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Address<span className="text-muted-foreground font-normal"> (Optional)</span></label>
-              <input type="text" value={draftInfo.address ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, address: e.target.value }))}
-                className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-            </div>
-            <div className="flex items-center gap-3">
-              <input type="checkbox" id="edit-4ps" checked={!!draftInfo.is_4ps} onChange={(e) => setDraftInfo((p) => ({ ...p, is_4ps: e.target.checked }))}
-                className="w-4 h-4 rounded accent-primary" />
-              <label htmlFor="edit-4ps" className="text-sm font-medium text-foreground">4Ps / NHTS Member</label>
-            </div>
-          </div>
-          <div className="flex gap-3 p-6 border-t">
-            <button onClick={() => setEditingInfo(false)} className="flex-1 px-4 py-2 border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium">Cancel</button>
-            <button onClick={() => setConfirmSaveInfo(true)} disabled={infoSaving} className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-60 text-sm font-medium">{infoSaving ? 'Saving…' : 'Save'}</button>
-          </div>
-        </Modal>
-      )}
-
-      {/* Tabs — just the flat tab strip, nothing above it. Tabs are
-          equal-width (flex-1) so they fill the row right up to the edit
-          button instead of leaving dead space before it. Deliberately has
-          NO outline of any kind: no card border, no shadow, no divider
-          between tabs, and no fill on the active tab — every one of those
-          was tried and removed on request, because together they drew a
-          box around whichever tab was selected. The active tab is marked
-          by its blue label and blue underline alone. The native focus ring
-          stays suppressed on each button. */}
-      <div className="sticky z-30 bg-gray-50" style={{ top: stickyOffsets.tabsTop }}>
-        <div className="bg-card rounded-xl">
-          <div ref={tabsRowRef} className="rounded-t-xl border-b border-gray-100 bg-card">
+      {/* Tabs */}
+      <div className="sticky z-30 bg-gray-50 space-y-0" style={{ top: stickyOffsets.tabsTop }}>
+        <div className="overflow-hidden bg-card rounded-xl border-2 border-primary">
+          <div ref={tabsRowRef} className="border-b border-border bg-card">
             <div className="flex items-center">
-              {/* `overflow-x-auto` + `whitespace-nowrap` below: a two-line
-                  "Caries Risk Assessment" made the whole strip taller and
-                  knocked every other label off the baseline. Labels now stay
-                  on one line and the strip scrolls inside itself once they
-                  stop fitting, which is the house rule for tab strips. */}
+              {/* Her strip: every tab takes an equal share of the card's
+                  width and its label is centred, instead of the tabs hugging
+                  their text at the left edge. The active tab is BOLD with the
+                  underline and no blue fill — the fill made the strip read as
+                  two different controls.
+
+                  ⚠ `whitespace-nowrap` + the scroller: a two-line "Caries Risk
+                  Assessment" makes the whole strip taller and knocks every
+                  other label off the baseline. Labels stay on one line and the
+                  strip scrolls inside itself once they stop fitting, which is
+                  the house rule for tab strips at phone width. */}
+              {/* ⚠ `flex-1` only when there is more than one tab. The risk
+                  context renders a SINGLE tab, and stretched across the whole
+                  card it stops reading as a tab and starts reading as a
+                  heading — an underlined title nobody would think to press. */}
               <div className="flex flex-1 min-w-0 overflow-x-auto">
               {visibleTabs.map((tab) => (
-                <button key={tab.key} onClick={() => handleTabSwitch(tab.key as TabKey)}
-                  className={`flex-1 whitespace-nowrap px-3 py-3 text-sm text-center transition-colors focus:outline-none focus-visible:outline-none ${activeTab === tab.key ? 'font-bold border-b-2 border-blue-700 text-blue-700' : 'font-medium text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
+                <button key={tab.key} onClick={() => setActiveTab(tab.key as TabKey)}
+                  aria-current={activeTab === tab.key ? 'page' : undefined}
+                  className={`${visibleTabs.length > 1 ? 'flex-1' : 'px-6'} whitespace-nowrap px-3 py-2.5 my-1 mx-1 rounded-xl text-sm text-center transition-colors focus:outline-none focus-visible:outline-none ${activeTab === tab.key ? 'font-bold bg-primary text-white' : 'font-medium text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
                   {tab.label}
                 </button>
               ))}
               </div>
-              {canEditHistory && currentYearData && (editMode || activeTab === 'history' || (canEdit && activeTab === 'chart')) && (
+              {/* ⚠ The chart tab no longer belongs to the dentist alone. Sprint
+                  176 moved Oral Health Condition here, and Sprint 154 put the
+                  Oral Conditions and Treatments Given card here — both are
+                  `editingHistory` data, which a DENTAL AIDE may edit. The old
+                  condition only offered the pencil on this tab to `canEdit`
+                  (dentist), so an aide stood in front of fields they are
+                  allowed to change with no way to start changing them: they
+                  had to go to History, press the pencil there, then come back.
+                  Teeth remain dentist-only through `editingChart`. */}
+              {canEditHistory && currentYearData && (editMode || activeTab === 'history' || activeTab === 'chart') && (
                 <div className="flex shrink-0 items-center gap-2 px-3">
                   {!editMode ? (
-                    <button onClick={() => setConfirmEditChart(true)} title={canEdit ? 'Edit Chart' : 'Edit History & Oral'} aria-label={canEdit ? 'Edit Chart' : 'Edit History & Oral'} className="flex items-center justify-center w-8 h-8 rounded-lg border border-border text-foreground transition-colors hover:bg-muted">
-                      <Pencil className="w-3.5 h-3.5" />
+                    /* Icon only, at the right end of the tab strip — her
+                       control. The label moves to the tooltip and the aria
+                       label, so a screen reader and a hover still say which
+                       of the two things this edits. */
+                    <button onClick={() => setEditMode(true)}
+                      title={canEdit ? 'Edit chart' : 'Edit history & oral'}
+                      aria-label={canEdit ? 'Edit chart' : 'Edit history & oral'}
+                      className="flex items-center justify-center rounded-lg border border-destructive bg-destructive p-2 text-white transition-opacity hover:opacity-90">
+                      <Pencil className="w-4 h-4" />
                     </button>
                   ) : (
                     <>
-                      {!isNewYearSheet && (
-                        <button onClick={cancelEdit} disabled={saving} className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-60">
-                          Cancel
-                        </button>
-                      )}
-                      <button onClick={handleSave} disabled={saving} className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-60 ${saved ? 'bg-green-600 text-white' : 'bg-primary text-white hover:bg-primary-hover'}`}>
+                      <button onClick={cancelEdit} disabled={saving} className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-60">
+                        Cancel
+                      </button>
+                      <button onClick={handleSave} disabled={saving} className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-60 ${saved ? 'bg-green-600 text-white' : 'bg-destructive text-white hover:opacity-90'}`}>
                         <Save className="w-3.5 h-3.5" />
                         {saving ? 'Saving…' : saved ? 'Saved!' : 'Save'}
                       </button>
@@ -1529,102 +1990,115 @@ export const DentalChart = () => {
             {saveError && <p className="px-4 pb-2 text-xs text-destructive">{saveError}</p>}
           </div>
           {showStickyYearBar && years.length > 0 && (
-            <div className="border-t border-gray-100 bg-card px-4 pt-3 flex items-center gap-2">
-              <div className="overflow-x-auto flex-1 min-w-0">
+            <div className="border-t border-gray-100 bg-card px-4 pt-3">
+              <div className="overflow-x-auto">
               <div className="flex items-center gap-0 min-w-max">
               {years.map((y, idx) => {
+                // BUG-12: the year's DMFT comes from the latest charting that
+                // HAS records, not from whichever charting is newest. An empty
+                // charting made this read "DMFT: 0" for a pupil with 14 decayed
+                // teeth recorded a day earlier. No records at all prints 0 (user, 2026-09-25; was "—").
                 const yrChart: Record<number, ChartEntry> = {};
-                for (const tr of y.toothRecords) yrChart[tr.tooth_number] = { condition: tr.condition, treatment: tr.treatment_code ?? '' };
+                for (const tr of y.dmftToothRecords ?? []) yrChart[tr.tooth_number] = { condition: tr.condition, treatment: tr.treatment_code ?? '' };
+                const yrDmft = computeDMFT(yrChart);
+                // BUG-13: permanent (DMFT) and deciduous (dmft) stay separate, as in the
+                // DMFT History table. 0 when nothing is charted (user, 2026-09-25).
+                const yrDmftLabel = `DMFT ${yrDmft.T} · dmft ${yrDmft.t}`;
                 const isActive = selectedYear === idx;
+                // Marks the actual current school year regardless of which
+                // year is SELECTED (user, 2026-09-28: "highlight or maybe a
+                // label that emphasize the current school year") -- a solid
+                // green pill around the year label itself, so it reads at a
+                // glance even when a different (older) year is the one being
+                // viewed, distinct from the blue selected-tab styling above.
+                const isCurrentYear = y.iptr.school_year === schoolYearLabel();
                 return (
-                  <button key={y.iptr._id} type="button" onClick={() => setSelectedYear(idx)}
-                    className={`mr-1 flex-shrink-0 px-4 py-2.5 text-left text-xs font-medium border-b-2 transition-all ${isActive ? 'border-blue-700 bg-blue-50 text-blue-700' : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
-                    <div>{y.iptr.school_year}</div>
-                    <div style={{ fontSize: '10px', marginTop: '2px' }} className={isActive ? 'text-blue-600' : 'text-muted-foreground'}>
-                      {formatDateStamp(y.iptr.date_opened ?? y.iptr.created_at)}
-                    </div>
-                  </button>
+                  <div key={y.iptr._id} className={`mr-1 flex flex-shrink-0 items-stretch border-b-2 ${isActive ? 'border-blue-700 bg-blue-50 text-blue-700' : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
+                    <button type="button" onClick={() => { setSelectedYear(idx); setSelectedChartId(null); setExplicitVisit(null); }} className="px-4 py-2.5 text-left text-xs font-medium transition-all">
+                      {isCurrentYear ? (
+                        <span className="inline-block rounded-full bg-emerald-600 px-2 py-0.5 text-white">{y.iptr.school_year}</span>
+                      ) : (
+                        <div>{y.iptr.school_year}</div>
+                      )}
+                      {activeTab === 'chart' && (
+                        <div style={{ fontSize: '10px', marginTop: '2px' }} className={isActive ? 'text-blue-600' : 'text-muted-foreground'} >{yrDmftLabel}</div>
+                      )}
+                      <div style={{ fontSize: '10px', marginTop: '2px' }} className={isActive ? 'text-blue-600' : 'text-muted-foreground'}>
+                        {formatDateStamp(examinedDate(y.oralCondition, y.dentalChart, y.toothRecords))}
+                      </div>
+                    </button>
+                    {false && (
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setConfirmDeleteYear(idx); }} className="border-l border-border px-2 text-muted-foreground transition-colors hover:bg-card hover:text-destructive" title={`Remove ${y.iptr.school_year}`}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
                 );
               })}
-              </div>
-              </div>
-              {/* Legend rides in the year strip, immediately before the 3-dot
-                  menu — it had its own full-width row above the card, which
-                  cost a whole band of vertical space for one button. Filled
-                  red: with the words gone from the code buttons this dialog is
-                  the only way to decode them, so it must be findable. Chart tab
-                  only; the other tabs have no codes to decode. */}
-              {activeTab === 'chart' && (
-                <button type="button" onClick={() => setFocusMode(true)}
-                  title="Charting mode — chart only, full screen"
-                  className="flex-shrink-0 mb-1 mr-2 inline-flex items-center gap-1.5 rounded-lg border border-primary bg-primary-surface px-3 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-white">
-                  <Maximize2 className="w-3.5 h-3.5" /> Charting Mode
-                </button>
-              )}
-              {activeTab === 'chart' && (
-                <button type="button" onClick={() => setLegendOpen(true)}
-                  className="flex-shrink-0 mb-1 mr-2 inline-flex items-center gap-1.5 rounded-lg bg-destructive px-3 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:opacity-90">
-                  <FileText className="w-3.5 h-3.5" /> Legend
-                </button>
-              )}
+              {/* ⚠ Her ⋮ menu, replacing "Edit Years" (Sprint 172). The old
+                  control was a MODE: press it, trash icons appear on every
+                  year chip, press again to leave. A mode that arms a
+                  destructive action on every row is a worse shape than a menu
+                  that names one thing and does it.
 
-              {/* 3-dot year menu — replaces the old "Edit Years" toggle +
-                  per-row trash icon. Add/Edit/Delete all act on the
-                  currently SELECTED year tab and are all password-gated
-                  (see runYearAction). Pinned outside the scrollable tab
-                  strip so it always sits at the container's right edge. */}
+                  Delete now acts on the SELECTED year, which is the one whose
+                  data is on screen — you cannot arm a delete for a year you
+                  are not looking at.
+
+                  NOT copied: her "Edit <year>'s date" item. It writes
+                  `date_opened`, which her STUDENT_IPTR has and ours does not.
+                  A menu item that saves nowhere is the placeholder CLAUDE.md
+                  forbids, so it is left out rather than stubbed. */}
               {canEdit && (
-                <div className="relative flex-shrink-0 mb-1">
-                  <button type="button" onClick={() => setYearMenuOpen((v) => !v)} title="Manage school years"
-                    className="p-2 rounded-lg border border-border text-muted-foreground hover:bg-gray-50">
-                    <MoreVertical className="w-4 h-4" />
+                <div className="relative ml-2 flex-shrink-0 py-2">
+                  <button type="button" ref={yearMenuBtnRef} onClick={openYearMenu}
+                    title="School year options" aria-label="School year options" aria-expanded={yearMenuOpen}
+                    className="flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1.5 text-[11px] font-medium text-muted-foreground hover:bg-gray-50">
+                    School year <MoreVertical className="w-3.5 h-3.5" />
                   </button>
                   {yearMenuOpen && (
                     <>
+                      {/* Click-away sheet, under the menu and over everything
+                          else — without it the menu only closes by re-pressing
+                          the button, which nobody does. */}
                       <div className="fixed inset-0 z-10" onClick={() => setYearMenuOpen(false)} />
-                      <div className="absolute right-0 top-full mt-1 z-20 w-48 rounded-xl border border-border bg-card shadow-md py-1">
+                      <div
+                        style={yearMenuAt ? { top: yearMenuAt.top, right: yearMenuAt.right } : undefined}
+                        className="fixed z-50 w-52 rounded-xl border border-border bg-card shadow-md py-1"
+                      >
                         {(() => {
-                          // Two separate choices, not just "the next one" —
-                          // a student with a gap in their records (last one
-                          // 2024-2025 while today is really 2026-2027) needs
-                          // to jump to the ACTUAL current year, not just the
-                          // one immediately after their last. Each is hidden
-                          // once it already exists for this student, same
-                          // guard the old single button had.
                           const nextYear = getNextSchoolYear();
                           const currentYear = schoolYearLabel();
-                          const existingYears = new Set(years.map((y) => y.iptr.school_year));
-                          const showCurrent = !existingYears.has(currentYear);
-                          const showNext = !!nextYear && nextYear !== currentYear && !existingYears.has(nextYear);
+                          const existing = new Set(years.map((y) => y.iptr.school_year));
+                          const showCurrent = !existing.has(currentYear);
+                          const showNext = !!nextYear && nextYear !== currentYear && !existing.has(nextYear);
                           return (
                             <>
                               {showCurrent && (
-                                <button type="button" onClick={() => { setYearMenuOpen(false); setAddYearTarget(currentYear); setPendingYearAction('add'); }}
-                                  className="block w-full text-left px-3 py-2 text-xs text-foreground hover:bg-canvas">
+                                <button type="button" disabled={addingYear}
+                                  onClick={() => { setYearMenuOpen(false); handleAddYear(currentYear); }}
+                                  className="block w-full text-left px-3 py-2 text-xs text-foreground hover:bg-canvas disabled:opacity-50">
                                   Add {currentYear} <span className="text-muted-foreground">(current)</span>
                                 </button>
                               )}
                               {showNext && (
-                                <button type="button" onClick={() => { setYearMenuOpen(false); setAddYearTarget(nextYear); setPendingYearAction('add'); }}
-                                  className="block w-full text-left px-3 py-2 text-xs text-foreground hover:bg-canvas">
+                                <button type="button" disabled={addingYear}
+                                  onClick={() => { setYearMenuOpen(false); handleAddYear(nextYear); }}
+                                  className="block w-full text-left px-3 py-2 text-xs text-foreground hover:bg-canvas disabled:opacity-50">
                                   Add {nextYear} <span className="text-muted-foreground">(next)</span>
                                 </button>
+                              )}
+                              {!showCurrent && !showNext && (
+                                <div className="px-3 py-2 text-xs text-muted-foreground">Current and next year already recorded</div>
                               )}
                             </>
                           );
                         })()}
-                        <button type="button" onClick={() => {
-                            setYearMenuOpen(false);
-                            const iptr = years[selectedYear]?.iptr;
-                            setEditYearDateValue((iptr?.date_opened ?? iptr?.created_at ?? new Date().toISOString()).slice(0, 10));
-                            setPendingYearAction('edit');
-                          }} className="block w-full text-left px-3 py-2 text-xs text-foreground hover:bg-canvas">
-                          Edit {years[selectedYear]?.iptr.school_year}&rsquo;s date
-                        </button>
                         {years.length > 1 && (
-                          <button type="button" onClick={() => { setYearMenuOpen(false); setPendingYearAction('delete'); }}
+                          <button type="button"
+                            onClick={() => { setYearMenuOpen(false); setConfirmDeleteYear(selectedYear); }}
                             className="block w-full text-left px-3 py-2 text-xs text-destructive hover:bg-danger-surface">
-                            Delete {years[selectedYear]?.iptr.school_year}
+                            Remove {years[selectedYear]?.iptr.school_year}
                           </button>
                         )}
                       </div>
@@ -1632,1042 +2106,561 @@ export const DentalChart = () => {
                   )}
                 </div>
               )}
+              {/* Sprint 163 — Charting Mode and Legend sit at the right end of
+                  the YEAR ROW, level with the year chips, which is where hers
+                  are. They were below the charting picker, half a screen down
+                  from the tab that owns them. Chart tab only: neither means
+                  anything on History or Consent. */}
+              {activeTab === 'chart' && (
+                <div className="ml-auto flex flex-shrink-0 items-center gap-2 py-2 pr-1">
+                  {!chartingMode && (
+                    <button
+                      type="button"
+                      onClick={() => setChartingMode(true)}
+                      title="Full-screen charting — Escape exits"
+                      className="flex items-center gap-1.5 rounded-lg border border-primary px-2.5 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5" /> Charting Mode
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setLegendOpen(true)}
+                    className="flex items-center gap-1.5 rounded-lg bg-primary px-2.5 py-1.5 text-xs font-semibold text-white transition-colors hover:opacity-90"
+                  >
+                    <FileText className="w-3.5 h-3.5" /> Legend
+                  </button>
+                </div>
+              )}
+              </div>
+              </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Current year's consent status — History tab only now (was every
-          tab; the banner is history/registration data, not something a
-          dentist mid-chart or mid-treatment-entry needs repeated). Grade
-          pill + section reuse the exact colour-by-grade pattern from the
-          Patient Info Card above (same `gc`/`GradePill`) instead of plain
-          gray text. Approval date intentionally NOT shown yet: STUDENT_IPTR
-          only stores the current consent_status, not when it was set —
-          showing a date would mean guessing one, which NOTHING COSMETIC
-          forbids. Needs a real consent_confirmed_at field first. */}
+      {/* ── CONSENT BANNER (Sprint 167, hers) ──────────────────────────────
+          History tab only. It is registration data — a dentist mid-chart or
+          mid-treatment-entry does not need it repeated on every tab, and the
+          card's chip above already carries the status everywhere else.
+
+          ⚠ NO APPROVAL DATE SHOWN, even though `consent_given_at` now exists:
+          every record predating this sprint has null there, and printing
+          "—" beside a completed consent reads as a missing signature rather
+          than a missing field. It goes in once the data is real. */}
       {activeTab === 'history' && years.length > 0 && yearIptr && (
-        <div className={`rounded-xl border p-3 ${consentComplete ? 'bg-success-surface border-green-200' : 'bg-warning-surface border-amber-200'}`}>
-          <div className="flex items-start gap-3 min-w-0">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${consentComplete ? 'bg-white text-success' : 'bg-white text-warning'}`}>
-              {consentComplete ? <ShieldCheck className="w-4 h-4" /> : <ShieldAlert className="w-4 h-4" />}
-            </div>
-            <div className="min-w-0">
-              <div className={`text-sm font-bold ${consentComplete ? 'text-success' : 'text-warning'}`}>
-                {consentComplete ? 'Physical copy of consent obtained' : `Consent Pending for year ${yearIptr.school_year}`}
+        // Navy "Consent" title bar like the Dental Chart panels, applied in
+        // full (user pick "D", 2026-09-25 — no separate coloured icon block;
+        // the shield moves into a status pill next to the text).
+        <div className="overflow-hidden rounded-xl border border-slate-300 bg-card shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+        <div className="bg-primary px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-white">Consent</div>
+        <div className="flex items-center gap-3 px-4 py-3 min-w-0">
+          <span className={`inline-flex flex-shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${consentComplete ? 'border-[#86EFAC] bg-[#F0FDF4] text-[#15803D]' : 'border-[#FCD34D] bg-[#FFFBEB] text-[#B45309]'}`}>
+            {consentComplete ? <ShieldCheck className="h-3.5 w-3.5" /> : <ShieldAlert className="h-3.5 w-3.5" />}
+            {consentComplete ? 'Obtained' : 'Pending'}
+          </span>
+          <div className="flex-1 flex items-center justify-between gap-3 min-w-0">
+            <div className="min-w-0 flex flex-col justify-center gap-0.5">
+              <div className="text-[13.5px] font-bold leading-tight text-foreground">
+                {consentComplete
+                  ? `Physical copy of consent obtained for ${yearIptr.school_year}`
+                  : `Consent pending for ${yearIptr.school_year}`}
               </div>
-              <div className="flex items-center gap-1.5 mt-1">
+              <div className="flex items-center gap-2 leading-tight">
+                {/* Same plain "Grade 6-Rose" text as the patient card header,
+                    all in the grade's colour-coding colour, no pill (user, 2026-09-24). */}
                 {yearGrade ? (
-                  <>
-                    <GradePill grade={yearGrade} />
-                    {yearSection && <span style={{ color: gc.solid }} className="text-xs font-semibold">{yearSection}</span>}
-                  </>
+                  <span className="whitespace-nowrap text-xs font-normal" style={{ color: getGradeColor(yearGrade).solid }}>
+                    {yearGrade}{yearSection ? `-${yearSection}` : ''}
+                  </span>
                 ) : (
-                  <span className="text-xs text-muted-foreground">Grade/section not recorded for this year</span>
+                  <span className="text-[10.5px] text-muted-foreground">Grade/section not recorded for this year</span>
                 )}
               </div>
             </div>
+            {/* ⚠ SHOWN IN BOTH STATES, unlike hers. Her banner hides this once
+                consent is complete, which works on her branch because she treats
+                the tick as final. Ours can be reverted — and the Consent TAB that
+                offered that is gone as of this sprint, so if the box vanished
+                when ticked, a mis-tick would be unfixable outside the database.
+                Both directions open the confirmation. */}
+            <button
+              type="button"
+              onClick={() => { if (canEdit) setConfirmConsent({ schoolYear: yearIptr.school_year, revert: consentComplete }); }}
+              disabled={!canEdit}
+              className={`flex items-center gap-2 pl-1.5 pr-2 py-1 rounded-full flex-shrink-0 disabled:opacity-60 disabled:cursor-not-allowed ${canEdit ? 'cursor-pointer' : 'cursor-default'} ${consentComplete ? 'bg-[#F0FDF4]' : 'bg-[#F1F5F9]'}`}
+            >
+              <span className={`w-8 h-[18px] rounded-full relative inline-block ${consentComplete ? 'bg-[#15803D]' : 'bg-[#E2E8F0]'}`}>
+                <span className={`absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.15)] ${consentComplete ? 'right-0.5' : 'left-0.5'}`} />
+              </span>
+              <span className={`text-[11px] font-semibold ${consentComplete ? 'text-[#15803D]' : 'text-[#475569]'}`}>
+                {consentComplete ? 'Obtained' : 'Mark obtained'}
+              </span>
+            </button>
           </div>
-          {!consentComplete && (
-            <label className={`flex items-center gap-2 mt-2 ${canEdit ? 'cursor-pointer' : 'cursor-default'}`}>
-              <input
-                type="checkbox"
-                checked={false}
-                onChange={(e) => {
-                  if (canEdit && e.target.checked) setConfirmConsentTarget({ iptrId: yearIptr._id, schoolYear: yearIptr.school_year });
-                }}
-                disabled={!canEdit}
-                className="w-4 h-4 rounded accent-primary disabled:opacity-60 disabled:cursor-not-allowed"
-              />
-              <span className="text-xs font-medium text-foreground">Consent has been obtained (Nakumpleto na ang pahintulot)</span>
-            </label>
-          )}
+        </div>
         </div>
       )}
 
       {/* Tab Content */}
-      <div className="bg-card rounded-xl border border-border">
+      <div className="relative overflow-hidden bg-card rounded-xl border border-border shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+        {/* Teal strip on every tab except Dental Chart, whose panels carry their own navy bars. */}
+        {activeTab !== 'chart' && <div className="absolute top-0 left-0 right-0 h-1 bg-teal-600 z-10" />}
 
         {years.length === 0 ? (
           <div className="p-12 text-center text-muted-foreground">
             <p className="text-sm">No IPTR school-year records yet for this student.</p>
-            {canEdit && <button onClick={() => { const y = getNextSchoolYear(); if (y) handleAddYear(y); }} disabled={addingYear} className="mt-3 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed">+ Start {getNextSchoolYear()}</button>}
+            {canEdit && <button onClick={() => handleAddYear()} disabled={addingYear} className="mt-3 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed">+ Start {getNextSchoolYear()}</button>}
           </div>
         ) : (
         <>
         {/* ── TAB 1: History ── */}
         {activeTab === 'history' && (
-          <div className="p-4 space-y-4">
-            {/* Physical Measurements — first, per request */}
-            <div className="bg-card rounded-xl border border-border p-4">
-              <div className="text-base font-bold text-foreground mb-3">Physical Measurements</div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Height (cm)</label>
-                  <input type="number" min="0" max="300" step="0.1" inputMode="decimal" disabled={!editingHistory}
-                    value={draftMeasure.height_cm}
-                    onChange={(e) => setDraftMeasure((p) => ({ ...p, height_cm: e.target.value }))}
-                    placeholder="e.g. 120" className="w-full text-xs border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
-                </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Weight (kg)</label>
-                  <input type="number" min="0" max="500" step="0.1" inputMode="decimal" disabled={!editingHistory}
-                    value={draftMeasure.weight_kg}
-                    onChange={(e) => setDraftMeasure((p) => ({ ...p, weight_kg: e.target.value }))}
-                    placeholder="e.g. 25" className="w-full text-xs border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
-                </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Temperature (°C)</label>
-                  <input type="number" min="0" max="45" step="0.1" inputMode="decimal" disabled={!editingHistory}
-                    value={draftMeasure.temperature_c}
-                    onChange={(e) => setDraftMeasure((p) => ({ ...p, temperature_c: e.target.value }))}
-                    placeholder="e.g. 36.5" className="w-full text-xs border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
-                </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Blood Pressure</label>
-                  {/* Text, not two numbers: it is read and written as a pair,
-                      and nothing in the app queries on systolic alone. */}
-                  <input type="text" disabled={!editingHistory}
-                    value={draftMeasure.blood_pressure}
-                    onChange={(e) => setDraftMeasure((p) => ({ ...p, blood_pressure: e.target.value }))}
-                    placeholder="e.g. 110/70" className="w-full text-xs border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
-                </div>
-                {(() => {
-                  const bmiValue = computeBmi(Number(draftMeasure.height_cm) || null, Number(draftMeasure.weight_kg) || null);
-                  // Classified against the DOH/DepEd BMI-for-Age table by
-                  // the student's exact age (in months) as of this year's
-                  // measurement anchor — same reasoning as patientAge
-                  // itself (Sprint 57b): not today's age, the age AT the
-                  // measurement.
-                  const status = classifyNutritionalStatus(bmiValue, patientAgeMonths, student.sex);
-                  const statusColor =
-                    status === 'Normal' ? 'bg-success-surface text-success'
-                    : status === 'Overweight' || status === 'Obese' ? 'bg-warning-surface text-warning'
-                    : status === 'Wasted' || status === 'Severely Wasted' ? 'bg-danger-surface text-destructive'
-                    : 'bg-muted text-muted-foreground';
-                  // Say WHY it's blank rather than leaving a bare dash — two
-                  // different reasons look identical otherwise (nothing
-                  // entered yet vs. genuinely no reference for this age).
-                  const statusFallback = bmiValue == null
-                    ? 'Automatic'
-                    : (patientAgeMonths ?? 0) < 72
-                    ? 'No reference below age 6'
-                    : 'No reference above age 19';
-                  return (
-                    <>
-                      <div>
-                        <label className="block text-xs text-muted-foreground mb-1">BMI</label>
-                        <div className="w-full text-xs border border-border rounded px-2 py-1 bg-muted text-muted-foreground" title={BMI_NOTE}>
-                          {bmiValue ?? 'Automatic'}
-                        </div>
-                      </div>
-                      {/* Spans both columns on phone widths so it drops to
-                          its own line instead of being squeezed next to BMI
-                          — back to a normal single column alongside the
-                          rest on sm+ screens. */}
-                      <div className="col-span-2 sm:col-span-1">
-                        <label className="block text-xs text-muted-foreground mb-1">Nutritional Status</label>
-                        <div className={`w-full text-xs border border-border rounded px-2 py-1 ${statusColor}`}
-                          title="DOH/DepEd BMI-for-Age classification, 6–19 years old — blank outside that range.">
-                          {status ?? statusFallback}
-                        </div>
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
-            </div>
-
-            {/* Oral Health Condition moved to the Dental Chart tab (2026-09-05).
-                It is the same ORAL_HEALTH_CONDITION record, and two editors for
-                one record is how a screen ends up disagreeing with itself. It
-                sits beside the odontogram now because that is where a clinician
-                is looking when they notice calculus. */}
-
-            {/* Medical History + Dietary Habits — last, side by side */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-card rounded-xl border border-border p-4">
-                <div className="text-base font-bold text-foreground">Medical History</div>
-                <p className="text-xs text-muted-foreground mb-3">Select all applicable conditions.</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {([
-                    ['Hypertension / CVA', 'hypertension'], ['Diabetes Mellitus', 'diabetes'],
-                    ['Cardiovascular / Heart Diseases', 'cardiovascular'], ['Thyroid Disorders', 'thyroid'],
-                    ['Hepatitis', 'hepatitis'], ['Malignancy', 'malignancy'],
-                    ['History of Hospitalization', 'hospitalization'], ['Blood Transfusion', 'bloodTransfusion'], ['Tattoo', 'tattoo'],
-                  ] as [string, keyof MedicalHistoryDraft][]).map(([label, field]) => (
-                    <label key={field} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors ${draftMed[field] ? 'border-primary bg-primary-surface text-primary font-medium' : 'border-border text-foreground'} ${editingHistory ? 'cursor-pointer hover:bg-canvas' : 'cursor-not-allowed opacity-70'}`}>
-                      <input type="checkbox" disabled={!editingHistory} checked={!!draftMed[field]}
-                        onChange={(e) => setDraftMed((p) => ({ ...p, [field]: e.target.checked }))}
-                        className="w-4 h-4 rounded accent-primary disabled:cursor-not-allowed" />
-                      {label}
-                    </label>
-                  ))}
-                  <button type="button" disabled={!editingHistory} onClick={() => setOthersMedOpen((v) => !v)}
-                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs text-left transition-colors ${othersMedOpen ? 'border-primary bg-primary-surface text-primary font-medium' : 'border-border text-foreground'} ${editingHistory ? 'cursor-pointer hover:bg-canvas' : 'cursor-not-allowed opacity-70'}`}>
-                    <span className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${othersMedOpen ? 'bg-primary border-primary' : 'border-gray-600'}`}>{othersMedOpen && <Check className="w-3 h-3 text-white" />}</span>
-                    Others
-                  </button>
-                </div>
-                {othersMedOpen && (
-                  <div className="mt-3 rounded-lg bg-canvas p-3">
-                    <label className="block text-xs font-bold text-foreground mb-1">Specify Other</label>
-                    <input type="text" disabled={!editingHistory} value={draftMed.others} onChange={(e) => setDraftMed((p) => ({ ...p, others: e.target.value }))}
-                      placeholder="Specify other medical history..." className="w-full text-xs border border-border rounded px-2 py-1.5 bg-card focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
-                  </div>
-                )}
-                <div className="pt-3">
-                  <label className="block text-xs text-muted-foreground mb-1">Allergies</label>
-                  <input type="text" disabled={!editingHistory} value={draftMed.allergies} onChange={(e) => setDraftMed((p) => ({ ...p, allergies: e.target.value }))}
-                    placeholder="Specify allergy" className="w-full text-xs border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
-                </div>
-              </div>
-              <div className="bg-card rounded-xl border border-border p-4">
-                <div className="text-base font-bold text-foreground">Dietary Habits and Social History</div>
-                <p className="text-xs text-muted-foreground mb-3">Select all applicable conditions.</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {([
-                    ['Sugar Sweetened Beverages/Food', 'sugarSweetened'], ['Alcohol Drinker', 'alcoholDrinker'],
-                    ['Tobacco User', 'tobaccoUser'], ['Betel Nut Chewer', 'betelNut'],
-                    ['Body Piercing', 'bodyPiercing'], ['Nail Biting', 'nailBiting'], ['Thumbsucking', 'thumbsucking'],
-                  ] as [string, keyof DietDraft][]).map(([label, field]) => (
-                    <label key={field} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors ${draftDiet[field] ? 'border-primary bg-primary-surface text-primary font-medium' : 'border-border text-foreground'} ${editingHistory ? 'cursor-pointer hover:bg-canvas' : 'cursor-not-allowed opacity-70'}`}>
-                      <input type="checkbox" disabled={!editingHistory} checked={!!draftDiet[field]}
-                        onChange={(e) => setDraftDiet((p) => ({ ...p, [field]: e.target.checked }))}
-                        className="w-4 h-4 rounded accent-primary disabled:cursor-not-allowed" />
-                      {label}
-                    </label>
-                  ))}
-                  <button type="button" disabled={!editingHistory} onClick={() => setOthersDietOpen((v) => !v)}
-                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs text-left transition-colors ${othersDietOpen ? 'border-primary bg-primary-surface text-primary font-medium' : 'border-border text-foreground'} ${editingHistory ? 'cursor-pointer hover:bg-canvas' : 'cursor-not-allowed opacity-70'}`}>
-                    <span className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${othersDietOpen ? 'bg-primary border-primary' : 'border-gray-600'}`}>{othersDietOpen && <Check className="w-3 h-3 text-white" />}</span>
-                    Others
-                  </button>
-                </div>
-                {othersDietOpen && (
-                  <div className="mt-3 rounded-lg bg-canvas p-3">
-                    <label className="block text-xs font-bold text-foreground mb-1">Specify Other</label>
-                    <input type="text" disabled={!editingHistory} value={draftDiet.others} onChange={(e) => setDraftDiet((p) => ({ ...p, others: e.target.value }))}
-                      placeholder="Specify other dietary habit..." className="w-full text-xs border border-border rounded px-2 py-1.5 bg-card focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          <HistoryTab
+            editing={editingHistory}
+            measure={draftMeasure}
+            setMeasure={setDraftMeasure}
+            med={draftMed}
+            setMed={setDraftMed}
+            diet={draftDiet}
+            setDiet={setDraftDiet}
+            patientAgeMonths={patientAgeMonths}
+            sex={student.sex}
+          />
         )}
 
         {/* ── TAB 2: Dental Chart ── */}
         {activeTab === 'chart' && (
-          // CHARTING MODE. The tab's own container becomes a full-screen
-          // surface rather than a separate overlay component, so the palette,
-          // the chips and the odontogram are literally the same JSX in both
-          // states — no second copy to keep in sync. z-[75] puts it over the
-          // nav rail (z-[70]) and the status strip (z-[60]), which is what
-          // "the nav bar de-expands" means in practice: it is covered, so the
-          // whole width belongs to the chart.
-          <div className={focusMode ? 'fixed inset-0 z-[75] bg-canvas overflow-y-auto overscroll-contain' : 'p-0 space-y-0'}>
-            {focusMode && (
-              <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-border bg-card px-4 py-2">
-                {/* One line: name, then grade + section, then the year/date,
-                    then the position — separated by rules rather than stacked,
-                    so the whole identity reads left to right in a single pass.
-                    Grade and section keep the SAME coloured pills the patient
-                    card uses; charting mode is exactly where a dentist confirms
-                    they have the right child, and colour-by-grade is already
-                    this app's way of saying that rather than a new device. */}
-                <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <span className="text-lg font-bold text-foreground truncate">{surnameFirst(student)}</span>
-                  {(yearGrade || yearSection) && (
-                    <span className="flex items-center gap-1.5">
-                      {yearGrade && <GradePill grade={yearGrade} />}
-                      {yearSection && (
-                        <span style={{ backgroundColor: gc.light, color: gc.solid }}
-                          className="rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap">{yearSection}</span>
-                      )}
-                    </span>
-                  )}
-                  <span className="h-4 w-px bg-border" aria-hidden="true" />
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">
-                    {currentYearData?.iptr.school_year}{examinationDate ? ` · ${examinationDate}` : ''}
-                  </span>
-                  {navIndex >= 0 && (
-                    <>
-                      <span className="h-4 w-px bg-border" aria-hidden="true" />
-                      <span className="text-xs text-muted-foreground whitespace-nowrap">{navIndex + 1} of {navList.length}</span>
-                    </>
-                  )}
-                </div>
-                <div className="ml-auto flex items-center gap-2">
-                  {canEditHistory && currentYearData && !editMode && (
-                    <button onClick={() => setConfirmEditChart(true)}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted">
-                      <Pencil className="w-3.5 h-3.5" /> Edit
-                    </button>
-                  )}
-                  {editMode && (
-                    <button onClick={handleSave} disabled={saving}
-                      className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-colors disabled:opacity-60 ${saved ? 'bg-green-600 text-white' : 'bg-primary text-white hover:bg-primary-hover'}`}>
-                      <Save className="w-3.5 h-3.5" />
-                      {saving ? 'Saving…' : saved ? 'Saved!' : 'Save'}
-                    </button>
-                  )}
-                  {/* The continuous-charting loop: finish this mouth, step to
-                      the next — or back, when the last one needs another look.
-                      Both guarded; see requestStudentJump. */}
-                  <div className="flex items-center rounded-lg border border-primary overflow-hidden">
-                    <button onClick={() => requestStudentJump(prevPatient)} disabled={!prevPatient}
-                      title={prevPatient ? `Previous: ${prevPatient.name}` : 'First student in this list'}
-                      className="inline-flex items-center gap-1 border-r border-primary/40 bg-primary-surface px-2.5 py-1.5 text-xs font-semibold text-primary hover:bg-primary hover:text-white disabled:opacity-40 disabled:pointer-events-none">
-                      <ChevronLeft className="w-3.5 h-3.5" />
-                      {prevPatient && <span className="max-w-[80px] truncate font-normal">{prevPatient.lastName || prevPatient.name}</span>}
-                    </button>
-                    <button onClick={() => requestStudentJump(nextPatient)} disabled={!nextPatient}
-                      title={nextPatient ? `Next: ${nextPatient.name}` : 'Last student in this list'}
-                      className="inline-flex items-center gap-1 bg-primary-surface px-2.5 py-1.5 text-xs font-semibold text-primary hover:bg-primary hover:text-white disabled:opacity-40 disabled:pointer-events-none">
-                      {nextPatient && <span className="max-w-[80px] truncate font-normal">{nextPatient.lastName || nextPatient.name}</span>}
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  <button onClick={() => setFocusMode(false)} title="Exit charting mode (Esc)"
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted">
-                    <Minimize2 className="w-3.5 h-3.5" /> Exit
-                  </button>
-                </div>
-              </div>
-            )}
-            <div className="p-4 space-y-4">
-            {/* Whole-mouth findings and services, FIRST — before the per-tooth
-                palette, at explicit request: they are what a screening records
-                before it reaches for a tooth code.
-
-                Deliberately OUTSIDE the blue palette card. That card is gated on
-                `editingChart` (dentist only, because teeth are), and folding
-                these into it would silently take the oral-condition checkboxes
-                away from the dental aide, who has always been able to edit them.
-                Conditions follow `editingHistory` (dentist + aide); services
-                follow `editingChart`, matching the codes they replaced.
-
-                Back to two columns SIDE BY SIDE (they were briefly stacked to
-                fit three chips per row): stacked, this card alone ran most of a
-                screen. Side by side halves that, and the chip grid keeps
-                `2xl:grid-cols-3` so the three-per-row layout still appears once
-                a column is genuinely wide enough — at laptop width a half
-                column cannot hold three without wrapping "Periodontal
-                Disease", so it settles at two. */}
-            <div className="bg-card rounded-xl border border-border p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className={editingHistory ? '' : 'opacity-60 pointer-events-none select-none'}>
-                <div className="flex flex-wrap items-center gap-3 mb-2">
-                  <div className="text-sm font-bold text-primary uppercase tracking-wide">Oral Conditions</div>
-                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                    Date examined
-                    <input type="date" value={draftServices.dateCharted}
-                      onChange={(e) => setDraftServices((p) => ({ ...p, dateCharted: e.target.value }))}
-                      className="border border-border rounded px-2 py-1 text-xs bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
-                  </label>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-2">
-                  {oralConditionChips.map(({ label, field }) => (
-                    <label key={field}
-                      className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs cursor-pointer transition-colors ${draftOral[field] ? 'border-primary bg-primary-surface text-primary font-medium' : 'border-blue-200 text-foreground hover:bg-canvas'}`}>
-                      <input type="checkbox" checked={!!draftOral[field]}
-                        onChange={(e) => { setDraftOral((p) => ({ ...p, [field]: e.target.checked })); if (e.target.checked) stampDate('dateCharted'); }}
-                        className="w-4 h-4 rounded accent-primary" />
-                      {label}
-                    </label>
-                  ))}
-                  <button type="button" onClick={() => setOthersOralOpen((v) => !v)}
-                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs text-left transition-colors ${othersOralOpen || draftOral.others ? 'border-primary bg-primary-surface text-primary font-medium' : 'border-blue-200 text-foreground hover:bg-canvas'}`}>
-                    <span className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${othersOralOpen || draftOral.others ? 'bg-primary border-primary' : 'border-gray-600'}`}>
-                      {(othersOralOpen || draftOral.others) && <Check className="w-3 h-3 text-white" />}
-                    </span>
-                    Others
-                  </button>
-                </div>
-                {othersOralOpen && (
-                  <div className="mt-3 rounded-lg bg-canvas p-3">
-                    <label className="block text-xs font-bold text-foreground mb-1">Specify Other</label>
-                    <input type="text" value={draftOral.others} onChange={(e) => setDraftOral((p) => ({ ...p, others: e.target.value }))}
-                      placeholder="Specify other oral condition…"
-                      className="w-full text-xs border border-border rounded px-2 py-1.5 bg-card focus:outline-none focus:ring-1 focus:ring-ring" />
-                  </div>
-                )}
-              </div>
-
-              <div className={`border-t border-border pt-4 lg:border-t-0 lg:pt-0 lg:border-l lg:border-border lg:pl-4 ${editingChart ? '' : 'opacity-60 pointer-events-none select-none'}`}>
-                <div className="flex flex-wrap items-center gap-3 mb-2">
-                  <div className="text-sm font-bold text-primary uppercase tracking-wide">Treatments Given</div>
-                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                    Date treated
-                    <input type="date" value={draftServices.dateTreated}
-                      onChange={(e) => setDraftServices((p) => ({ ...p, dateTreated: e.target.value }))}
-                      className="border border-border rounded px-2 py-1 text-xs bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
-                  </label>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-2">
-                  {serviceChips.map(({ label, field }) => (
-                    <label key={field}
-                      className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs cursor-pointer transition-colors ${draftServices[field] ? 'border-primary bg-primary-surface text-primary font-medium' : 'border-blue-200 text-foreground hover:bg-canvas'}`}>
-                      <input type="checkbox" checked={!!draftServices[field]}
-                        onChange={(e) => { setDraftServices((p) => ({ ...p, [field]: e.target.checked })); if (e.target.checked) stampDate('dateTreated'); }}
-                        className="w-4 h-4 rounded accent-primary" />
-                      {label}
-                    </label>
-                  ))}
-                  <button type="button" onClick={() => setOthersServiceOpen((v) => !v)}
-                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs text-left transition-colors ${othersServiceOpen || draftServices.others ? 'border-primary bg-primary-surface text-primary font-medium' : 'border-blue-200 text-foreground hover:bg-canvas'}`}>
-                    <span className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${othersServiceOpen || draftServices.others ? 'bg-primary border-primary' : 'border-gray-600'}`}>
-                      {(othersServiceOpen || draftServices.others) && <Check className="w-3 h-3 text-white" />}
-                    </span>
-                    Others
-                  </button>
-                </div>
-                {othersServiceOpen && (
-                  <div className="mt-3 rounded-lg bg-canvas p-3">
-                    <label className="block text-xs font-bold text-foreground mb-1">Specify Other</label>
-                    <input type="text" value={draftServices.others} onChange={(e) => setDraftServices((p) => ({ ...p, others: e.target.value }))}
-                      placeholder="Specify other service given…"
-                      className="w-full text-xs border border-border rounded px-2 py-1.5 bg-card focus:outline-none focus:ring-1 focus:ring-ring" />
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className={`bg-blue-50 rounded-xl p-4 ${!editingChart ? 'opacity-50 pointer-events-none select-none' : ''}`}>
-              {!canEdit && <p className="text-xs text-muted-foreground mb-2 italic">View only — editing restricted to Dentist</p>}
-              {canEdit && !editMode && <p className="text-xs text-muted-foreground mb-2 italic">View mode — click the pencil icon above to record conditions/treatments</p>}
-              <div className={`grid grid-cols-1 ${iptrContext === 'default' ? 'lg:grid-cols-2' : ''} gap-4`}>
-                {iptrContext !== 'treatment' && (
-                // Symmetric padding with the treatment column so the two grids
-                // get identical width -- the divider's padding on one side only
-                // made its buttons 3px smaller than its neighbour's.
-                <div className={iptrContext === 'default' ? 'lg:pr-4' : undefined}>
-                  {/* Clear sits on the heading row, hidden entirely until
-                      there is something to clear — a permanently-visible
-                      disabled destructive button is noise on a blank chart. */}
-                  <div className="flex items-center justify-between gap-2 mb-2 min-h-[26px]">
-                    <div className="text-sm font-bold text-primary uppercase tracking-wide">Condition Codes</div>
-                    {chartedConditionCount > 0 && (
-                      <button onClick={() => setConfirmClear('condition')}
-                        className="flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1 text-[11px] font-semibold text-foreground transition-all hover:border-red-400 hover:text-destructive">
-                        <Trash2 className="h-3 w-3" />
-                        Clear All ({chartedConditionCount})
-                      </button>
-                    )}
-                  </div>
-                  {/* Code only — the words moved to the Legend. "More
-                      conditions" is the last item IN the same wrap row, so the
-                      rare four read as a continuation of the palette rather
-                      than as a separate control below it. */}
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {commonConditionCodes.map((c) => (
-                      <button key={c.code} title={c.label} onClick={() => { setSelectedCondition(selectedCondition === c.code ? null : c.code); setSelectedTreatment(null); }}
-                        className={`h-9 w-[60px] shrink-0 rounded-md border text-center transition-all flex items-center justify-center ${selectedCondition === c.code ? 'bg-teal-600 text-white ring-2 ring-teal-300 border-teal-600' : 'bg-card border-border text-foreground hover:border-teal-400'}`}>
-                        <span className="text-xs font-bold font-mono leading-none">{c.perm}/{c.temp}</span>
-                      </button>
-                    ))}
-                    {/* Rare findings, collapsed. Un/S/JC/P are charted a handful
-                        of times a year and were holding four permanent slots. */}
-                    <button type="button" onClick={() => setRareConditionsOpen((v) => !v)}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 hover:underline">
-                      {rareConditionsOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                      More ({rareConditionCodes.length})
-                    </button>
-                  </div>
-                  {/* The "what am I applying" banner belongs UNDER THE PALETTE
-                      IT CAME FROM. It used to sit once at the bottom of the
-                      whole blue card, so picking a treatment on the right lit
-                      up a message on the far left. */}
-                  {selectedCondition && (() => {
-                    const c = conditionCodes.find((x) => x.code === selectedCondition);
-                    return (
-                      <div className="mt-3 flex items-center gap-2">
-                        <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-teal-100 text-teal-800">
-                          Applying: {c?.perm}/{c?.temp} ({c?.label}). Click teeth to apply.
-                        </span>
-                        <button onClick={() => setSelectedCondition(null)} className="text-xs text-muted-foreground hover:text-foreground underline">Clear</button>
-                      </div>
-                    );
-                  })()}
-                  {rareConditionsOpen && (
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {rareConditionCodes.map((c) => (
-                        <button key={c.code} title={c.label} onClick={() => { setSelectedCondition(selectedCondition === c.code ? null : c.code); setSelectedTreatment(null); }}
-                          className={`h-9 w-[60px] shrink-0 rounded-md border text-center transition-all flex items-center justify-center ${selectedCondition === c.code ? 'bg-teal-600 text-white ring-2 ring-teal-300 border-teal-600' : 'bg-card border-border text-foreground hover:border-teal-400'}`}>
-                          <span className="text-xs font-bold font-mono leading-none">{c.perm}/{c.temp}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                )}
-                {iptrContext !== 'dental-queue' && (
-                // Conditions and treatments are different vocabularies -- one
-                // records what IS, the other what was DONE -- but unselected
-                // buttons in both groups look identical, so without a rule the
-                // two grids read as one long palette. Divider only when both
-                // are on screen: side by side from lg, stacked below it.
-                <div className={iptrContext === 'default' ? 'border-t border-border pt-4 lg:border-t-0 lg:pt-0 lg:border-l lg:pl-4' : undefined}>
-                  <div className="flex items-center justify-between gap-2 mb-2 min-h-[26px]">
-                    <div className="text-sm font-bold text-primary uppercase tracking-wide">Treatment Codes</div>
-                    {chartedTreatmentCount > 0 && (
-                      <button onClick={() => setConfirmClear('treatment')}
-                        className="flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1 text-[11px] font-semibold text-foreground transition-all hover:border-red-400 hover:text-destructive">
-                        <Trash2 className="h-3 w-3" />
-                        Clear All ({chartedTreatmentCount})
-                      </button>
-                    )}
-                  </div>
-                  {/* Only the five treatments that happen TO A TOOTH. Code
-                      only; the Legend carries the words and the local terms. */}
-                  <div className="flex flex-wrap gap-1.5">
-                    {toothTreatmentCodes.map((t) => (
-                      <button key={t.code} title={treatmentLabel(t)} onClick={() => { setSelectedTreatment(selectedTreatment === t.code ? null : t.code); setSelectedCondition(null); }}
-                        className={`h-9 w-[60px] shrink-0 rounded-md border text-center transition-all flex items-center justify-center ${selectedTreatment === t.code ? 'bg-blue-600 text-white ring-2 ring-blue-300 border-blue-600' : 'bg-card border-border text-foreground hover:border-blue-400'}`}>
-                        <span className="text-xs font-bold font-mono leading-none">{t.code}</span>
-                      </button>
-                    ))}
-                  </div>
-                  {selectedTreatment && (() => {
-                    const t = toothTreatmentCodes.find((x) => x.code === selectedTreatment);
-                    return (
-                      <div className="mt-3 flex items-center gap-2">
-                        <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-blue-100 text-blue-800">
-                          Applying: {selectedTreatment} ({t?.label}). Click teeth to apply.
-                        </span>
-                        <button onClick={() => setSelectedTreatment(null)} className="text-xs text-muted-foreground hover:text-foreground underline">Clear</button>
-                      </div>
-                    );
-                  })()}
-                </div>
-                )}
-              </div>
-            </div>
-
-            <div className="bg-card rounded-xl border border-border p-4 overflow-x-auto">
-              {/* Every row is 16 equal slots, so a primary tooth sits directly
-                  under the permanent tooth it will replace: 55↔15, 54↔14 …
-                  51↔11, 61↔21 … 65↔25 (FDI). The primary rows previously used
-                  `5 teeth + a w-9 midline spacer + 5 teeth`, centred — but the
-                  permanent row has no midline gap (11 and 21 are adjacent), so
-                  the spacer pushed both halves outward and nothing lined up.
-                  Three blank slots at each end replace it, and alignment now
-                  holds at any tooth size because both rows flex identically. */}
-              <div className="min-w-[680px] space-y-2.5">
-                {/* DOH IPTR form order: temporary arches on the outside (rows 1
-                    and 4), permanent arches on the inside (rows 2 and 3). */}
-                <div className="flex justify-center gap-1">{padToArch(upperTemporary)}</div>
-                <div className="flex justify-center gap-1">{upperPermanent.map((n) => <ToothButton key={n} num={n} />)}</div>
-                <div className="border-t-2 border-dashed border-border my-2" />
-                <div className="flex justify-center gap-1">{lowerPermanent.map((n) => <ToothButton key={n} num={n} />)}</div>
-                <div className="flex justify-center gap-1">{padToArch(lowerTemporary)}</div>
-              </div>
-            </div>
-
-            <div className={`bg-gray-50 rounded-xl border border-border p-4 ${focusMode ? 'hidden' : ''}`}>
-              <div className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wide">DMFT / dmft Scores (Auto-computed)</div>
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <div className="text-xs text-muted-foreground mb-2">Primary teeth (dmft+x)</div>
-                  <div className="flex gap-2">
-                    {[['d', dmft.d], ['m', dmft.m], ['f', dmft.f], ['x', dmft.x], ['dmft', dmft.t]].map(([label, val]) => (
-                      <div key={label as string} className={`flex-1 border rounded text-center py-1.5 ${label === 'dmft' ? 'border-blue-400 bg-blue-50' : 'border-border'}`}>
-                        <div className="text-xs text-muted-foreground">{label}</div>
-                        <div className="text-sm font-bold font-mono text-foreground">{val}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground mb-2">Permanent teeth (DMFT+X)</div>
-                  <div className="flex gap-2">
-                    {[['D', dmft.D], ['M', dmft.M], ['F', dmft.F], ['X', dmft.X], ['DMFT', dmft.T]].map(([label, val]) => (
-                      <div key={label as string} className={`flex-1 border rounded text-center py-1.5 ${label === 'DMFT' ? 'border-red-400 bg-red-50' : 'border-border'}`}>
-                        <div className="text-xs text-muted-foreground">{label}</div>
-                        <div className="text-sm font-bold font-mono text-foreground">{val}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* ── Summaries ──────────────────────────────────────────────
-                Structure follows the paper DOH sheet the user supplied: one row
-                per finding, one Yes column. Rows are NOT hidden when absent — a
-                blank cell on that form is a positive statement that the finding
-                was looked for and not found (the CLAUDE.md rule about official
-                forms keeping all their rows).
-
-                Two rows are DERIVED from the odontogram rather than ticked:
-                Dental Caries (any D/d) and Orally Fit Child. Both are facts the
-                chart already states, and a hand-ticked second source could
-                contradict the teeth drawn above it.
-
-                All three tables share ONE column geometry — `w-[220px]` label,
-                `w-[84px]` value — so the Yes column lands on the same x in every
-                table. `table-fixed` with explicit widths is what makes that hold;
-                content-sized columns drifted per table and read as sloppy. The
-                two cards are tinted differently (teal = conditions, blue =
-                treatments) to match the palette colours each one summarises. */}
-            {/* Hidden in charting mode. Charting mode exists so the dentist
-                looks at one thing — the mouth — and the summaries are a
-                read-out of what was just entered, not an input. */}
-            {!focusMode && (
-            <>
-            {/* Side by side, and EQUAL HEIGHT — the grid stretches (no
-                `items-start`) so the two cards end at the same y.
-
-                Cells carry a bottom rule only. A full four-sided grid was
-                tried and reverted on request — it read as a spreadsheet.
-
-                Both cards share ONE column geometry — 45 / 18 / 37 — so the
-                middle column lands on the same axis in all four tables. It only
-                ever holds a count, a date or "Yes", so the width it does not
-                need goes to the label and the tooth numbers.
-
-                Blank, never "—", where there is nothing: the ROWS always render
-                (the DOH-form rule), the cells go empty. */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="bg-teal-50/70 rounded-xl border border-teal-200 p-4 space-y-4">
-              <div>
-                <div className="text-xs font-semibold text-teal-800 mb-3 uppercase tracking-wide">Dental Condition Summary</div>
-                <table className="w-full table-fixed border-collapse text-xs">
-                  <colgroup><col className="w-[45%]" /><col className="w-[18%]" /><col className="w-[37%]" /></colgroup>
-                  <tbody>
-                    <tr>
-                      <td className="border-b border-teal-200/70 px-2 py-1.5 text-foreground">Date of Oral Examination</td>
-                      <td className="border-b border-teal-200/70 px-2 py-1.5 text-foreground whitespace-nowrap" colSpan={2}>{examinationDate}</td>
-                    </tr>
-                    {/* Highlighted: the single headline answer a DOH screening asks. */}
-                    <tr className={isOrallyFit ? 'bg-success-surface' : ''}>
-                      <td className={`border-b border-teal-200/70 px-2 py-1.5 ${isOrallyFit ? 'font-bold text-success' : 'text-foreground'}`}>Orally Fit Child</td>
-                      <td className="border-b border-teal-200/70 px-2 py-1.5 font-bold text-success" colSpan={2}>{isOrallyFit ? 'Yes' : ''}</td>
-                    </tr>
-                    {presentOralConditions.map(({ label, present }) => (
-                      <tr key={label}>
-                        <td className="border-b border-teal-200/70 px-2 py-1.5 text-foreground">{label}</td>
-                        <td className="border-b border-teal-200/70 px-2 py-1.5 font-semibold text-success" colSpan={2}>{present ? 'Yes' : ''}</td>
-                      </tr>
-                    ))}
-                    <tr>
-                      <td className="border-b border-teal-200/70 px-2 py-1.5 text-foreground">Others</td>
-                      <td className="border-b border-teal-200/70 px-2 py-1.5 font-semibold text-success break-words" colSpan={2}>{draftOral.others.trim()}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Section B of the paper IPTR, verbatim rows and order. */}
-              <table className="w-full table-fixed border-collapse text-xs">
-                <colgroup><col className="w-[45%]" /><col className="w-[18%]" /><col className="w-[37%]" /></colgroup>
-                <thead>
-                  <tr className="text-left text-teal-800">
-                    <th className="border-b border-teal-200/70 px-2 py-1.5 font-semibold">Indicate Number</th>
-                    <th className="border-b border-teal-200/70 px-2 py-1.5 font-semibold">Tooth Count</th>
-                    <th className="border-b border-teal-200/70 px-2 py-1.5 font-semibold">Tooth Numbers</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {indicateNumberRows.map(({ label, teeth }) => (
-                    <tr key={label}>
-                      <td className="border-b border-teal-200/70 px-2 py-1.5 text-foreground">{label}</td>
-                      <td className="border-b border-teal-200/70 px-2 py-1.5 font-semibold text-foreground">{teeth.length ? teeth.length : ''}</td>
-                      <td className="border-b border-teal-200/70 px-2 py-1.5 font-mono text-foreground break-words">{teeth.join(', ')}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Two tables because there are two kinds of answer. A whole-mouth
-                service is answered "was it given?"; a per-tooth treatment is
-                only meaningful WITH the teeth it was done to. */}
-            <div className="bg-blue-50/70 rounded-xl border border-blue-200 p-4 space-y-4">
-              <div>
-                <div className="text-xs font-semibold text-primary mb-3 uppercase tracking-wide">Treatment Summary</div>
-                <table className="w-full table-fixed border-collapse text-xs">
-                  <colgroup><col className="w-[45%]" /><col className="w-[18%]" /><col className="w-[37%]" /></colgroup>
-                  <tbody>
-                    <tr>
-                      <td className="border-b border-blue-200/70 px-2 py-1.5 text-foreground">Date of Treatment</td>
-                      <td className="border-b border-blue-200/70 px-2 py-1.5 text-foreground whitespace-nowrap" colSpan={2}>{treatmentDate}</td>
-                    </tr>
-                    {serviceChips.map(({ label, field }) => (
-                      <tr key={field}>
-                        <td className="border-b border-blue-200/70 px-2 py-1.5 text-foreground">{label}</td>
-                        <td className="border-b border-blue-200/70 px-2 py-1.5 font-semibold text-primary" colSpan={2}>{draftServices[field] ? 'Yes' : ''}</td>
-                      </tr>
-                    ))}
-                    <tr>
-                      <td className="border-b border-blue-200/70 px-2 py-1.5 text-foreground">Others</td>
-                      <td className="border-b border-blue-200/70 px-2 py-1.5 font-semibold text-primary break-words" colSpan={2}>{draftServices.others.trim()}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <table className="w-full table-fixed border-collapse text-xs">
-                <colgroup><col className="w-[45%]" /><col className="w-[18%]" /><col className="w-[37%]" /></colgroup>
-                <thead>
-                  <tr className="text-left text-primary">
-                    <th className="border-b border-blue-200/70 px-2 py-1.5 font-semibold">Treatment</th>
-                    <th className="border-b border-blue-200/70 px-2 py-1.5 font-semibold">Tooth Count</th>
-                    <th className="border-b border-blue-200/70 px-2 py-1.5 font-semibold">Tooth Numbers</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {toothTreatmentCodes.map((t) => {
-                    const teeth = teethByTreatment[t.code] ?? [];
-                    return (
-                      <tr key={t.code}>
-                        <td className="border-b border-blue-200/70 px-2 py-1.5 text-foreground">
-                          <span className="font-mono font-bold mr-2">{t.code}</span>{t.label}
-                        </td>
-                        <td className="border-b border-blue-200/70 px-2 py-1.5 font-semibold text-foreground">{teeth.length ? teeth.length : ''}</td>
-                        <td className="border-b border-blue-200/70 px-2 py-1.5 font-mono text-foreground break-words">{teeth.join(', ')}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            </div>
-            </>
-            )}
-            </div>
-          </div>
+          <DentalChartTab
+            chartingMode={chartingMode}
+            student={student}
+            yearGrade={yearGrade}
+            yearSection={yearSection}
+            navIndex={navIndex}
+            navList={navList}
+            prevPatient={prevPatient}
+            nextPatient={nextPatient}
+            canEdit={canEdit}
+            canEditHistory={canEditHistory}
+            editMode={editMode}
+            saving={saving}
+            saved={saved}
+            chartError={chartError}
+            dateOrderError={dateOrderError}
+            editingChart={editingChart}
+            editingHistory={editingHistory}
+            currentYearData={currentYearData}
+            currentChart={currentChart}
+            layoutContext={layoutContext}
+            activeVisit={activeVisit}
+            activeVisitRecord={activeVisitRecord}
+            visitDateMin={visitDateMin}
+            draftVisitHasData={draftVisitHasData}
+            hasOralConditionMarked={hasOralConditionMarked}
+            isOrallyFitChild={isOrallyFitChild}
+            chartedConditionCount={chartedConditionCount}
+            chartedTreatmentCount={chartedTreatmentCount}
+            dmft={dmft}
+            presentOralConditions={presentOralConditions}
+            indicateNumberRows={indicateNumberRows}
+            perToothTreatmentRows={perToothTreatmentRows}
+            visit1HasDataLive={visit1HasDataLive}
+            treatmentTeethVisit1={treatmentTeethVisit1}
+            treatmentTeethVisit2={treatmentTeethVisit2}
+            actions={{
+              setChartingMode, goToStudent, setEditMode, cancelEdit, handleSave, setExplicitVisit, setConfirmClear,
+              handleToothPointerDown, syncChartDateFromConditions, syncVisitDateFromServices,
+            }}
+            palette={{
+              selectedCondition, setSelectedCondition, selectedTreatment, setSelectedTreatment,
+              rareConditionsOpen, setRareConditionsOpen,
+            }}
+            drafts={{
+              draftVisitDate, setDraftVisitDate, draftVisitDateByVisit, draftServices, setDraftServices,
+              draftServicesByVisit, draftChartDate, setDraftChartDate, draftOral, setDraftOral,
+              othersOralOpen, setOthersOralOpen,
+            }}
+          />
         )}
 
         {/* ── TAB 4: Dental Records (DMFT History) ── */}
-        {activeTab === 'records' && (() => {
-          const dmftByYear = years.map((y) => {
-            const chart: Record<number, ChartEntry> = {};
-            for (const tr of y.toothRecords) chart[tr.tooth_number] = { condition: tr.condition, treatment: tr.treatment_code ?? '' };
-            return { year: y.iptr.school_year, ...computeDMFT(chart) };
-          });
-          if (dmftByYear.length === 0) return <div className="p-8 text-center text-muted-foreground text-sm">No records yet.</div>;
-          return (
-          <div className="p-4 space-y-6">
-            <div className="space-y-1">
-              <h3 className="text-sm font-bold text-foreground">DMFT Progression by School Year</h3>
-              <p className="text-xs text-muted-foreground">Lowercase (d m f x · dmft) = primary / deciduous teeth; uppercase (D M F X · DMFT) = permanent teeth. A child with both present is in mixed dentition.</p>
-            </div>
-            <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-border">
-                  <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">School Year</th>
-                    {['d', 'm', 'f', 'x', 'dmft', 'D', 'M', 'F', 'X', 'DMFT'].map((h) => (
-                      <th key={h} className={`px-2 py-2 text-center text-xs font-medium ${h === 'dmft' || h === 'DMFT' ? 'bg-gray-100 font-bold text-foreground' : h === h.toLowerCase() ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'}`}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {dmftByYear.map((row, idx) => (
-                    <tr key={idx} className={idx % 2 === 0 ? 'bg-card' : 'bg-gray-50/50'}>
-                      <td className="px-4 py-2 font-medium text-foreground text-xs">{row.year}</td>
-                      <td className="px-2 py-2 text-center text-xs text-red-700">{row.d || ''}</td>
-                      <td className="px-2 py-2 text-center text-xs text-slate-600">{row.m || ''}</td>
-                      <td className="px-2 py-2 text-center text-xs text-blue-700">{row.f || ''}</td>
-                      <td className="px-2 py-2 text-center text-xs text-orange-700">{row.x || ''}</td>
-                      <td className="px-2 py-2 text-center text-xs font-bold text-foreground bg-gray-100">{row.t}</td>
-                      <td className="px-2 py-2 text-center text-xs text-red-700">{row.D || ''}</td>
-                      <td className="px-2 py-2 text-center text-xs text-slate-600">{row.M || ''}</td>
-                      <td className="px-2 py-2 text-center text-xs text-blue-700">{row.F || ''}</td>
-                      <td className="px-2 py-2 text-center text-xs text-orange-700">{row.X || ''}</td>
-                      <td className="px-2 py-2 text-center text-xs font-bold text-foreground bg-gray-100">{row.T}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {[
-                { label: 'Latest dmft (primary)', value: dmftByYear[dmftByYear.length - 1].t, color: 'text-red-700 bg-red-50' },
-                { label: 'Latest DMFT (permanent)', value: dmftByYear[dmftByYear.length - 1].T, color: 'text-blue-700 bg-blue-50' },
-                { label: 'Years tracked', value: dmftByYear.length, color: 'text-foreground bg-gray-100' },
-                // A trend needs 2+ years; equal values are Stable, not Improving (DMFT is cumulative)
-                { label: 'Trend', value: dmftByYear.length < 2 ? '—' : dmftByYear[dmftByYear.length - 1].T > dmftByYear[0].T ? '↑ Worsening' : dmftByYear[dmftByYear.length - 1].T < dmftByYear[0].T ? '↓ Improving' : 'Stable', color: dmftByYear.length >= 2 && dmftByYear[dmftByYear.length - 1].T > dmftByYear[0].T ? 'text-red-700 bg-red-50' : dmftByYear.length >= 2 && dmftByYear[dmftByYear.length - 1].T < dmftByYear[0].T ? 'text-green-700 bg-green-50' : 'text-foreground bg-gray-100' },
-              ].map((kpi, i) => (
-                <div key={i} className={`rounded-lg p-3 ${kpi.color}`}>
-                  <div className="text-xl font-bold">{kpi.value}</div>
-                  <div className="text-xs mt-0.5 opacity-80">{kpi.label}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-          );
-        })()}
+        {activeTab === 'records' && <DmftHistoryTab years={years} />}
 
         {/* ── TAB 5: Treatment History ── */}
         {activeTab === 'treatments' && (
-          <div className="p-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-foreground">Treatment History</h3>
-              {canEdit && currentYearData && (
-                <button onClick={() => setShowAddTreatment((v) => !v)} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary-hover">
-                  <Plus className="w-3.5 h-3.5" /> Add Entry
-                </button>
-              )}
-            </div>
-            {showAddTreatment && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-                <p className="text-xs text-blue-700">Adding to school year: <strong>{currentYearData?.iptr.school_year}</strong></p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div><label className="block text-xs font-medium text-foreground mb-1">Date</label>
-                    <input type="date" value={treatmentForm.date} onChange={(e) => setTreatmentForm((f) => ({ ...f, date: e.target.value }))} className="w-full px-3 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring" /></div>
-                  <div><label className="block text-xs font-medium text-foreground mb-1">{staffNameLabel}</label>
-                    <input type="text" value={user?.name ?? ''} readOnly className="w-full px-3 py-1.5 text-sm border border-border rounded-lg bg-gray-50 cursor-default text-foreground" /></div>
-                  <div><label className="block text-xs font-medium text-foreground mb-1">Diagnosis</label>
-                    <textarea rows={2} value={treatmentForm.diagnosis} onChange={(e) => setTreatmentForm((f) => ({ ...f, diagnosis: e.target.value }))} className="w-full px-3 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring resize-none" /></div>
-                  <div><label className="block text-xs font-medium text-foreground mb-1">Treatment Done</label>
-                    <textarea rows={2} value={treatmentForm.treatmentDone} onChange={(e) => setTreatmentForm((f) => ({ ...f, treatmentDone: e.target.value }))} className="w-full px-3 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring resize-none" /></div>
-                  <div className="md:col-span-2"><label className="block text-xs font-medium text-foreground mb-1">Remarks</label>
-                    <input type="text" value={treatmentForm.remarks} onChange={(e) => setTreatmentForm((f) => ({ ...f, remarks: e.target.value }))} className="w-full px-3 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring" /></div>
-                </div>
-                {treatmentError && <p className="text-xs text-destructive">{treatmentError}</p>}
-                <div className="flex gap-2">
-                  <button onClick={handleAddTreatment} disabled={treatmentSaving} className="px-4 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-60">{treatmentSaving ? 'Saving…' : 'Save'}</button>
-                  <button onClick={() => setShowAddTreatment(false)} className="px-4 py-1.5 text-sm border border-border text-foreground rounded-lg hover:bg-gray-50">Cancel</button>
-                </div>
-              </div>
-            )}
-            {allTreatments.length === 0 ? (
-              <p className="text-center text-muted-foreground text-sm py-12">No treatment records yet.</p>
-            ) : (
-            <>
-            <div className="hidden md:block overflow-x-auto rounded-lg border border-border">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-border">
-                  <tr>{['Date', 'Diagnosis', 'Treatment Done', 'Dentist', 'Remarks'].map((h) => (
-                    <th key={h} className="px-4 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">{h}</th>
-                  ))}</tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 bg-card">
-                  {allTreatments.map((t) => (
-                    <tr key={t._id} className="hover:bg-gray-50">
-                      <td className="px-4 py-2 whitespace-nowrap font-medium text-foreground text-xs">{formatDate(t.date)}</td>
-                      <td className="px-4 py-2 text-xs text-foreground">{t.diagnosis}</td>
-                      <td className="px-4 py-2 text-xs text-foreground">{t.treatment_done}</td>
-                      <td className="px-4 py-2 whitespace-nowrap text-xs text-foreground">{dentistNameById.get(t.dentist_id) ?? 'Unknown'}</td>
-                      <td className="px-4 py-2 text-xs text-muted-foreground">{t.remarks}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="md:hidden space-y-3">
-              {allTreatments.map((t) => (
-                <div key={t._id} className="rounded-lg border bg-card border-border p-3 space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-foreground text-xs">{formatDate(t.date)}</span>
-                    <span className="text-xs text-muted-foreground">{dentistNameById.get(t.dentist_id) ?? 'Unknown'}</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground"><span className="font-medium">Dx:</span> {t.diagnosis}</p>
-                  <p className="text-xs text-muted-foreground"><span className="font-medium">Tx:</span> {t.treatment_done}</p>
-                  {t.remarks && <p className="text-xs text-muted-foreground italic">{t.remarks}</p>}
-                </div>
-              ))}
-            </div>
-            </>
-            )}
-          </div>
+          <TreatmentHistoryTab
+            treatments={allTreatments}
+            dentistNameById={dentistNameById}
+            schoolYear={currentYearData?.iptr.school_year}
+            canEdit={canEdit}
+            staffNameLabel={staffNameLabel}
+            staffName={user?.name ?? ''}
+            addForm={{
+              open: showAddTreatment,
+              setOpen: setShowAddTreatment,
+              values: treatmentForm,
+              setValues: setTreatmentForm,
+              error: treatmentError,
+              saving: treatmentSaving,
+              onSave: handleAddTreatment,
+            }}
+          />
         )}
 
-        {/* ── TAB 6: Referrals — no Referral model exists in the ERD, so this
-             is an honest "not tracked" state rather than a form that implies
-             persistence that doesn't exist. ── */}
+        {/* ── TAB 6: Referrals (Sprint 127) -- REFERRAL exists now, so this is
+             a real record rather than the "not tracked" placeholder it was.
+             Issue-only by design: a referral is recorded when it is written,
+             and nothing here pretends to know whether the family went. ── */}
         {activeTab === 'referrals' && (
-          <div className="p-4">
-            <div className="text-center py-12 text-muted-foreground">
-              <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
-              <p className="text-sm font-medium text-muted-foreground">Referral Tracking Not Yet Available</p>
-              <p className="text-xs mt-1 max-w-sm mx-auto">There's no referral-tracking model in the system yet. Referrals to outside facilities should be noted in Treatment History remarks for now.</p>
-            </div>
-          </div>
+          <ReferralsTab
+            referrals={allReferrals}
+            schoolYear={currentYearData?.iptr.school_year}
+            canEdit={canEdit}
+            addForm={{
+              open: showAddReferral,
+              setOpen: setShowAddReferral,
+              values: referralForm,
+              setValues: setReferralForm,
+              error: referralError,
+              saving: referralSaving,
+              onSave: handleAddReferral,
+            }}
+          />
         )}
 
-        {/* ── TAB 7: AI Risk — the full assessment workflow (generate, validate,
-             save) lives on the dedicated Risk Classification page (Sprint 21f);
-             this tab just points there rather than duplicating that UI. ── */}
-        {activeTab === 'ai' && (
-          <div className="p-4">
-            <div className="text-center py-12 text-muted-foreground">
-              <Brain className="w-8 h-8 mx-auto mb-2 opacity-30" />
-              <p className="text-sm font-medium text-muted-foreground">Risk assessments live on the Risk Classification page</p>
-              <p className="text-xs mt-1 max-w-sm mx-auto">Generate, validate, and save AI-assisted risk assessments for this student from the dedicated page. The current model is trained on synthetic placeholder data until real IPTR records are available.</p>
-              <Link to="/ai-analytics" className="inline-block mt-4 px-4 py-2 bg-primary hover:bg-primary-hover text-white text-sm rounded-lg">Open Risk Classification</Link>
-            </div>
-          </div>
-        )}
-        </>
-        )}
-      </div>
-      </div>{/* end recordRef — PDF capture region */}
+      {/* Chart legend (Sprint 152). Adopted from the collaborator's design;
+          the content is OUR code lists, so it cannot drift from the palette
+          the dentist actually clicks. */}
       {legendOpen && (
         <Modal onClose={() => setLegendOpen(false)}>
           <div className="flex items-start justify-between gap-4 p-5 border-b border-border">
             <div>
               <h2 className="text-lg font-bold text-foreground">Chart Legend</h2>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Every acronym used on this chart. Upper-case marks a permanent tooth, lower-case the primary tooth in the same position.
+                Every code used on this chart. Upper-case marks a permanent tooth, lower-case the primary
+                tooth in the same position.
               </p>
             </div>
-            <button onClick={() => setLegendOpen(false)} aria-label="Close legend"
-              className="shrink-0 p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground">
+            <button
+              onClick={() => setLegendOpen(false)}
+              aria-label="Close legend"
+              className="shrink-0 p-1.5 rounded-lg text-muted-foreground hover:bg-gray-100 hover:text-foreground"
+            >
               <X className="w-4 h-4" />
             </button>
           </div>
           <div className="p-5 space-y-5 max-h-[60vh] overflow-y-auto">
             <div>
-              <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Condition codes — per tooth</div>
+              <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                Condition codes — per tooth
+              </div>
               <div className="space-y-1">
                 {conditionCodes.map((c) => (
-                  <div key={c.code} className="flex items-baseline gap-3 text-sm">
-                    <span className="font-mono font-bold text-foreground w-16 shrink-0">{c.perm}/{c.temp}</span>
+                  <div key={c.code} className="flex items-center gap-3 text-sm">
+                    {/* ⚠ The swatch reads `conditionColors` — the SAME map the
+                        tooth cells render from (see the odontogram above), not a
+                        colour typed here. A hand-typed swatch is how a legend
+                        ends up describing a colour the chart no longer uses. */}
+                    <span
+                      className={`font-mono font-bold text-foreground text-xs w-16 shrink-0 text-center px-1.5 py-1 rounded border ${
+                        conditionColors[c.perm] ?? 'bg-card border-border'
+                      }`}
+                    >
+                      {c.perm}/{c.temp}
+                    </span>
                     <span className="text-muted-foreground">{c.label}</span>
                   </div>
                 ))}
               </div>
             </div>
             <div>
-              <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Treatment codes — per tooth</div>
+              <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                Treatment codes — per tooth
+              </div>
               <div className="space-y-1">
-                {toothTreatmentCodes.map((t) => (
+                {treatmentCodes.map((t) => (
                   <div key={t.code} className="flex items-baseline gap-3 text-sm">
-                    <span className="font-mono font-bold text-blue-700 w-16 shrink-0">{t.code}</span>
+                    <span className="font-mono font-bold text-primary w-16 shrink-0">{t.code}</span>
                     <span className="text-muted-foreground">{treatmentLabel(t)}</span>
                   </div>
                 ))}
               </div>
             </div>
             <div>
-              <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Whole-mouth findings and services</div>
-              <p className="text-xs text-muted-foreground mb-2">
-                Recorded once per visit for the whole mouth, not against a tooth — so they are chips, not codes on the odontogram.
+              <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                Recorded elsewhere, not on a tooth
+              </div>
+              {/* ⚠ Deliberately different from the collaborator's version. Hers
+                  listed whole-mouth services as chips on this screen; ours are
+                  recorded against the RPC VISIT (Sprint 147), so the legend
+                  says where they live rather than implying they are charted
+                  here. */}
+              <p className="text-xs text-muted-foreground">
+                Whole-mouth findings — gingivitis, periodontal disease, debris, calculus, abnormal growth,
+                cleft lip/palate — are recorded once per school year under <strong>History &amp; Oral</strong>.
+                The services given at a visit — oral screening, prophylaxis, fluoride varnish, hygiene
+                instruction — are recorded against that visit in <strong>RPC Monitoring</strong>, which is what
+                the DOH return counts.
               </p>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                {[...oralConditionChips.map((c) => c.label), 'Others (typed)'].map((l) => <div key={`c-${l}`}>{l}</div>)}
-              </div>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-muted-foreground mt-2 pt-2 border-t border-border">
-                {[...serviceChips.map((c) => c.label), 'Others (typed)'].map((l) => <div key={`s-${l}`}>{l}</div>)}
-              </div>
             </div>
             <div>
               <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Scores</div>
               <div className="space-y-1 text-sm text-muted-foreground">
-                <div><span className="font-mono font-bold text-foreground">DMFT</span> — permanent teeth Decayed + Missing + Filled</div>
-                <div><span className="font-mono font-bold text-foreground">dmft</span> — primary teeth decayed + missing + filled</div>
-                <div>Both are computed from the odontogram; neither is typed in.</div>
+                <div><span className="font-mono font-bold text-foreground">DMFT</span>: permanent teeth Decayed + Missing + Filled</div>
+                <div><span className="font-mono font-bold text-foreground">dmft</span>: primary teeth decayed + missing + filled</div>
               </div>
             </div>
           </div>
         </Modal>
       )}
 
-      <ConfirmDialog
-        open={pendingNextStudent !== null}
-        title="Save before moving on?"
-        message="This chart has changes that have not been saved. Move to another student and they are lost."
-        confirmLabel="Save and continue"
-        cancelLabel="Stay here"
-        onCancel={() => setPendingNextStudent(null)}
-        onConfirm={async () => {
-          const next = pendingNextStudent;
-          setPendingNextStudent(null);
-          if (!next) return;
-          await handleSave();
-          goToStudent(next);
-        }}
-      />
-
-      <ConfirmDialog
-        open={confirmOpenEdit}
-        title="Edit this student's information?"
-        message="You're about to open Update Student Information for editing."
-        confirmLabel="Proceed"
-        onConfirm={() => { openEditInfo(); setConfirmOpenEdit(false); }}
-        onCancel={() => setConfirmOpenEdit(false)}
-      />
-      <ConfirmDialog
-        open={confirmEditChart}
-        title={canEdit ? 'Edit Chart?' : 'Edit History & Oral?'}
-        message="You're about to enter edit mode for this section."
-        confirmLabel="Proceed"
-        onConfirm={() => { setEditMode(true); setConfirmEditChart(false); }}
-        onCancel={() => setConfirmEditChart(false)}
-      />
-      <ConfirmDialog
-        open={pendingTabSwitch !== null}
-        title="Leave without saving?"
-        message="You have unsaved changes on this tab. Switching now will discard them."
-        confirmLabel="Leave anyway"
-        tone="danger"
-        onConfirm={() => {
-          const target = pendingTabSwitch;
-          setPendingTabSwitch(null);
-          cancelEdit().then(() => { if (target) setActiveTab(target); });
-        }}
-        onCancel={() => setPendingTabSwitch(null)}
-      />
+        {/* ── TAB 7: AI Risk ── */}
+        {activeTab === 'ai' && <AiRiskTab />}
+        </>
+        )}
+      </div>
+      </div>{/* end recordRef — PDF capture region */}
+      {/* ── Edit Basic Information (user, 2026-09-25) ─────────────────────
+          The same window, field order and styling as Add New Student
+          (PatientList), titled for editing. Grade/Section appear twice on
+          purpose: the SELECTED YEAR's (what that year's forms print) and the
+          student's CURRENT enrolment (what rosters read). The selected year's
+          own Grade/Section pair was removed from this window (user,
+          2026-09-25); it is saved back unchanged. */}
+      {editingInfo && draftInfo && (
+        <Modal onClose={() => setEditingInfo(false)} maxWidth="max-w-4xl" closeDisabled={infoSaving}>
+          <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b bg-card p-6">
+            <div>
+              <div className="mb-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-primary">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary" /> Basic Information
+              </div>
+              <h2 className="text-lg font-bold text-foreground">Edit Student Basic Information</h2>
+            </div>
+            <button type="button" onClick={() => setEditingInfo(false)} aria-label="Close" className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+          </div>
+          {/* "Not a Student", as on Add New Student: a person treated here who
+              is not enrolled. Grade and Section do not apply, so ticking it
+              clears and locks both pairs (this year's and current). */}
+          <div className="mx-6 mt-4 flex items-center gap-2">
+            <input type="checkbox" id="edit-not-student" checked={!!draftInfo.is_not_student}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setDraftInfo((p) => ({ ...p, is_not_student: checked, ...(checked ? { grade_level: '', section: '' } : {}) }));
+                if (checked) setDraftYear((p) => ({ ...p, grade_level: '', section: '' }));
+              }}
+              className="h-4 w-4 rounded accent-primary" />
+            <label htmlFor="edit-not-student" className="text-sm font-medium text-foreground">Not a Student</label>
+          </div>
+          <div className="space-y-4 p-6">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div><label className="block text-sm font-medium text-foreground mb-1">Last Name{infoReq('last_name')}</label><input type="text" value={draftInfo.last_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, last_name: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />{infoMiss('last_name')}</div>
+              <div><label className="block text-sm font-medium text-foreground mb-1">First Name{infoReq('first_name')}</label><input type="text" value={draftInfo.first_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, first_name: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />{infoMiss('first_name')}</div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div><label className="block text-sm font-medium text-foreground mb-1">Middle Name</label><input type="text" value={draftInfo.middle_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, middle_name: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+              <div><label className="block text-sm font-medium text-foreground mb-1">Birthdate{infoReq('birthday')}</label><input type="date" value={draftInfo.birthday ? String(draftInfo.birthday).slice(0, 10) : ''} onChange={(e) => setDraftInfo((p) => ({ ...p, birthday: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />{infoMiss('birthday')}</div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Age</label>
+                <input type="text" readOnly disabled value={draftInfo.birthday ? (computeAge(String(draftInfo.birthday).slice(0, 10), new Date()) ?? '') : ''} placeholder="Automatically calculated" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring cursor-not-allowed bg-muted text-muted-foreground" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Sex{infoReq('sex')}</label>
+              <div className="grid grid-cols-2 gap-2">
+                {(['Male', 'Female'] as const).map((g) => (
+                  <button key={g} type="button" onClick={() => setDraftInfo((p) => ({ ...p, sex: g }))}
+                    className={`rounded-lg border-2 px-3 py-2 text-sm font-medium transition-colors ${draftInfo.sex === g ? 'border-primary-hover bg-primary text-white' : 'border-border text-foreground hover:bg-canvas'}`}>{g}</button>
+                ))}
+              </div>
+              {infoMiss('sex')}
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Grade{infoReq('grade_level')}</label>
+                <select value={draftInfo.grade_level ?? ''} disabled={!!draftInfo.is_not_student} onChange={(e) => setDraftInfo((p) => ({ ...p, grade_level: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-card disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground">
+                  <option value="">Select Grade</option>{GRADES.map((g) => <option key={g}>{g}</option>)}
+                </select>
+                {infoMiss('grade_level')}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Section{infoReq('section')}</label>
+                <input type="text" value={draftInfo.section ?? ''} disabled={!!draftInfo.is_not_student} onChange={(e) => setDraftInfo((p) => ({ ...p, section: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground" />
+                {infoMiss('section')}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div><label className="block text-sm font-medium text-foreground mb-1">Place of Birth<span className="font-normal text-muted-foreground"> (Optional)</span></label><input type="text" value={draftInfo.place_of_birth ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, place_of_birth: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+              <div><label className="block text-sm font-medium text-foreground mb-1">Contact Number<span className="font-normal text-muted-foreground"> (Optional)</span></label><input type="text" value={draftInfo.contact_number ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, contact_number: e.target.value }))} placeholder="09XX-XXX-XXXX" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div><label className="block text-sm font-medium text-foreground mb-1">Guardian Name<span className="font-normal text-muted-foreground"> (Optional)</span></label><input type="text" value={draftInfo.guardian_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, guardian_name: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+              <div><label className="block text-sm font-medium text-foreground mb-1">Guardian Contact<span className="font-normal text-muted-foreground"> (Optional)</span></label><input type="text" value={draftInfo.guardian_contact ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, guardian_contact: e.target.value }))} placeholder="09XX-XXX-XXXX" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+            </div>
+            <div><label className="block text-sm font-medium text-foreground mb-1">Occupation<span className="font-normal text-muted-foreground"> (Optional)</span></label><input type="text" value={draftInfo.guardian_occupation ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, guardian_occupation: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div><label className="block text-sm font-medium text-foreground mb-1">PhilHealth Number<span className="font-normal text-muted-foreground"> (Optional)</span></label><input type="text" value={draftInfo.philhealth_number ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, philhealth_number: e.target.value, ...(e.target.value.trim() === '' ? { philhealth_status: 'None' as const } : {}) }))} placeholder="XX-XXXXXXXXX-X" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">PhilHealth Status</label>
+                {/* Only meaningful with a number (user, 2026-09-24). */}
+                <select value={(draftInfo.philhealth_number ?? '').trim() ? (draftInfo.philhealth_status ?? 'None') : 'None'}
+                  disabled={!(draftInfo.philhealth_number ?? '').trim()}
+                  title={(draftInfo.philhealth_number ?? '').trim() ? undefined : 'Enter a PhilHealth number first'}
+                  onChange={(e) => setDraftInfo((p) => ({ ...p, philhealth_status: e.target.value as 'None' | 'Principal' | 'Dependent' }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-card disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground">
+                  <option value="None">None</option><option value="Principal">Principal</option><option value="Dependent">Dependent</option>
+                </select>
+              </div>
+            </div>
+            <div><label className="block text-sm font-medium text-foreground mb-1">Address<span className="font-normal text-muted-foreground"> (Optional)</span></label><input type="text" value={draftInfo.address ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, address: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+            <div className="flex items-center gap-3">
+              <input type="checkbox" id="edit-is4ps" checked={!!draftInfo.is_4ps} onChange={(e) => setDraftInfo((p) => ({ ...p, is_4ps: e.target.checked }))} className="h-4 w-4 rounded accent-primary" />
+              <label htmlFor="edit-is4ps" className="text-sm font-medium text-foreground">4Ps / NHTS Member</label>
+            </div>
+            {draftInfo.is_4ps && (
+              <div><label className="block text-sm font-medium text-foreground mb-1">4Ps ID{infoReq('fourps_id')}</label><input type="text" value={draftInfo.fourps_id ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, fourps_id: e.target.value }))} placeholder="4PS-XXXXXXXX" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />{infoMiss('fourps_id')}</div>
+            )}
+          </div>
+          <div className="sticky bottom-0 z-10 border-t bg-card p-6">
+            {/* Next to the buttons, not at the top of a long form: a save that
+                is refused must say why where the user is looking. */}
+            {infoError && <p role="alert" className="mb-3 rounded-lg border border-destructive/20 bg-danger-surface px-3 py-2 text-sm text-destructive">{infoError}</p>}
+            <div className="flex gap-3">
+            <button type="button" onClick={() => setEditingInfo(false)} disabled={infoSaving} className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-gray-50 disabled:opacity-60">Cancel</button>
+            <button type="button" onClick={handleSaveInfoClick} disabled={infoSaving || !infoDirty}
+              title={infoDirty ? undefined : 'No changes to save'} className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-60">{infoSaving ? 'Saving…' : 'Save Changes'}</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {/* One step between Save Changes and the write (user, 2026-09-25). */}
       <ConfirmDialog
         open={confirmSaveInfo}
-        title="Save these changes?"
-        message="This updates the student's information with what's currently in the form."
-        confirmLabel="Save"
+        tone="default"
+        title="Save changes to this student's basic information?"
+        message={draftInfo ? `${draftInfo.last_name ?? ''}, ${draftInfo.first_name ?? ''}` : ''}
+        confirmLabel="Save Changes"
         busy={infoSaving}
-        onConfirm={() => { setConfirmSaveInfo(false); handleSaveInfo(); }}
+        onConfirm={async () => { setConfirmSaveInfo(false); await handleSaveInfo(); }}
         onCancel={() => setConfirmSaveInfo(false)}
       />
       <ConfirmDialog
-        open={pendingYearAction !== null}
-        title={
-          pendingYearAction === 'add' ? `Add ${addYearTarget}?`
-          : pendingYearAction === 'edit' ? `Edit ${years[selectedYear]?.iptr.school_year}’s date?`
-          : `Remove ${years[selectedYear]?.iptr.school_year}?`
-        }
-        tone={pendingYearAction === 'delete' ? 'danger' : 'default'}
+        open={confirmDeleteYear !== null}
+        title={`Remove ${confirmDeleteYear !== null ? years[confirmDeleteYear]?.iptr.school_year ?? 'school year' : 'school year'}?`}
         message={
           <div className="space-y-3">
-            {pendingYearAction === 'add' && <p>This opens a new school year record for this student.</p>}
-            {pendingYearAction === 'edit' && (
-              <div>
-                <label className="block text-xs font-medium text-foreground mb-1">Date opened</label>
-                <input type="date" value={editYearDateValue} onChange={(e) => setEditYearDateValue(e.target.value)}
-                  disabled={yearActionBusy}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60" />
-              </div>
-            )}
-            {pendingYearAction === 'delete' && <p>This archives the entire school year — its dental chart and medical, dietary, and oral-health records. A System Admin can restore it from the archive.</p>}
-            {/* Isolated <form> + non-standard autofill fields, same reasoning
-                as PatientList's bulk-archive password field — see there for
-                why plain autoComplete="current-password"/"new-password"
-                don't fit a re-type-to-confirm field. */}
-            <form autoComplete="off" onSubmit={(e) => e.preventDefault()}>
-              <label htmlFor={yearActionPasswordFieldName} className="block text-xs font-medium text-foreground mb-1">Enter your password to confirm</label>
+            <p>This archives the entire school year — its dental chart and medical, dietary, and oral-health records. A System Admin can restore it from the archive.</p>
+            <div>
+              <label htmlFor={yearPasswordField} className="block text-xs font-medium text-foreground mb-1">
+                Confirm with your password
+              </label>
               <input
-                id={yearActionPasswordFieldName}
-                name={yearActionPasswordFieldName}
+                id={yearPasswordField}
+                name={yearPasswordField}
                 type="password"
-                required
-                autoComplete="one-time-code"
-                data-lpignore="true"
-                data-1p-ignore="true"
-                data-bwignore="true"
-                autoFocus={pendingYearAction !== 'edit'}
-                value={yearActionPassword}
-                onChange={(e) => { setYearActionPassword(e.target.value); setYearActionPasswordError(null); }}
-                disabled={yearActionBusy}
-                className="w-full border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
+                autoComplete="new-password"
+                value={yearPassword}
+                onChange={(e) => { setYearPassword(e.target.value); setYearPasswordError(null); }}
+                disabled={deletingYear}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
               />
-              {yearActionPasswordError && <p className="mt-1 text-xs text-destructive">{yearActionPasswordError}</p>}
-            </form>
+              {yearPasswordError && <p className="mt-1 text-xs text-destructive">{yearPasswordError}</p>}
+            </div>
           </div>
         }
-        confirmLabel={pendingYearAction === 'delete' ? 'Remove year' : pendingYearAction === 'add' ? 'Add year' : 'Save date'}
-        busy={yearActionBusy}
-        onConfirm={runYearAction}
-        onCancel={closeYearAction}
+        confirmLabel="Remove year"
+        busy={deletingYear}
+        onConfirm={confirmDeleteYearNow}
+        onCancel={() => { setConfirmDeleteYear(null); setYearPassword(''); setYearPasswordError(null); }}
+      />
+      {/* ── CONSENT CONFIRMATION (Sprint 169, hers) ────────────────────────
+          Her dialog, and the reason for it is right: ticking "consent
+          obtained" is a claim about a piece of PAPER, so the dialog shows the
+          form that paper is, and the person ticking confirms against it.
+
+          ⚠ The service list is OURS — `SERVICES` in ConsentForm.tsx,
+          transcribed verbatim from the blank form supplied 2026-09-03, grade
+          ranges and all. Hers is a paraphrase in sentence case. A paraphrase in
+          the dialog and the real wording on the sheet is how someone confirms
+          against a form that says something else. */}
+      {confirmConsent && (
+        <Modal onClose={() => setConfirmConsent(null)} maxWidth="max-w-[666px]">
+          <div className="flex items-start gap-3 p-6 border-b border-border">
+            <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${confirmConsent.revert ? 'bg-warning' : 'bg-primary'}`}>
+              {confirmConsent.revert ? <ShieldAlert className="w-5 h-5 text-white" /> : <ShieldCheck className="w-5 h-5 text-white" />}
+            </div>
+            <div className="min-w-0">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-primary mb-1">Guardian Consent</div>
+              <h2 className="text-lg font-bold text-foreground">
+                {confirmConsent.revert ? 'Revert consent to pending?' : 'Confirm consent obtained'}
+              </h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                {confirmConsent.revert
+                  ? `This says the signed copy for ${confirmConsent.schoolYear} is NOT on file after all.`
+                  : `Confirm a signed physical copy of the form below is on file for ${confirmConsent.schoolYear} before continuing.`}
+              </p>
+            </div>
+          </div>
+          {!confirmConsent.revert && (
+            <div className="p-6 pb-0">
+              <div className="rounded-lg border border-border bg-canvas p-4 max-h-64 overflow-y-auto text-xs text-foreground space-y-3">
+                <p className="font-bold text-sm">Parents/Guardian Consent Form</p>
+                <p className="text-muted-foreground">
+                  Ang dentista po ng ating school clinic ay magsasagawa ng serbisyong dental sa mga mag-aaral na may
+                  layuning makapagbigay ng preventive at curative treatment. Ang mga serbisyo dental ay ang mga sumusunod:
+                </p>
+                <ul className="space-y-2">
+                  {CONSENT_SERVICES.map((sv) => (
+                    <li key={sv.label}>
+                      <span className="font-semibold">{sv.label}</span>
+                      {sv.note && <span className="block text-muted-foreground">{sv.note}</span>}
+                    </li>
+                  ))}
+                </ul>
+                <p className="pt-2 border-t border-border font-medium">
+                  Oo, pumapayag ako na bigyan ng serbisyong dental ang aking anak/apo/pamangkin.
+                </p>
+              </div>
+            </div>
+          )}
+          <div className="p-6 space-y-4">
+            <div className="flex items-start gap-2.5 rounded-lg bg-warning-surface p-3">
+              <ShieldIcon className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+              {/* ⚠ Worded to be TRUE. Hers says the tick "cannot be undone" and
+                  hides the box once complete. Ours can be reverted — the model
+                  hook clears `consent_given_at` on the way back, and that path
+                  exists precisely so a mis-tick can be corrected without a
+                  database edit. Saying "cannot be undone" when it can is the
+                  same class of untruth as a control that only looks like it
+                  works, so the wording follows the behaviour. */}
+              <p className="text-xs text-warning">
+                {confirmConsent.revert
+                  ? 'The recorded consent date for this school year will be cleared.'
+                  : `This records consent for ${confirmConsent.schoolYear} only, and stamps the date. It can be reverted here, which clears that date.`}
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-3 p-6 pt-0">
+            <button onClick={() => setConfirmConsent(null)}
+              className="flex-1 px-4 py-2 border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium">
+              Cancel
+            </button>
+            <button
+              onClick={() => { const revert = confirmConsent.revert; setConfirmConsent(null); handleToggleConsent(!revert); }}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-white text-sm font-medium ${confirmConsent.revert ? 'bg-warning hover:opacity-90' : 'bg-primary hover:bg-primary-hover'}`}
+            >
+              <Check className="w-4 h-4" /> {confirmConsent.revert ? 'Revert to pending' : 'Confirm consent'}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      <ConfirmDialog
+        open={pendingNav !== null}
+        title="Leave this chart unsaved?"
+        message={`Nothing on this chart has been saved yet. Going to ${pendingNav?.name ?? 'the next student'} discards it. Cancel, then use Save Chart if you want to keep it.`}
+        confirmLabel="Discard and continue"
+        onConfirm={() => { const t = pendingNav; setPendingNav(null); setEditMode(false); if (t) navigate(`/dental-chart/${t.id}${navQuery}`); }}
+        onCancel={() => setPendingNav(null)}
       />
       <ConfirmDialog
         open={confirmClear !== null}
@@ -2677,73 +2670,14 @@ export const DentalChart = () => {
         onConfirm={() => confirmClear && clearAll(confirmClear)}
         onCancel={() => setConfirmClear(null)}
       />
-      {/* Mirrors the "Patient Consent" reference mockup's layout (icon badge +
-          kicker + title, a scrollable content box, an info note, then
-          Cancel / Confirm) but with FLORAL's own content — the actual
-          Parents/Guardian Consent Form's service list and consent line,
-          not the reference's placeholder waiver text. */}
-      {confirmConsentTarget && (
-        <Modal onClose={() => setConfirmConsentTarget(null)} maxWidth="max-w-[666px]">
-          <div className="flex items-start gap-3 p-6 border-b border-border">
-            <div className="w-11 h-11 rounded-xl bg-primary flex items-center justify-center flex-shrink-0">
-              <ShieldCheck className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-primary mb-1">Guardian Consent</div>
-              <h2 className="text-lg font-bold text-foreground">Confirm Consent Obtained</h2>
-              <p className="text-xs text-muted-foreground mt-1">
-                Confirm a signed physical copy of the form below is on file for {confirmConsentTarget.schoolYear} before continuing.
-              </p>
-            </div>
-          </div>
-          <div className="p-6 space-y-4">
-            <div className="rounded-lg border border-border bg-canvas p-4 max-h-64 overflow-y-auto text-xs text-foreground space-y-3">
-              <p className="font-bold text-sm">Parents/Guardian Consent Form</p>
-              <p className="text-muted-foreground">
-                Ang dentista po ng ating school clinic ay magsasagawa ng serbisyong dental sa mga mag-aaral na may layuning makapagbigay ng preventive at curative treatment sa mga mag-aaral. Ang mga serbisyo dental ay ang mga sumusunod:
-              </p>
-              <ul className="space-y-2">
-                {[
-                  ['Oral Exam o Dental Check-up', 'Ito ay taunang ginagawa sa lahat ng mag-aaral.'],
-                  ['Topical Fluoride Varnish Application (Kinder at Grade 1)', 'Ang fluoride varnish ay tumutulong para patibayin at maiwasan ang pagkasira kaagad ng ngipin.'],
-                  ['Pit and Fissure Sealant (Grade 2 to Grade 3)', 'Ito ay para maprotektahan ang bagong-tubong ngipin.'],
-                  ['Oral Prophylaxis o Linis ng Ngipin (Grade 2 to Grade 6)', ''],
-                  ['Tooth Restoration o Pasta ng Ngipin (Grade 2 to Grade 6)', ''],
-                  ['Tooth Extraction o Bunot (Kinder to Grade 6)', 'Kailangan may kasamang magulang/guardian ang bata sa araw ng bunot.'],
-                ].map(([title, note]) => (
-                  <li key={title}>
-                    <span className="font-semibold">{title}</span>
-                    {note && <span className="block text-muted-foreground">{note}</span>}
-                  </li>
-                ))}
-              </ul>
-              <p className="pt-2 border-t border-border font-medium">
-                Oo, pumapayag ako na bigyan ng serbisyong dental ang aking anak/apo/pamangkin.
-              </p>
-            </div>
-            <div className="flex items-start gap-2.5 rounded-lg bg-danger-surface p-3">
-              <Shield className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-destructive">
-                This marks the student's consent for this school year. It cannot be undone. Once confirmed, this checkbox can no longer be unchecked.
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-3 p-6 border-t border-border">
-            <button onClick={() => setConfirmConsentTarget(null)} className="flex-1 px-4 py-2 border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium">
-              Cancel
-            </button>
-            <button
-              onClick={() => {
-                handleToggleConsent(confirmConsentTarget.iptrId, true);
-                setConfirmConsentTarget(null);
-              }}
-              className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover text-sm font-medium"
-            >
-              <Check className="w-4 h-4" /> Confirm Consent
-            </button>
-          </div>
-        </Modal>
-      )}
+      <PreviewModal
+        open={preview.open}
+        kind={preview.kind}
+        title={preview.title}
+        url={preview.url}
+        onClose={closePreview}
+        onDownload={confirmDownload}
+      />
     </div>
   );
 };

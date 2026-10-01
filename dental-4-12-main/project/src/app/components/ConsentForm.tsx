@@ -1,6 +1,9 @@
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
+import { usePrintOrientation } from '../hooks/usePrintOrientation';
 import { Download } from 'lucide-react';
-import { exportDohReportToPdf } from '../utils/exportPdf';
+import { buildDohReportPdf } from '../utils/exportPdf';
+import { usePreviewModal } from '../hooks/usePreviewModal';
+import { PreviewModal } from './PreviewModal';
 
 // ─── Parents/Guardian Consent Form ───────────────────────────────────────────
 // Transcribed from the blank form the user supplied 2026-09-03
@@ -26,7 +29,10 @@ import { exportDohReportToPdf } from '../utils/exportPdf';
 // eligibility rules (fluoride varnish is Kinder-Grade 1, sealant Grade 2-3) and
 // must not be paraphrased.
 
-const SERVICES: { label: string; note?: string }[] = [
+/** ⚠ Exported so the consent CONFIRMATION reads the same list the printed form
+ *  carries. A paraphrase in the dialog and the real wording on the sheet is how
+ *  someone ticks "consent obtained" against a form that says something else. */
+export const SERVICES: { label: string; note?: string }[] = [
   { label: 'ORAL EXAM O DENTAL CHECK UP', note: 'ITO AY TAUNANG GINAGAWA SA LAHAT NG MAG-AARAL.' },
   {
     label: 'TOPICAL FLUORIDE VARNISH APPLICATION (KINDER AT GRADE 1)',
@@ -56,17 +62,15 @@ const Line = ({ w = 'flex-1' }: { w?: string }) => (
 );
 
 export const ConsentForm = () => {
+  // → A one-page letter with a signature block, built at 780px — portrait.
+  usePrintOrientation('portrait');
   const printableRef = useRef<HTMLDivElement>(null);
-  const [busy, setBusy] = useState(false);
+  const { preview, building, previewPdf, closePreview, confirmDownload } = usePreviewModal();
 
-  const onPdf = async () => {
+  const onPdf = () => {
     if (!printableRef.current) return;
-    setBusy(true);
-    try {
-      await exportDohReportToPdf(printableRef.current, 'Parents-Guardian-Consent-Form.pdf');
-    } finally {
-      setBusy(false);
-    }
+    const el = printableRef.current;
+    previewPdf('Parents/Guardian Consent Form', 'Parents-Guardian-Consent-Form.pdf', () => buildDohReportPdf(el));
   };
 
   return (
@@ -81,16 +85,16 @@ export const ConsentForm = () => {
           </div>
           <button
             onClick={onPdf}
-            disabled={busy}
+            disabled={building}
             className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-gray-50 disabled:opacity-50 w-fit"
           >
-            <Download className="w-3.5 h-3.5" />{busy ? 'Preparing…' : 'PDF'}
+            <Download className="w-3.5 h-3.5" />{building ? 'Preparing…' : 'PDF'}
           </button>
         </div>
       </div>
 
       <div className="bg-card rounded-xl border border-border overflow-x-auto">
-        <div ref={printableRef} className="bg-white text-black p-8 mx-auto" style={{ width: 780, fontSize: 11, lineHeight: 1.5 }}>
+        <div ref={printableRef} className="form-print bg-white text-black p-8 mx-auto" style={{ width: 780, fontSize: 11, lineHeight: 1.5 }}>
           <h1 className="text-center font-bold tracking-wide" style={{ fontSize: 15 }}>
             PARENTS/GUARDIAN CONSENT FORM
           </h1>
@@ -177,6 +181,14 @@ export const ConsentForm = () => {
           </div>
         </div>
       </div>
+      <PreviewModal
+        open={preview.open}
+        kind={preview.kind}
+        title={preview.title}
+        url={preview.url}
+        onClose={closePreview}
+        onDownload={confirmDownload}
+      />
     </div>
   );
 };

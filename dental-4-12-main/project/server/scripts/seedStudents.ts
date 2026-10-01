@@ -1,6 +1,7 @@
 import "dotenv/config";
 import "../dnsFix.js"; // this machine's Node 24 + Atlas SRV workaround
 import { connectDB } from "../config/db.js";
+import { announceTarget } from "./announceTarget.js";
 import { splitFullName } from "./splitStudentNames.js";
 import { School, Student, StudentIptr, DentalChart, Dentist, PreventiveCareRecord, RiskStratification } from "../models/index.js";
 import mongoose from "mongoose";
@@ -9,6 +10,7 @@ import { DEMO_STUDENTS as STUDENTS } from "./demoStudents.js";
 
 async function main() {
   await connectDB();
+  announceTarget("seedStudents");
 
   const schools: Record<string, any> = {};
   for (const s of await School.find({})) schools[s.school_name] = s;
@@ -58,6 +60,9 @@ async function main() {
       address: "Barangay Tanyag, Taguig City",
       grade_level: s.grade_level,
       section: s.section,
+      // Marks this as seeded, not encoded by a person. purgeDemoData.ts deletes
+      // on this flag alone — see Student.ts.
+      is_demo: true,
     });
 
     const iptr = await StudentIptr.create({ student_id: student._id, school_year: "2025-2026" });

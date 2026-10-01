@@ -5,13 +5,25 @@ import { usePendingWritesFor } from './useOfflineQueue';
 import { toLocalDateString, toLocalTimeString } from '../utils/localDate';
 import type { ApiAppointment, ApiStudent, ApiDentist, ApiSchool } from '../api/types';
 import { surnameFirst } from '../utils/studentName';
+import { calculateAge } from '../utils/age';
 
 export interface SessionStudent {
   id: string;
   name: string;
   gender: string;
-  age: number;
+  age: number | null;
   riskLevel: string | null;
+  /** The underlying APPOINTMENT this pupil holds in the session (Sprint 109).
+   *  Carried explicitly rather than read positionally out of
+   *  `appointmentIds` — the arrays happen to be built in step today, and a
+   *  note written against the wrong pupil is exactly the class of bug that
+   *  kind of coupling produces. */
+  appointmentId: string;
+  /** Remark on that appointment; '' when unset. */
+  notes: string;
+  /** APPOINTMENT flags, shown in the details panel (2026-09-25). */
+  requiresFollowup: boolean;
+  parentalSupervision: boolean;
 }
 
 export interface AppointmentSession {
@@ -28,16 +40,14 @@ export interface AppointmentSession {
   dentist: string;
   students: SessionStudent[];
   pending?: boolean;
+  /** Same number on every Appointment row a submission creates (see
+   *  Appointments.tsx's create form) — one per session, not per student.
+   *  Absent on sessions built from appointments created before this field
+   *  existed. */
+  guardianContactNumber?: string;
 }
 
-function calculateAge(birthdate: string) {
-  const today = new Date();
-  const birth = new Date(birthdate);
-  let age = today.getFullYear() - birth.getFullYear();
-  const m = today.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
-  return age;
-}
+// calculateAge: the shared one (BUG-02) — null, not NaN, on a bad birthdate.
 
 function buildSessions(
   appointments: ApiAppointment[],
@@ -72,6 +82,7 @@ function buildSessions(
         dentist: dentistNameById.get(appt.dentist_id) ?? 'Unassigned',
         students: [],
         pending: appt._id.startsWith('pending-'),
+        guardianContactNumber: appt.guardian_contact_number,
       };
       groups.set(key, group);
     }
@@ -84,6 +95,10 @@ function buildSessions(
       gender: student.sex,
       age: calculateAge(student.birthday),
       riskLevel: null,
+      appointmentId: appt._id,
+      notes: appt.notes ?? '',
+      requiresFollowup: !!appt.requires_followup,
+      parentalSupervision: !!appt.parental_supervision_required,
     });
   }
   return Array.from(groups.values());
@@ -188,6 +203,7 @@ export function useAppointments(window: AppointmentWindow) {
         appointment_type: body.appointment_type ?? 'checkup',
         requires_followup: body.requires_followup ?? false,
         parental_supervision_required: body.parental_supervision_required ?? false,
+        guardian_contact_number: body.guardian_contact_number,
         isArchived: false,
       };
     });
@@ -200,10 +216,11 @@ export function useAppointments(window: AppointmentWindow) {
     await reload();
   }, [reload]);
 
-  // Soft-deletes every underlying Appointment record behind one row — a
-  // session can be several records sharing date/time/type/dentist, and all
-  // of them belong to the same booking, so a delete on the row removes all
-  // of them, not just the first.
+  /** Removes an appointment session, which her screen offers from the session
+   *  kebab. ⚠ ARCHIVE, not delete — CLAUDE.md's never-hard-delete rule holds,
+   *  and a session is SEVERAL appointment rows, so every one is archived or the
+   *  session returns half-present on the next read. Hers already did it this
+   *  way; taken unchanged. */
   const deleteSession = useCallback(async (session: AppointmentSession) => {
     await Promise.all(session.appointmentIds.map((id) => apiClient.patch(`/appointments/${id}/archive`)));
     await reload();

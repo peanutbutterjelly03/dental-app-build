@@ -4,6 +4,7 @@
 import "../dnsFix.js";
 import "dotenv/config";
 import { connectDB } from "../config/db.js";
+import { announceTarget } from "./announceTarget.js";
 import {
   MedicalHistory,
   DietarySocialHabits,
@@ -42,6 +43,7 @@ const MODELS = [
 
 async function main() {
   await connectDB();
+  announceTarget("backfillSoftDelete");
   console.log(`Connected to: ${mongoose.connection.name}\n`);
 
   let total = 0;

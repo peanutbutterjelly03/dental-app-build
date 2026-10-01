@@ -1,1778 +1,1767 @@
 # HANDOFF — live state journal
 
-**Compressed 2026-07-11 (hygiene pass).** Completed-sprint history → `docs/BUILD-LOG.md`; full pre-compression narratives → git history (`git show 73bc4e47:HANDOFF.md`). This file keeps only live state: current status, open work, warnings, and durable gotchas.
+**Compressed 2026-09-04 (hygiene pass; previous one 2026-07-11).** Completed-sprint history → `docs/BUILD-LOG.md`; pre-2026-07-11 narratives → git history (`git show 73bc4e47:HANDOFF.md`). **This file keeps ONLY live state: current status, the resume note, unresolved findings, open work, user-only items, warnings and durable gotchas. A finished sprint belongs in BUILD-LOG the moment it is finished — do not let them accumulate here again.**
 
-## 🐞 "Next student" dropped out of charting mode + one-line header (2026-09-05)
-- **THE BUG: stepping to the next student landed on the History tab with charting mode closed.** Cause: `initialTab` is `searchParams.get('tab') || 'history'`, and `routes.tsx` keys DentalChart by `:id`, so every jump remounted with `activeTab = 'history'`; the "close charting mode if the tab is not chart" effect then shut the overlay a beat later. The dentist ended up on the wrong tab of the next child **every single time**, which defeats the entire continuous-charting loop the feature exists for.
-  **Fix:** `initialTab` falls back to `focusModeMemo ? 'chart' : 'history'`. Charting mode is SESSION state, not URL state, so the tab has to follow it across the remount. **Anything else that must survive "Next student" has to be read from a module memo the same way** — component state is wiped on every jump.
-- **Identity is one line now:** `Name · [Grade pill][Section pill] | school year · exam date | 9 of 15`, separated by hairline rules rather than stacked. Name went `text-sm` → `text-lg` (two steps). Grade and section keep the patient card's colour-coded pills. Verified single-line at 1400px and 1100px by comparing vertical CENTRES — comparing `top` is wrong here, `items-center` gives differently-sized children different tops without any wrapping.
-- `npx tsc --noEmit` clean, `npm run build` clean.
+## ⭐ SIDEBAR THEME (2026-09-30, `majorUpdates`): sky is live; the navy + gold rail is one word away
+- `Root.tsx` now reads its sidebar colours from a `SB` map keyed by `SIDEBAR_THEME`. **Go back to the original navy/gold sidebar = change `'sky'` to `'navy'`** on the `SIDEBAR_THEME` line near the top of `Root.tsx` (logo swaps too: `logo-sky.svg` vs `logo.svg`). Do not hand-reconstruct it.
+- Frozen full-file copy of the navy/gold `Root.tsx` before the change: `docs/snapshots/Root.sidebar-navy-gold.tsx.txt` (whole-file; restoring it also reverts any later Root.tsx work, so prefer the one-word switch).
+- Sky palette: gradient #F4FBFF→#DFF1FD, text #1E4E79, active pill #0369A1 with white text. Verified: esbuild syntax only. NOT yet viewed in a browser (no node_modules in the cloud session) - check the collapsed rail, mobile drawer, and Students submenu on a real run.
 
-## Charting-mode header + treatment Yes in blue (2026-09-05)
-- **Treatment summary's "Yes" is `text-primary`, not `text-success`.** Green is the condition card's language; the treatment card is blue everywhere else (palette, chips, borders) and a green Yes inside it read as a stray. The condition summary keeps green. Only the two service-answer cells changed — the per-tooth Tooth Count stays `text-foreground` because a count is not an answer.
-- **Charting-mode header now identifies the child properly:** grade and section as the SAME coloured pills the patient card uses (`GradePill` + the grade colour for the section), then school year · examination date · position in the list. Charting mode is exactly where a dentist confirms they are looking at the right mouth, and colour-by-grade is already how this app says that — not a new device. Name block got `flex-1` so it stops truncating before it has to.
-- **Previous student added beside Next**, as one segmented control. `requestNextStudent` generalised to **`requestStudentJump(target)`** — the unsaved-changes guard is identical in both directions, and letting Previous skip it would have been the single hole in "never lose an unsaved chart". Dialog copy went direction-neutral.
-- **"Applying: …" banners dropped to `text-[11px]`** (from `text-xs`) on both palettes.
-- `npx tsc --noEmit` clean, `npm run build` clean, rendered against the built CSS.
+## `majorUpdates` session 2026-09-24: Dental Chart UI polish + Medical History expansion
 
-## ⭐ CHARTING MODE + vitals + summary reverts (2026-09-05)
-- **CHARTING MODE — the sprint's real feature.** A full-screen surface for the one job the dentist actually repeats: chart a mouth, save, next child. Entered from "Charting Mode" in the year strip, left with Exit or **Escape**.
-  - **It is the chart tab's OWN container that goes full screen** (`fixed inset-0 z-[75] bg-canvas`), not a separate overlay component — so the chips, the palette and the odontogram are literally the same JSX in both states. A second copy would have drifted within a sprint.
-  - `z-[75]` sits over the nav rail (`z-[70]`) and the status strip (`z-[60]`). That IS "the nav bar de-expands": it is covered, so the full width belongs to the chart. No cross-component call into Root's `collapsed` state was needed.
-  - Sticky action bar keeps **Save** and **Next student** visible; body scroll is frozen and `overscroll-contain` stops the record behind from scroll-chaining on a trackpad.
-  - **Next student is GUARDED**: `editMode && isEditDirty()` opens "Save before moving on?" which saves and *then* navigates. It never silently discards — that is the one thing a continuous charting loop must not get wrong.
-  - **`focusModeMemo` (module scope) survives the remount.** `routes.tsx` keys DentalChart by `:id`, so without it the overlay would close on every "Next student" — which is the entire point of the feature. Same trick as `basicInfoExpandedMemo`; see that note for why.
-  - Summaries and the DMFT block are **hidden** in charting mode: they are a read-out of what was just typed, not an input. Charting mode also closes itself if the user switches tabs.
-- **STUDENT_IPTR gains `temperature_c` (Celsius) and `blood_pressure`.** BP is a STRING, not two numbers: it is read and written as a pair and nothing in the app queries systolic alone. Placeholders are worked examples (`e.g. 36.5`, `e.g. 110/70`) matching the height/weight fields. BMI and Nutritional Status now both read **"Automatic"** when empty.
-- **Reverts, on request:** the four-sided cell grid in the summaries is back to a bottom rule only (it read as a spreadsheet), and the summary dates are no longer bold.
-- **"B. Indicate Number" → "Indicate Number".**
-- **History's Others checkboxes** (Medical History, Dietary Habits) now use the same `border-gray-600` as the chart's, so a fake checkbox does not read lighter than the real ones beside it.
-- `npx tsc --noEmit` clean, `npm run build` clean; charting mode rendered against the built CSS — chips, codes and the full odontogram fit one 1200×760 screen with Save and Next pinned.
+Work is on branch **`majorUpdates`** (pushed; not merged to main).
+- **Medical History (ERD DEVIATION, user-approved):** MEDICAL_HISTORY gains `blood_disorders`, 11 fields for DOH Form 1's Filipino questions (Q3, 4, 7-13, 15, 16) and 5 encrypted detail fields. History tab tick-box chips (ticked = Oo, unticked = Hindi on Form 1, user decision); Q12/Q13 show and print for female pupils only. Form 1 prints Oo/Hindi + Remarks; IPTR prints Blood Disorders, Last Admission and the "Please specify" details. Specs: `docs/DATA-MODEL.md`. ⚠ **Chapter 3 ERD figure must be updated.**
+- **School Rotation (user-approved 2026-09-24):** Appointments → School Rotation tab (redesigned 2026-09-25 to the user's pick: today as a school-coloured hero card with tomorrow beside it, then Mon–Fri colour-topped day cards; set-a-day window; Copy last week; the four stat cards were dropped), plus a today/tomorrow reminder in the top bar and on the Dashboard for the dentist and dental aide. Uses DENTIST_ROTATION, one row per day (see DATA-MODEL). Verified in a browser against a mocked API (set day, copy last week, phone width); not yet against the real server. ⚠ ERD deviation to describe in Chapter 3.
+- Other changes this session (all UI, all on `majorUpdates`): Grade-Section header text, Physical Measurements (ft/in, cm, m height; no spinners), phone top bar, compact code palette in bundled DejaVu Sans (`public/fonts`), Treatment Summary rebuilt to the user's Visit 1 | Visit 2 spreadsheet, V1/V2 tooth badges, whole-mouth treatment codes removed from the palette, code-painting stamps the matching date, charting a treatment opens the active RPC visit, cleared teeth now archived on save (dentist got `archiveRoles` on tooth-records), single blue "Download PDF" menu, red Save.
 
-## DOH "B. Indicate Number" block added to the chart summaries (2026-09-05)
-- **"Summary of Dental Condition" → "Dental Condition Summary".**
-- **Section B of the paper IPTR is now rendered, verbatim rows and order**, from a photo of the form: Permanent Teeth Present / Permanent Sound / D / M / F / X / DMFX, then Temporary Present / Temporary Sound / d / f / x / dfx. Every figure is **derived from the odontogram** (`indicateNumberRows`) — none of it is typed, so it cannot disagree with the teeth above it.
-- **Two readings of the form worth not re-deriving:**
-  · **"Present" EXCLUDES missing and unerupted** (`M`/`Un`, `m`/`un`). A tooth that is not in the mouth cannot be counted as present.
-  · The temporary block is **"dfx", not "dmfx", and the form has NO "missing (m)" row** — primary teeth exfoliate naturally, so a missing one is not a caries outcome. Followed exactly rather than "corrected" to match the permanent block.
-- **Both summaries now carry Tooth Count + Tooth Numbers.** The treatment per-tooth table's "Given" column became "Tooth Count" (the count answers "given?" implicitly and says how many). All four tables share the 45/18/37 geometry, so the middle column is on one axis throughout.
-- **Every cell bordered on all four sides** (`border border-teal-200` / `border-blue-200`) instead of row-only rules — these are the DOH form's tables and that form is a ruled grid; underlines left the count and tooth-number columns visually unbounded.
-- **IPTR page header untinted:** `bg-gray-50` → `bg-canvas`. It is sticky so it MUST stay opaque or scrolled content shows through; matching the page background makes the fill invisible without breaking that.
-- Verified against the built CSS: both cards 792px (equal height).
-- `npx tsc --noEmit` clean, `npm run build` clean.
-
-## Summary column distribution + per-column Applying banner (2026-09-05)
-- **The "Applying: …" banner now lives under the palette it came from.** It was one banner at the bottom of the whole blue card, so picking a treatment on the RIGHT lit a message on the far LEFT. Split into two, each with its own Clear. The "No code selected · click teeth to clear" variant is gone with it — it only ever rendered inside a `selectedCondition || selectedTreatment` guard, so it was dead markup that could never display.
-- **Column widths are PERCENTAGES now, not fixed px.** Fixed 220/84 left a ragged empty strip on the right of a card whose width varies with the viewport. Conditions = plain yes/no → `50/50`. Treatments = `45/18/37`; the middle column only ever holds "Yes" or a date, so everything it does not need goes to the label and the tooth numbers. **The whole-mouth table declares the SAME three columns** (empty third cell, `colSpan` on the two date/Others rows) so its value column lands under "Given" instead of on its own axis.
-- **Equal-height cards:** `items-start` dropped from the summary grid so both stretch to the taller one.
-- **Blank, not "—", for every absent value** including both dates — per request, and it matches the paper form where an untouched cell is simply empty. The ROWS still always render; that half of the DOH-form rule stands.
-- **"Others" fake checkbox outlined `border-gray-600`** to match a native unchecked `<input type=checkbox>`; at `border-blue-200` it read as decoration next to the real ones.
-- Verified against the built CSS: both summary cards 424px (equal), and the banner's x sits in the treatment half.
-- `npx tsc --noEmit` clean, `npm run build` clean.
-
-## Chart tab compacted — three side-by-side pairs (2026-09-05)
-- **Chips back to two columns side by side.** They were stacked last round specifically to fit three per row; stacked, that one card ran most of a screen. The grid keeps `sm:grid-cols-2 2xl:grid-cols-3`, so three-per-row still appears once a column is genuinely wide enough — at laptop width a half column cannot hold three without wrapping "Periodontal Disease", so it settles at two. **These two asks are in direct tension; vertical space won.**
-- **Legend moved into the year-strip row, immediately before the 3-dot menu.** It previously owned a full-width row above the tab card — a whole horizontal band for one button. Chart tab only.
-- **The two summaries are side by side.** Each is a narrow two-column table, so alone each left most of its card empty.
-- **Shared column geometry retuned 260/90 → 220/84** for half-width cards. First attempt at 180/70 was too tight and was caught by measuring, not by eye: the date wrapped to two lines and "PFS Pit and Fissure Sealant" broke mid-label. Verified after: every table cell reports one distinct height (nothing wraps) and every value column sits at the same 237px offset **within its own card**, which is what alignment means once the cards are in different screen positions.
-- ⚠ **Harness gotcha:** the Playwright mock-up links `dist/assets/index-<hash>.css`, and the hash changes on every rebuild — a stale link silently renders an unstyled page that looks like a catastrophic layout regression. Re-point the href after any rebuild before trusting a screenshot.
-- `npx tsc --noEmit` clean, `npm run build` clean.
-
-## Chart tab: two dates, chips-first, aligned two-tone summaries (2026-09-05)
-- **DENTAL_CHART gains `date_treated`** (nullable). A screening and the treatment that follows it are routinely different visits, and one shared `date_charted` forced the chart to claim they were the same day. `date_charted` is now explicitly the CONDITIONS date; null `date_treated` means findings recorded with nothing done yet. `DATA-MODEL.md` updated — Chapter 3 needs the same note.
-- **Both dates are editable `<input type="date">` and auto-stamp on first mark.** `stampDate()` fills a date only when it is EMPTY and never overwrites — silently resetting a date the clinician typed would be worse than leaving it blank. Condition clicks + oral-condition chips stamp `dateCharted`; treatment clicks + service chips stamp `dateTreated`. Both flow into the summaries from the DRAFT, so an edit shows before saving.
-- **Chips moved ABOVE the code palette** and the two groups are **stacked full width** instead of side by side — that is what makes three chips per row possible on a desktop (`grid-cols-1 sm:grid-cols-2 md:grid-cols-3`). Two half-width columns cannot fit three without wrapping "Periodontal Disease". Unselected chips are outlined `border-blue-200`.
-- **Legend moved OUT of the tab card**, rendered above it and only on the chart tab.
-- **Summaries: one shared column geometry.** All three tables are `table-fixed` with `w-[260px]` label / `w-[90px]` value, so the Yes column lands on the same x in every table — verified by measuring: every `nth-child(2)` cell across all three tables reports a single left position (318px). Content-sized columns drifted per table and read as sloppy; the earlier `pr-8`-only fix also put the values too close to the labels.
-- **Two-tone cards:** conditions on `bg-teal-50/70 border-teal-200`, treatments on `bg-blue-50/70 border-blue-200` — matching the teal condition palette and the blue treatment palette, so the colour already in use tells you which summary you are reading. Treatment summary gained a "Date of Treatment" row.
-- ⚠ **Splice gotcha, hit three times this session:** replacing a JSX block by string index between a start comment and the next-tab marker leaves ONE extra `</div>`, because the end marker's three closers already include the replaced card's own. Check the closer count after any such edit — `tsc` catches it, but only after the fact.
-- `npx tsc --noEmit` clean, `npm run build` clean, rendered against the built CSS.
-
-## Chart tab polish + TWO REAL BUGS in the previous round (2026-09-05)
-- **🐞 Dental Caries never fired for a primary tooth.** `hasCaries` tested `condition === 'D'`, but `handleToothClick` stores `codeObj.perm` for a permanent tooth and `codeObj.temp` for a primary one — so a decayed primary tooth stores `'d'` and the summary said "—" on a mouth full of caries. Now tests `'D' || 'd'`, the same way `computeDMFT` counts both cases. **Any new derivation over `condition` must handle both cases** — that is the shape of this data.
-- **🐞 `orally_fit_child` was a hand-ticked chip sitting above the odontogram that contradicts it.** Now DERIVED (`isOrallyFit`): true only when the mouth has actually been charted AND no tooth carries D/d/M/m/F/f/X/x. An empty chart is NOT orally fit — nothing was examined. Un/S/JC/P do not disqualify: anatomical findings, not caries experience. The chip is gone, the `orallyFitChild` draft field is deleted, and **the save writes the derived value to `orally_fit_child`** so the column the Target Client List reads stays truthful.
-- **Layout, all per explicit request:** Legend moved ABOVE the palette card (inside, it claimed a whole row of the card's padding) and filled `bg-destructive` — it is now the only way to decode the codes. "More (4)" is the last item IN the condition wrap row. Each Clear All moved onto its own column's heading row and is **hidden, not disabled, when the count is 0** — a permanently-visible disabled destructive button is noise on a blank chart. Headings `font-bold text-primary`.
-- **Chips → the Medical History checkbox rows.** A pill that toggles reads as a filter; a checkbox reads as a form field, and these are form fields. Reused that exact pattern rather than inventing a third selected-state style. Group headings ("Whole-mouth …") dropped — the divider and the context already separate them.
-- **Summaries:** renamed to *Summary of Dental Condition*; both containers filled (`bg-blue-50/60`); "Treatment Summary — per tooth" heading dropped since its own "Tooth numbers" column says what it is. **Values pulled in beside their labels** — the tables were `w-full`, which stretched the label column to the container and stranded every value at the far right. Dropping `w-full` and adding `pr-8` sizes the table to its content instead. Orally Fit Child sits right after the date, highlighted `bg-success-surface` when true.
-- **Examination date no longer reads "—" before the first save.** `date_charted` only exists once a chart record does; falls back to `iptr.date_opened ?? created_at`, the same value the year chips show, so the two cannot disagree on screen.
-- "Applying: D/d — Decayed · Click teeth to apply" → "Applying: D/d (Decayed). Click teeth to apply." Treatment side now resolves its label too instead of showing a bare code.
-- `npx tsc --noEmit` clean, `npm run build` clean, rendered against the built CSS.
-
-## Code buttons shrunk to small 12px boxes (2026-09-05)
-- **`aspect-square` was the actual cause of the height**, not the padding: in a stretched grid cell the height tracked the width, so a wide card produced 86px-tall boxes to hold two characters. Removed, and replaced with a fixed `h-9 w-[60px]`.
-- Grids changed from `grid grid-cols-5 justify-items-center` to `flex flex-wrap` for the same reason — a grid cell can stretch its child, a flex item with a fixed width cannot. All three palettes (common conditions, rare conditions, per-tooth treatments) use it.
-- Type `text-base` (16px) → `text-xs` (12px); corner `rounded-lg` → `rounded-md` to stay proportionate at the smaller size.
-- Measured against the built CSS: every button 60 × 36px with 12px type, down from 86 × 86.
-- `npx tsc --noEmit` clean, `npm run build` clean.
-
-## Dental Chart tab rebuilt — per-tooth vs per-head-count split (2026-09-05)
-**This is the first change since the baseline was frozen.** Restore point unaffected: commit `176998c` + `docs/snapshots/DentalChart.baseline-2026-09-05.tsx.txt`.
-
-- **The organising idea, and the reason the sprint was worth doing:** the chart had ONE palette for two different kinds of fact. `OEX`/`FV`/`OP` were being stamped onto individual teeth, so a single fluoride varnish application was recorded up to 28 times. That both inflated every service count and made "was varnish given at this visit?" unanswerable without walking every tooth record. The tab now separates strictly by WHERE the fact lives: **per-tooth → TOOTH_RECORD (palette buttons)**, **per-head-count → its own record (chips)**.
-- **DENTAL_CHART gained 5 fields** (`oral_examination`, `fluoride_varnish`, `oral_prophylaxis`, `consultation`, `treatment_others`) — the user chose this over PREVENTIVE_CARE_RECORD (which is the RPC two-visit workflow, a different process) and over a 17th model. `DATA-MODEL.md` updated; Chapter 3 needs the same note.
-- **⚠ RBAC regression caught before shipping.** The whole-mouth condition chips were first placed inside the blue palette card, which is gated on `editingChart` (dentist only, because teeth are) — that would have silently removed the DENTAL AIDE's ability to record oral conditions, which they have always had on History. The chips now live in their own card: conditions follow `editingHistory` (dentist + aide), services follow `editingChart`. **Any future edit that moves a control into that blue card inherits dentist-only.**
-- **⚠ `treatmentCodes` order is load-bearing — do not reorder it.** `Reports.tsx:359` builds the DOH treatment report's ROWS from that array, so its order is the row order on an official form; `RPCTracking` and `Dashboard` also resolve stored codes to labels through it. A first pass reordered it and would have shuffled the form silently. It now keeps its original 9-entry order, and `toothTreatmentCodes` is DERIVED from it by picking PFS/PF/TF/X/SDF — so a label fix cannot drift between palette and report.
-- **Retired but still listed:** OEX/FV/OP (moved to per-visit) and TR (a duplicate of PF — both read "Pasta"). Historical TOOTH_RECORDs carrying them are NOT rewritten; they render, they count in the per-tooth summary, they just cannot be applied again from the palette.
-- **Palette shows CODES ONLY.** The word under every button was a third copy of the same glossary (button label + two legend cards at the bottom), on a screen where codes are pressed far more than read. All of it now lives in one **Legend dialog**; buttons keep `title` tooltips.
-- **Rare conditions collapsed:** Un/S/JC/P were holding four permanent slots for findings charted a handful of times a year — now behind a "More conditions (4)" disclosure. Same TOOTH_RECORD.condition, no data difference.
-- **Oral Health Condition block DELETED from the History tab.** Same ORAL_HEALTH_CONDITION record — two editors for one record is how a screen ends up disagreeing with itself.
-- **Three summaries replace the old counter + legend cards**, structured on the paper DOH sheet the user photographed: *Present Oral Condition* (label / Yes), *Treatment Summary — whole mouth* (label / Yes), *Treatment Summary — per tooth* (code / Yes / tooth numbers). Rows are never hidden when absent, per the CLAUDE.md rule that official forms keep all their rows. **Dental Caries is DERIVED from the odontogram** (any tooth marked D/d), not from a chip — caries is recorded tooth by tooth, so a chip would be a second source for one fact and the two would disagree. Gingivitis and Periodontal Disease are separate rows although the paper form combines them, because the chips store them as two independent fields.
-- **`teethByTreatment`** replaces the old count-only `treatmentCodeCounts`: "3 fillings" never said WHICH three, which is the question both the dentist and the DOH form ask.
-- Chart record is now created when a SERVICE is recorded, not only when a tooth changes; `isEditDirty`/the edit baseline include the services draft, so the unsaved-changes warning covers them. DMFT removed from the year chips.
-- `npx tsc --noEmit` clean, `npm run build` clean. Rendered against the built CSS in Playwright.
-
-## ⭐ DENTAL CHART BASELINE TAGGED — `dental-chart-baseline-2026-09-05` (2026-09-05)
-**The user asked for a restore point before doing major work on the Dental Chart tab, and said they will ask for it back by voice — "go back to the version before I made changes in the dental charting tab" — however many rounds later.** This section is how that request gets honoured. Do not delete it.
-
-- **⚠ THE TAG COULD NOT BE PUSHED.** `git push origin refs/tags/...` fails in this environment with `send-pack: unexpected disconnect` — retried 5× with backoff, branch pushes work fine, so the proxy blocks tag refs specifically. A local-only tag dies with the container, so the restore point does NOT rely on one. **Two things that ARE pushed carry it instead:**
-  1. **Commit `176998c` on `majorUpdates`** — reachable from the branch, so it is on origin and durable.
-  2. **A frozen copy of the file at `docs/snapshots/DentalChart.baseline-2026-09-05.tsx.txt`** — belt and braces, survives even a history rewrite. `.txt` on purpose: it must never be compiled, imported, linted, or picked up by Tailwind's `@source` scan. Verified byte-identical to the live file at the moment it was taken (its first 11 lines are a header; everything after is the file).
-  A local tag `dental-chart-baseline-2026-09-05` also exists in this container as a convenience, but do NOT depend on it — assume it is gone.
-- **To restore, when the user asks (either works):**
-  ```
-  git checkout 176998c -- dental-4-12-main/project/src/app/components/DentalChart.tsx
-  # or, if history was ever rewritten:
-  tail -n +12 docs/snapshots/DentalChart.baseline-2026-09-05.tsx.txt \
-    > dental-4-12-main/project/src/app/components/DentalChart.tsx
-  ```
-  Then `npx tsc --noEmit` + `npm run build` before committing — a file from an older commit can reference props or helpers that later work removed.
-- **⚠ READ THIS BEFORE RESTORING — `DentalChart.tsx` is ONE file holding ALL SIX tabs**, not just the chart. The command above reverts History, Dental Chart, Caries Risk Assessment, Treatment History, DMFT History and Referrals together. If later rounds also changed a sibling tab, a whole-file restore silently throws that away too. **Check first:** `git diff dental-chart-baseline-2026-09-05 -- <that file>`; if the diff touches anything outside the `{/* ── TAB 2: Dental Chart ── */}` block, restore by hand from the tag's copy instead of checking the whole file out. The section markers (`── TAB 1:` … `── TAB 7:`) are what to navigate by, never line numbers.
-- **Scope of "the dental charting tab":** the odontogram grid, the condition/treatment palette, `Clear All Conditions`/`Clear All Treatments`, and the auto-computed `DMFT / dmft SCORES` block — all inside the TAB 2 block of `DentalChart.tsx`. `computeDMFT` and `treatmentCodes` also live in that file. `hooks/useDentalChartData.ts` (data fetch) and `components/DentalChartNav.tsx` (the list page that links into it) are SEPARATE files and are NOT covered by the command above — include them explicitly if a later change touched them.
-- Baseline state, so it is recognisable: six tabs on one line in a scrolling strip, active tab bold blue with an underline and no fill, no card shadow; the odontogram is four rows of outlined tooth boxes (55-65 / 18-28 / 48-38 / 85-75) split by a dashed midline; year chips sit under the tab strip with DMFT and date.
-
-## Nav rail raised above the status strip; toasts moved clear of it (2026-09-05)
-- **The sidebar's collapse toggle was unclickable.** It is `absolute -right-3 top-5`, so it deliberately pokes 12px past the rail into the strip's horizontal range and sits at y 20-44px — entirely inside the 48px strip. `<aside>` was `z-50`, the strip `z-[60]`, so the strip painted over it. **Raising the button's own z-index cannot fix this:** the aside's z-index makes it a stacking context, so a child can never escape its parent's layer. The RAIL had to win → `z-50` → `z-[70]`. It does not overlap the strip anywhere else, so nothing is hidden in return. Verified with `elementFromPoint` at the button's centre: it returns the button, not the strip.
-- **Same bug, found while fixing it: toasts.** `Toast.tsx` was `fixed top-4 z-50`, centred — i.e. underneath the same strip. Now `top: TOPBAR_H + 8` at `z-[80]`. Transient feedback must beat all page chrome.
-- **Current z-order, top to bottom:** native `<dialog>` (browser top layer) → toasts `z-[80]` → nav rail `z-[70]` → status strip `z-[60]` → IPTR sticky toolbar `z-40` / drawer backdrop `z-40` → IPTR tab strip `z-30` / mobile header `z-30`. Anything new that pins to the viewport has to be placed in this list deliberately.
-- `npx tsc --noEmit` clean, `npm run build` clean.
-
-## Status strip raised to a half inch — 48px, pills untouched (2026-09-05)
-- **`TOPBAR_H` 24 → 48px, which is 1/2 inch exactly** (CSS `1in = 96px`). ONE constant changed; nothing else in this round.
-- **The pills were explicitly kept** — user said "i like the size of the online and the school one, keep it". Still `text-[13px]` / 19px tall, now with 14.5px clearance each side. This is the first round where the two dials were moved independently, which is the lesson from the 64px/128px overshoot recorded above: the container and the type are separate, and only the one named should move.
-- Measured against the built CSS: strip 48px, both pills 19px at 13px. `npx tsc --noEmit` clean, `npm run build` clean.
-
-## Status strip settled at a quarter inch — 24px (2026-09-05)
-- **`TOPBAR_H` = 24px, and that is 1/4 inch exactly**: CSS defines `1in = 96px` regardless of the physical display, so the user's "maybe the container size is just like 1/4 inch" has a precise answer. Pills back to `text-[13px]` with `py-[2px]` = 19px tall, so they nearly fill the 24px bar (2.5px clearance each side).
-- **Why the two "double it" rounds overshot, so it is not repeated:** the ask was to double the CONTAINER, and both times the type was doubled alongside it (10→13→26px), which compounds — a 2× container with 2× type reads as ~4× and the 128px/26px version was bigger than the page `<h1>`. **The container and the type are separate dials. Change the one that was named.** The real complaint underneath was never "make everything bigger": it was that the pills floated in a bar far taller than they needed, i.e. the RATIO was wrong. Fixed by shrinking the bar to the contents, not by growing the contents.
-- ⚠ The sync pill is now a 19px click target, under the 24px minimum usually recommended for touch. Nobody has complained; note it if a phone user struggles to open the sync panel.
-- Measured against the built CSS: strip 24px, both pills 19px at 13px type. `npx tsc --noEmit` clean, `npm run build` clean.
-
-## Strip doubled again; grammar fix; offline cue back on Login (2026-09-05)
-- **`TOPBAR_H` 64 → 128px and both pills doubled** (`text-[13px]` → `text-[26px]`, dot 5 → 10px, padding and gaps doubled, strip `px-3` → `px-6`) — second "make it bigger" round, done exactly as asked. Measured against the built CSS: strip 128px, both pills 40px tall at 26px type. ⚠ **Two consequences flagged to the user, not yet answered:** the pills are now larger than the page `<h1>` (26px vs `text-2xl`/24px), which inverts the type hierarchy; and at 390px the strip is ~18% of the viewport height and the two pills consume essentially the full width. A responsive split (full size at `md:`, half below) was offered — it would need a second constant beside `TOPBAR_H` since the offsets are computed in JS.
-- **"Existing years are remained" → "Existing years remain unchanged."** The user's own wording was shipped verbatim last round with the grammar flagged; they later left the choice to me, so it is corrected. This ships in a defended thesis, which is why it was worth not leaving.
-- **Offline cue is back on Login.** Deleting the floating SyncStatus icon took the only connection indicator off the sign-in screen, and signing in is the ONE action that genuinely cannot work offline (it needs the server to issue a token) — without a cue, a failed offline attempt reads as a wrong password. Added a `Notice variant="warning"` above the card, driven by `useOfflineQueue().isOnline`. Deliberately shown ONLY when offline: there is no write queue on that screen, so a permanent "Online" chip would be noise, and this is not a second copy of the strip.
-- **Backlog item 31 (alphabetical list order) closed as STALE, no code written** — see that item for the evidence. Worth noting as a pattern: the entry described a state that three separate sorts had already superseded. Read the code before building from a backlog line.
-- `npx tsc --noEmit` clean, `npm run build` clean; `text-[26px]`, `w-[10px]`, `py-[6px]`, `px-5` confirmed in the built CSS.
-
-## Status strip doubled, pills +30% (2026-09-04)
-- `TOPBAR_H` 32 → **64px** (doubled). Everything that offsets off it — the Root wrapper padding, the mobile header's sticky `top`, `DentalChart`'s sticky toolbar and its measured `tabsTop`/`yearTop` — follows from the one constant, so nothing else needed touching.
-- Both pills scaled ~30%: `text-[10px]` → `text-[13px]`, dot `w-1 h-1` → `w-[5px] h-[5px]`, padding `px-1.5/px-2 py-[2px]` → `px-2/px-2.5 py-[3px]`. Measured in Playwright against the built CSS: strip 64px, both pills 21px tall at 13px type.
-- `npx tsc --noEmit` clean, `npm run build` clean; `text-[13px]`, `w-[5px]`, `h-[5px]`, `py-[3px]`, `px-2.5` all confirmed in the built CSS.
-
-## Floating sync icon deleted; strip pills; actions to top-right; tabs one line (2026-09-04)
-- **The floating round SyncStatus icon is GONE, not suppressed.** Last round it hid itself inside the shell but still rendered on Login/school picker; the user asked for the icon removed, so the `variant` prop, the `floating` branch, the `App.tsx` mount and the per-tone lucide glyphs (`WifiOff`/`RefreshCw`/`AlertTriangle`/`Cloud`) are all deleted. `SyncStatus` is now inline-only — one shape, one popover, mounted once by Root's strip. **Known consequence, accepted:** Login and the school picker no longer show connection state, so an offline sign-in failure explains itself only through the login error. Reinstate a Login-local indicator if that ever bites.
-- **Strip retuned**: `TOPBAR_H` 28 → **32px**; both chips are now `text-[10px]` pills at `px-1.5/px-2 py-[2px]` with a 4px dot; the `w-px` divider is gone (two rings already separate them); strip type scale dropped since each pill carries its own.
-- **School name is its own colour-coded pill**, filled/bordered from `getSchoolColor(selectedSchool)` — the SAME palette as `GradePill`/`SchoolCard`/the PatientList kicker, deliberately not a new colour language. `All Schools` falls back to the neutral blue PatientList already uses for that case. `truncate max-w-[45vw]` so a long registered name cannot push the strip.
-- **Action buttons moved off the bottom, onto the top-right of their own container** — they were full-width pairs pinned under a 384px roster, which put the primary action a scroll away from the controls that decide what it does:
-  - `PromoteAssign`: Cancel + `Assign N Students` now sit level with the "Assign" heading. Row is `flex-wrap` + `ml-auto` so they drop to their own right-aligned line on a phone rather than crushing the heading.
-  - `UpdateSchoolYear` (Bulk Assignment): `Archive Selected` + `Transfer Selected (n)` moved onto the end of the From/Target filter row. That row is already `items-end`, so they bottom-align with the selects for free; `Transfer` lost `flex-1` since it no longer spans a footer.
-- **IPTR tab labels never wrap.** "Caries Risk Assessment" was breaking to two lines, which made the whole strip taller and knocked every other label off the baseline. Tabs get `whitespace-nowrap` (and `px-2`→`px-3`); the tab row gets `overflow-x-auto` so the strip scrolls inside itself once the labels stop fitting — the house rule from CLAUDE.md, and it keeps the Save/Edit buttons pinned outside the scroll area. Measured in Playwright at 1280 and 1024: all six tabs 46px tall, identical.
-- `npx tsc --noEmit` clean, `npm run build` clean; new utilities (`text-[10px]`, `py-[2px]`, `max-w-[45vw]`, `whitespace-nowrap`) confirmed in the built CSS.
-
-## Status strip reworked into the sync affordance; rollover button re-homed (2026-09-04)
-- **The strip no longer crosses the sidebar.** It was `inset-x-0`, so it painted over the rail's top corner ("should not override the module side"). Now `left-0 md:left-[60px]` / `md:left-[220px]`, tracking `collapsed` with a `transition-[left]` that matches `<main>`'s margin transition — full width only below md, where the rail is off-canvas. The `<aside>` went back to `top-0 h-screen` since nothing covers it any more.
-- **Contents right-aligned** (`justify-end`), order unchanged: Online pill, divider, school name.
-- **The Online/Offline label IS the sync affordance now.** `SyncStatus` grew a `variant` prop — `floating` (the round cloud icon, unchanged) and `inline` (a colour-ringed pill). ONE popover under both: clicking the pill opens exactly the panel the cloud icon opened, which is what "similar UI like the fourth pic" asked for. Reusing the component rather than rebuilding a panel is the whole reason this is small.
-- **The floating icon suppresses itself inside the shell** (`if (variant === 'floating' && user && schoolChoiceMade) return null`) so state is not shown twice. It STILL renders on Login and the school picker, which have no strip and where "you are offline" is what explains a failed sign-in — that was the reason not to just delete the App.tsx mount. Mobile header's `pr-14` (which reserved the corner for that icon) reverted to `px-4`.
-- **`idle` tone recoloured** `bg-card/border-border` → `bg-emerald-50 text-emerald-700 border-emerald-300`. A card-coloured pill reads as chrome, not status; "encircled with colors" needs the ring to carry meaning. This also greens the floating icon on Login when online.
-- **Rollover (graduation-cap) button moved into the Student Records card**, top-right, level with the school kicker — it acts on the roster in that card, so floating it above with OCR/Add Student was the wrong altitude. The header row went from `lg:flex-row lg:justify-between` with a single child to a real two-child `flex items-start justify-between`; the button carries its own `canAddStudent` guard now that it is out of the guarded action row.
-- **`PromoteAssign` roster container: `max-h-80` → `h-96` (fixed 384px).** With two pupils it collapsed to a sliver and the box resized every time the grade filter changed; a fixed height also gives the sticky `<thead>` something to stick against.
-- **Summary line reworded to the user's exact text**: "…Each also has their current grade and section updated. Existing years are remained." ⚠ "are remained" is not grammatical (and this ships in a defended thesis) — offered a correction, user has not answered; do NOT silently rewrite it.
-- `npx tsc --noEmit` clean, `npm run build` clean. Every new utility confirmed present in the built CSS (`md:left-[60px]`, `md:left-[220px]`, `bg-emerald-50`, `h-96`, `transition-[left]`, `normal-case`). Verified in Playwright against that CSS: strip clears the rail, pill opens the panel, roster holds 384px with two rows.
-
-## Fixed status strip, sticky finally works, dashboard trimmed (2026-09-04)
-- **⚠ DURABLE GOTCHA — `overflow-x-hidden` on `<main>` was silently killing every sticky header in the app.** `Root.tsx`'s `<main>` carried `overflow-x-hidden`. Per CSS spec, `overflow-x: hidden` forces the other axis to compute as `auto`, which makes the element a **scroll container** — and a scroll container ancestor is what `position: sticky` pins against. So the IPTR toolbar and tab strip were pinning to a box that never scrolls, i.e. not sticking at all, while looking perfectly correct in the markup. Changed to **`overflow-x-clip`**, which clips identically but does NOT create a scroll container. Proven both ways in Playwright against the built CSS, scrolled to y=900: with `hidden` the toolbar sat at `top: -840` and the tabs at `-712` (gone off-screen); with `clip` they pin at `top: 28` and `76`. **Never put `overflow-x-hidden` on a page wrapper again** — reach for `overflow-x-clip`.
-- **New fixed status strip at the very top of the app** (`Root.tsx`): 28px tall, `fixed top-0 inset-x-0 z-[60]`, showing a coloured dot + `Online`/`Offline` (from `useOfflineQueue`) then the school being viewed (`getSchoolShortName`, or `All Schools`). Fixed, not sticky, so no page-level scroll container can strand it.
-- **`TOPBAR_H` (`src/app/utils/layout.ts`) is the single source of that 28px.** The strip is out of flow, so five things had to start below it or render underneath: the Root wrapper's `paddingTop`, the `<aside>` rail (`top` + `height: calc(100vh - 28px)`), the mobile header's sticky `top`, the `SyncStatus` icon's `top` (it was being clipped by the strip at `top-2`), and `DentalChart`'s sticky toolbar plus its measured `stickyOffsets` (`tabsTop`/`yearTop` now start from `TOPBAR_H`, not 0). One constant so those cannot drift.
-- **The mobile header no longer repeats the school name** — the strip carries it at every width now, so on a phone it was the same label twice.
-- **Active tab is bold + blue.** Weight is now SWAPPED per state (`font-bold` active / `font-medium` inactive), not stacked — `font-medium` and `font-bold` on the same element resolve by CSS source order, not by class order in the string, so leaving both would have been a coin flip.
-- **School year line under the "Physical Measurements" heading removed** (the year strip above already names the selected year); `mb-3` moved onto the heading so spacing is unchanged.
-- **Dashboard**: greeting is now plain `Welcome back, {name}!` on the dentist and dental-aide branches — the school was moved to the status strip, and naming it twice on one screen was the point of the change. The **`New Appointment` button is gone from the dashboard header only**, per explicit scope ("the appointment button in the dashboard module only, it should stay everywhere else"): the Appointments page keeps its own entry point, and the `Appointments today` summary cell + the `Appointments by Status` chart are both untouched. Unused `Plus` import dropped.
-- `npx tsc --noEmit` clean, `npm run build` clean. Frontend-only. Every new utility (`z-[60]`, `text-[11px]`, `overflow-x-clip`, `bg-success`/`bg-warning`) confirmed present in the built CSS before shipping — see the Sprint gotcha about `bg-blue-900` never being generated.
-
-## Tab strip de-boxed + collapse now survives Next/Prev (2026-09-04)
-- **The "outline on a clicked tab" was never a focus ring.** Last round added `focus:outline-none focus-visible:outline-none` on the tab buttons on that theory and the user reported it again — the theory was wrong, and worth not re-deriving: no mainstream browser draws a focus ring on a *mouse-clicked* `<button>` (`:focus-visible` excludes pointer focus), so a box that persists in a screenshot cannot be one. What actually drew the box was the active tab's own styling: `bg-blue-50` fill closed on the left and right by `divide-x divide-gray-100`. User confirmed the reading and chose "the fill AND the divider lines".
-- **Three removals on the tab strip, all confirmed against the real compiled CSS**: card `shadow-md` gone (reverses last round's "definition comes from shadow" — the card is now plain `bg-card rounded-xl`), `divide-x divide-gray-100` gone, active-tab `bg-blue-50` gone. The active tab is now marked by blue label + `border-b-2 border-blue-700` ALONE. The `focus:outline-none` pair is kept — harmless, and it costs nothing to keep the native ring suppressed. Playwright against `dist/assets/*.css` after a real click: `outlineStyle: none`, `backgroundColor: rgba(0,0,0,0)`, `borderLeft: 0px`, blue 2px bottom border intact.
-- **The comment above the strip now records the whole arc** ("no card border, no shadow, no divider, no fill — every one was tried and removed on request"), because this element has now been iterated on in five separate rounds and each round's comment only described that round.
-- **`basicInfoExpanded` collapse survives Next/Prev — the REAL cause found.** Last round removed a `useEffect(..., [id])` that reset it, and the collapse still didn't stick. Reason: `routes.tsx:22` renders `<DentalChart key={id} />`, so Next/Prev **remounts the whole component** and every `useState` returns to its initial value — no effect involved. Fixed with a module-scope `let basicInfoExpandedMemo = true` that the state seeds from and an effect writes back to. Deliberately module scope, not storage or context: it is per-tab session state, a fresh page load should start expanded, and `key={id}` must stay (it is what stops one patient's drafts leaking into the next).
-- **NOT touched, on purpose:** the school-year chip row below the tabs still uses the same `bg-blue-50` + blue underline for its active year. It is a different control and the ask named the tabs; say so if it should match.
-- `npx tsc --noEmit` clean (only the pre-existing `tsconfig baseUrl` TS5101 deprecation), `npm run build` clean. Frontend-only, one file.
-
-## Five fixes: new-sheet Cancel, responsive Nutritional Status, sticky collapse, tab focus ring, real dirty-check (2026-09-04)
-- **No Cancel button on a brand-new year sheet.** New `isNewYearSheet` const (mirrors the exact condition the draft-sync effect already uses to auto-enter edit mode: no medical history, no oral condition, zero tooth records) hides the Cancel button in that state — there's nothing saved yet to cancel back to. Save still shows.
-- **Nutritional Status now wraps to its own line on phone widths** instead of being squeezed into a sliver next to BMI. Physical Measurements grid went from `grid-cols-3` (with BMI+Status bundled as one flex child) to `grid-cols-2 sm:grid-cols-4` with all four fields as independent grid cells; Nutritional Status carries `col-span-2 sm:col-span-1` so at 2 columns it can't fit next to BMI and CSS Grid auto-placement drops it to a fresh full-width row — no media-query hack needed, pure grid auto-flow. Verified at real 390px and 1200px Playwright viewports (a same-width `<div>` inside a wide viewport does NOT trigger this — Tailwind breakpoints read the actual viewport, not container width; worth remembering next time this shows up).
-- **`basicInfoExpanded` no longer resets per student — REVERSES last round's fix.** That earlier round added a `useEffect(() => setBasicInfoExpanded(true), [id])` because a stray collapse was silently sticking across students; this round's explicit ask is the opposite — collapsing it should stay collapsed through Next/Prev until re-expanded by hand. Effect removed; state is now a plain uncontrolled toggle for the life of the session.
-- **Tab strip: outer `border-gray-300` removed, `shadow-sm` → `shadow-md`** ("just shadows instead of gray outline" — reverses two rounds ago's "put proper gray outline" ask). Internal divider between tab-row and year-row + the `divide-x` between tabs softened `gray-300`→`gray-100` to match. Added `focus:outline-none focus-visible:outline-none` to each tab button to kill the native click focus ring that was tracing the whole card.
-- **The "leave without saving?" dialog now only fires on a REAL edit.** New `editBaselineRef` captures a JSON snapshot of all five drafts (`draftChart`/`draftMed`/`draftDiet`/`draftOral`/`draftMeasure`) at the exact moment they're loaded from the server (same draft-sync effect, right after the `setDraftX` calls) — `isEditDirty()` compares live drafts against that snapshot. `handleTabSwitch` now warns only when `editMode && isEditDirty()`, so entering edit mode (including auto-entering it on a blank new sheet) and immediately switching tabs without touching anything is silent, per explicit correction to last round's build (which warned on `editMode` alone).
-- Verified against the real post-build compiled CSS in Playwright (both the tab strip and the Physical Measurements grid at phone + desktop viewports). `npx tsc --noEmit` clean, `npm run build` clean. Frontend-only.
-
-## Tab strip aesthetics, consent banner rework, unsaved-edit tab-switch warning (2026-09-04)
-- **Tab strip**: container border strengthened `border-border` → `border-gray-300` (+ `shadow-sm`) so the edge actually reads, and each tab now gets a light `divide-x divide-gray-200` separator from its neighbor — both per explicit "not satisfied, make it aesthetic" / "proper gray outline" feedback.
-- **Consent banner now History-tab-only** — was rendered on every tab; wrapped in `activeTab === 'history' &&`. It was already per-selected-year correct before this (`yearIptr = years[selectedYear]?.iptr`), so no data-source bug, just wrong scope.
-- **Wording**: "Consent Pending — {year}" → "Consent Pending for year {year}".
-- **Grade/section color-coded**: replaced plain gray text with the exact same `GradePill` + `gc.solid`-colored section text the Patient Info Card above it already uses (same `gc` value, same colour-by-grade system) — not a new pattern, reused the established one.
-- **Approval date — NOT built, flagging instead of faking one:** asked for "in the center of most right of the container should be the date it was approved when approved." `STUDENT_IPTR.consent_status` is just `'pending'|'complete'` — there is no field recording WHEN it flipped, and `updatedAt` is not a safe substitute (any unrelated edit to that IPTR record later would bump it, silently lying about the approval date). Needs a new `consent_confirmed_at` field set once in `handleToggleConsent`'s PUT, plus the `ApiStudentIptr` type and `DATA-MODEL.md` update. Left undone per NOTHING COSMETIC rather than rendering a guessed date — **needs the user's go-ahead**, this is a schema change.
-- **Unsaved-edit tab-switch warning**: new `pendingTabSwitch` state + `handleTabSwitch()` — clicking a different tab while `editMode` is on (History or, for the dentist, Dental Chart) now opens a `ConfirmDialog` ("Leave without saving? ... Switching now will discard them.") instead of silently switching. Confirming calls the existing `cancelEdit()` (resets `editMode` + refetches, discarding the draft) then switches; canceling stays put with the edit intact. Per explicit instruction, this warns but never blocks — "doesn't mean I can't skip that tab."
-- Verified against the real post-build compiled CSS in Playwright. `npx tsc --noEmit` clean, `npm run build` clean. Frontend-only — the consent/tab-switch logic changes are all client-side; no server route touched (the flagged `consent_confirmed_at` field is NOT yet added anywhere).
-
-## Step strip and Next button DELETED — user done iterating on the visual, sticking to plain tabs (2026-09-04)
-- **The entire circle/stepper strip above the tabs is gone** — several rounds of icon → number → checkmark → 3-state stepper iteration this session, user's final verdict: *"delete it, im done trying. it makes the system ugly."* Only the flat tab-strip card remains; no separate stepper element, no card-above-a-card.
-- **Next button removed too** ("bottom-right of the tab card, advances activeTab") — was added earlier this session alongside the stepper and is being removed for the same reason.
-- **Tabs reordered + one renamed**: was History, Dental Chart, Treatment History, DMFT History, Referrals, Risk Classification. Now **History, Dental Chart, Caries Risk Assessment, Treatment History, DMFT History, Referrals** — "Risk Classification" renamed to "Caries Risk Assessment" for this tab only (the `/ai-analytics` page it links out to keeps its existing name elsewhere in the app; only `allTabs`' label changed, per the narrow scope of the request).
-- **Edit Chart button is now icon-only** (`Pencil`, no text label, `w-8 h-8` square) and clicking it opens a new `ConfirmDialog` ("Edit Chart?" / "Edit History & Oral?" depending on role) before actually calling `setEditMode(true)` — new `confirmEditChart` state, sibling to the existing `confirmOpenEdit`/`confirmSaveInfo` pattern already used for the Patient Info Card. The in-view hint text ("View mode — click...") updated from quoting the old button label to "click the pencil icon above", since the button no longer carries visible text.
-- **Tab strip "maximized"**: tab buttons went from `flex-shrink-0` (content-width, left-aligned, leaving dead space before the far-right edit button) to `flex-1` (equal width, filling the full row) so the tabs now run edge-to-edge right up against the icon button — no gap. Dropped the `overflow-x-auto`/`min-w-max` scroll wrapper since equal-width columns shrink instead of overflowing.
-- Verified against the real post-build compiled CSS in Playwright. `npx tsc --noEmit` clean, `npm run build` clean. Frontend-only.
-
-## Step strip upgraded to a proper 3-state stepper — completed / current / upcoming (2026-09-04)
-- **Real progress semantics are back, on top of the last few purely-cosmetic rounds**: `completed` (`idx < activeIdx`) shows a filled blue circle with a checkmark; `current` (`idx === activeIdx`) is filled blue too but bumped to `w-10 h-10` with a `ring-4 ring-blue-100` glow + `shadow-sm` so the active step reads at a glance without relying on color alone; `upcoming` (`idx > activeIdx`) is a plain outlined `border-2 border-border` circle showing its number, not a checkmark. Connecting line stays blue up to the active tab, gray after.
-- Per user's explicit ask ("make an aesthetic horizontal stepper / multi-step form stepper") — a step up from the flat/uniform checkmark-only look of the last couple rounds, back toward genuine step-progress styling but with better visual hierarchy than the version from several rounds ago (that one only had 2 states: passed vs not).
-- **New Tailwind utilities compiled for this** (`ring-4`, `ring-blue-100`) — checked they showed up in the post-build CSS before screenshotting, having been bitten twice already this session by classes that don't exist in the compiled output until they're actually referenced in the source and rebuilt.
-- No card/border on the strip (unchanged from last round — still centered, plain), still above the flat tab-strip card, which remains the actual click target and source of truth for the active tab; the stepper is a visual echo.
-- Verified against the real post-build compiled CSS in Playwright. `npx tsc --noEmit` clean, `npm run build` clean. Frontend-only.
-
-## Step strip: card/border removed, centered, label added back under each circle (2026-09-04)
-- **No more `bg-card`/`rounded-xl`/`border`/`p-4` wrapper** around the checkmark strip — it's now plain content (`flex items-center justify-center`, `py-2` for breathing room only) that sits directly on the page background above the flat-tab-strip card, centered rather than stretched edge-to-edge.
-- **Label restored under every circle**, right after last round removed it — active tab's label is bold blue, the rest muted gray (an echo of the flat strip below, not new state; the circles themselves stay uniformly filled/checked per last round's decision, not tied to active/passed).
-- Columns went back to content-width (`flex-shrink-0` + fixed `w-10` connecting-line segments) since centering a `flex-1`-stretched row doesn't make sense — the row now hugs its own content and centers as a block.
-- Verified against the real post-build compiled CSS in Playwright. `npx tsc --noEmit` clean, `npm run build` clean. Frontend-only.
-
-## Step strip: exact match to a reference screenshot — uniform checkmarks, no progress logic (2026-09-04)
-- **User's final word on this, after several rounds of iteration ("this is my last try... please do exactly as that"):** the top card is now a purely decorative row — every circle filled navy (`bg-blue-900`) with a `Check` icon, every connecting line blue, regardless of which tab is active. The earlier "passed" index comparison (`idx <= activeIdx`, added two rounds ago at explicit request) is gone — this reference shows ALL circles checked even though the first tab is the active one, so progress-tracking semantics are no longer part of this design at all. Only the flat text strip below (unchanged) shows which tab is active.
-- Labels removed from the top card again (no text under the circles in the reference) — back to a pure icon-strip + separate label-strip split.
-- Circles went back to full size (`w-9 h-9`, `Check` at `w-4 h-4` `strokeWidth={3}`) and `flex-1` equal-width columns (stretches to fill the card, matching the reference's long connecting lines) — the content-width alignment trick from two rounds ago is moot now that there's no text to align to.
-- **`bg-blue-900` now compiles** — it didn't exist in the compiled CSS before (nothing in the codebase used it), which is exactly the invisible-circle bug from last round. Confirmed via `npm run build` that Tailwind's JIT picked it up now that it's actually referenced in `DentalChart.tsx`, then re-verified the mockup against that fresh CSS output.
-- Verified pixel-for-pixel against the user's reference screenshot via Playwright. `npx tsc --noEmit` clean, `npm run build` clean. Frontend-only.
-
-## Step strip switched from icons to numbers, matching a numbered-wizard reference (2026-09-04)
-- **Icons replaced with plain numbers (1–6)** in the top card's circles — user pushed back on the earlier "icons only, no numbers" call (which had argued numbers imply a completable sequence these independent tabs don't have) with a reference screenshot and asked for it explicitly, so this supersedes that reasoning. `TAB_ICONS` const and its now-unused `Clock`/`Smile`/`Activity`/`TrendingUp` imports removed (`FileText`/`Brain` stay — still used by two empty-states elsewhere in the file).
-- **Labels are now visible directly under each circle** in the top card too (previously an `invisible` spacer purely for width-matching) — bold blue for passed/active, muted gray for upcoming, matching the reference's weight contrast. Circle grew back to `w-9 h-9` (from the icon-era `w-6 h-6`) with `text-sm font-semibold` numbers, connecting line `w-10` fixed segments.
-- **One real bug caught before shipping**: first pass used `bg-blue-900`, which isn't anywhere else in the codebase, so Tailwind's JIT never generated that class — the circle rendered with a transparent fill and the white "1"/"2" text vanished into the page background. Caught via the Playwright mockup, not by eye in the live app. Switched to `bg-blue-700`/`text-blue-700`, already compiled and used by every other "active" state on this same tab bar.
-- **Bottom flat-tab-strip card is unchanged** — this only restyles the top numbered-step card; tab labels now appear in both cards (step card + flat strip), which is accepted as intentional per the reference image rather than treated as redundant to fix unasked.
-- Verified against the real post-`npm run build` compiled CSS (not a stale hash) in Playwright. `npx tsc --noEmit` clean, `npm run build` clean. Frontend-only.
-
-## Step-circle icons shrunk and aligned to the tab text below (2026-09-04)
-- **Icons went from `w-4 h-4` in a `w-9 h-9` circle to `w-3 h-3` in a `w-6 h-6` circle**, per explicit ask.
-- **Alignment fix**: the top (circle) row and bottom (text) row previously used different width logic — top divided tabs into equal `flex-1` columns, bottom sized each tab button to its own text — so a circle rarely sat centered over its matching label. Top row's per-tab buttons now use the same `px-4` horizontal padding as the bottom row's buttons, plus an `invisible` copy of the tab's own label text reserved beneath the circle (same `text-sm font-medium`) purely to force each column to the same width as its real label below — so every circle is now guaranteed centered above its own tab's text regardless of label length. Connecting line between circles changed from `flex-1` (stretched to fill) to a fixed `w-8` segment, since the row is no longer evenly distributed.
-- Verified via a static mockup against the real compiled CSS in Playwright. `npx tsc --noEmit` clean, `npm run build` clean. Frontend-only.
-
-## Tab bar split into two outlined cards: step-circle strip + flat tab strip (2026-09-04)
-- **Two separate `bg-card rounded-xl border border-border` cards, stacked**, replacing the single tab card — per explicit instruction that "the third pic should be of different container above the second container." Top card holds only the step-circle-and-line strip (icons unchanged from prior rounds, now centered above nothing else in that card); bottom card holds the actual clickable tab strip plus the year-tabs row, Edit/Save controls, and the Next button, all unchanged in behavior.
-- **Outline fix**: both new cards carry `border border-border` (the previous single container's edge was reportedly not reading clearly enough) — this directly addresses "fix the edge of this container, put an outline."
-- **Bottom card reverted to a flat-text underline strip** (`border-b-2 border-blue-700 text-blue-700 bg-blue-50` active / plain muted-foreground inactive) — the icon strip stays exclusively in the top card now, so the bottom card goes back to the simple pre-icon style from an earlier round's reference screenshot.
-- **Circle fill changed from "active only" to "passed"**: `passed = idx <= activeIdx`, so every tab up to and including the current one shows filled-blue (was only the single active circle before); the connecting line between two passed circles is blue, otherwise gray — matches "when that tab what passed, it should turn that circle filled with blue color."
-- Verified via a static two-card mockup against the real compiled CSS in Playwright (circles, line coloring, and flat tab strip all render as intended). `npx tsc --noEmit` (client + server) and `npm run build` both clean. Frontend-only.
-
-## Year menu's "Add" now offers current-year AND next-year as separate choices (2026-09-04)
-- **Clarified before building**: "add school year since it's possible to have two same school year" sounded like it wanted the uniqueness constraint removed — checked first, since that constraint (plus the `addingYear` double-submit guard) exists specifically because of a past bug that double-created a year record, and removing it touches three call sites (this menu, Promote/Assign, Bulk Transfer). The user's actual ask was much narrower: offer BOTH "today's real school year" and "the year after this student's latest record" as two separate Add options, since those can differ (a student with a gap — last record 2024-2025 while today is really 2026-2027 — needs to jump straight to the real current year, not just the one immediately after their last).
-- `handleAddYear` now takes the target year explicitly instead of always computing `getNextSchoolYear()` internally. The 3-dot menu shows up to two buttons — "Add {current} (current)" via the existing `schoolYearLabel()` util (already used by `UpdateSchoolYear.tsx`, now shared) and "Add {next} (next)" via the existing `getNextSchoolYear()` — each hidden once that year already exists for the student, same guard the old single button had; the two collapse to one when they'd be the same year. The uniqueness constraint itself is untouched — this adds a second legitimate choice, not a way around it.
-- Verified via a static mockup of the two-option menu against the real compiled CSS. `npx tsc --noEmit` (client + server) and `npm run build` both clean. Frontend-only.
-
-## Follow-up polish round: tab bar gets a connecting line + Next button, consent dialog widened + red warning, small fixes (2026-09-04)
-- **Tab bar**: circles now connected by a horizontal line (blue up to the active tab, gray after), matching the reference mockup's look more closely — but still icons, not checkmarks/numbers, per last round's reasoning (a checkmark specifically claims "done," which isn't true of an unopened tab). Two-row layout: circles+line on top, labels below, each column `flex-1` so they stay aligned. New **Next** button, bottom-right of the tab card, advances `activeTab` to the next entry in `visibleTabs`; disabled on the last tab.
-- **Year-menu dropdown** (`Add`/`Edit`/`Delete`) corner radius bumped `rounded-lg` → `rounded-xl` to match every other card/menu on this page.
-- **Consent-confirm dialog**: width increased ~30% (`max-w-lg` → `max-w-[666px]`); confirm button relabeled "Confirm Consent" (was "I Understand, Continue"); the info note at the bottom now reads generically — "This marks the student's consent for this school year. It cannot be undone. Once confirmed, this checkbox can no longer be unchecked." (was naming the specific student and year) — and its box is now red (`bg-danger-surface`/`text-destructive`), not neutral gray, to read as the warning it is.
-- **Nutritional Status value** no longer bold (`font-medium` removed).
-- **Fixed a real bug**: `basicInfoExpanded` (the Patient Info Card's collapse state) is local component state that doesn't reset when navigating between students via Next/Prev, since that reuses the same mounted component — so collapsing the card for one student silently stayed collapsed for the next one too. Now resets to expanded on every `id` change.
-- Verified via a static mockup (tab bar with the connecting line + Next button, the rounded dropdown, the widened red-warning consent dialog, and the unbolded status value) against the real compiled CSS, in Playwright. `npx tsc --noEmit` (client + server) and `npm run build` both clean. Frontend-only.
-
-## Consent tab removed (superseded by the persistent banner), tab bar redesigned with icons, small polish (2026-09-04)
-- **The dedicated "Consent" tab is gone.** Its content — the standing RA 10173 notice and the full per-year consent history list — is removed along with it, not relocated. This is the deliberate conclusion of last round's "move the consent" request: the persistent banner (shown on every tab) plus the year-tab strip above it already cover what the tab did (current status + a way to switch years), so the tab became pure duplication. **Flagging explicitly**: the RA 10173 Data Privacy Act notice no longer appears anywhere on this page. If that compliance text needs to live somewhere, say where — it wasn't moved, just deleted with the tab.
-- `'appointments'` removed from `TabKey` and `allTabs`; the tab-content block (`activeTab === 'appointments'`) deleted outright.
-- **Persistent consent banner**: divider line above the checkbox removed, padding trimmed (`p-4`→`p-3`, icon `w-9`→`w-8`, `mt-3 pt-3`→`mt-2`) — roughly a fifth shorter.
-- **Tab bar redesigned**: rounded pill buttons with an icon above each label (`Clock`/History, `Smile`/Dental Chart, `Activity`/Treatment History, `TrendingUp`/DMFT History, `FileText`/Referrals, `Brain`/Risk Classification — the last two reuse the exact icons their own empty states already show elsewhere on this page), replacing the old underline-tab strip — matching the visual language of a reference "step" mockup the user shared. **Icons only, deliberately no connecting progress line or step numbers**: these are independent tabs a clinician jumps between in any order, not a completable sequence, so borrowing the wizard mockup's numbered/connected-circle semantics would have implied an order that doesn't exist. `Smile` has no established precedent on this page — it's the closest lucide has to a tooth/mouth icon.
-- **Physical Measurements polish**: Height/Weight placeholders changed from a bare em dash to worked examples ("e.g. 120" / "e.g. 25"); Nutritional Status' empty state now says why it's blank instead of a bare dash — "Enter height & weight" when no measurement is in yet, "No reference below age 6" / "No reference above age 19" when one is but the student's age falls outside the DOH table's coverage.
-- Verified via a static mockup (tab bar with all six icons + active state, the trimmed consent banner, and the Physical Measurements placeholders/message) against the real compiled CSS, in Playwright. `npx tsc --noEmit` (client + server) and `npm run build` both clean. Frontend-only.
-
-## Nutritional Status wired for real — the user supplied the missing DOH/DepEd reference table (2026-09-04)
-- **Sprint 68's original blocker is resolved.** The user supplied the actual DOH/DepEd "BMI-for-Age" reference workbook (BOYS and GIRLS, 6–19 years old, monthly granularity, sheet "How to Use" columns AH:BB/AS:BB) — extracted with `openpyxl` and transcribed into `src/app/utils/bmi.ts` as two 157-row lookup tables (months 72–228), each row `[ageMonths, severelyWastedMax, wastedMax, normalMax, overweightMax]`. `classifyNutritionalStatus(bmi, ageMonths, sex)` walks the bounds in order (Severely Wasted → Wasted → Normal → Overweight → Obese) and is exported alongside `computeBmi`.
-- **Returns `null` — never a guess — outside the table's 6–19yo coverage** (e.g. Kinder-age students below 72 months), which the UI renders as `—`, same as before. This is the one honest limitation of the source table itself, not a shortcut taken here.
-- **New `computeAgeMonths` helper** (mirrors `computeAge`'s existing anchor logic — chart date, else school-year start, never "today") gives the exact age-in-months the classification needs; `patientAge` (whole years) is unchanged and still used everywhere else.
-- **Nutritional Status box is now color-coded**: green (Normal), amber (Overweight/Obese), red (Wasted/Severely Wasted) — `bg-success-surface`/`bg-warning-surface`/`bg-danger-surface`, matching the same severity-coloring convention already used for Consent Pending/Complete elsewhere on this page.
-- `BMI_NOTE`'s wording updated to point at the new classification (self-correcting a comment that was accurate before this round and would have been stale otherwise) — the raw BMI number still carries no adult category, but Nutritional Status right beside it now does the real job that comment used to say the app couldn't do yet.
-- Verified the classification logic by hand against the source table's own boundary values (e.g. row `[72,12.0,12.9,18.5,20.7]`: BMI 12.0→Severely Wasted, 12.5→Wasted, 15.0→Normal, 19.0→Overweight, 25.0→Obese, all confirmed against the `<=` chain), plus a static mockup of all four states (three categories + the below-6yo blank case) against the real compiled CSS. `npx tsc --noEmit` (client + server) and `npm run build` both clean. Frontend-only (`bmi.ts` is client-side).
-
-## Year management: "Edit Years" toggle replaced by a password-gated 3-dot menu with a real, editable date (2026-09-04)
-- **New `date_opened` field on STUDENT_IPTR** (Date, defaults to `Date.now` at creation) — the day a school year's record was opened, distinct from the immutable `created_at` timestamp and from DENTAL_CHART's own `date_charted` (when teeth were actually examined — still used for the age-at-examination anchor elsewhere in this file, untouched).
-- **Old "Edit Years"/"Done" toggle + per-row trash icon removed entirely**, replaced by a single 3-dot (`MoreVertical`) button pinned to the right edge of the year-tabs row (moved outside the horizontally-scrolling tab strip so it can't scroll out of view). Opens a small menu: **Add** {next year}, **Edit** {selected year}'s date, **Delete** {selected year} — all three act on whichever year tab is currently selected, per the request that "these three dot button is just for the year."
-- **All three actions now require re-entering the signed-in user's password** before they run — reuses the exact `/auth/verify-password` endpoint and isolated-`<form>`/`autoComplete="one-time-code"`/`data-*-ignore` autofill-prevention pattern already established for bulk-archive in `PatientList.tsx`, not a new mechanism. "Edit" additionally shows a date input (prefilled from the year's current `date_opened`, falling back to `created_at`) above the password field, so the date change and the password confirmation happen in one step.
-- **Year tab captions now show the real `date_opened`** ("Sep 4, 2026") instead of `date_charted`-driven "No date stamp," which stayed empty for any year with nothing charted yet — the new field is always populated from creation, so every year tab now shows a meaningful date immediately.
-- Verified via a static mockup (tab row with real dates, the 3-dot menu open, and the Edit confirm dialog with its date + password fields) against the real compiled CSS, in Playwright. `npx tsc --noEmit` (client + server) and `npm run build` both clean. Touches a server model, so **both** `npm run dev` and `npm run dev:server` need restarting.
-- **Still open, waiting on the user**: the "Nutritional Status" field added next to BMI this same session stays rendered empty (`—`) — user confirmed they have the DOH/WHO BMI-for-age reference table but hasn't supplied it yet. No classification logic exists until that arrives.
-
-## Sex pill relocated + colored, consent status made persistent, BMI narrowed for a Nutritional Status slot (2026-09-04)
-- **Sex pill moved** from beside Grade/Section (left side, under the name) to the right side of the header, next to the Consent badge — and recolored from neutral gray to blue (Male) / pink (Female), per explicit request.
-- **Consent status is now a persistent banner**, shown right below the year-tabs strip regardless of which tab is active (History, Dental Chart, etc.) — previously only visible on the Consent tab itself. Reuses the same `confirmConsentTarget`/`handleToggleConsent` flow as the Consent tab's own per-year cards; the Consent tab's full per-year history list is untouched (still there for reviewing past years), this is just an always-visible "current year, right now" summary layered on top.
-- **BMI box narrowed** (`w-20`) with a new **Nutritional Status** field beside it, in the same Physical Measurements row. **Deliberately rendered empty (`—`)**, not a computed category — flagged to the user rather than guessed: Sprint 68 already established that adult BMI thresholds (18.5/25/30) are clinically wrong for a Kinder–Grade 10 population, and a real category needs a WHO/DOH BMI-for-age reference table this app doesn't have. Waiting on the user for how they want this filled in before writing any classification logic.
-- Verified via a static mockup of all three changes against the real compiled CSS, in Playwright. `npx tsc --noEmit` (client + server) and `npm run build` both clean. Frontend-only.
-
-## History tab restructured: reordered, separated into cards, two new "Others" fields (2026-09-04)
-- **Section order changed** to Physical Measurements → Oral Health Condition → Medical History + Dietary Habits (still paired side by side), per explicit request — was Medical History/Dietary Habits first, Physical Measurements, then Oral Health Condition last.
-- **Each section is now its own bordered white card** (`bg-card rounded-xl border p-4`), matching a reference mockup's visual language — bigger/bolder title (`text-base font-bold`, was `text-xs uppercase`) plus a "Select all applicable conditions." subtitle on the three checkbox sections. Previously everything sat in one flowing tab body with small uppercase labels and no card separation.
-- **New "Others" chip on Medical History, Dietary Habits, and Oral Health Condition** — a button (not a real checkbox, since it doesn't bind to a boolean field) that reveals a "Specify Other" box with a text input when clicked, reusing each section's existing `others` text field. Open/closed is separate local state (`othersMedOpen`/`othersDietOpen`/`othersOralOpen`) rather than derived from the text itself, so a click opens an EMPTY field and existing saved text opens it automatically on load. Rendered with a `Check` icon inside the chip's indicator so it reads the same as the real checkboxes next to it.
-  - **Medical History** already had an `others` field on the model (Chapter 3 ERD), just never had a UI — this only added the missing UI.
-  - **Dietary Habits did NOT have this field** — added `others` (optional string) to `DietarySocialHabits.ts`, `ApiDietarySocialHabits`, and the `dietBody` save payload. Not in the original ERD, same precedent as Sprint 14's guardian fields.
-  - **Oral Health Condition's `others` field already existed and was already always-visible** — converted to the same chip-gated pattern for consistency with the other two.
-- **Oral Health Condition**: "Oral Hygiene" text input removed entirely (per request); `oral_hygiene` is still `required: true` on the model, so `handleSave` now sends a fixed `'Not assessed'` instead of the removed field's value — checked first that no DOH report or PDF export reads this field (only the chart form and a seed script did), so nothing downstream breaks, it just stops being editable. **New first option: "Orally Fit Child"** — added `orally_fit_child` (boolean, not in original ERD) to `OralHealthCondition.ts`/`ApiOralHealthCondition`. This is a distinct, NEW per-visit clinical checkbox — NOT wired to the Dashboard/Target Client List's existing "Orally Fit"/`oralStatus` classification.
-  - **Related finding, not fixed, flagged for its own sprint:** `useStudents.ts`'s `oralStatus` is hardcoded to `'Not Yet Screened'` for every student — nothing ever sets it to `'Orally Fit'`/`'Needs Treatment'`/etc. The Dashboard's Orally Fit/Needs Treatment/Under Treatment chart and the Target Client List's "Orally Fit Child, Upon Oral Examination" column both read this permanently-stuck field — a NOTHING-COSMETIC violation that predates this round. This new `orally_fit_child` checkbox is a plausible real signal to wire that classification to, but doing so is a separate, cross-cutting fix (`useStudents.ts` + `Dashboard.tsx` + `TargetClientList.tsx`) and was not requested this round.
-- **BMI's empty-state text** changed from "not measured" to "Automatically calculated" (matches Add Student's Age field convention for a computed/readonly value). **Allergies placeholder** changed from "—" to "Specify allergy" (no ellipsis, unlike the "Others" boxes' own placeholders, which do end in "...", per explicit instruction to keep that one field dot-free).
-- Verified via a static mockup of the full restructured tab (checked/unchecked chips, both "Others" reveal boxes, the new order) against the real compiled CSS, in Playwright. `npx tsc --noEmit` (client + server) and `npm run build` both clean. Touches two server models (`DietarySocialHabits.ts`, `OralHealthCondition.ts`), so **both** `npm run dev` and `npm run dev:server` need restarting.
-
-## IPTR record: card field order + Sex pill, Edit gets two confirm steps, History tab restyled to checkbox buttons (2026-09-04)
-- **Patient Info Card grid reordered into 4 explicit rows**, per the user's exact layout: [Birthday, Age, Place of Birth, Sex] / [Address, Occupation, Contact] / [Guardian, Guardian Contact] / [PhilHealth, 4Ps·NHTS]. Implemented as 4 separate `grid-cols-2 md:grid-cols-4` containers (one per row) rather than one flat list — a single flat grid would auto-fill row 2's 4th slot with row 3's first item, silently breaking the requested grouping since CSS grid doesn't leave gaps on its own. **4Ps/NHTS is now also a grid row** ("Yes"/"No"), not just the purple pill next to the name — it wasn't in this display at all before.
-- **Sex pill added to the collapsed header** (next to Grade/Section), gray, so Male/Female reads even with the card collapsed and the grid (which has its own Sex row) hidden.
-- **Edit flow gets two extra confirm steps**, at the user's request: clicking "Edit" now opens a `ConfirmDialog` ("Edit this student's information?") before the form itself opens; clicking "Save" inside the form opens a second one ("Save these changes?") before `handleSaveInfo` actually runs. Two new booleans (`confirmOpenEdit`, `confirmSaveInfo`) gate `openEditInfo`/`handleSaveInfo`, which are otherwise unchanged.
-- **Edit modal's `closeDisabled` is now unconditional** (was only `true` while saving) — Esc and a backdrop click no longer close it at all, matching Add Student's existing rule; only the header X and footer Cancel do.
-- **History tab's Medical History / Dietary Habits / Oral Health Condition checkboxes restyled** from plain rows-with-a-trailing-checkbox to a bordered toggle-button grid (unchecked = plain border, checked = `border-primary` + `bg-primary-surface` + bold blue text), matching the visual language of a reference "stepper form" mockup the user shared — same fields, same `draftMed`/`draftDiet`/`draftOral` state and save path, purely a restyle (consistent with the earlier-established rule that this stays a single-page form, not an actual multi-step wizard).
-- Verified via a static mockup (collapsed header, the 4-row grid, one checkbox grid, and the new "Edit this student's information?" dialog) against the real compiled CSS, in Playwright. `npx tsc --noEmit` (client + server) and `npm run build` both clean. Frontend-only.
-
-## IPTR record: year Grade/Section removed from Edit, Place of Birth/Occupation shown on the card, Consent tab trimmed, consent-confirm redesigned (2026-09-04)
-- **Edit Student Information modal**: the year-scoped Grade/Section fields (Sprint 57a) are removed from the visible form, at the user's request. `draftYear`/`handleSaveInfo` are UNTOUCHED — Save still round-trips whatever the current values are, so nothing downstream (a DOH report reading a past year's own grade) changed; there's just no UI control to edit them from this modal anymore. Flagged rather than silently accepted: in normal use these get set automatically when a year is created (Add Student, Promote/Assign, Update School Year), so this isn't a Height/Weight-style "only entry point" loss — but there is now no way to CORRECT a wrong year grade/section from here if one is ever needed (e.g. a retained pupil typo). Not raised as a blocker since the user asked for it directly; worth knowing if it's ever needed back.
-- **Patient Info Card's read-only grid** gained **Place of Birth** (next to Contact) and **Occupation** (next to Guardian Contact) — the two STUDENT fields added earlier this session now show here too, not just in the Add/Edit forms.
-- **Consent tab's standing RA 10173 notice**: em dash → comma in the header ("Republic Act No. 10173, Data Privacy Act of 2012"), and the Tagalog explanatory paragraph under it is removed — just the header line remains, since the new consent-confirmation dialog (below) now carries the substantive content instead.
-- **A completed year's badge** now reads **"Physical copy of consent obtained"** instead of "Consent Obtained — {year}" — the year is still visible from the container's own grade/section subtitle and the per-year grouping, so dropping it from the title wasn't a loss of information, and the new phrasing states plainly what the checkbox actually represents (a paper form on file, not a digital signature).
-- **Consent-confirmation dialog rebuilt** from the shared `ConfirmDialog` into a purpose-built `Modal`, matching the layout of a reference "Patient Consent" mockup the user shared (icon badge + kicker + title + subtitle, a scrollable content box, an info note box, Cancel / "I Understand, Continue") but with FLORAL's own content, not the reference's generic waiver text: the scrollable box now holds the real **Parents/Guardian Consent Form**'s service list (Oral Exam, Topical Fluoride Varnish, Pit and Fissure Sealant, Oral Prophylaxis, Tooth Restoration, Tooth Extraction — each with its grade range and Tagalog note, transcribed from the paper form the user shared) and its consent line ("Oo, pumapayag ako..."), so staff see what they're confirming before checking the box. The medical-history/allergies/dental-history sections on that SAME paper form were deliberately NOT duplicated here — those are already captured properly in the History tab, and repeating them in a confirmation dialog would just be a second, unsynced copy.
-- **Not done, deferred at the user's explicit call**: "the latest year should be reflected in the status of consent... based on the school year update, not when I add another dental chart." Traced to a real gap: `UpdateSchoolYear.tsx`'s "Start New School Year" (`runWipe`) snapshots the OUTGOING year's IPTR and clears the student's grade/section, but never creates the INCOMING year's IPTR — that only happens later via Promote/Assign, Bulk Transfer, or the chart's own "+Start next year". So a fresh 'pending' consent row for the new year doesn't exist (and can't show) until one of those runs. **Fixing this is bigger than it looks**: `PromoteAssign.tsx` already auto-detects "this student has the target year's IPTR" and force-skips them (`alreadyHasYear`) — pre-creating a blank record at wipe-time would make it skip literally everyone, permanently, with no real grade/section ever getting filled in. `UpdateSchoolYear.tsx`'s own Bulk Transfer has the same latent gap (catches the 409 and moves on without ever writing grade/section into the now-pre-existing IPTR). A real fix touches all three call sites — treat "IPTR exists but blank" as still assignable, and PUT into it instead of assuming POST always creates fresh. **User declined to do this now** — explicitly asked to hold off pending a dedicated sprint. Do not attempt this piecemeal; it needs the full three-file treatment described here or it will silently corrupt the yearly rollover.
-- Verified via static mockups (the card grid, the trimmed notice + relabeled badge, and the new confirm dialog) against the real compiled CSS, in Playwright. `npx tsc --noEmit` (client + server) and `npm run build` both clean. Frontend-only.
-
-## Two new STUDENT fields: Place of Birth, Occupation (guardian's) — Add Student + Edit both (2026-09-04)
-- **Schema change**, not just UI. Checked `docs/DATA-MODEL.md` first per CLAUDE.md — neither field was in the original ERD, but the model already has this exact precedent (Sprint 14's `guardian_name`/`guardian_contact`, Sprint 11's `appointment_type`): real DOH IPTR paper-form fields added as documented extensions. Both are printed on the form — Occupation specifically is the field CLAUDE.md's OCR module note already referenced ("Occupation is printed but no model stores it") — the field now exists, though OCR still doesn't extract either one (both fixed with CLAUDE.md accordingly).
-- `server/models/Student.ts`: new `place_of_birth` and `guardian_occupation` (both optional strings, default `""`), added to the `fieldEncryption` plugin's scope alongside `address`/`guardian_name`/`guardian_contact` — same sensitivity class. Also added to `reencryptFieldIVs.ts`'s Student field list for consistency, though no existing records have data in them yet.
-- `docs/DATA-MODEL.md`'s STUDENT entry brought fully up to date while touching it — it was already missing `guardian_name`, `guardian_contact`, `philhealth_number`, `philhealth_status`, `is_4ps`, `fourps_id` (all real, pre-existing schema fields never documented there); backfilled rather than compounding the gap.
-- **Field order, both forms, exactly as asked**: Place of Birth + Contact Number (paired), then Guardian Name + Guardian Contact (re-paired — previously Guardian Contact paired with Contact Number and Guardian Name sat alone), then Occupation (its own row), ahead of PhilHealth Number/Status. Labeled "Occupation" (not "Guardian Occupation") in the UI — position next to Guardian Name/Contact makes whose occupation it is unambiguous — but the underlying field is `guardian_occupation`, naming it precisely in code even though a child on this roster (K–G10) has none of their own.
-- Add Student (`PatientList.tsx`): `NewPatientForm`/`BLANK_NEW_PATIENT` gained `placeOfBirth`/`guardianOccupation`; both included in the `POST /students` payload as `place_of_birth`/`guardian_occupation`. Edit modal (`DentalChart.tsx`): both bind straight to `draftInfo` like every other student field there, no new state needed — `handleSaveInfo`'s existing `PUT /students/:id` already sends the whole draft object.
-- Verified via a static mockup of the reordered block against the real compiled CSS. `npx tsc --noEmit` (client + server) and `npm run build` both clean. Touches a server model, so **both** `npm run dev` and `npm run dev:server` need restarting.
-
-## Patient Info Card made more compact: smaller avatar, bold+smaller name, tighter padding (2026-09-04)
-- Card padding `p-5` → `p-4`; header row gap `gap-3` → `gap-2.5`.
-- Avatar `w-14 h-14 rounded-2xl text-xl` → `w-10 h-10 rounded-xl text-sm` — "the icon is too big which is unnecessary."
-- Name `text-base font-semibold` → `text-sm font-bold` — bolder, smaller, per request.
-- The expanded grid's own spacing is untouched — this round was about the collapsed header row and the identity block specifically.
-- Verified via mockup at full width in the collapsed state. tsc + build clean.
-
-## Correction: "reduce to 50%" meant HEIGHT, not width (2026-09-04)
-Misread the previous round's "reduce the size of that container to 50 percent" as width — user corrected it forcefully: they meant the card's HEIGHT. Fixed: dropped `lg:max-w-[50%]` (card is full width again, matching the record wrapper), and put the field grid back to `grid-cols-2 md:grid-cols-4` (was `grid-cols-2` from the round below) — 2 rows of 4 instead of 4 rows of 2, which is the actual ~50% height cut, at full width. tsc + build clean, re-verified via mockup.
-
-## Follow-up round 3: Patient Info Card capped to 50%, subtitle line removed again, collapsible (2026-09-04)
-- **The subtitle line restored two rounds ago is removed again**, at the user's explicit follow-up call that it's redundant with the grade/section pills right below it — back to the same conclusion the original decluttering round reached, just arrived at twice. Not restoring it a third time without being asked.
-- **Name font**: `text-lg font-bold` → `text-base font-semibold` — "too big… make it small and narrow."
-- **Card capped at `lg:max-w-[50%]`** (full width below `lg:`, same phone/tablet reasoning as the record wrapper's own width history) — full-width made sense for the record wrapper as a whole, but the card's own content (name + an 8-field grid) was reading as sparse once the wrapper went full width last round, so the card itself now stays at half.
-- **New collapse/expand toggle** beside Edit — a chevron icon button (`basicInfoExpanded` state, defaults to expanded/`true`). Collapsed, only the avatar/name/grade/section header row shows; the Birthday/Age/Sex/Contact/Address/PhilHealth/Guardian/Guardian Contact grid is hidden entirely rather than just visually de-emphasized. Grid also dropped from 4 columns to 2 now that the card is half-width, so fields don't get cramped.
-- Verified via a static mockup (both expanded and collapsed states) against the real compiled CSS, in Playwright. `npx tsc --noEmit` (client + server) and `npm run build` both clean. Frontend-only.
-
-## Follow-up round 2: IPTR record goes full width, Height/Weight/BMI dropped from the card display (2026-09-04)
-- **Container widened again, this time to full width, no cap at all** — the `lg:max-w-[80%]` from two rounds ago still left visible gutters at laptop widths per the user's screenshot; removed the cap entirely (`w-full`), matching every other page in the app exactly (Students, Dashboard, Appointments never had a max-width here either).
-- **Height/Weight/BMI removed from the Patient Info Card's read-only grid** — they'd already moved to the History tab's Physical Measurements block last round (edit path), but the card itself still separately displayed three "not measured" placeholders; removed now that the History tab is the one place that shows and edits them. Card is down to 8 fields (Birthday, Age, Sex, Contact, Address, PhilHealth, Guardian, Guardian Contact) — pure identity/contact facts, no clinical measurements.
-- **Note for next session:** the user's screenshot this round showed the name area WITHOUT the "Grade · Section · Sex · Age" subtitle line restored in the round above (`## Follow-up round: subtitle line...`) — likely a stale `npm run dev` process rather than a real regression (tsc/build were clean both times, and the subtitle code is still in place and unchanged this round). Worth a quick eyeball after the next pull+restart to confirm it's actually showing; if it still isn't, that's a real bug to chase, not a restart issue.
-- Verified via the same static-mockup approach, this time at a realistic 1400px width with a mock sidebar, confirming the card now reaches the main content area's right edge. `npx tsc --noEmit` (client + server) and `npm run build` both clean. Frontend-only.
-
-## Follow-up round: subtitle line un-decluttered back in, Height/Weight moved out of Edit into History, consent checkbox hides once complete (2026-09-04)
-- **The name-line declutter from the round below is partly reverted, at explicit follow-up request.** Restored `{yearGradeLabel} • {student.sex} • Age {patientAge}` under the student's name in the Patient Info Card (`yearGradeLabel` const also restored) — the pills right below it still repeat grade/section, which is the exact redundancy the decluttering round removed; putting the line back reintroduces it on purpose, per the user's explicit ask to match a reference screenshot. Noting the trade-off here since it directly contradicts today's earlier reasoning.
-- **Edit modal field parity with Add Student.** The Edit modal (`openEditInfo`/`handleSaveInfo`) is now missing exactly one thing Add Student has (Age, readonly/computed — added as a third column beside Middle Name/Birthday, reusing the existing `computeAge` helper) and exactly zero things Add Student lacks — **Height/Weight/BMI removed from this modal.**
-- **Height/Weight/BMI relocated to the History tab, not deleted.** Before removing them from Edit, flagged to the user that they were the *only* entry point anywhere in the app for these Sprint 68 measurements — deleting them outright would have quietly dropped a working, twice-requested feature. User's call: move them into the History tab instead. New `draftMeasure` state (`{height_cm, weight_kg}`), initialized in the same draft-sync effect as `draftMed`/`draftDiet`/`draftOral` (i.e., per selected year, not just when the modal opens), rendered as a new "Physical Measurements" block in the History tab gated by the same `editingHistory` flag as the rest of that tab (so a dentist OR aide edits it via "Edit Chart"/"Edit History & Oral", same as medical history). Saved by `handleSave` alongside the tooth/med/diet/oral writes, via a new `measureWrite` PUT to `/student-iptrs/{iptrId}` — same endpoint `handleSaveInfo` already used for grade/section, so no permission changes needed (`CLINICAL_WRITE_ROLES` already covers both roles). `draftYear` now holds only `grade_level`/`section`; the BMI display keeps its "blank clears to null, never 0" rule and the `BMI_NOTE` no-category caveat from Sprint 68.
-- **Consent tab: the checkbox+label row is now hidden once a year's consent is complete**, since the container's own badge + given-date already say so — showing a disabled, permanently-checked box under that was repeating the same fact. Still renders (and still works) for a pending year.
-- Verified via a static mockup reproducing the four changed surfaces (compiled against the real Tailwind build output) in Playwright — restored subtitle line, Age field in Edit, the History tab's new Physical Measurements block, and the consent checkbox appearing only while pending. `npx tsc --noEmit` (client + server) and `npm run build` both clean. Frontend-only — only `npm run dev` needs restarting.
-- **Container width ("consume 80% of the space")**: already done by the round below (`w-full lg:max-w-[80%] mx-auto` on the record wrapper) — no further change needed; if it still looks narrow on-screen, that's a stale `npm run dev` process rather than missing code.
-
-## Consent is now irreversible once confirmed; IPTR record widened + decluttered; Edit form rebuilt as a real modal (2026-09-04)
-- **Consent checkbox is now one-way.** Ticking it opens a `ConfirmDialog` ("Mark consent as obtained for {year}? This cannot be undone — once confirmed, this checkbox can no longer be unchecked...") before anything is saved; once a year's consent is complete, its checkbox is permanently `disabled` (`complete` is now part of the disabled condition, not just `!canEdit`) — there is no code path left that unchecks a completed year. New `confirmConsentTarget` state holds which year's checkbox is pending confirmation. This matches how the field behaves in reality: a recorded consent isn't something staff should be able to idly toggle back off.
-- **IPTR record container widened**: was capped at `max-w-5xl` (1024px) while every other page in the app (Students, Dashboard, Appointments) runs full-width — the only page artificially leaving large idle gutters on laptop/desktop. Changed to `w-full lg:max-w-[80%] mx-auto`: full width below the `lg:` breakpoint (phones/tablets, where 80% would just add dead margins instead of removing them), 80% of the available area at laptop+ widths.
-- **Patient Info Card decluttered**: removed the "Grade 2 dfs • Male • Age 5" line under the student's name — the same facts already appear as the pills right below it and as separate fields in the details grid, so it was pure repetition. Birthday in that details grid now goes through `formatDate` ("Jul 23, 2020") instead of a raw `.slice(0, 10)` ISO fragment ("2020-07-23") — the pretty format was already applied to the Add Student form but had been missed on this read-only display. General visual pass: bigger avatar (`w-14 h-14`, was `w-12 h-12`), name bumped to `text-lg`, a divider between the identity row and the details grid, details grid moved from `text-xs` to `text-sm` with bolder values — reads less cramped without adding any new information.
-- **"History & Oral" tab renamed to "History"**.
-- **Edit rebuilt as an actual modal, matching Add Student's visual language** (`PatientList.tsx`'s Add Student form) instead of a cramped inline edit-in-card panel with `text-xs` everything: same header chrome (kicker + title + X close), same `text-sm` spacious field groups, red-asterisk-required / gray-"(Optional)" convention applied per the same rules as Add Student (Last/First Name, Birthday, Sex, and CURRENT Grade/Section are required — current Grade/Section are schema-required on STUDENT; the YEAR-scoped Grade/Section, Height/Weight, Contact/Guardian fields, PhilHealth Number and Address are optional, matching their actual schema/model constraints), Sex as the same toggle-button pair, and name fields uppercase on type. Titled **"Update Student Information"** instead of "Add New Student". No change to what gets saved or how (`handleSaveInfo`, `draftInfo`, `draftYear` untouched) — this was a presentation rewrite, not a data-model change.
-- Verified via static mockup (`preview19.html`) in Playwright: widened container, decluttered info card with formatted birthday, "History" tab label, the Update Student Information modal, and the consent confirm-then-lock flow (checkbox → confirm dialog → permanently disabled + checked). `npx tsc --noEmit` (client + server) and `npm run build` both clean. Frontend-only — only `npm run dev` needs restarting.
-
-## Consent tab rebuilt per-year with a real given-date; IPTR header trimmed; Update S.Y. icon recolored again (2026-09-04)
-- **The reported "Section dropdown covers the header/rows" bug was in my own verification mockup, not the shipped code.** My last round's static HTML preview didn't reproduce the real page's scrollable table wrapper (`overflow-hidden` + `max-h-80`) or the button row sitting below it in normal flow, so the absolutely-positioned suggestion list had nothing to clip against and visually bled over everything below it in that flat mockup. Rebuilt the mockup faithfully (same scroll wrapper, same button row underneath) and the dropdown renders correctly, contained to its own cell — confirmed with a fresh screenshot. Made one real robustness fix anyway: the dropdown's positioning wrapper moved from `<td className="relative">` to a plain `<div className="relative">` *inside* the cell (`PromoteAssign.tsx`) — some browser engines have historically computed an absolutely-positioned child of a relatively-positioned **table cell** against the table as a whole rather than the cell; a plain div sidesteps the ambiguity entirely even though this Chromium build wasn't actually exhibiting it.
-- **Update S.Y. icon, third pass**: solid `bg-primary` (blue) when up to date, `bg-gray-400` when it needs update — replaces last round's green/red pairing, which the user still found visually off. Stroke thinned further (`strokeWidth 1.5` → `1.25`) per "the outline should be a little thinner." Trade-off worth flagging: red previously flagged "needs action" with an alarm color; gray reads as neutral/inactive rather than urgent. Purely a visual call — no data or workflow changed — so implemented as asked, noted here in case the softer signal turns out to under-communicate urgency once it's in daily use.
-- **IPTR record header** (`DentalChart.tsx`): title "Individual Patient Treatment Record" is now `text-primary` (blue); the subtitle line (`name · grade · sex · age`) directly under it is removed — that information already lives in the Patient Info card just below. The header's own prev/next-year chevron+pill control is also removed — it was a second, redundant year switcher; the year-tab strip inside the History and Chart tabs already sets the same shared `selectedYear` state, so every other tab (Consent, Treatment History, DMFT History) that reads "the selected year" still works by switching years from History or Chart first.
-- **Consent tab, rebuilt to show every school year at once instead of just the currently-selected one** — this is what "date in the right part of every consent container" and "grade and section for that year" needed, since those are per-year facts:
-  - New field **`consent_given_at`** on STUDENT_IPTR (`server/models/StudentIptr.ts`), set by a `pre('save')` hook — never client-supplied — the moment `consent_status` flips to `"complete"`, and cleared back to `null` the moment it reverts to `"pending"`. `ApiStudentIptr` (`api/types.ts`) carries the new field.
-  - The tab now renders one container per year (newest first), each showing that year's Consent Obtained/Pending badge, that year's grade/section (`y.iptr.grade_level`/`section` — "not recorded" for years before Sprint 57a added them), the given-date on the right when complete, and its own checkbox. `handleToggleConsent` now takes an explicit `iptrId` instead of reading `years[selectedYear]`, since there is no longer one "current" row to assume.
-  - This is also the answer to "when reassigned, consent should have a duplicate checkbox that needs to be checked again": StudentIptr's `consent_status` already defaults to `"pending"` for every new year (a guardian's prior-year "complete" never carries forward — see the model's own comment), so a newly-created year already arrives requiring its own fresh tick. Rebuilding the tab to show every year's container side by side makes that already-correct behavior visible instead of adding a second, redundant control.
-  - Removed the "Consent is renewed every school year and does not carry over…" sentence (now implicit — every year has its own visible container) and the "Pahintulot ng Pasyente / Magulang o Guardian" paragraph container entirely, per request.
-  - Checkbox label reordered to the requested structure — English first, Tagalog in parentheses: "Consent has been obtained (Nakumpleto na ang pahintulot)" (was "Nakumpleto na ang pahintulot / Consent has been obtained").
-  - The Data Privacy Act (RA 10173) notice now renders FIRST, ahead of the per-year list, since it's a standing policy statement rather than something tied to one school year.
-  - Removed the "Upcoming Appointments" preview container from this tab. Since that was the only reader of `useAppointments`/`appointmentSessions` on this page, removed the now-dead fetch too (`upcomingWindow`, `studentAppointments`, the `useAppointments` import) — no reason to keep loading appointment data a page no longer displays.
-- Verified via static mockup (`preview18.html`, faithfully reproducing the scrollable Assign table + the recolored icon + the trimmed header + the rebuilt Consent tab) in Playwright. `npx tsc --noEmit` (client + server) and `npm run build` both clean. Touches one server file (`StudentIptr.ts`), so **both** `npm run dev` and `npm run dev:server` need restarting.
-
-## Assign tab gets a searchable Section field; page chrome polish; Queue containers same size + toast (2026-09-04)
-- **"Assign N Students" replaces "Open {toYear} for N"** (`PromoteAssign.tsx` run button) — clearer verb, and matches the tab's own name ("Assign").
-- **Assign tab's per-pupil Section field is now a searchable combobox**, same UI pattern as Add Student's Section (search-as-you-type suggestions, `onMouseDown` not `onClick` on suggestion buttons so a click registers before the input's `onBlur` closes the menu, "+ Add "…" as new section" when nothing matches). Previously a bare `<input>` with zero suggestions. Suggestions come from `allSections`, a new required prop threaded from `UpdateSchoolYear.tsx` (it already computed this for the Bulk Assignment tab's Target Section) — school-wide, not just the currently-selected grade, matching the scoping fix Add Student's Section got.
-- **Header polish**: "Update School Year" title is now `text-primary` (blue) instead of plain foreground-black. The "← Students" back link (all three return paths on this page — the two guard clauses and the main view) is now icon-only in a `w-9 h-9` circle (was inline text `text-sm` + `w-4 h-4` icon) — bigger tap target, no more redundant "Students" label sitting next to a page whose header already says where it returns to.
-- **Update S.Y. icon**: `strokeWidth={1.5}` and `text-white/90` (was default `strokeWidth=2` full-opacity white) — the enlarged icon from two rounds ago read as too heavy/bold at the bigger size; this softens it without shrinking it back down.
-- **Per-row Queue button**: both states (`Queue` and the bare number) are now a fixed `w-16 h-8` — previously the queued state was a small intrinsic-width circle while the unqueued pill sized to its text, so the column visibly jumped width when a row queued. Queuing a student now also fires `toast.success("<name> queued.")` — dequeuing already had its own confirmation dialog as the equivalent feedback, so no toast was added there to avoid stacking two notices for one action.
-- Verified via static mockup (`preview17.html` + freshly compiled CSS) in Playwright: blue title, icon-only enlarged back button, softened graduation-cap icon, equal-width Queue containers, the queued-toast, and the Assign tab's searchable/addable Section combobox all render as intended. `npx tsc --noEmit` and `npm run build` both clean. Frontend-only — only `npm run dev` needs restarting.
-
-## Address no longer required; Update S.Y. circle right-sized; Queue shows bare number; Bulk Assignment gets Target Grade/Section columns (2026-09-04)
-- **Address is no longer required — schema change, not just UI.** Re-checked `docs/DATA-MODEL.md`'s STUDENT entry: unlike `last_name`/`first_name` (explicitly marked "required — added Sprint 35"), `address` carries no such note. The earlier decision to keep it required (this file, prior rounds) leaned on the *server model* having `required: true`, but that flag was never backed by the ERD spec — it was just a constraint added along the way. Since the user asked for this a second time and the authoritative doc doesn't support the requirement, fixed at the source: `server/models/Student.ts` now has `address: { default: "" }` (was `required: true`), `REQUIRED_STUDENT_FIELDS` in `PatientList.tsx` no longer lists it, its label switched from the red `*` to the gray `(Optional)` tag (matching Contact Number/PhilHealth), and the CSV/Excel import help text moved "Address" from the Required list to the Optional list. Removing only the client-side check without this would have just relocated the failure to a confusing 400 at save time — same reasoning that blocked this change originally, now resolved by fixing the actual schema instead of overriding it superficially.
-- **Update S.Y. icon**: last round's solid-fill made the circle bigger than its neighbors (OCR, Add Student). Kept the solid fill and the larger `w-6 h-6` icon, but padding is back down to `p-2` so the circle's overall footprint lines up with the OCR/Add Student pills next to it — "bigger icon, same circle size" as asked.
-- **Per-row Queue, once queued**: now shows just the bare position number (`1`, `2`, …) in a small fixed `w-7 h-7` circle — no "Queued #" text, no checkmark icon. The unqueued state is unchanged ("Queue" label). Both states' tooltip is now the single word "Queue". Clicking a queued number still opens the dequeue confirmation added last round; clicking "Queue" still queues immediately.
-- **Update School Year page**: "Start New School Year (N)" button shrunk (`px-3 py-1.5 text-xs`, was `px-4 py-2 text-sm`) for a lighter visual weight next to the section heading. Tab label "Bulk Reassignment" → "Bulk Assignment" (label only, no behavior change). Bulk Assignment's candidate table gained two blue-styled columns, **Target Grade** and **Target Section** — each row shows the currently-chosen target (as a blue pill, `bg-primary-surface text-primary`) or a gray `—` before a target is picked, so it's visible up front what the whole selected batch is about to become, not just each row's current placement.
-- Verified via static mockup (`preview16.html` + freshly compiled CSS) in Playwright — circle/pill alignment, bare queue numbers, compact Start New School Year button, renamed tab, blue Target Grade/Section columns, and the Address `(Optional)` tag all render as intended. `npx tsc --noEmit` (client + server) and `npm run build` both clean. This round touches one server file (`Student.ts`) in addition to the frontend, so **both** `npm run dev` and `npm run dev:server` need restarting.
-
-## Middle Name "(Optional)" tag removed, Update S.Y. button solid-filled, per-row Queue shows position + confirms dequeue (2026-09-04)
-- **Middle Name**: dropped the `(Optional)` label tag. Still not in `REQUIRED_STUDENT_FIELDS`, so behavior is unchanged — only the visible tag is gone, per the request to not call it out even though it stays optional.
-- **Update School Year icon**: was a pale tint (`bg-success-surface`/`bg-danger-surface` with a border and small `w-4 h-4` icon); now a solid fill (`bg-success`/`bg-destructive`, white icon) at `w-6 h-6` in more padding (`p-3.5`), with `shadow-sm hover:brightness-110` replacing the border. Same green-when-current/red-when-needs-update logic (`schoolYearNeedsUpdate`), just a bolder rendering per "make it aesthetic."
-- **Per-row Queue action**: removed the `+` icon on the unqueued "Queue" state (label-only now). Queued rows now read `Queued #N` where N is the student's 1-based position in `queuedStudentIds`, instead of a plain "Queued" with no position. Queuing (unqueued → queued) is still one click. Dequeuing (queued → unqueued) now opens a confirmation dialog first — "Remove [name] from the charting queue?" / "They'll need to be queued again to come back to this list." — via a new `dequeueTarget` state and `ConfirmDialog`, matching the ask that adding stays fast but removing asks first.
-- Verified via static mockup (`preview15.html` + compiled CSS) in Playwright: solid green/red circular buttons, icon-less Queue button, `Queued #1`/`Queued #2` labels, and the dequeue confirmation dialog all render correctly. `npx tsc --noEmit` (client + server) and `npm run build` both clean. Frontend-only change — no server files touched, so only `npm run dev` needs restarting, not `npm run dev:server`.
-
-## Add Student: 4Ps checkbox moved after Address (2026-09-04)
-Was paired with Guardian Name (its own row above PhilHealth Number/Status); moved to its own full-width row directly after Address, with the conditional 4Ps ID field still immediately following it. Guardian Name is now a full-width row on its own, matching Address's style, since 4Ps no longer shares its row.
-
-## Add Student layout pass + Section fix #5 (2026-09-04)
-- Middle Name / Birthdate / Age merged into one 3-column row (was Middle Name alone, then Birthdate+Age below it) — Age in particular is a couple of characters, no reason it had its own row's width to itself in a modal that's now wide enough to fit three fields across.
-- PhilHealth Number moved to sit with PhilHealth Status (Number first, per request); Contact Number now pairs with Guardian Contact instead (both phone-shaped fields); Guardian Name pairs with the 4Ps checkbox.
-- **The actual bug behind "section still doesn't detect existing sections":** `sectionOptionsForGrade` only populated once a Grade was already selected, so typing into Section before picking a grade (or into a grade with zero recorded students) showed nothing to suggest at all — which reads as "not detecting the database" even though the combobox itself was working. Renamed to `schoolSectionOptions` and scoped to the WHOLE school instead of one grade — the same section name is commonly reused across grade levels anyway, so grade-scoping was adding a dependency without buying real precision. Matching also switched from substring (`.includes`) to prefix (`.startsWith`), matching the literal ask ("sections that start with s") and standard autocomplete behavior.
-
-## Section, fourth attempt — now a real combobox (2026-09-04)
-The `<select>` + toggle from the round before satisfied "must look like a dropdown" but not "type to search" — a `<select>` doesn't filter as you type. Replaced with a small hand-built combobox: the input IS the value (typing directly sets `newPatient.section`), a suggestion panel opens on focus and filters live against `sectionOptionsForGrade` as you type, clicking a suggestion fills it in, and if nothing matches, a "+ Add "X" as new section" row confirms the typed value is being treated as a genuinely new section (functionally it was already going to be used as typed — that row is discoverability, not a separate code path). `customSection` state replaced with `sectionMenuOpen`.
-
-The one real gotcha: suggestion buttons use `onMouseDown`, not `onClick` — the input's `onBlur` (which closes the menu) fires as soon as focus leaves it, which happens on mousedown, BEFORE a click event would ever reach the button. `onClick` there would have made every suggestion silently unclickable (the menu closes itself out from under the click). Verified against a standalone repro of the same event wiring (not the live app) that a suggestion click actually registers before blur closes the list.
-
-## Section reverted (again) to a real <select>; Add Student widened (2026-09-04)
-Third attempt at Section: the `<input list>` + `<datalist>` from two rounds ago is functionally a dropdown-with-typing, but renders as a plain text box with no visible chevron — nothing about it READS as a dropdown, which is presumably why the user kept asking for one after it already shipped. Reverted to the real `<select>` + "+ Add new section…" → free-text toggle from the round before that (matches Grade's own look exactly now); `customSection` state is back.
-
-**Add Student's `maxWidth` raised `max-w-2xl` → `max-w-4xl`** for "50-60% of the screen on web/tablet, less scrolling." Deliberately a bigger FIXED cap, not a raw viewport percentage (`vw`) — a `55vw` figure looks right on a laptop but backfires on an iPad-width tablet, where it'd compute narrower than the current 2-column layout needs (regressing the exact "less scrolling" goal). A fixed cap already behaves like a percentage on anything narrower than it (fills available width, same mechanism as the phone-gutter fix above), and `max-w-4xl` (896px) lands at 62% of a 1440px screen / 47% of 1920px — roughly their asked-for range on the common desktop sizes, without the tablet regression risk.
-
-## Modal.tsx regression fixed same day it shipped (2026-09-04)
-The `mx-4` phone-gutter fix from the round above pinned every modal in the app to the LEFT edge instead of centering it — reported immediately via a screenshot. Root cause: a native `<dialog>` shown via `showModal()` is only centered because the browser's own UA stylesheet gives `dialog:modal { margin: auto }`; overriding that with an explicit `mx-4` replaces "centered" with "offset by a fixed amount from the left," since a set value on `margin-left`/`margin-right` is not the same as `auto`. Fixed by capping the WIDTH short of 100% instead (`w-[calc(100%-2rem)]`) and restoring `m-auto` — guarantees the same phone gutter without touching the centering mechanism at all. Verified against a real `<dialog>` + `showModal()` at 1280/768/390px, not just the Tailwind classes in isolation, since this bug was specifically about `<dialog>`'s own centering behavior rather than anything visible in a plain div.
-
-## Seventh follow-up round on Add Student (2026-09-04)
-- **Modal.tsx** (shared): `m-auto` → `my-auto mx-4`, so no modal in the app can ever sit flush against a phone's screen edges. One-line, applies everywhere, no other behavior change.
-- **Section** is now a single native `<input list>` + `<datalist>` control (replacing last round's toggle between a dropdown and a text field) — pick an existing section for the chosen grade, or just type a new one, in the same box. Simpler code, and a more standard "dropdown you can also type into" pattern than a mode-switching button.
-- **Contact Number is no longer required** — checked `server/models/Student.ts` first: `contact_number` has no `required: true` there (unlike `address`, which does), so relaxing it client-side doesn't create a field the backend would then reject as missing. Now carries a gray "(Optional)" tag, same as Middle Name and PhilHealth Number (which were already optional, just not labeled as such until now).
-- **Address stays required** — the user asked for it to be optional too, but `address: { type: String, required: true }` is a real schema-level constraint on the Student model, and the bulk-import CSV format documents Address as a required column too. Making it optional in the UI without a matching backend/schema change would just move the failure to a confusing 400 at save time — exactly what the original required-field enforcement was built to prevent. Not changed; flagged to the user rather than silently left as-is.
-- **Closing behavior overhauled.** The header X and footer Cancel now both go through one `closeAddForm()` that resets the entire form (`BLANK_NEW_PATIENT`, extracted as a shared constant instead of duplicated in three places) — reopening via "+ Add Student" now always starts blank instead of carrying over whatever was typed before. The modal's `closeDisabled` is now unconditionally `true` (was only `true` while submitting) so Esc and a backdrop click no longer close it at all — only an explicit X/Cancel does, to stop a half-filled form being lost to a stray click.
-- **The live duplicate check now has a real decision path**, not just a passive notice: styled light red (was amber) with its own dismiss X, plus a "Confirm different student" button that opens a second `ConfirmDialog` ("Are you sure this is a different student?") before acknowledging it. Acknowledgement is keyed by the matched student's id (`acknowledgedDuplicateId`), so it stays quiet once handled but reappears on its own if the typed fields change to match a *different* existing student.
-- **Update S.Y. is icon-only now** — dropped the "Update S.Y." text, kept `GraduationCap` in a circle (no lucide icon combines a person with a cap), same green/red status coloring and tooltip as before.
-
-## Sixth follow-up round on Add Student (2026-09-04)
-Wider modal (`max-w-2xl`), more 2-column pairing (Contact Number+PhilHealth Number, Guardian Name+Contact) to cut the vertical scroll a screenful. `req()` now returns a red `<span>*</span>` instead of a plain string; Guardian Name/Contact dropped from `REQUIRED_STUDENT_FIELDS` and get a gray "(Optional)" tag instead. New `missingFields` state drives a "This field is required." line under each empty required field on a failed submit attempt, cleared per-field the moment it's filled in (`updateField` helper wraps `setNewPatient` for the required fields). Kicker renamed "Student Intake" → "Basic Information"; the school-name badge in the header is gone (per request) — the header's right side now shows something more useful instead (see below).
-
-**Section is a dropdown now**, populated from `[...new Set(schoolStudents that match the chosen grade, mapped to .section)]` — real section names come from the roster, not a fixed list, so there's a "+ Add new section…" option that swaps to free text (`customSection` state) for a grade with none yet or a genuinely new section.
-
-**Add now confirms before saving.** "Add Student" no longer submits directly — it runs validation (`handleAddStudentClick`), and only if that passes opens a `ConfirmDialog` ("Add {name} as a new student?"); confirming calls `handleAddStudent()`, which no longer re-validates (only reachable already-validated, including the existing 409 "Add anyway" path). On success it now also `navigate()`s straight into the new student's dental chart — previously it only toasted and closed the modal.
-
-**Live duplicate check, client-side, distinct from both existing ones.** `findDuplicateStudents` (server, create-time 409, excludes middle name + sex) and `findDuplicateGroups` (server, the Find Duplicates housekeeping scan) already existed. This is a third, new `liveDuplicateMatches` — a `useMemo` filtering the roster ALREADY loaded in the browser (`schoolStudents`) by normalized last+first+middle name, birthday, and sex, all four required for a hit. Purely a heads-up shown as a small warning badge in the modal header (now occupying the spot the removed school badge used to) the moment enough fields are typed — it does not block or replace the server's 409 dialog, which is still the actual "add anyway" decision point. Birthday in that badge (and everywhere else that already displayed one, e.g. the 409 dialog) uses the existing house `formatDate` ("Mar 15, 2016") — deliberately NOT a new zero-padded variant some phrasing in chat suggested, since `localDate.ts` documents that one format as a deliberate house decision specifically to stop dates rendering differently screen-to-screen.
-
-**Update S.Y. button, again:** icon reverted from `Cloud` back to `GraduationCap` (lucide has no combined person+cap icon), and the color mapping flipped to match the latest ask — green background when up to date, red when `schoolYearNeedsUpdate` (still the same automatic signal from two rounds ago: any active student still missing a grade/section). **Not built:** a manual "admin marks this as needing an update" flag, which is what "triggered by the admin" seemed to ask for — that would be a new field on the School model plus new admin UI, a materially bigger feature than recoloring an automatic signal. Flagged to the user rather than assumed.
-
-## Fifth follow-up round on the Students module (2026-09-04)
-- **Archive icon reverted from Trash2 back to the box-shaped `Archive` icon**, in both the bulk toolbar button and the Find Duplicates modal's per-row action. The Trash2 (trash can) swap from two rounds ago read as an actual delete once the user clarified Archive should stay the only removal action — a trash-can icon on a reversible action was the wrong signal.
-- **"Update S.Y." now has a real status color, not just a rename.** Gray = still needs updating, green = up to date, `Cloud` icon, `title="Update School Year Information"` tooltip. The status reuses a signal `UpdateSchoolYear.tsx` already computes for itself — once "Start New School Year" clears everyone's grade/section, they stay unassigned until Promote/Assign or Bulk Transfer resettles them, so `schoolYearNeedsUpdate` is just "does any active student in view still lack a grade or section." No new field anywhere in the data model.
-- **Add Student form restyled** to match a reference "stepper wizard" mockup's visual language (kicker label, header badge, segmented Sex buttons, Birthdate+Age paired) — kept as the SAME single-page form with the SAME fields and validation, not turned into an actual multi-step wizard. Rebuilding this as real multi-step navigation would touch OCR pre-fill, the 409 duplicate-conflict flow, and 4Ps conditional logic all at once; flagged to the user as a separate follow-up if still wanted after seeing this version.
-- **School field removed from the form entirely.** The form now always adds to whichever school is currently selected in the sidebar (`useEffect` syncs `newPatient.school` from `selectedSchool` the moment the modal opens) rather than asking the encoder to pick it — the header shows the target school as a read-only badge instead of a dropdown. `useSchools`/`schoolNames` (only ever used by that one dropdown) removed as dead code.
-- **Last/First/Middle Name now uppercase as you type** (`.toUpperCase()` in each field's `onChange`) for standardization — deliberately only those three fields, not Guardian Name, Address, or any other text field.
-
-## The "delete" request — declined, Find Duplicates built instead (2026-09-04)
-User asked for a real "delete student records" bulk action alongside Archive, explicitly because password-gating "that's why it requires passwords." **Declined to build it**: CLAUDE.md's ABSOLUTE DO NOT is explicit and appears twice — never hard delete any record, ever — and there is no second, more-permanent removal tier anywhere in this system's design for a "delete" to distinctly mean. Explained why (audit trail, DOH/legal retention, accidental loss of real children's health data, and it would contradict whatever the manuscript already claims about the system's data-safety design) and did not implement it. Archive stays the only removal action.
-
-**Built instead, at the user's own follow-up request: "Find Duplicates."** A housekeeping scan over ALREADY-SAVED active students — distinct from the existing create-time 409 check in `studentDuplicates.ts` (`findDuplicateStudents`, which only checks one incoming record against existing ones and deliberately excludes `sex` from its match key). The new `findDuplicateGroups(schoolId?)` groups by normalized last+first name, birthday (calendar day), AND sex — sex is included here per the user's explicit ask, since a false positive in a review list just costs a click, unlike a blocked save. New route `GET /students/duplicates?school_id=...`, intercepted before the generic Student CRUD router (same pattern as `/users`), gated to `CLINICAL_WRITE_ROLES`. Frontend: "Find duplicates…" in the Students three-dot menu opens a modal listing each group with a "View chart" and an "Archive" action per row — the per-row Archive reuses the EXACT same `tickedIds` + password-confirmation flow as the bulk toolbar action (`archiveOneDuplicate` just seeds `tickedIds` with one id), so there is only one archive code path in the whole file, not two. tsc (both configs) + build clean.
-
-## Students module visual refresh (2026-09-04)
-Restyled `PatientList.tsx` (Student Records screen) to a card-based table look from a reference mockup: one elevated white card (school kicker badge showing the **full** school name + title + subtitle + filters + table + pagination), grade-coloured circular initials avatars, pill-style grade/pending-sync/queue badges, pill Previous/Next pagination, and the existing three-dot "Select students…" menu, bulk Queue/Archive Selected actions and "Update School Year" entry point restyled to match (all pre-existing functionality, untouched). **Visual only — same data, same filters, same handlers, same columns.** Touches ONE file; `Pagination`, `GradeTableCell`, `StudentListTableStyles` and `ListSearchInput` are shared with other list screens and were deliberately left untouched. `npx tsc --noEmit` (both configs) and `npm run build` clean.
-
-**Follow-up polish (same day):** default page size on this list dropped to 10 (`usePagination` gained an optional `initialPageSize` param, default 25 unchanged for every other screen); a muted row number now sits before each avatar; the search placeholder lost its trailing "..." (passed explicitly from this screen only, shared `ListSearchInput` default untouched); the header "select all" checkbox's `<th>` was missing `text-left` so it inherited the browser's centered `th` default and sat out of line with the row checkboxes below it — fixed; **Archive Selected** is now an icon-only button (native `title="Archive"` tooltip) instead of a text pill.
-
-**New: password-gated bulk archive.** Archiving several students at once now requires re-typing the signed-in user's own password in the confirmation dialog before it proceeds — a step-up check beyond a second click, since it pulls records off every active roster and report at once. Added `POST /auth/verify-password` (`server/controllers/authController.ts` + `authRoutes.ts`, `requireAuth` + the same rate limiter as `/login`) — bcrypt-compares the submitted password against the signed-in user's own hash and changes nothing, mirroring `changePassword`'s existing verification step. The archive dialog calls it before looping the per-student archive calls; a wrong password shows inline and does not touch any record. The password field uses `autoComplete="new-password"`, not `current-password` — the latter is exactly what invites a browser to silently fill in the saved login password, defeating the point of asking someone to type it.
-
-**Second follow-up round (same day):** the checkbox/row-number column merged into one "#"-labelled column — it shows the row number normally and swaps to a checkbox (header included) once select mode is on, rather than carrying a separate always-present checkbox column plus a number inline in the Student cell. Row height trimmed slightly (`py-3.5`→`py-2.5`, avatar `9`→`8`). The per-row Queue/Queued action is now icon-only (`title` tooltip carries the label), matching Archive Selected's icon-only format.
-
-**Sidebar school switcher reverted to a redirect, at explicit user request (2026-09-04).** Sprint 67 replaced a "clear selection + navigate to /select-school" button with an inline dropdown specifically so switching schools wouldn't mean losing whatever screen you were on — that reasoning is recorded in `Root.tsx`'s comment history. The user asked for the redirect-button behavior back (now labelled "Change School View", `ArrowLeftRight` icon) instead of the dropdown; done as asked, but the Sprint 67 trade-off this reintroduces (switching schools now leaves your current screen) is worth surfacing if it's ever reported as a regression rather than the intended change it is. `setSelectedSchool`/`ALL_SCHOOLS` are no longer used in `Root.tsx` as a result and were removed from its imports.
-
-**"BT" abbreviation dropped to "Bagong Tanyag" wherever it appeared** (schoolColors.ts `SCHOOL_SHORT_NAMES`, SchoolSelect.tsx's local `SCHOOL_META.shortName`) — consistent with the earlier full-name kicker change; "S. Daang Hari" (no "BT" in it) is untouched.
-
-**Third follow-up round (same day) — corrects the autocomplete note above.** `autoComplete="new-password"` (added in the round noted above) turned out to be the wrong fix: Chrome reads that value as "this is account creation" and offers to SUGGEST a freshly generated strong password (the small key/cloud icon the user then saw) — a different unwanted behavior than the saved-password autofill it replaced, not an absence of one. Neither `current-password` nor `new-password` fits a plain re-type-to-confirm field; switched to `autoComplete="off"` plus `data-lpignore`/`data-1p-ignore`/`data-bwignore` (non-standard but widely honored by LastPass/1Password/Bitwarden) and a native `required` attribute. Also this round: "Update School Year" → "Update S.Y.", "Upload IPTR Form" button → "OCR" (the modal's own heading is untouched), the bulk Archive icon changed from a box (`Archive`) to a trash can (`Trash2`) shape, the per-row Queue/Queued action reverted from icon-only back to icon+text (user preferred the word visible over the icon-only "+"/"✓" from the prior round), and the sidebar switch-school button restyled (icon in a white circle badge, subtle border/shadow) and relabelled "Switch School".
-
-**Open question, not yet acted on:** the user separately asked to make the "Update S.Y." button's container "gray when closed and green when opened" — unclear whether this means (a) a status color driven by whether the current school year record is open/in-progress vs past its end date, for which no such open/closed field exists yet anywhere in the data model, or (b) turning the button from a page-navigation link into an inline expand/collapse panel, which is a real feature change, not a color tweak. Asked the user to clarify before touching it.
-
-**Fourth follow-up round (same day) — the autofill fix STILL wasn't enough, and the real bug surfaces.** The user reported the archive-password field was still getting a saved password silently filled in, AND that doing so was also populating the page's Search box with the same value and triggering a search. That second symptom is the actual root cause: with no `<form>` boundary around the password input, the browser/password-manager's "find the nearest preceding text input to pair as a username" heuristic reached all the way out to the Search box — the only other text input on the page — so picking a saved-credential suggestion filled both. Fixed by giving the password input its own isolated `<form autoComplete="off" onSubmit={preventDefault}>` containing nothing else, switching `autoComplete` to `"one-time-code"` (neither "reuse a saved password" nor "suggest a new one" — it isn't a password-persistence hint at all), and randomizing the field's `id`/`name` per mount (`useRef`) so the literal string "password" isn't sitting in an attribute for autofill heuristics to key off. Same round: removed the bulk "Queue Selected"/"Unqueue Selected" toggle button entirely (and its now-dead `queueTicked`/`unqueueTicked`/`allTickedQueued` helpers) — select mode's only remaining bulk action is Archive.
-
-**Open question, not yet acted on:** the user asked for the removed Queue button's slot to carry two icons, "delete and archive," to "delete students and archive student records" as two distinct actions. Archive already exists (soft, reversible, admin-restorable) and stays. A literal second "delete" action was NOT built, because CLAUDE.md's ABSOLUTE DO NOT is explicit and appears twice: **never hard delete any record, ever** — there is no second, more-permanent removal tier anywhere in this system's design for a "delete" to distinctly mean. Asked the user what "delete" should actually do (remove from the charting queue in bulk — a local, harmless, non-destructive action reusing the just-removed queueTicked/unqueueTicked logic — is one plausible reading, but not assumed).
-
-## Current status (2026-09-02)
+## Current status (2026-09-07)
 - **Phase 1 + 2 DONE and deployed**: https://dental-app-build.vercel.app (Vercel; **push to main auto-deploys** — verified across the 23h–27b sprints; older notes saying CLI-only are superseded). ML service live on Render free tier at `https://floral-ml-service.onrender.com` (sleeps after ~15min idle; first request 30–60s, may 503 once — retry works).
 - **Phase 3 built end-to-end on SYNTHETIC data** (21a–21g); re-run against real data BLOCKED — **not on locating files: there are none.** Barangay Tanyag's dental records are paper IPTR forms, so real data exists only once hand-encoded (n = 50, decided 2026-09-01). The current blocker is the dentist's DOH risk-classification source, which Section 4 of `docs/iptr-encoding-brief.md` needs before encoding can start — see Open work 3. Once encoded: `clean_excel.py data/raw` → `build_features.py` → `run_experiments.py` → regenerate `algo-results.md`/`model-selection-rationale.md` → `train.py` → commit new `active/model.pkl` (Render auto-deploys) → UI's synthetic-data banner clears itself.
-- **Last sprints**: 98 (demo treatments seeded — Services Rendered now has real numbers, 09-03), 97 (notification bell — three real sources, counts only, server-side aggregate, 09-03), 96 (accent contrast — every visible text node on 8 screens now passes WCAG AA, 09-03), 95 (school switcher restored on a collapsed sidebar — user-reported, 09-03), 94 (150 hardcoded greys → tokens; muted-foreground darkened after measuring it fails AA on the CANVAS background, 09-03), 93 (appointment date prefills today; the one real contrast failure fixed — and the finding that the grey sprawl is a TOKEN problem, not a contrast one, 09-03), 92 (the audit trail read is bounded — and the fetch now follows the screen's date filter so a filter cannot lie, 09-03), 91 (the missing indexes — evidence-driven, and the finding that AuditTrail's unbounded read is the real scale risk, 09-03), 90 (Services Rendered wired to real numbers — and the finding that NO tooth record carries a treatment_code, so the section honestly reads 0, 09-03), 89 (Program Report section C rebuilt against the FILED January 2026 return — and the finding that the DOH workbook is a DIFFERENT form, 09-03), 88 (per-school summary sheet — the last supplied form with no output at all, 09-03), 87 (OCR corrections — and the upside-down-page bug that reported 31 phantom findings on a blank form, 09-03), 86 (OCR reads the IPTR checkbox grid — ink density, not character recognition; findings shown never applied, 09-03), 85 (official output — TCL Excel-only, Program Report PDF+Excel, IPTR PDF, blank consent form; formats are decisions, see that section, 09-03), 84 (Target Client List reconciled against the SOURCE WORKBOOK — now 66 columns, incl. the 20-column ORAL HEALTH STATUS group the app never had, 09-03), 83 (Program Report gains the form's missing section A + rows; DOH tables adopt the printed forms' amber band and blocked-cell grey, 09-03), 82 (Target Client List 40 → 50 columns; still short of the real 66 — the workbook is on the OTHER laptop, 09-03), 81 (RECORDING an RPC visit — `PREVENTIVE_CARE_RECORD` had no write path anywhere in the app until now; plus `facility_based` for the FHSIS a/b sub-rows, 09-03), 76 (archiving no longer blocks re-creation; restore guards the uniqueness instead — found by running sprint74's suite on dirty state, 09-02), 75 (`apply:seed-passwords` — `seed:demo` skips existing accounts, so `.env` edits never reached them, 09-02), 74 (Promote/Assign bulk rollover — **now 14/14**, 09-02), 73 (Consolidated rows/grades picker + export handling, 09-02), 72 (TCL column picker, 09-02), 71 (hideable rows/columns + ART sub-rows, 09-02), 70 (IPTR grade/section editable — retained pupils, 09-02), 69 (adding a student opens the school-year record, 09-02), 68 (height/weight + derived BMI per school year, 09-02), 67 (inline school switcher + local treatment terms, 09-02), 66 (archive UI — view + restore, 09-02), 65 (all student lists alphabetical by surname, 09-02), 64b (Target Client List full column set, 09-02), 64 (Program Report full column set, 09-02), 63 (System Admin gets the operational screens, 09-02), 62 (required fields on Add Student, 09-02), 61 (split login layout, 09-02), 60 (schools registry; dropdowns read the DB, 09-02), 59 (DOH School filter made real — it was cosmetic, 09-02), 58 (shared pagination on all four lists + prominent save toast, 09-02), 57b (DOH reports scoped to a school year; age at examination, 09-02), 57a (IPTR carries grade/section; migration run, 09-02), 56b (patient-list row joins server-side; useStudents stops pulling 6 collections, 09-02), 56 (bounded appointment reads + the first indexes in the codebase, 09-02), 55 (Oral Health Program Reporting Form, 09-02), 54 (Target Client List, 09-02), 53 (students-list pagination — CLIENT-side only, 09-02). All pushed and deployed. Per-sprint detail in the sections below.
+- **Last sprints**: 102 (Promote/Assign re-runnable — the screen could not fix its own mistakes, 09-04), 101 (school gate enforced SERVER-side — `school_ids` was in the JWT and nothing read it, 09-04), 100 (users hold MULTIPLE schools; `school_id` → `school_ids[]`, 09-04), 99 (**the API runs in `sin1` — the ~500 ms per request was geography, ~4.2x faster**, 09-04), then 98 (demo treatments seeded — Services Rendered now has real numbers, 09-03), 97 (notification bell — three real sources, counts only, server-side aggregate, 09-03), 96 (accent contrast — every visible text node on 8 screens now passes WCAG AA, 09-03), 95 (school switcher restored on a collapsed sidebar — user-reported, 09-03), 94 (150 hardcoded greys → tokens; muted-foreground darkened after measuring it fails AA on the CANVAS background, 09-03), 93 (appointment date prefills today; the one real contrast failure fixed — and the finding that the grey sprawl is a TOKEN problem, not a contrast one, 09-03), 92 (the audit trail read is bounded — and the fetch now follows the screen's date filter so a filter cannot lie, 09-03), 91 (the missing indexes — evidence-driven, and the finding that AuditTrail's unbounded read is the real scale risk, 09-03), 90 (Services Rendered wired to real numbers — and the finding that NO tooth record carries a treatment_code, so the section honestly reads 0, 09-03), 89 (Program Report section C rebuilt against the FILED January 2026 return — and the finding that the DOH workbook is a DIFFERENT form, 09-03), 88 (per-school summary sheet — the last supplied form with no output at all, 09-03), 87 (OCR corrections — and the upside-down-page bug that reported 31 phantom findings on a blank form, 09-03), 86 (OCR reads the IPTR checkbox grid — ink density, not character recognition; findings shown never applied, 09-03), 85 (official output — TCL Excel-only, Program Report PDF+Excel, IPTR PDF, blank consent form; formats are decisions, see that section, 09-03), 84 (Target Client List reconciled against the SOURCE WORKBOOK — now 66 columns, incl. the 20-column ORAL HEALTH STATUS group the app never had, 09-03), 83 (Program Report gains the form's missing section A + rows; DOH tables adopt the printed forms' amber band and blocked-cell grey, 09-03), 82 (Target Client List 40 → 50 columns; still short of the real 66 — the workbook is on the OTHER laptop, 09-03), 81 (RECORDING an RPC visit — `PREVENTIVE_CARE_RECORD` had no write path anywhere in the app until now; plus `facility_based` for the FHSIS a/b sub-rows, 09-03), 76 (archiving no longer blocks re-creation; restore guards the uniqueness instead — found by running sprint74's suite on dirty state, 09-02), 75 (`apply:seed-passwords` — `seed:demo` skips existing accounts, so `.env` edits never reached them, 09-02), 74 (Promote/Assign bulk rollover — **now 14/14**, 09-02), 73 (Consolidated rows/grades picker + export handling, 09-02), 72 (TCL column picker, 09-02), 71 (hideable rows/columns + ART sub-rows, 09-02), 70 (IPTR grade/section editable — retained pupils, 09-02), 69 (adding a student opens the school-year record, 09-02), 68 (height/weight + derived BMI per school year, 09-02), 67 (inline school switcher + local treatment terms, 09-02), 66 (archive UI — view + restore, 09-02), 65 (all student lists alphabetical by surname, 09-02), 64b (Target Client List full column set, 09-02), 64 (Program Report full column set, 09-02), 63 (System Admin gets the operational screens, 09-02), 62 (required fields on Add Student, 09-02), 61 (split login layout, 09-02), 60 (schools registry; dropdowns read the DB, 09-02), 59 (DOH School filter made real — it was cosmetic, 09-02), 58 (shared pagination on all four lists + prominent save toast, 09-02), 57b (DOH reports scoped to a school year; age at examination, 09-02), 57a (IPTR carries grade/section; migration run, 09-02), 56b (patient-list row joins server-side; useStudents stops pulling 6 collections, 09-02), 56 (bounded appointment reads + the first indexes in the codebase, 09-02), 55 (Oral Health Program Reporting Form, 09-02), 54 (Target Client List, 09-02), 53 (students-list pagination — CLIENT-side only, 09-02). All pushed and deployed. Per-sprint detail in the sections below.
+- **AUDIT PROGRAM, 2026-09-11 (Sprints 151-161).** Track A (security/architecture) complete, Track B 158-161 done, **162 remains**. Program: `docs/audit/PROGRAM.md`. Findings: `docs/audit/LEDGER-sec.md`, `docs/audit/LEDGER-bug.md`. **`npm test` now exists — vitest, 78 tests, in CI.** ⚠ The "Last sprints" line below stops at 102 and is stale; it is not worth rewriting — read the ledgers and the resume note instead.
+- **New scripts:** `npm run audit:user-schools` (2026-09-11, read-only — which accounts hold every school; **not yet run against any database**) · `npm run seed:appointments` (demo appointments — there was none), `npm run backfill:iptr-grades` (grade_level onto older IPTRs), `npm run verify:referrals` (16 checks, refuses on production).
 - Local dev = 3 processes from `dental-4-12-main/project`: `npm run dev:server`, `npm run dev`, plus `uvicorn main:app --port 8000` from `ml-service/` if predictions are needed.
 - Demo accounts: admin/dentist/aide/schooladmin/bho `@floral.com` — passwords rotated, live in `.env` (`SEED_*`) only, never in docs.
 
-## ▶ RESUME HERE — parked 2026-09-03 (4th session), everything pushed at `a614e1d6`
-Ran **Sprints 89–98** plus four maintenance jobs. Tree clean, nothing uncommitted, dev servers stopped (verify with the port check in Durable gotchas — `pkill` lies here).
+## ▶ RESUME HERE — PARKED 2026-10-01 (12th session, late). ✅ **ALL PUSHED, LIVE**
 
-**The through-line, so it is not re-derived:** the DOH forms were made accurate (89), then real (90), then populated (98), then photographed (figures). Alongside that, the app's read paths were bounded (91, 92) and its colour system made accessible (93, 94, 96).
+**Nothing is in progress.** On `main`, level with origin. `npm test` **159/159**, `tsc` both configs and
+`npm run build` clean. Live https://dental-app-build.vercel.app healthy after the merge
+(`{"db":"connected"}`). Dev processes stopped by process.
 
-| # | Sprint | The bit worth remembering |
+**2026-10-01 in one line:** the classmate's **Risk Classification redesign (R1–R3) is MERGED and LIVE**,
+and her **three OCR requests are done**: the System Admin can use Add Student + OCR (O1), personal-info
+accuracy (O2a), the Year 1-5 tick grid fixed and its findings reviewed on Verify then saved (O2b), and
+bulk scanning of up to 20 files (O3). Plus STUDENT.address made optional on the server. Earlier the same
+day: 30-min idle lock screen, "View as", SEC-35. Full detail: `docs/BUILD-LOG.md` → "2026-10-01".
+
+**Facts to keep from the real forms (photos of REAL pupils, used locally only, never committed):**
+- The clinic's CURRENT form is the official Year 1-5 "Individual Patient Treatment Record" (Taguig CHO,
+  sheets dated 2026). DOH Form 1 (2023) and the CHO "Oral Health Form 1" (2022) are older: do not build.
+- OCR cannot read HANDWRITING (Tesseract limit): names and dates on real sheets come back as junk. It
+  reads typed text and tick marks. **Chapter 5 limitation.** The tick grid is not found on angled phone
+  photos; it declines with a reason and saves nothing.
+- Live risk dashboards now count dentist-VALIDATED results only, by design; numbers drop until reviewed.
+
+✅ **SEC-00 RESOLVED on this PC (2026-10-01):** `.env` targets the DEV cluster (`cluster0.o7e3c5o`;
+`PRODUCTION_DB_HOST` = `floral-cluster.edqpjtu`); the old production-pointing file is
+`.env.production-backup-20261001` (gitignored). **Sprint 163 is unblocked**: test against DEV only.
+⚠ The DEV cluster's Atlas network allowlist does NOT admit Vercel, so a Vercel preview cannot reach it
+(seen 2026-10-01). A future preview needs a temporary "allow from anywhere" entry in Atlas.
+
+⚠⚠ **SECRETS EXPOSED 2026-10-01 — ROTATE (user action, walk them through it):** the user uploaded
+their `.env` files into the chat, including PRODUCTION's DB password and FIELD_ENCRYPTION_SECRET,
+the JWT secrets (IDENTICAL in dev and prod — should differ), and the Brevo + Render API keys.
+Order: (1) new DB-user passwords in Atlas for BOTH clusters → update Vercel env + each machine's
+`.env`; (2) regenerate Brevo + Render keys; (3) new JWT secrets in Vercel (logs everyone out once),
+different from dev's; (4) change the demo-account passwords. The encryption key CANNOT simply be
+changed (CLAUDE.md) — it needs a planned re-encryption; (1) is what protects it meanwhile.
+**Never ask a user to paste `.env` contents; ask for host names only.**
+
+✅ **Sprint 163 DONE 2026-10-01** (SEC-03/19/33/34): the School Admin and BHO no longer read clinical
+records; School Admin rows carry no names; one role table (`utils/routeRoles.ts`) drives the sidebar AND
+a page guard. Details + per-role API results: `docs/audit/LEDGER-sec.md` → "Sprint 163 DONE".
+⚠ Not yet seen in a browser AS the School Admin / BHO (dashboards + Reports render); API verified.
+
+**▶ NEXT, in order:** (0) **Rotate the exposed secrets** (above). (1) Browser check signed in as the
+School Admin and the BHO (Dashboard, Reports tabs). (2) The classmate's feedback on the live Risk
+redesign; ask the dentist to glance at the treatment rules (FV Medium/High, PF per D, SDF per d) before
+defense. LOW PRIORITY: phone test (drag-to-paint; stays signed in when the laptop locks), SEC-12
+two-browser confirmation, Render API key check.
+
+⚠ **TESTING MODE built 2026-10-01 (user's decision, so the classmate can test the LIVE site without
+switching accounts).** Vercel Production env `OPEN_ACCESS_TESTING=true` → role checks pass for every
+signed-in user, amber "Testing mode" banner, "View as" on the live site for everyone and it SAVES
+(audited under the signed-in account). **Turn OFF:** delete the variable in Vercel → redeploy → check
+`https://dental-app-build.vercel.app/api/config` says `{"testingMode":false}`. No code to revert; fixes
+made meanwhile stay. Pre-switch version: git tag `pre-open-access`. Verified on DEV both ways (ON: the
+School Admin gets 200 on medical/risk/users, no sign-in still 401; OFF: 403 again). **Must be OFF before
+defense** (on the Before-Defense checklist). The risk-redesign share/preview link is BROKEN (dev Atlas
+blocks Vercel) and no longer needed.
+
+**User-only:** delete the real pupils' photos from Downloads. Optional: the Vercel PREVIEW-only env vars
+added for the abandoned preview (`MONGODB_URI`/`FIELD_ENCRYPTION_SECRET` = dev values, `ALLOWED_ORIGINS`
+= the risk-redesign branch alias) are harmless; delete them if unwanted.
+⚠ Chrome's localhost session is the dentist test account. Claude may sign in with the DEV seed accounts
+on localhost (user permission 2026-10-01) after checking the dev host; never press Logout in the shared
+Chrome (it revokes every device).
+
+#### 2026-09-30 (merge day)
+
+**2026-09-30 in one line: the classmate's `majorUpdates` (589 commits) is MERGED TO `main`.** Details
+in "✅ MERGED TO `main`" below. Also this day: **BUG-02 fixed** (one age rule, 12 copies folded in;
+BHO age table now 5 DOH brackets). User decisions recorded: School Rotation, non-student patients and
+one-dentist/one-aide-per-school KEPT; year strip shows `DMFT 0 · dmft 0` on an uncharted year (hers).
+⚠ The sections at the TOP of this file dated 09-24…09-30 and saying "on branch `majorUpdates`, not
+merged" are HER session notes, merged in as-is — they are now on `main`.
+
+**2026-10-01: 30-minute idle lock screen BUILT, tested live, deployed** (user's reference screenshot
+"Session Expired", plus a password field by the user's choice). Verified in Chrome against the real
+API: lock appears after the idle time · the session is REALLY ended (`/auth/me` and `/auth/refresh`
+both 401 while locked) · page unreadable behind the lock but unsaved charting kept (tooth 16 `D`) ·
+the user unlocked with their password, SAME page, no reload, draft and edit mode intact · Cancel
+then discarded the test mark (nothing saved). A page RELOAD while locked goes to the normal login
+page instead (a reload loses unsaved work anyway) — seen and correct. **Not tested:** "Not you? Log
+out", the 2FA-account path, cross-tab sync, and that other devices really stay signed in after a
+device-only lock (server code reviewed, not exercised with a second device).
+⚠ Dev-server gotcha found: `npm run dev:server` is `tsx watch`; stopping the server by PORT kills the
+child and leaves the watcher alive, which restarts it on the next file save. Stop watchers by process
+(`tsx.*watch server/local.ts`), not by port.
+
+**2026-10-01: "View as" BUILT, tested live, deployed** (classmate asked to REMOVE role-based access
+for easier testing; declined, and this built instead, user's choice). System Admin only, never on
+the live host (hostname check), read-only. Verified in Chrome as System Admin: button shows · View as
+Dentist switches nav + Dentist Dashboard + amber "read-only preview" bar · a save while previewing is
+refused client-side with ZERO requests reaching the server · Exit restores the admin nav, and saves
+reach the server again. Not tested: the other three preview roles, and a Vercel PREVIEW deployment
+(only local dev). ⚠ Chrome's localhost session is now the SYSTEM ADMIN (replaced the dentist's).
+
+✅ **SEC-35 FIXED 2026-10-01** — risk sign-off is dentist-only on the server (admin attempt → 403,
+tested live); the page shows Validate & Save to the dentist only (that note NOT seen on screen: the
+ML service was asleep). See `LEDGER-sec.md`.
+
+**Sprint 163 plan RE-CHECKED vs the merged code (2026-10-01)** — still valid, plus two additions
+(details in `LEDGER-sec.md`, end): **SEC-35 HIGH** — risk sign-off is not dentist-only (server lets
+admin + aide write risk results; the merge put Risk Classification in the admin's nav; the audit
+still says "dentist validated"). **Can ship WITHOUT a dev `.env`** (only the refusal needs testing)
+— recommended as its own small sprint next. And a new SEC-03 instance: `/stats/notifications` sends
+pupil names to school_admin/bho via `unmarkedAppointments` → fold into Sprint 163 step 2. Step 5's
+route guard now also covers `students/scan`, `students/scan/review`, `notifications`.
+
+### ▶ PLANNED: Risk Classification redesign (classmate's design) — 3 sprints, Opus high
+
+**Decided 2026-10-01 (user: "go with your recommendations"):** treatment rules as her pictures —
+**FV** when the confirmed level is Medium/High ("whole mouth"), **PF** per permanent tooth marked
+**D**, **SDF** per primary tooth marked **d**; the dentist accepts or skips EACH (skip needs a
+reason). "Reasons" → **"Findings"** (real chart/diet facts; the model does not explain one pupil).
+Caries-free teeth = teeth charted ✓ (`sound_temporary` + `sound_permanent`), "—" when uncharted.
+Confidence labels: ≥80% "Very sure", 60–79% "Fairly sure", <60% "Not sure". Ask the dentist to
+glance at the treatment rules before defense.
+
+**Architecture finding that drives R1:** suggestions are NOT stored today — the page computes them
+and a `RISK_STRATIFICATION` row exists only once validated. Her "Needs review" state needs STORED
+suggestions: save the model's result as a row with `validated_by_dentist: false`; the dentist's
+review UPDATES that row. ⚠ Then every reader that counts risk must ignore unvalidated rows, or
+unreviewed ML output reaches filed figures: `dohAggregate` (DMF + orally-fit counts, via
+`/stats/doh-report` ~index.ts:907), `/stats/student-rows` (~1105: `riskLevel` + `oralStatus` →
+Students list, dashboards, BHO table), `/stats/high-risk-count` (~126). Her card's "Not counted in
+reports until the dentist reviews it" is only TRUE after that.
+
+✅ **R1 DONE 2026-10-01 on branch `risk-redesign` (NOT on `main`)** — tsc both, `npm test` 137/137
+(26 new), build clean; verified on the DEV DB as the dentist (risk list carries status/suggestion/
+caries/teeth; DOH report, student rows, high-risk badge respond). **Deliberately NOT merged yet:**
+dev data has 21 unreviewed and 0 validated risk rows, and the live data probably also holds
+unreviewed seeded rows (her notifications showed "23 awaiting validation"). Validated-only readers
+therefore make the live dashboards' risk figures and the risk-based DOH figures DROP (possibly to
+zero) until the dentist reviews them — correct, but ship it WITH R2 so the review flow exists the
+moment the numbers change. Also fixed: the create audit line claimed "dentist validated" for any
+body with a model level; it now says so only when validated.
+✅ **R2 DONE 2026-10-01 on branch `risk-redesign`** — her list page (`AIAnalytics.tsx`, rewritten)
++ the 4-step popup (`components/risk/RiskReviewDialog.tsx`, reusable for R3). Tested LIVE on the
+DEV DB as the dentist, end to end with a real save: cards/tabs/columns match her screenshots; the
+popup's 4 steps match; saving moved the pupil Needs review → Reviewed ("✓ Reviewed · Oct 1, 2026");
+the row stores level, decisions, readable summary, and `dentist_notes` ENCRYPTED at rest (checked).
+**Found and fixed in testing:** AUDIT_TRAIL.action is maxlength 100 and `logAudit` swallows errors,
+so the review's (longer) audit line was SILENTLY NEVER WRITTEN — the old "changed AI suggestion"
+create line could exceed 100 too. Lines shortened (worst case 99) AND `logAudit` now trims instead
+of failing; re-tested: the audit row is written. Kept: service-asleep + synthetic-data banners.
+Dropped from the old page (her design has none): per-pupil trend tiles, history panel, checkbox
+bulk assess (replaced by "Check risk for the N on this page" on the Not checked tab). Not tested:
+"Check risk now" with the ML service awake (it was asleep), phone width, non-dentist "View".
+**Still NOT on `main`:** merging R1+R2 makes live dashboard risk figures drop until reviewed.
+✅ **R3 DONE 2026-10-01 on branch `risk-redesign`** — Students list (`/patients`) gets a Risk column
+(`components/risk/StudentRiskChip.tsx`): solid level + "✓ Reviewed · date", dashed level + "Needs
+review" (opens her card: visit, suggestion + confidence, Findings, "Not counted in reports…", Review
+now → the SAME `RiskReviewDialog`, Open in Risk Classification → `/ai-analytics?student=<id>` with
+"Show all students" + "← Back to Students"). `/stats/student-rows` returns `riskReview` via the new
+shared `reviewSummary` (same rule as the Risk page; `riskLevel` still validated-only). Notifications'
+risk link → `?tab=needs_review`. **Found and fixed:** the bell counted every unvalidated ROW (20 on
+dev) while the tab it opens counts PUPILS on their latest visit (10); now uses `reviewSummary` —
+verified 10=10 (BTIS) and 19=19 (all schools). The chip cell stops click AND keydown propagation:
+the row is `activatable`, so a Space typed in the review notes would otherwise preventDefault and
+navigate to the chart. Tested LIVE on DEV as the dentist incl. a real save from the Students list
+(Morales, Juan → "✓ Reviewed"). tsc both, 140/140 tests. Not tested: phone width, non-dentist view.
+**NEXT:** send the classmate the Vercel PREVIEW link for branch `risk-redesign`; after her OK, merge
+R1+R2+R3 to `main` together, deploy, verify live (expect dashboard risk figures to drop until reviewed).
+
+**R1 — data + server (no UI change; build first):**
+1. `shared/cariesStatus.ts` — the DOH workbook's "Yes or No - Caries Experience" group from tooth
+   condition counts: with caries experience (D+M+F+d+f>0), in temporary (d+f>0), in permanent
+   (D+M+F>0), active caries (D+d>0), caries-free teeth (sound_temporary+sound_permanent; null if
+   nothing charted). `TargetClientList.tsx` STATUS_COLUMNS' first four switch to it (still print
+   1/0). Tests.
+2. `RiskStratification` + fields (ERD deviation → DATA-MODEL.md + Chapter 3 note): `model_risk_level`,
+   `model_confidence`, `dentist_notes` (ENCRYPTED → CLAUDE.md list), `treatment_decisions[]`
+   `{code, tooth|null, decision: accepted|skipped, skip_reason}`.
+3. Readers above filter `validated_by_dentist: true`. Test: an unvalidated row changes no DOH figure.
+4. `riskCandidates`: history = validated only; add `suggestion` (latest UNvalidated row on the latest
+   visit: level, confidence), `status` (reviewed / needs_review / not_checked / no_visit), the five
+   caries fields, and per-tooth conditions (add `tooth_number` to `RiskTooth`) for findings and
+   treatment suggestions. `shared/riskTreatments.ts`: the rules above, pure + tested.
+5. Review = `PUT /risk-stratifications/:id` (dentist-only since SEC-35) setting validated + fields;
+   add an update audit line mirroring the create one ("dentist validated: accepted/changed …").
+**R2 — Risk Classification page + 4-step review popup** per her screenshots (stat cards, tabs with
+counts, 5 caries columns, "N to decide", order by most urgent, 25/page; popup: Check the facts →
+Confirm risk level (notes required) → Decide treatments → Review & save). "Check risk" on Not
+checked yet stores a suggestion; ML asleep → "No suggestion available", dentist picks.
+**R3 — Students list** Risk chip (solid ✓ Reviewed · date / dashed Needs review) + small card
+(Review now → same popup in place; Open in Risk Classification → filtered view + "Back to
+Students"); Notifications' risk item opens the Needs review tab.
+
+**Classmate's Risk Classification redesign — answered, see PLANNED above** (list page + 4-step review popup,
+then a Students-list Risk chip + card). Two sprints, Opus high. Before planning: (1) does the dentist
+tick every sound tooth ✓ (decides "Number of Caries Free Teeth"); (2) treatment rules D→PF, d→SDF,
+Medium/High→FV — dentist agrees?; (3) relabel "Reasons" as "What the system looked at" (the model
+cannot explain one student). The five caries columns come from the DOH workbook's "Yes or No -
+Caries Experience" group; four already exist in `TargetClientList.tsx` STATUS_COLUMNS — move them to
+one shared function for both screens. Verify her card's "Not counted in reports until the dentist
+reviews it" is TRUE before showing it.
+
+**Browser automation: use "laptop chrome"**, not "laptop edge" — Edge could not take screenshots all
+session (both connected; switch with `select_browser`).
+
+**Model strategy changed: no Fable** — Opus high/medium, Sonnet high/medium by task; see CLAUDE.md.
+
+**2026-09-29: SEC-22, BUG-09, BUG-10, BUG-11, BUG-13, SEC-12 fixed, and Sprint 162 finished.**
+Only 162d was browser-checked; the fixes were verified by tsc + tests (+ a real-jsonwebtoken run
+for SEC-12), **none against a live DB** (SEC-00 — this PC still points at production).
+**Then Sprint 163 was SCOPED, not built** (SEC-03/19/20/33/34, see "PLANNED: Sprint 163" below).
+Two new findings: **SEC-33 HIGH** (a school_admin sees named referrals + reason on Reports →
+Internal) and **SEC-34 LOW** (routes have no role guard). **Your decision: bho_staff KEEPS the named
+Target Client List + Consent Form**, so SEC-20 is an accepted risk. The plan needs no more decisions.
+
+**▶ YOUR NEXT MOVES, in order** (no sprint is unblocked without one of these):
+0. **Drag-to-paint teeth on a real phone/tablet, on the live site** — the one part of the merge nobody
+   has tested (a touch interaction). Edit → drag across teeth → **Cancel** (don't save real records).
+   Then delete the `merge-majorUpdates` branch. **Other laptop: `git pull && npm ci`** (deps changed).
+1. **SEC-12 two-browser check** once Vercel has deployed: log in on two browsers, log out of one —
+   the other should land on login within 15 minutes.
+2. **A dev `.env` on this PC (SEC-00)** — the whole file from the laptop, never one line. **This is
+   what unblocks Sprint 163**, which must be verified logged in as school_admin AND bho_staff before
+   it is pushed; it also makes every later browser pass safe. Then run
+   `npm run audit:user-schools` (read-only; SEC-18's DATA has still never been checked).
+   → **Then run Sprint 163 on Opus medium, from the plan below.**
+3. **Render dashboard: is `ML_SERVICE_API_KEY` set?** Closes SEC-30 either way.
+4. **The paper DOH form's referral rows** → BUG-14 becomes a quick fix.
+5. The dental chart at 390 px in devtools device emulation (window resize can't get there).
+
+⚠ **SEC-12 changed live behaviour: Logout now signs the account out on EVERY device** (your
+decision) — other devices drop within 15 min. Changing or resetting a password does the same, except
+the device that changed its own password stays signed in. **Worth one manual check after deploy:**
+log in on two browsers, log out of one, and confirm the other is sent to login within 15 minutes.
+**Sprint 162 is COMPLETE (162d, 09-29): TAB 2 extracted** — `ToothButton.tsx` + `DentalChartTab.tsx`;
+`DentalChart.tsx` **2,602 → 2,007**. The 551 JSX lines were moved by script and byte-compared equal
+to the original (one intended substitution); all state stayed in the host. **Browser pass done live,
+read-only, at laptop width:** 52 teeth, every section, charting-bar identity + "4 of 57", Edit →
+arm D/d → tooth 16 → DMFT 0→1, Section B + Dental Caries derive, toggle-off, charting mode in/out,
+**Cancel discards** (tooth 16 blank, saved 54 `m PF` intact, no write request), zero console errors.
+⚠ Phone/tablet widths NOT re-checked — the JSX is byte-identical, so layout cannot have moved, but
+the 390 px devtools look (user-only item 3 below) still stands.
+
+⚠ **Vercel has auto-deployed all 23 commits**, which includes one live behaviour change worth knowing
+about: **Background Sync now HOLDS queued writes instead of sending them** (Sprint 159a — see the
+decision section below).
+
+⚠ **On the other machine, `npm ci` after pulling** — `package.json` and `package-lock.json` both
+changed (vitest added).
+
+### What happened after the 2026-09-12 park
+
+**BUG-12 fixed** (your definition call), then **Sprint 162c extracted four tab panels**, then **both
+were verified in the browser** against live data. All pushed. `npm test` **96/96**, `tsc` both
+configs and `npm run build` clean. Servers stopped, confirmed by port.
+
+⚠ **Two new findings, both LOW-to-MED and both left open deliberately:**
+**BUG-13** — the year strip labels `T + t` as "DMFT" (16) while the DMFT History table separates them
+(14 / 2). Pre-existing; relabelling was not what was approved.
+**BUG-14** — the DOH referral row labels exist in **two copies and have already drifted** (three of
+five differ; the chart says "Higher Level — Surgical Procedure", Reports says "Surgical Procedure").
+Both claim to be the form's own wording. **Reconciling them needs the paper form, not a refactor** —
+CLAUDE.md is explicit that the form decides. Only labels differ, so **no filed count is wrong**.
+
+### ✅ BUG-12 FIXED 2026-09-14 — the blocking decision was made and implemented
+
+**Your call: _"use latest charting with records, empty shows not recorded."_** Implemented and
+**verified live on the pupil that exhibited it** (`6a9601a841e3a7b9e9c08350`, 2026-2027): the DMFT
+History table went `0 / 0` → **`dmft 2 · DMFT 14`**, Trend **"Stable"** → **"↑ Worsening"**, and the
+year strip `DMFT: 0` → **`DMFT: 16`**. On a second pupil with two uncharted years
+(`6a4439c0794468ceef36762c`), both now read *"Not recorded — no charting this school year"*,
+**Years tracked reads 1 rather than 3**, and Trend reads `—` instead of being computed off
+fabricated zeroes.
+
+⚠ **A year charted all-sound still shows `0`** — it has records, and that is a real finding. `0`
+means examined and nothing found; "not recorded" means nothing was charted. **That distinction is
+the whole point of the rule.**
+⚠ **`toothRecords` was deliberately NOT changed** — it is the charting being *viewed*, which must
+stay empty when you open a fresh one to chart into. Only the two year-summary readers moved.
+The rule lives in `dmftRecordsForYear` (pure, 5 tests) so the year strip and the History table
+cannot drift apart.
+
+**New, and left open: BUG-13 (LOW)** — the year strip labels `T + t` as "DMFT" (16) while the table
+reports them separately (14 / 2). Pre-existing, cosmetic, but worth settling before Chapter 4 quotes
+either number. Details in `LEDGER-bug.md`.
+
+### What this session was
+
+**A 12-sprint audit program, scoped and then executed.** Full program in **`docs/audit/PROGRAM.md`**;
+findings in **`docs/audit/LEDGER-sec.md`** and **`docs/audit/LEDGER-bug.md`**. Read those, not this
+note, before continuing.
+
+**Track A (security/architecture) COMPLETE — 151-157.** 31 findings. **Track B — 158-161 done, 162
+NEARLY DONE** (162a/b/c landed; **only TAB 2 remains** — see Next sprint).
+
+**Fixed this session:** SEC-18 (every account was created holding every school — `createUser` read a
+field the schema had not had since Sprint 100) · SEC-27 + BUG-03 (the offline queue had no owner and
+its guard did not cross contexts) · BUG-04 (PUT could write into an archived record) · BUG-07 (the
+dental chart could show one pupil's identity above another's teeth) · **BUG-12 (an empty charting
+zeroed the year's DMFT — a clinical screen reading 0 for a pupil with 14 decayed teeth)** · five
+doc-drift rows.
+
+**Refactored:** `DentalChart.tsx` **3,088 → 2,602**, with the chart's vocabulary and arithmetic, the
+shared IPTR draft shapes, and five tab panels each in their own file — and the four screens that used
+to import constants from that 2,800-line component no longer do.
+
+**Built this session:** `npm test` — vitest, **91 characterization tests**, wired into CI. It did not
+exist before. The net was verified by deliberately breaking a function and watching it fail, not by
+assuming it worked.
+
+⚠ **Two self-corrections are recorded, deliberately, because both were nearly wrong findings:**
+Sprint 152 corrected SEC-04's claim (the empty-`school_ids` behaviour is a documented sentinel, not a
+fail-open bug) · Sprint 160 nearly reported "2 of 20 hooks guard" from a **truncated grep** — it is 5
+· and BUG-00/BUG-01 were carried OPEN for eleven sprints on a **stale seeded claim**. The standing
+rule that came out of it is at the top of `LEDGER-bug.md`.
+
+### ▶ THREE THINGS FOR YOU (none is a sprint, none is done)
+
+1. **`npm run audit:user-schools`** (read-only). SEC-18's code is fixed but **the DATA has never been
+   checked** — the run was refused here because this PC points at production. Anything it lists under
+   the first heading is repaired by editing that account in Account Management.
+2. **Check the Render dashboard for `ML_SERVICE_API_KEY`.** One look closes **SEC-30** either way.
+   Unset means the public `/predict` endpoint accepts any caller — not a data leak, but an open
+   compute endpoint with no rate limiting, on a free tier, in the month it most needs to answer.
+3. **The dental chart at 390 px, in devtools.** ⚠ **I cannot do this one and neither could the 10th
+   session.** `resize_window` reports success and the window stops at **1098 px** — an OS/browser
+   minimum. Window resizing cannot reach phone width; **device emulation is the only way.** Everything
+   else on that screen was verified live this session (see the browser-pass note under Sprint 162).
+
+### ⚠ A DECISION I MADE THAT YOU MAY WANT TO REVERSE
+
+**Background Sync now HOLDS queued writes instead of sending them** (Sprint 159a). A service worker
+can learn who owns a queued row but **cannot learn whose session it is about to write under** — the
+session is an httpOnly cookie it may send but never read. So it no longer writes; the page drains the
+queue on next open instead. **Sprint 20's "syncs even if the tab was closed" is therefore degraded**,
+deliberately, and documented at length in `sw.ts`. If you would rather have the old behaviour back
+for the defense, say so and it can be scoped — but it would mean accepting that a queue can sync as
+the wrong person.
+
+### Still HIGH and open
+
+**SEC-00 is the blocker, not just a finding.** This PC's `.env` points at production, and that is
+what stopped **two HIGH rows being demonstrated**: SEC-03 and SEC-19 (clinical reads by
+`school_admin` / `bho_staff`) are **read off the code and never confirmed live**. Getting a dev
+`.env` onto this PC — the whole file from the laptop, never one line, the `FIELD_ENCRYPTION_SECRET`s
+differ — unblocks both. It was the 10th session's top recommendation too.
+
+⚠ **SEC-00 was RE-VERIFIED this session, not assumed:** `MONGODB_URI` targets
+`floral-cluster.edqpjtu…` and `PRODUCTION_DB_HOST=edqpjtu` — they match. It is still production.
+The browser pass was done against live data for that reason, read-only and saving nothing.
+
+Also open: SEC-04 (an empty `school_ids` still means "all schools"; SEC-18 fixed the instance, not
+the design) · SEC-19/SEC-20 (⚠ **check whether the grant is still load-bearing before narrowing it**
+— grep which hooks the two non-clinical roles' screens actually use) · SEC-30 (one dashboard
+look) · BUG-05, BUG-06, BUG-08, **BUG-14**, and the `dohAggregate.ts:207` school-year parse left from BUG-11.
+
+✅ **Closed:** SEC-05, SEC-06, SEC-07 (all NOT-A-BUG, with reasons) · BUG-00, BUG-01 (already fixed
+before the audit began) · **BUG-12 (fixed 09-14)** · **SEC-12 + SEC-22 + BUG-09 + BUG-10 + BUG-11 + BUG-13 (fixed 09-29; SEC-12 = `User.sessions_valid_from`, logout revokes all devices; BUG-10 changes `schoolYearEnd` to 23:59:59.999 — RPC 'tight'/'impossible' and the appointments fetch window both shift by up to a day, correctly; BUG-13 year strip now `DMFT 14 · dmft 2`, not browser-checked)** · SEC-01 re-verified against the API. **All three
+seeded SEC rows are now re-verified**, so no ledger row rests on an unchecked claim about the past.
+
+### Next sprint
+
+**The audit program's build work is DONE — Track A, Track B 158-162, and the self-contained SEC/BUG
+fixes.** What remains is blocked on YOU, not on a sprint: **SEC-00** (a dev `.env` on this PC — it
+unblocks SEC-03/SEC-19 live checks), **SEC-30** (one Render dashboard look), **BUG-14** (the paper
+DOH form's referral rows), plus SEC-04, BUG-05/06/08 and the `dohAggregate.ts:207`
+duplicate, all of which need reading before scoping.
+
+### ✅ MERGED TO `main` 2026-09-30 (fast-forward of `merge-majorUpdates`; user: "merge to main")
+
+Deployed via Vercel on push. On `main` before pushing: tsc both, `npm test` 111/111, build clean.
+⚠ **Other machine: `git pull && npm ci`** — dependencies changed (her font package swap).
+Still untested by anyone: drag-to-paint teeth on a real touchscreen — do it on a phone/tablet
+against the live site. Branch `merge-majorUpdates` can be deleted once that is confirmed.
+
+#### (history) Merged on branch `merge-majorUpdates` (2026-09-30, `a3ee3ac5`)
+
+All three decisions KEPT (Rotation, non-student patients, one staff per school — see CLAUDE.md).
+tsc both, `npm test` 111/111, build clean.
+✅ **162d panel split REDONE on her design** (own commit): `DentalChartTab.tsx` takes her 638-line
+panel, `ToothButton`/`padToArch` and 7 panel-only helpers, all byte-compared IDENTICAL to the merge
+version; `oralConditionChips`/`serviceChips`/`ServiceField` (now incl. Consultation) moved to
+`iptrDrafts.ts`. `DentalChart.tsx` 3,409 → 2,683. `ToothButton` deliberately NOT hoisted (her
+paint-stroke touch charting; hoist separately, tested on a tablet).
+✅ **Decided 2026-09-30: an uncharted year's strip shows `DMFT 0 · dmft 0` (hers kept)**, reversing
+the 09-14 "empty shows not recorded" call for the STRIP only; BUG-12's "latest charting WITH
+records" rule still stands.
+**Before merging to `main`: ONE thing left — a browser pass of her screens** (dental chart
+especially: paint-stroke charting, Visit 1/2, palette, summaries).
+
+**How faithful to hers it is — MEASURED, not claimed** (`git diff --stat classmate/majorUpdates
+merge-majorUpdates`): her branch touches 105 files; the merge differs from hers in **35**, every one
+ours. Visible on screen: "—" instead of "Age 0" on a missing birthday (BUG-02) · BHO age table 5 DOH
+rows instead of her 3 (user decision) · year strip `DMFT 14 · dmft 2` instead of `DMFT: 16` (BUG-13).
+Invisible: SEC-12 auth, BUG-09/10/11, the one age rule, guardian-contact-required-on-create, the
+byte-identical panel move, docs. ✅ **RENDERED SIDE BY SIDE, 2026-09-30** (her branch on :5174 vs the merge on :5173, same API
+and data, logged in as the dentist, read-only). Per screen, two fingerprints: all visible text,
+and the DOM structure (every element + its classes, so styling differences count too).
+**IDENTICAL in both:** Students, Dental Charts, Treatment Records, Appointments, RPC, Risk
+Classification, Reports, Notifications, Scan a Form, and on the dental chart page: Medical
+History, Caries Risk Assessment, Treatment, Dental History, Notes & Referrals. **Dashboard:**
+IDENTICAL too — re-measured in a VISIBLE tab: both 480 elements, same structure fingerprint
+(`db24e00c14b4`); an earlier 480-vs-474 gap was her hidden tab not having animated 3 chart bars.
+Idle check: 0 DOM mutations in 3 s, worst main-thread stall 64 ms — no render loop. **Dental Chart
+tab:** structure identical; text differs in exactly 2 of 437 lines, both the year strip
+(`DMFT 0 · dmft 1` vs her `DMFT: 1` — BUG-13, intended); proven by fingerprinting the other 435.
+**Not compared:** admin-only screens (logged in as dentist) — but none of their files is among the
+35 that differ from hers, so they are code-identical; and the BHO age table (known, decided).
+Method note: Chrome's window was hidden all session, which throttles timers and blocked
+screenshots — it was not an app freeze (checked). Worktree + temp files removed afterwards.
+**What remains is human judgement only** (does it feel right on a phone/tablet, drag-to-paint).
+⚠ On the other machine: `git fetch && git checkout merge-majorUpdates && npm ci` (deps changed).
+
+#### Review notes (kept for the record)
+
+Fetched as remote `classmate` (`peanutbutterjelly03/dental-app-build`, read-only). Branched from
+our `3c23d2cb` (09-14 park); **589 commits, 09-22→09-30, 105 files, +12,983/−3,588**; ours since
+then: 16. Trial merge (`git merge-tree`): **5 textual conflicts** — `server/routes/index.ts`,
+`DentalChart.tsx` (hers +1,432/−623, largely INSIDE the TAB 2 panel we moved to
+`DentalChartTab.tsx` in 162d), `DentalChartNav.tsx`, `PatientList.tsx`, `TreatmentRecords.tsx`.
+11 other shared files auto-merge but need reading (Dashboard, dohAggregate, TargetClientList,
+IptrForm/V2, useAppointments, iptrDrafts, authController, CLAUDE.md, DATA-MODEL.md, HANDOFF.md).
+**Needs user decisions before merging** (flagged against CLAUDE.md): School Rotation UI revived
+(removed 09-07 as non-ERD) · `Student.is_not_student` (non-student patients — Chapter 3 scope) ·
+one-dentist/one-aide-per-school API rule (`oneStaffPerSchool.ts`) · `Appointment.
+guardian_contact_number` REQUIRED (existing appointments lack it → their next save fails
+validation) · MedicalHistory +20 fields, 7 encrypted (CLAUDE.md encryption list must grow).
+Plan: merge on a separate branch, never straight to `main`.
+
+### ▶ PLANNED: Sprint 163 — non-clinical roles stop reading clinical data (SEC-03/19/20/33/34)
+
+**Scoped 2026-09-29 on Opus high; nothing changed yet.** The load-bearing check is written up in
+`LEDGER-sec.md` ("load-bearing check"). Short version: narrowing the server alone breaks the
+school_admin Dashboard (false "None recorded yet" on the Treatments tile) and the bho_staff Target
+Client List. So server and client change together. **~6 files, medium complexity. Execute on Opus
+medium. Verification needs SEC-00 (a dev `.env`)**, because it must be logged in as school_admin AND
+bho_staff. Do not push before that.
+
+**Part A — no decision needed:**
+1. **SEC-33:** hide Referral Tracking on Reports → Internal for school_admin, AND return
+   `referralRows: []` from `/stats/reports-panels` for that role.
+2. **SEC-03:** blank the name fields for school_admin in `/stats/student-rows`, `/stats/rpc-rows`
+   and `/stats/reports-panels`, the same field list `/students` redacts (`index.ts:925`). Gate
+   `/stats/risk-candidates`, `/stats/risk-history` and `/stats/student-nav` to clinical roles + admin.
+3. **Dashboard:** skip the six raw clinical fetches (`Dashboard.tsx:89-104`) for school_admin and
+   bho_staff, the way `/users` is already skipped. Give school_admin's Treatments tile a scoped
+   server count, not `treatments.length`.
+4. **SEC-19:** add `readRoles: CLINICAL_READ_ROLES` (system_admin, dentist, dental_aide) in
+   `roleGroups.ts` to `medical-histories`, `dietary-social-habits`, `dental-charts`,
+   `tooth-records`, `treatments`, `risk-stratifications`, `referrals`, `day-notes` and
+   `dentist-rotations`. **`/appointments` stays readable by school_admin**, because their dashboard
+   lists upcoming visits.
+5. **SEC-34:** a role guard in `RootLayout` built from `allTabs`' roles, redirecting to `/`.
+
+**Part B — DECIDED 2026-09-29: bho_staff KEEPS the named Target Client List and Consent Form.**
+So `/students` stays unredacted for bho_staff (SEC-20 accepted, see ledger), and
+`oral-health-conditions`, `student-iptrs` and `preventive-care-records` stay readable by bho_staff.
+Narrow those three to school_admin only, i.e. `readRoles` = clinical roles + admin + bho_staff.
+
+**Live check list (after SEC-00):** log in as school_admin: Dashboard tiles are non-zero where
+data exists, the upcoming-visits list renders, the Internal tab has no referral table, and
+`/api/medical-histories` returns 403. Then log in as bho_staff: Dashboard renders, and every
+Reports tab renders per the Part B decision.
+
+✅ **BUG-02 DONE 2026-09-29** — one age rule in `shared/age.ts`; 12 copies folded in (4 more than
+scoped). BHO Age Bracket table now the 5 DOH brackets. Details: `LEDGER-bug.md` BUG-02. Not
+browser-checked (needs a bho_staff login, SEC-00).
+
+Sprint 162's seam, for anyone touching these tabs: read-only values are plain props; anything a
+panel can CHANGE arrives in a named bundle (`addForm`; TAB 2 has `actions`, `palette`, `drafts`).
+Shared draft shapes live in `components/iptrDrafts.ts` (`ServiceField` moved there in 162d).
+
+⚠ **BUG-00 and BUG-01 are CLOSED — do not start them.** They were already fixed by Sprints 148/149/154
+and were carried OPEN for eleven sprints on a stale seeded claim. Verified live this session: the
+charting picker works, shows the visit annotation, and switching chartings swaps the tooth records.
+The lesson is recorded at the top of `LEDGER-bug.md` — **a seeded row is a claim about the past.**
+
+---
+
+## Parked 2026-09-07 (10th session), at `be138a7e`, all pushed and deployed
+
+**Nothing is in progress.** Working tree clean, `main` level with origin, three commits this session.
+Short session: no sprint was planned — this was a catch-up pull that turned up two config faults and
+closed one parked decision.
+
+### What this session did
+1. **Pulled 214 commits.** The PC was that far behind — Sprints ~103–150 plus the whole role audit
+   and the design adoption. Nothing was lost; the pull was clean.
+2. **`SEED_BHO_PASSWORD` lengthened to 8** (`abf1f44b`). ⚠ The FILE is fixed, the ACCOUNT is not —
+   see Dev demo accounts.
+3. **`PRODUCTION_DB_HOST` was unset on the PC, so the production guards were silently off**
+   (`03c3dd26`). This is the one to remember — detail under READ BEFORE TOUCHING THE DATABASE.
+4. **The Rotation tab deleted** (`be138a7e`), with CLAUDE.md's model list corrected. Full reasoning
+   in the rotation section below.
+
+### ⚠ THE FINDING THAT OUTRANKS THE REST
+**This PC's `.env` points at PRODUCTION**, and HANDOFF said it pointed at dev — that line was the
+laptop's state, and `.env` is per-device. There is no dev database on this machine at all, so every
+script and every local dev-server run hits live data by default. `PRODUCTION_DB_HOST` was also unset
+here, which meant `announceTarget` could not label the cluster and `requireConfirmOnProduction`
+never refused. Both halves of the Sprint 126 safety net were off on the one machine that needed them.
+**The fix applied is the label, not the separation.** Getting a dev `.env` onto the PC (whole file
+from the laptop — never one line, the `FIELD_ENCRYPTION_SECRET`s differ) is the real remedy and is
+the single most useful thing to do here next.
+
+### ▶ THREE THINGS FOR YOU
+1. **Appointments at phone width** — the only unverified claim from the rotation sprint.
+   `resize_window` reported success but never moved the viewport, so 768px and 390px were never
+   actually seen. Ten seconds in devtools.
+2. **`npm run verify:referrals`** — read-only, and if the guard now works it will REFUSE to run,
+   which proves the banner and the refusal in one command. Nobody has watched it fire.
+3. **Decide on `apply:seed-passwords -- --confirm`** against production, or leave `bho@floral.com`
+   on its old 7-char password. Deliberately not run.
+
+### Machine state left behind
+- **Two dev servers still running** from this session: `dev:server` on :4000, `dev` on :5173. Kill
+  them if the ports are wanted.
+- `.env` gained two backups: `.env.bak-before-bho-lengthen`, `.env.bak-before-prodhost` (untracked).
+- ⚠ **Git Bash cannot write into the project directory on this PC** — `cp`, `touch` and `sed -i` all
+  fail with "No such file or directory" on paths that plainly exist, sandboxed or not. PowerShell
+  works. Use PowerShell (or the edit tools) for file writes here; do not waste a cycle re-diagnosing.
+
+---
+
+## Parked 2026-09-06 (9th session), at `290a7e8f`, all pushed and deployed
+
+**Nothing is in progress.** Working tree clean, `main` level with origin. `main` auto-deploys to
+Vercel, so everything below is live and confirmed live. Tag `pre-design-adoption` still marks the
+state before the design adoption; every commit is separately revertible.
+
+### What this session did, after the merge
+1. **The role audit — FINISHED.** All five roles opened and walked. Seven bugs, four of them on
+   documents filed with the City Health Office. Detail in the ROLE AUDIT section below.
+2. **The Target Client List reconciled to the FILED form** the user supplied — two pages, the
+   right columns in the right order, 25 ruled rows. See the TWO EDITIONS section below; that
+   sample is now the authority, not the workbook.
+3. **Printing is per-form** — long bond, landscape or portrait per document, TCL measured to the
+   sheet. **User confirmed a real print of the TCL is correct**, which closes the one thing CSS
+   could not prove.
+4. **Production verified by the user**, not assumed: allergies row blank while other rows carry
+   numbers on "All years to date" — which is only possible with the fix in place — and the TCL
+   shows "PAGE 1 OF 2" with 25 rows, so the whole deploy landed.
+
+### ⚠ NEXT WORK NEEDS THE DENTIST, NOT THE CODEBASE
+- **How is "Orally Fit Child" decided?** This now blocks THREE surfaces that render blank or
+  relabelled because nothing stores the judgement: the IPTR row, the barangay dashboard
+  (says "Low caries risk"), and the Target Client List's column.
+- **What does "Consultation" mean for the DOH return?** No field on PREVENTIVE_CARE_RECORD.
+
+### ⚠ A PROCESS FAILURE WORTH REMEMBERING
+One commit was pushed on a build that had not actually run: `npm run build 2>&1 | tail -2` reports
+TAIL's exit status, so a failing build read as success. The commit was fine, but the check was not.
+**Never let a verification command end in a pipe** — capture to a file and echo `$?`.
+(`node_modules/.bin` had gone missing, most likely collateral from recursively deleting the
+worktree folder; `npm install` restored it.)
+
+### Machine state — ⚠ THIS SECTION IS PER-DEVICE, and it describes the LAPTOP, not the PC
+Checked on the PC 2026-09-07 after the 214-commit pull: **all three items below are absent here.**
+No `package.json`/`node_modules` at the repo root, `git worktree list` shows only the main
+checkout, and `AppData/Local/Temp/claude/hers` does not exist. They remain to do **on the laptop**.
+Do not re-verify them from this device; `ls` proving nothing is there is not the same as fixed.
+- ⚠ **An empty folder at `C:/Users/Jerald/AppData/Local/Temp/claude/hers`** — the worktree is
+  deregistered (`git worktree list` is clean); the directory would not delete because the :5174
+  dev server still holds it. Stop that terminal and remove it.
+- ⚠ **Stray `package.json` + `package-lock.json` + `node_modules` at the REPO ROOT**, holding only
+  `@vercel/speed-insights`. Nothing imports it, `vercel.json` lives in the project dir, and it is
+  untracked so it never reaches the deploy. Safe to delete.
+- `.env`'s `ALLOWED_ORIGINS` has had `,http://localhost:5174` removed again; 5173 verified working.
+
+### ✅ THE PRODUCTION CONSENT MIGRATION IS DONE — do not run it again
+Applied 2026-09-06 to `floral-cluster.edqpjtu`: 2 latest IPTRs set to complete. An independent re-read afterwards showed **7** IPTRs complete in total — the script only inspects each pupil's LATEST year, so five pre-existing completes on older years were never in its counts. 3 of the 7 have `consent_given_at` NULL (they predate the field; the hook only stamps rows it writes), and only 13 of 42 IPTRs carry the field at all — the rest predate it and read as pending, which is correct.
+
+⚠ Two things found while doing it:
+- **The log was printing `<iv>:<ciphertext>`.** Her version logged last_name/first_name, which are encrypted, through a `.lean()` read. Fixed in `021467c6` to print the student id. That was the SECOND time a claim in one of my commit messages did not match the file (the first: announceTarget, `873a9300`) — both in this one script. **Check the file, not the message.**
+- **One production record is school year 2028-2029**, two years ahead, and is now consent-complete. Real or mis-created, it is there.
+
+### ⚠ THAT CLUSTER IS DEPLOYED, NOT SACRED (user, 2026-09-06)
+`floral-cluster.edqpjtu` holds SEEDED demo records — no real patient history. Treat it as the database the live site reads: check the target banner, dry-run a write, and mind that its `FIELD_ENCRYPTION_SECRET` differs from dev's. Do not wrap it in patient-data ceremony; that cost the user several round-trips.
+
+### What shipped
+Her design, our code. The record screen matches hers section for section (both tabs diffed by DOM outline); the shell, Students, Appointments, Dashboard header, Dental Charts list and Consent flow are hers; our data model, reports and server work are intact.
+
+**Bugs found and fixed on the way — every one invisible to `tsc` and `npm run build`:**
+1. **Infinite render loop** (pre-existing, Sprint 148) — every charting reached through the picker was silently read-only.
+2. **Hook after an early return** (mine) — blanked the whole record page.
+3. **`/auth/verify-password` 404** (mine) — bulk archive's step-up failed on the RIGHT password exactly like the wrong one.
+4. **Two form fields written into nothing** (mine) — her Add Student posts `place_of_birth` and `guardian_occupation`; the model had neither, so Mongoose dropped them with a success toast.
+5. **Two editors for one record** (mine) — Oral Health Condition on History AND on the Dental Chart tab.
+6. **RPC completion could never be non-zero** (pre-existing) — the dashboard counted rows from an endpoint whose status filter defaults to "outstanding", so a pupil completing both visits removed themselves from the only data the tile could see.
+7. **"10 appointments total" for a school with 14** — a session is not an appointment.
+8. **"All schools" unreachable** (mine) — her Switch School page replaced the dropdown that offered it; the BHO STAFF ROLE EXISTS FOR THAT VIEW.
+9. **A dental aide could not reach edit mode** on the tab now holding their own fields.
+10. **"Grade Grade 8-Mabini"** on every Risk Classification row.
+
+**The rule that would have caught most of them: open the browser BEFORE committing.**
+
+### ROLE AUDIT — DONE 2026-09-06. All five roles opened. Five bugs, all fixed and pushed.
+The redesign had been exercised as DENTIST only. Every other role has now been logged into and
+walked screen by screen. What that found, newest commit first:
+
+**`83f37543` — two list headers counted students and called them something else.**
+Dental Charts said "14 charts found" and Treatment's Full List "14 records found". Both lists are
+one row per PUPIL. DENTAL_CHART held 54 rows for 26 pupils and TREATMENT held none, so neither
+number was ever the noun beside it. Both say "N students" now. (Treatment's DEFAULT view was
+already honest — it filters to pupils who have one and correctly showed 0.)
+
+**`9aff3e60` — the school_admin role, three findings.**
+1. Their Reports school selector offered all three schools and "All Schools" while the server
+   scopes their data to one. Picking another school changed the CAPTION and not the figures — the
+   DOH form printed "SCHOOL: All Schools" over Annex A's numbers. Confirmed by cycling all three
+   options and watching the row stay identical. The selector now lists only schools the user
+   holds; one school means no "All Schools" option and the caption names their school.
+   ⚠ Verified NOT a regression for multi-school users: as the aide, picking a school changes both
+   caption and data.
+2. **Target Client List and Consent Form print one row per identified child** — name, complete
+   address, contact number, birthday, PhilHealth number, caries experience. CLAUDE.md gives that
+   role "no clinical records"; the manuscript has the School Administrator receiving one aggregate
+   report (Ch. 3 external entities). Both tabs hidden for the role, panels included.
+3. Hiding tabs is not the fix. **`GET /api/students` handed a school_admin fully identified
+   records** for every pupil in their school. `crudFactory` gained a `redact` option — named
+   fields return blank for named roles. Their dashboard needs rows, not identities, and renders
+   the same 6 / 5 / 83% with them blanked.
+
+**`4bd5deb0` — the BHO role, two findings.**
+1. **The DOH consolidated return said 26 pupils had allergies. Three do.** `/stats/doh-report`
+   read MEDICAL_HISTORY with `.lean()`; `allergies` is ENCRYPTED, so every row came back as
+   `<iv>:<ciphertext>` — and the plugin encrypts the empty string too, so `!!allergies` was true
+   for all 26. Tell-tale: the row printed exactly the same figures as "No. Orally Examined".
+   Hydrating the query fixes it. **This is the Sprint 118 trap on a filed government form** —
+   check every `.lean()` that touches an encrypted field.
+   ⚠ **PRODUCTION IS FIXED AND CONFIRMED, 2026-09-06.** The user checked it: on "All years to
+   date" the other indicator rows carry numbers while the allergies row stays BLANK. That is the
+   proof — before the fix, allergies counted EVERY pupil holding a medical history record, so it
+   could not be blank on a report where those rows populate. Production also shows the Target
+   Client List's "PAGE 1 OF 2" and 25 numbered rows, so the whole day's deploy is live.
+   ⚠ **Production data is NOT sparse — it is OUT OF PERIOD.** An earlier note here said there was
+   almost nothing there; wrong. The default report scope is the current school year, and
+   production's records sit outside it (one IPTR is dated 2028-2029). Set "All years to date"
+   before concluding any row is empty.
+2. **"Orally fit" was a clinical claim nothing supports.** The tile is `risk === "Low"` and
+   nothing else. "Orally Fit Child" is a DOH indicator needing a judgement this system does not
+   store — the same reason the IPTR row is deliberately blank — and it was on the screen of the
+   role that files City Health Office returns. Relabelled "Low caries risk" on the tile, the
+   age-bracket table and the status chart. Numbers unchanged.
+
+**Roles that came back clean:**
+- **Dental Aide** — all seven screens walked (Dashboard, Appointments incl. calendar + the date
+  panel, Students, Dental Charts, Treatment, RPC Tracking, Reports). Nav correctly excludes Risk
+  Classification, notification badge renders, record screen shows six sub-tabs, and **Edit mode
+  opens and cancels cleanly** (the fix for old finding 9 holds). Nothing found.
+- **BHO staff** — both screens. The "All schools" card is offered (the `d037ad57` fix working for
+  the role it had blocked); counts correct.
+- **school_admin scoping itself was sound**: `?school=` for another school still returned only
+  their own pupils, and `/api/users` 403s.
+
+### Dev demo accounts
+All five are now **`12345678`** (`admin` / `dentist` / `aide` / `schooladmin` / `bho` @floral.com), applied with `npm run apply:seed-passwords` and verified against the stored hashes. Previous values are in `.env.bak-before-simple-passwords`.
+⚠ The app enforces a minimum of 8 characters in four server-side places, so "12345" is not possible without weakening a real control. ⚠ Login is rate-limited to 10 attempts per 15 minutes per IP — restart `dev:server` to clear it, the counter is in memory.
+✅ **`SEED_BHO_PASSWORD` lengthened to 8 chars (`12345678`, matching the other four) on the PC, 2026-09-07.** `requireSecretEnvAll` was then run standalone over all four seed vars — no DB connection — and passes. Backup of the previous file: `.env.bak-before-bho-lengthen` (untracked, PC only).
+⚠ **The FILE was fixed, the ACCOUNT was not.** `seedDemo`'s `ensureUser` skips existing accounts, so `bho@floral.com` on `floral-cluster.edqpjtu` still holds the old 7-char hash. `npm run apply:seed-passwords -- --confirm` is what writes it; deliberately NOT run — it changes a live login. What is unblocked is the seed GUARD, which used to exit 1 before reaching the database at all.
+⚠ **Whether the laptop's `.env` also needs this depends on which cluster it points at** — see the per-device `.env` warning under READ BEFORE TOUCHING THE DATABASE.
+
+### ⚠ TWO EDITIONS OF THE TARGET CLIENT LIST EXIST — the FILED one now governs (2026-09-06)
+The user supplied a **filed sample** (Bagong Tanyag, Grade 1, dated 8-5-25 — the sheet this
+barangay actually submits). It disagrees with `TCLForm2andFHSISReport.xlsx`, the workbook this
+table was transcribed from in Sprints 82/84. They are different editions of the form. `08251b27`
+reconciled the app to the FILED one, because that is the document that leaves the building.
+
+**Dropped** (workbook has them, filed form does not): Facility Based, Family Serial Number,
+Barangay, "5 Year Old with Permanent Dentition", the second Orally Fit Child column, the second
+Gum Treatment column, and the whole DENTAL VISIT group — which also removed the `/appointments`
+fetch that existed only to fill those two cells.
+**Restored**: "Oral hygiene Instruction". Removing it on 2026-09-03 also made "Counseling" print
+the oral-hygiene answer, so one recorded service was filed under another service's name.
+**Corrected**: ROUTINE PREVENTIVE CARE is a band ABOVE FIRST/SECOND; Gum Treatment sits between
+Extraction and the sealant; several captions.
+
+⚠ If the workbook edition turns out to govern instead, `08251b27` is one revert.
+
+⚠ **"Orally Fit Child" was printing a ✓ derived from `risk === "Low"`** on this filed form — the
+third place that false claim turned up in one day (dashboard tile, age table, TCL). It is blank
+now. Anywhere else that reads `oralStatus === 'Orally Fit'` deserves the same look.
+
+### PRINTING: paper is per-form now, and the TCL is measured to the sheet (2026-09-06, `e18ca7ea`)
+- `@page` cannot be selected by a class, so ONE rule in index.css forced `size: landscape` on every
+  printable in the app — the IPTR and the consent letter printed on landscape sheets. Forms now own
+  their own rule while mounted, via `usePrintOrientation()`.
+- Paper default is **8.5 × 13in Philippine long bond**, not A4 (the sample scans at a 1.50 ratio;
+  Folio is 1.53, A4 is 1.41). One constant in that hook if the clinic prints A4.
+- The TCL print rules are **measured**: long bond landscape less 6mm margins is 1203 × 771px, and
+  the two pages now come to 1201 × 686 and 1201 × 729. Before them page 1 was 1540px wide and would
+  have been CUT OFF at the right edge. Changing any value there means re-measuring — the browser
+  simulation used is a `<style>` with the print rules un-gated plus a 1203px-wide `.form-print`.
+- ⚠ UNVERIFIED ON PAPER: Chrome's print dialog can override `@page size`. Nobody has run a real
+  print yet.
+- The form is **25 ruled rows** and they are part of the form; the table pads to them, and rounds up
+  to whole sheets past 25 clients.
+
+### Worth a sprint, found while auditing
+- **The `.lean()` sweep is DONE, not pending** (`ef5bd5af`). Every `.lean()` in `server/` was
+  checked against the four encrypted models (STUDENT is not among them — the plugin is on
+  DENTAL_AIDE, MEDICAL_HISTORY, REFERRAL, TREATMENT). Two instances existed: the DOH allergies row
+  and `/stats/reports-panels` reading REFERRAL, which would have printed `<iv>:<ciphertext>` as the
+  referral reason the first time one was issued. Both hydrate now. Everything else selects
+  non-encrypted fields; `crudFactory`'s lean reads serve scope checks and a `uniqueBy` that keys on
+  student_id + school_year.
+  ⚠ The durable rule: **`.lean()` on an encrypted model returns ciphertext with a 200 and no
+  error.** It is silent by construction, so it is caught by reading the query, never by testing.
+- **`redact` applies to STUDENT only.** Other roles reading other models were not re-examined for
+  the same over-disclosure. The mechanism is now there if a second case turns up.
+
+### ✅ THE ROTATION TAB IS GONE — DECIDED AND REMOVED 2026-09-07
+Parked 2026-09-06 needing a decision; the decision was **delete**, taken on evidence, not taste.
+Four independent sources agree the feature had no requirement behind it:
+
+1. **Not in any Specific Objective.** All five were read (manuscript 113–126). The closest, #2, says
+   "appointment scheduling and monitoring" — rotation is named in none of them, nor in the General
+   Objective.
+2. **Not an ERD entity.** `DATA-MODEL.md:57` — "NEW — not in original ERD, added Sprint 11" — and the
+   model file's own comment agree. CLAUDE.md's model list claimed otherwise and is now corrected.
+3. **Not in the manuscript at all** except line 102, Chapter 1 background, citing DOH policy that
+   deploys dentists "on a rotational basis". That is the study's JUSTIFICATION, not a feature spec.
+4. **Her design deleted it.** `7e817cdf` — "Her branch also DELETED the Rotation tab. It is restored
+   with our real form … because that tab is the only way a dentist rotation gets created." The
+   seven-tab strip was her six plus our restored one.
+
+⚠ **The restoration rested on a false premise.** That same commit message says taking her file whole
+would have "started filing fake rotation rows into a table **that is in the Chapter 3 ERD**". It is
+not in the ERD. A feature was kept to protect an entity that does not exist — which is why the
+CLAUDE.md line was fixed in the same commit rather than left for later.
+
+**Two corrections to the parked note, both worth keeping:**
+- **It was NOT a dead control.** The note said it "looks like a feature and currently is not one".
+  Wrong — `handleSaveRotation` posted a complete record to `/dentist-rotations` and that route
+  exists. It saved. The list was empty because nobody used it. CLAUDE.md's "a control that appears
+  to work must work" rule never applied here.
+- **The real defect the note missed:** the row chip was a hardcoded `bg-green-100 … Active` on every
+  rotation regardless of its dates. A rotation that ended in March still read **Active**. That IS a
+  NOTHING COSMETIC violation — same shape as the "Orally Fit Child" ✓.
+
+**What was removed** (`Appointments.tsx`, `useDentistRotations.ts` deleted, `ApiDentistRotation`
+dropped from `types.ts`): the tab, its render block, the modal, seven `rot*` state vars,
+`resetRotationForm`, `handleSaveRotation`, `staffNameLabel`, `schoolNames`, and two now-orphaned
+imports (`Stethoscope`, `getSchoolColor`).
+**What was NOT touched:** `server/models/DentistRotation.ts`, the `/dentist-rotations` route,
+`schoolScope`, `purgeDemoData`, and any saved rows. Nothing was deleted from the database.
+One `git revert` restores the UI.
+
+⚠ **Three stale comments were fossils of her REJECTED approach**, not decisions anyone made — her
+branch repurposed `DENTIST_ROTATION` as the day-notes table before `DAY_NOTE` won:
+(a) the "Backed by the DentistRotation collection — repurposed" comment the parked note flagged;
+(b) a comment claiming the day-note lookup had a range check covering "older multi-day rotation
+rows" — `useDayNotes` matches a single `date` field and has no such check, and the comment sat
+orphaned above `prevMonth` describing a function that no longer existed;
+(c) the rotation modal was labelled `{/* ── ADD/EDIT CALENDAR NOTE MODAL ── */}`.
+`useNotifications.ts`'s `remindersToday` doc comment said the same thing and is corrected; the field
+itself is still served by nothing and is therefore always 0 (pre-existing, left alone).
+
+**If rotation is ever wanted back**, the answer is the cross-school week view — one row per school,
+weeks across, ignoring the school switcher — not this tab. Re-derive `ApiDentistRotation` from the
+model, which is still there.
+
+**Verified in the browser, as dentist, against PRODUCTION data** (there is no dev database on the
+PC): Appointments renders; six tabs — Today (0) / Upcoming (1) / Completed (0) / Missed (1) /
+All (2) / Calendar — with no Rotation and no gap; the Calendar month grid draws both demo
+appointments; a day dialog opens with its two halves intact (appointments left, day notes right,
+"This school only"). Nothing was written — the note box was left empty and the dialog closed.
+tsc exit 0, `npm run build` exit 0, no console errors.
+
+⚠ **NOT verified: the 768px and 390px widths.** `resize_window` reported success but the viewport
+never changed, so both screenshots came back at 1536px — the check did not happen and is not being
+claimed. Low risk on this change specifically (the strip is `max-w-full overflow-x-auto`, untouched,
+and REMOVING a tab can only reduce overflow) but unproven. **Eyeball the tab strip on a phone.**
+
+⚠ **`tsc` caught exactly one missed reference** — `setRotDentistId` survived in the "default the
+dentist pickers" effect, well outside the blocks being deleted. Worth remembering that the grep for
+`rotation|Rotation` did not find it: the setter is named `setRot…`, and it sat in shared code.
+
+### Left open, none of it blocking
+- **`allow_school_year_override`** is on `ApiSchool` but NOT on the SCHOOL model, so that dialog's manual-override section stays hidden. `SchoolManagement` is still ours for the same reason.
+- **`noUnusedLocals` is OFF** in tsconfig — turning it on is what would have caught this session's dead code automatically. Its own small sprint.
+- **Counter audit CLOSED 2026-09-06**: Dashboard, Appointments, Students, Dental Charts and Treatment all checked against the database. The last two were mislabelled, not miscounted (`83f37543`).
+- Screens she never touched and that still use the old page shell: **RPC Tracking, Reports, Treatment, Risk Classification**. No file to copy — the patterns are established (see `da0fe51b` for how the Dental Charts list was done).
+
+### For the dentist
+- What does **Consultation** mean for the DOH return? No field on `PREVENTIVE_CARE_RECORD`, so her chip is not copied.
+- How is **Orally Fit Child** decided? Its DOH definition needs a judgement nothing stores; the row renders blank and says "not recorded". The barangay dashboard no longer uses the term at all (`4bd5deb0`) — it says "Low caries risk", which is what the number actually is.
+
+### ⚠ MACHINE STATE TO UNDO
+- **`.env` line 25** gained `,http://localhost:5174` so her branch could reach the API. Local only, untracked.
+- **A git worktree of her branch** at `C:/Users/Jerald/AppData/Local/Temp/claude/hers` (detached at `67f2e64f`). `git worktree remove` that path.
+- **Dev data** restored everywhere touched, with one stated exception: **Castillo, Nico has an ARCHIVED 2026-2027 IPTR** created to test the year-removal guard. Soft delete; a System Admin can restore or leave it.
+
+---
+
+## Parked 2026-09-05 (8th session), pushed at `bb2965ad`
+**Twenty-four sprints shipped (127-150)**, every one verified in the browser or at the endpoint.
+
+| # | Theme | The bit worth remembering |
 |---|---|---|
-| 89 | Program Report section C | **There are TWO different "Program Report" forms.** The DOH workbook's `2026 Form 2` is NOT the one the clinic files — the signed January 2026 return is. |
-| 90 | Services Rendered wired | The source (`treatment_code`) existed all along; 1st/2nd application is derived from **chart dates**, and five teeth in one sitting is ONE application. |
-| 91 | The missing indexes | Evidence-driven, and six models are asserted to stay UNindexed. A declared index proves nothing — builds are async. |
-| 92 | Audit trail bounded | The bound was easy; making the screen's **date filter widen the fetch** was the part that mattered. |
-| 93 | Date prefill + contrast | Most of the date work already existed. Contrast was measured, not eyeballed. |
-| 94 | 150 greys → tokens | `muted-foreground` fails AA on the **canvas** background, not on white — darkened to `#67687A`. |
-| 95 | School switcher | User-reported. A collapsed sidebar dropped it entirely, and `sidebarCollapsed` PERSISTS, so it read as removed. |
-| 96 | Accent contrast | Every visible text node on 8 screens now passes AA. Colours computed with headroom, never to 4.5 exactly. |
-| 97 | Notification bell | Counts only, three real sources, server-side aggregate. No NOTIFICATION model. |
-| 98 | Demo treatments seeded | Only ~a third return for visit 2 — which is the only reason the form's 1st/2nd rows differ. |
-
-**Maintenance:** `verify_sprint33.mjs` repaired (25/25) · Chapter 4 figures recaptured and completed (**21/21, all reproducible in one command**) · figures verified against the chapter draft · two factual corrections made to `docs/chapter4-5-draft.md`.
-
-**⚠ THE RECURRING LESSON OF THIS SESSION — read this before writing another verifier.** Repeatedly, the TEST was wrong and the code was right, and each time it looked like a real bug:
-- an `oklch()` colour scraped as `rgb(1,0,0)` reported **white-on-blue as 2.4:1**;
-- a page function built as a template literal had its regex backslashes eaten;
-- StrictMode made "exactly one fetch" wrong in dev, and `page.goto` refetches legitimately;
-- an independent API probe reconstructed the school scope wrongly and called a correct **12** a failure against an unscoped **22**;
-- a figure cross-check truncated keys and reported all-clear on an orphan;
-- and `verify_sprint33` had been failing for a year-old reason: it asserted a control **Sprint 67 deliberately removed**.
-**When a verifier fails, suspect the verifier first — then prove which one is wrong.**
-
-**Next sprint — nothing is scoped and ready.** Reasonable candidates, in order:
-1. **Program Report section C sources** — Counselling and Root Surface Protection still print `—` because no treatment code exists for them. Adding codes is a data-model question for the dentist, not a coding one.
-2. **Open work 33's remainder** — pregnancy on MEDICAL_HISTORY, medical-history chips, treatment totals below DMFT (all need schema + migration).
-3. **Open work 34** — Risk Classification's missing gender/age filters. Small.
-
-**⚠ DO NOT start Form 3 (Open work #37) — still blocked on a flat scan of a BLANK Form 3, front and back** (User-only items). Both IPTR forms circulate, so this reaches past OCR into the IPTR screen and the Sprint 85 PDF.
-
-**User-gated and unchanged:** the roster is on SY 2025-2026 while today is 2026-2027; the dentist's DOH risk-classification source still blocks the whole Phase 3 critical path.
-
-### PDF rendering — poppler INSTALLED 2026-09-03 (this machine only; `data/`-class per-device state)
-The Read tool renders PDFs by shelling out to **`pdftoppm` (poppler-utils)**, which was missing here — that is why "Read a supplied PDF" failed, not anything about the files. Installed via `winget install --id oschwartz10612.Poppler --scope user`; binaries live under `%LOCALAPPDATA%\Microsoft\WinGet\Packages\oschwartz10612.Poppler_*\poppler-25.07.0\Library\bin`. ⚠ **winget's PATH edit needs a Claude Code restart** before the Read tool sees it. **The OTHER laptop still needs this install.**
-- **Fallback if it is ever missing again:** these DOH files are *scans* — one JPEG per page inside the PDF — so pull the pages out with a ~12-line Python regex extractor over `/Subtype /Image … stream`, slicing each stream by its own `/Length`, then Read the `.jpg`. ⚠ The gotcha that costs an hour: these files write `stream\r` with **no LF**, so a `stream\r?\n` pattern matches nothing and silently extracts zero images.
-- **Confirms Sprint 87 item 3 is real:** `pdfinfo` reports **`Page rot: 0`** for both IPTR pages, so page 2's 180° rotation is baked into the scanned *image*, not a PDF flag. No metadata will reveal it — orientation must be detected from the pixels.
-
-### TCL findings from the FILLED paper scan (2026-09-03) — the app's table is one page of a TWO-PAGE spread
-The printed Target Client List is **two physical sheets sharing one set of 25 numbered rows**, not one wide sheet: **page A** = identity block + the `ORAL HEALTH STATUS` group (…Caries Free, Orally Fit Child); **page B** = `ROUTINE PREVENTIVE CARE` (FIRST / SECOND) + `OTHER SERVICES` + `REMARKS`. The 4-page PDF is two such spreads (one male, one female — a cohort per spread, matching the workbook's 27 age×sex tabs). The app renders all 66 columns as a single scrolling table, which is right for screen; **if the TCL Excel export is ever re-shaped, the split point is Orally Fit Child → Oral screening.**
-- **`Complete RPC for 2nd Visit` is correct on the PAPER form.** Sprint 84 recorded the duplicated *"1st"* caption as a typo in the DOH source and left it flagged — that typo is in the **workbook only** (sheet `0-8 Months (M)` is the single sheet carrying the correct `2nd` text; all 26 others repeat `1st`). Worth a caption correction; the workbook is authoritative on the column *set*, not on this one label.
-- All 27 cohort tabs are **column-identical** (verified header-by-header), so the app's one table legitimately serves every cohort.
-- **The printed page A does NOT show `Facility Based`, `Family Serial Number` or `Barangay`**, which the workbook has and Sprints 82/84 built. Not necessarily a conflict — this scan is a locally-printed copy — but **do not "fix" the app to the scan**: the workbook stays authoritative per Sprint 84.
-
-**Not started, raised this session:** ~~the per-school summary sheet~~ (**DONE as Sprint 88**) and ~~the Program Report's section C~~ (**DONE as Sprint 89** — which also found that the DOH workbook's "2026 Form 2" is a DIFFERENT form from the one the clinic files).
-
-**Still true and still user-gated:** the roster is on SY 2025-2026 while today is 2026-2027, so recording a visit dated today is blocked for 24 of 26 students (Sprint 81). Sprint 74's Promote/Assign fixes it but changes the demo data every Chapter 4 figure shows.
-
-## README corrected (2026-09-03) — it was wrong about deployment
-Asked whether a "how to run locally" file exists. It does — the root `README.md` — but three parts had drifted, and one was actively misleading.
-
-**⚠ THE DEPLOYMENT SECTION SAID THE OPPOSITE OF THE TRUTH:** *"`git push` does NOT auto-deploy — run `npx vercel --prod`."* Push-to-`main` HAS auto-deployed since the 23h–27b sprints. **Re-confirmed 2026-09-03** by checking the live bundle: Sprints 94–97 reached production from pushes alone (the deployed CSS carried `#67687A`, the deployed JS the notification bell), with no CLI deploy. Corrected, with the old instruction called out explicitly so nobody re-adds it, plus the two-command recipe for verifying a deploy actually landed.
-
-**The env table was wrong in BOTH directions** — checked against the real `.env` (names only):
-- **Documented but absent locally:** `ML_SERVICE_URL` / `ML_SERVICE_API_KEY`. They are **optional** — `predictionRoutes.ts` defaults the URL to `http://localhost:8000` and omits the key header when empty, which is what local `uvicorn` expects. The table implied they were required.
-- **Present but undocumented:** `BREVO_API_KEY` / `BREVO_SENDER_EMAIL` (optional; `mailer.ts` logs the reset link instead of sending when unset, so the flow stays testable) and `RENDER_API_KEY` (**not read by the app at all** — a personal Render token, documented so nobody deletes it wondering what it does).
-
-**The script list was 8 of 18.** Now complete and split into seeders (in run order) and maintenance/one-off scripts, including `seed:treatments`, `apply:seed-passwords`, `purge:demo`, `backup:raw` and `verify:indexes`. Verified programmatically: **no script and no env key is now undocumented.**
-
-**`.env.example` ADDED (2026-09-03)** — the README listed the variables but never said how to CREATE the file. Now `cp .env.example .env` plus a filled-in template.
-- ⚠ **`.gitignore` needed a negation.** The rule `.env*` silently swallowed `.env.example` too; `!.env.example` was added below it. **Verified by actually staging the file** — `git check-ignore -v` prints the negation pattern and its exit code reads as "ignored", so it is a misleading test here. The real `.env` is still ignored (re-checked).
-- **The template carries PLACEHOLDERS ONLY**, verified programmatically: none of the 14 real values from `.env` appear in either `.env.example` or `README.md`.
-- It documents the three values that decide whether the app starts and stays correct, with the `FIELD_ENCRYPTION_SECRET` warning stated in full — a wrong value does not fail at startup, it surfaces later as unrecoverable garbled patient data.
-
-**⚠ THE README NEVER SAID `npm install` — a collaborator following it exactly failed at step one** (found 2026-09-03 when asked "can a collaborator now run local?"). An **Install** section was added: clone → `npm install` (one package.json covers frontend, backend, seeders and verifiers) → optional `npx playwright install chromium` (the verification scripts fail with "browser not found" without it) → optional `pip install -r requirements.txt` for the ML service.
-
-**Also added: what a collaborator CANNOT get from the repo**, since documentation cannot supply it — the shared `MONGODB_URI`, the matching `FIELD_ENCRYPTION_SECRET` (only if pointing at the shared cluster), and **an Atlas IP-allowlist entry for their machine**, whose failure looks like a hang or an SRV/DNS error rather than "access denied". With their own empty cluster they need no secrets from anyone.
-
-**⚠ `APP_URL` was missing from the template — found by DIFFING the code against it**, not by reading. A script now checks every `process.env.*` the server and client actually read against `.env.example`; it reported `APP_URL`, which builds the password-reset link when a request carries no Origin header (a browser always sends one, so it only matters for a server-to-server reset — otherwise the emailed link points at production instead of the local machine). **Re-run that diff after adding any new env var.** The template now covers every variable the code reads.
-
-**Answered while doing it:** *should env vars be in the README at all?* **Names yes, values never.** Naming them is what makes the project runnable by someone else and reveals nothing; the values live only in an untracked local `.env` and the Vercel/Render dashboards. That reasoning is now written into the README so it is not re-litigated.
-
-**Two local-dev gotchas added**, both of which cost time this session: Vite must be on **:5173** (`ALLOWED_ORIGINS` allowlists that exact origin, so 5174 gives `403 "Origin not allowed"` that reads like a bad password), and **`pkill -f` does not stop these servers on Windows** — stop them by port.
-
-## Figures verified against `docs/chapter4-5-draft.md` (2026-09-03)
-Cross-checked every figure reference in the draft against the 21 files on disk, then read the captions against what the build actually does now.
-
-**⚠ FINDING 1 — A FACTUAL CLAIM THE BUILD CONTRADICTS. Figure 4.4.5's caption says:** *"Reports **and record lists** may be exported in comma-separated value and Excel formats."* **Sprint 52 REMOVED export from the record lists** (Students, RPC, Appointments) precisely because a raw list of minors leaving the system is the PII leak that rule forbids. Verified in code: `ExportMenu` is imported by **`AuditTrail.tsx` and nothing else**. The CSV/Excel pair the sentence describes now applies to the audit trail alone. **The rest of that caption is accurate** — the DOH Consolidated tab does export both a formatted Excel workbook and a PDF. **This is a sentence in a thesis chapter asserting a capability that was deliberately removed; it needs one edit before defense.**
-
-**FINDING 2 — `fig-4.4.4b-program-report` is ORPHANED.** 21 files on disk, 20 referenced. The new Program Report figure has no slot in the draft. Natural home: beside Figure 4.4.4, which currently covers report generation generically.
-
-**Checked and CORRECT, so they need no work:** 4.2.4 (audit trail — the caption is about what is RECORDED, which Sprint 92's 90-day display window does not change), 4.3.5 (validation — pre-filled editable fields, dentist confirms or amends, audit records accepted-vs-changed: all still true), and every other reference resolves to a file.
-
-⚠ **My first cross-check script reported a clean result and was WRONG** — it truncated `fig-4.4.4b-program-report` to the key `fig-4.4` when matching, which matches every 4.4.x reference in the draft. The orphan was only found by counting: 21 files vs 20 referenced. **A verification script that returns "all clear" deserves one confirming count.**
-
-**⚠ BOTH FINDINGS FIXED 2026-09-03** (the user unparked the manuscript for these two, as factual corrections rather than the parked prose/citation work):
-- **Figure 4.4.5's caption rewritten** to state the restriction rather than contradict it: export is limited to official aggregate output and the audit trail, the student/preventive-care/appointment lists carry NO export control, and each form exports in the format its recipient requires — Consolidated + Program Report as Excel and printable document, **TCL as Excel only**, **IPTR as a printable document only**. Every clause was re-checked against the code before writing it: `TargetClientList` imports only `FileSpreadsheet`, `DentalChart` imports only the PDF helper, `ExportMenu` offers exactly csv/xlsx.
-- **Figure 4.4.4b added** with a caption covering what makes the form defensible: every printed row and column rendered, `—` for no-source cells kept distinct from the form's own blocked-out cells, and the head-count/tooth-count and 1st/2nd-application splits shown as the paper splits them.
-- ⚠ The School Summary sheet (Sprint 88) and the blank consent form are NOT named in that caption. Not an error — both are internal/blank documents rather than statutory returns — but add them if the sentence is ever meant to be exhaustive.
-
-**Fixed here (code, not manuscript):** `Reports.tsx` carried a stale comment claiming the DOH Consolidated tab "is the only one with PDF and Excel export" — untrue since Sprints 85/88 gave the Program Report, TCL, IPTR and School Summary their own controls.
-
-## Chapter 4 figures RECAPTURED (2026-09-03) — 21/21 against the deployed site
-Stale since 2026-08-11. Sprints 89/90/98 rewrote the Program Report and 94/96 changed every screen's text and accent colours, so the gap had grown wide enough for a panelist to notice.
-
-**Captured against the DEPLOYED site, and the deploy was verified current first** rather than assumed: the live CSS carries Sprint 94's darkened `#67687A` token and the live JS carries Sprint 97's "Notifications" label. (Backlog #25 is exactly the hazard of skipping that check.)
-
-**⚠ THE RECAPTURE EXPOSED A GAP: the Program Report was in NO FIGURE AT ALL.** `fig-4.4.4-reports` captures the Reports screen at its DEFAULT tab and DEFAULT school year — so the form that Sprints 89, 90 and 98 spent three sprints on was invisible, and the default year (2026-2027) holds almost nothing anyway. **A new `fig-4.4.4b-program-report` was added to the script**, which switches the year picker to **2025-2026 first** — capturing the default view would have shown a form full of zeros and misrepresented the build.
-- The new figure shows the whole arc in one image: the lettered A/B/C bands plus the unlettered "Other Procedures", the lavender sub-row column (1st/2nd Scaling, Head/Tooth Count), the Sealants and Root Surface Protection rows, real Services Rendered numbers, the blocked Edentulous row, and the notification bell with its badge.
-
-**⚠ `capture_figures.mjs` CARRIED THE SAME CRLF `.env` BUG** as verify_sprint33 — it split on `'
-'`, so with the repo's CRLF checkout it would silently have produced an EMPTY env and failed at login with a message that looks like a selector problem. Fixed here too, and `BASE_URL` is now honoured for a local capture. **Check any other script that hand-rolls a `.env` parser.**
-
-**⚠ ~~THREE FIGURES ARE STILL STALE~~ ALL THREE ADDED TO THE SCRIPT (2026-09-03) — the set is now 21/21 and fully reproducible in one command.** They had been the only hand-captured figures, and therefore the only ones nobody could reproduce.
-- **`fig-4.3.5-dentist-validation`** — ⚠ **selecting a student is NOT enough**: the validation panel only exists once *Generate Risk Assessment* has been clicked, which calls the ML service. The first attempt waited 60s for a button that could never appear. It now generates first, waits 90s, and **retries once** — the Render free tier sleeps and may 503 on the first call, which is documented behaviour, not flakiness. ⚠ **It captures only; it never clicks Validate & Save**, which would write a validated RISK_STRATIFICATION and record clinical sign-off in the audit trail by a dentist who never saw it.
-- **`fig-4.4.5-export-menu`** — captured on the **audit trail**, and that is the point: Sprint 52 REMOVED `ExportMenu` from Students, RPC and Appointments, so the audit trail is the only screen that still carries it. The figure documents a deliberate restriction; capturing it elsewhere would misrepresent the build.
-- **`fig-4.4.5b-reports-download-controls`** — on the Program Report, which offers **both** PDF and Excel. The formats are a Sprint 85 decision (TCL Excel-only, IPTR PDF-only), so a figure showing a single-format form would argue the opposite of the design.
-
-**Two capture bugs fixed while adding them:**
-- ⚠ **`fullPage` is wrong when the subject sits at the top of a long page.** The export menu came out **2880×25592 (5 MB)** — every row of the 90-day audit window, with the dropdown a sliver at the top. `shot()` now takes `{ fullPage: false }`; that figure is 2880×1800.
-- ⚠ **Scroll to the top before every capture.** Clicking a row part-way down a list leaves the page scrolled, and with the sidebar pinned to `top: 0` the content rides up under it — `fig-4.3.5` came out with its heading sliced in half by the sidebar.
-
-## verify_sprint33.mjs repaired (2026-09-03) — 25/25
-Requested by the user after Sprint 98. Two INDEPENDENT faults, and the second is the interesting one.
-
-1. **Its hand-rolled `.env` parser produced an EMPTY env** (fixed during Sprint 95). It split on `'
-'`, and with the repo's CRLF checkout every line kept a trailing `
-` — **`
-` is a LINE TERMINATOR in a JS regex**, so `(.*)$` never matched. It surfaced as `page.fill: expected string, got undefined`, which reads like a selector problem.
-2. **⚠ A CHECK THAT HAD BEEN FAILING AGAINST CORRECT CODE.** It asserted a *"Switch School" BUTTON* in the mobile drawer — the Sprint 33-era control. **Sprint 67 deliberately replaced it** with a `<select id="school-switcher">` that is **hidden for single-school accounts** ("a one-option picker is noise"), and the demo dentist has one school. The verifier was testing a control the design had removed. **This is the failure mode to watch for in old verifiers: not a regression, a stale expectation.**
-   - Rewritten to the requirement that SURVIVES the redesign: a mobile user can always **see** which school they are in, and can **change** it whenever the account genuinely has more than one. It now branches on the option count rather than assuming a control.
-
-⚠ **My earlier diagnosis was wrong and is corrected here:** Sprint 95's note said the remaining failure was the login helper predating Sprint 67's school gate. It was not — login works fine (a single-school dentist never sees the gate). The real cause was the stale switcher assertion.
-
-## Sprint 98 (demo treatments seeded — Services Rendered stops reading zero) — DONE 2026-09-03 (tsc + build clean; verify_sprint90 31/31)
-Sprint 90 wired Services Rendered to `TOOTH_RECORD.treatment_code` and every figure read **0** — correctly, because **not one tooth record carried a treatment code** and 21 of the 23 charts had no tooth records at all. The section was right; the data was empty. `npm run seed:treatments` fills it.
-
-**⚠ THIS WRITES DEMO DATA INTO THE ONE SHARED DATABASE** (Open work 26). Real rows, like every other seeder, removed by `purge:demo` with the rest of the demo set before deployment. **A raw backup was taken first** (`npm run backup:raw` → `backups/2026-09-03T12-23-59`, 520 documents).
-- **32 charts created, 150 tooth records written.** ⚠ It creates its OWN charts (matched by iptr + date) rather than filling the 23 pre-existing ones, which were empty and dateless-by-design; those 23 remain and are harmless — a chart with no treatment codes contributes to no count.
-- **IDEMPOTENT, and proven so by re-running it:** second run reported `0 created, 32 reused / 0 written, 150 left alone`. It never overwrites a treatment that already exists.
-
-**The shape of the seeded data is deliberate, not filler:**
-- **Not everyone is treated** (~15% skipped), so the report shows a denominator rather than a uniform block.
-- **Only about a third return for visit 2**, five months later — which is what makes the form's *1st application* and *2nd application* rows differ. **If everyone returned, those two rows would be identical and would prove nothing.** Result: FV 23 → 9, OP 23 → 6, SDF 9 → 2.
-- Sealants go on **permanent first molars** (2–4 each: 12 patients, 37 teeth); extraction is rarer than restoration (6 vs 9 patients), as it should be.
-- `condition` is REQUIRED on ToothRecord, so a tooth being treated still carries a finding — `'✓'` for sound, matching DentalChart's own codes.
-
-**Counselling and Root Surface Protection still print `—`, and that is the point.** They have no treatment code in the system, so seeding them would have been inventing data to make a form look complete.
-
-⚠ **Chapter 4 figures of the Program Report are now STALE** — added to the User-only figure-recapture item.
-
-## Sprint 97 (the notification bell) — DONE 2026-09-03 (tsc both + build clean; 10/10, Sprints 95/96/91 re-run green)
-The last open item from the P2 ToDo doc (*"notifications above ng log out"*). Sprint 93 had reclassified it as **not small** because the app had **no notification system at all**; this builds one from sources that already exist.
-
-**⚠ THREE REAL SOURCES, NO NEW MODEL, NO INVENTED STATE.** Counts only — overdue RPC visits, today's appointments, risk assessments awaiting dentist validation — each linking to the screen that already holds the detail. **There is no NOTIFICATION model and no read/unread state**, because those need a schema change and a decision about persistence; anything else in the panel would be paraphrased or invented (CLAUDE.md: a control that appears to work must work).
-
-**⚠ SERVER-SIDE AGGREGATE, AND THAT IS NOT AN OPTIMISATION DETAIL.** The three counts live in `useRPCTracking` (six whole collections) and the appointments list. **The sidebar renders on EVERY screen**, so mounting those hooks there would multiply the app's largest reads across the whole app. `GET /stats/notifications` does the join once and returns three integers — same pattern as Sprint 23p's high-risk badge, and it uses the indexes Sprint 91 added.
-
-**⚠ THE OVERDUE RULE IS DUPLICATED BETWEEN SERVER AND CLIENT — keep them in step.** The endpoint mirrors `useRPCTracking` exactly: visit 1 recorded, visit 2 NOT, and more than **150 days** elapsed. **A bell that disagrees with the screen it links to is worse than no bell**, so the verifier follows the link and checks the RPC screen really shows overdue rows.
-
-**Role rules, both deliberate:**
-- **School Admin and BHO staff do not get the bell at all** — hidden, not shown empty. They view reports, never clinical records; every count would be both zero and none of their business. The verifier asserts the endpoint is **never even requested** for them.
-- **The "awaiting validation" row is DENTIST-ONLY**, matching nav tab 5's RBAC — linking an aide there sends them to a screen the nav deliberately hides.
-- ⚠ **The badge therefore counts only the rows the ROLE CAN SEE**, not the hook's raw total. A badge reading "3" above a list of two items is a number nobody can reconcile.
-
-**⚠ THREE TEST BUGS, ALL OF WHICH WOULD HAVE CONDEMNED CORRECT CODE — worth reading before writing the next verifier:**
-1. **"Exactly one fetch" is wrong in dev.** React **StrictMode double-invokes effects**, so two is correct locally and one in production. What actually matters is that the count does not GROW while navigating; that is what is asserted now.
-2. **`page.goto` is a full reload**, so it remounts the app and refetches legitimately. Testing "route changes must not refetch" requires CLICKING the nav.
-3. **An independent probe of the endpoint has to reconstruct the school scope, and got it wrong.** There is no `#school-switcher` for a single-school dentist, so the probe sent an empty `school=`, received the UNSCOPED **22**, and reported the correctly scoped **12** on screen as a failure. The verifier now **captures the sidebar's own response** and compares the panel to that — removing the whole class of mismatch.
-
-## Sprint 96 (accent contrast — every visible text node now passes AA) — DONE 2026-09-03 (tsc + build clean; 16/16, and Sprints 93/94/95 re-run green)
-Closes the pre-existing contrast problem Sprint 94's sweep measured and deliberately did not fix. **The gate is now EVERY visible text node on eight screens — no category is exempted any more.**
-
-**⚠ EVERY REPLACEMENT COLOUR WAS COMPUTED, NOT CHOSEN.** Each was darkened in HSL with **hue and saturation held fixed**, against the background it is actually painted on, until it cleared 4.5:1 — so a grade is still recognised by its colour and only lightness moved. Every value was then re-checked on WHITE too (4.93–7.90:1), because the same chips appear on white surfaces.
-
-**What changed:**
-- **Audit-trail action colours → semantic tokens.** `green-600/blue-600/red-600/purple-600` measured **3.22:1** and were **76 failing nodes on one page load** — the most-read text on that screen. Now `text-success` / `text-primary` / `text-destructive` / `text-warning` (5.02 / 8.72 / 4.83 / 5.02:1).
-  - ⚠ **`Restored` moved from purple to WARNING rather than gaining a fifth colour.** DESIGN.md restrains the palette to blue/green/amber/red (Sprint 23g) and there is no purple token; amber also reads correctly, since restoring an archived clinical record is an exceptional admin action.
-- **Grade chips: 9 of 11 `solid` values darkened** (Kinder and Grade 7 already passed). Worst was Grade 9 at **2.85:1**.
-- **School chips: 2 of 3** (BT Integrated's blue already passed at 7.15:1). `border` left alone — decorative, and WCAG's text rule does not apply to it.
-- **Risk tiles and trend arrows → tokens**; error text `red-500`/`red-600` → `text-destructive`.
-- **The school picker's Logout was `red-500` (#FB2C36) at 3.81:1** — found only because the sweep measures the DOM rather than trusting class names.
-- **The DOH tables' Female header was `pink-600` at 4.34:1** on the gray-50 header row → `pink-700` (5.65:1), which the total column already used, so this removed an inconsistency too.
-
-**⚠ TWO COLOURS LANDED EXACTLY ON 4.50 AND STILL FAILED — worth knowing before recomputing anything here.** Grade 10 and the Low-risk chip were computed to hit 4.5:1 precisely, but 8-bit colour rounding in the browser put the RENDERED value a hair under. **Compute accent colours with headroom (target ~4.6), never to the threshold itself.**
-
-- `verify_sprint96.mjs` — **16/16**. Same proven sweep as Sprint 94 with the accent exemption REMOVED, so a future regression in any category fails rather than being counted in a note.
-- The measurement loop mattered more than the fixes: **four of the six problems were only located by dumping the computed `fg`/`bg` hex per element.** "Logout" reported an empty class list (colour inherited) and the "F" header's pink was invisible in the source — neither would have been found by reading the code.
-
-## Sprint 95 (the school switcher survives a collapsed sidebar) — DONE 2026-09-03 (tsc + build clean; 8/8)
-**User-reported: "switching schools now missing".** Reproduced in three states before touching anything:
-
-| sidebar state | switcher |
-|---|---|
-| desktop, expanded | visible |
-| **desktop, COLLAPSED** | **gone entirely** |
-| mobile, drawer open | visible |
-
-**⚠ NOT caused by Sprint 94.** `Root.tsx` was untouched by that migration (checked with `git diff` before answering). The dropdown has been `hidden md:hidden` when collapsed since Sprints 33/67 — reasonable on its own, since a `<select>` is unusable in a 60px rail — but **nothing took its place**, unlike the footer's Change Password and Logout, which keep their icons and a tooltip when collapsed.
-
-**⚠ WHY IT READ AS "NOW MISSING" RATHER THAN AS A LAYOUT STATE: `sidebarCollapsed` PERSISTS IN localStorage.** One collapse hid the control for good, across reloads and sessions. A feature that disappears permanently after an unrelated click is indistinguishable from a feature that was removed.
-
-- Collapsed now renders a **School icon button** that expands the sidebar, putting the real dropdown one click away rather than hiding a menu behind a 60px rail. Its `title`/`aria-label` name the school currently in view, so the rail still answers "which school am I looking at?".
-- Shown ONLY when collapsed and only at `md+`: mobile's drawer already carries the full dropdown, and a second control there would be noise.
-- `verify_sprint95.mjs` — **8/8**, covering all three states. It asserts the affordance **works** rather than merely appears (clicking it reveals the dropdown, and the dropdown still changes school), and that it **survives a reload while still collapsed** — the persistence that made the bug sticky is the thing most likely to break a fix.
-
-**Found while running regressions: `verify_sprint33.mjs` had been silently broken.** Its hand-rolled `.env` parser split on `'
-'`, so with the repo's CRLF checkout every line kept a trailing `
-` — and **`
-` is a LINE TERMINATOR in a JS regex**, so `(.*)$` never matched and the parser produced an EMPTY env. It surfaced as `page.fill: expected string, got undefined`, which reads like a selector problem. Fixed to split on `/
-?
-/`.
-- ~~⚠ **That verifier is still not passing, for a SECOND, unrelated reason: its login helper predates Sprint 67's school gate**~~ **THAT DIAGNOSIS WAS WRONG — login works; a single-school dentist never sees the gate. The real cause was a STALE ASSERTION (a "Switch School" button Sprint 67 removed), repaired 2026-09-03 — see the section above. Now 25/25.** Not evidence of a mobile regression — the drawer was opened directly at 390px during this sprint and carries the switcher correctly. Repairing that helper is its own small job.
-
-## Sprint 94 (hardcoded greys migrated to design tokens) — DONE 2026-09-03 (tsc + build clean; 16/16)
-The dark-mode prerequisite Sprint 93 identified. **150 `text-gray-*` occurrences across 17 files** now use tokens: `gray-900/800/700 → text-foreground`, `gray-600/500 → text-muted-foreground`. Biggest concentrations: AIAnalytics (38), Login (26), AuditTrail (23).
-- **Text only, deliberately.** Backgrounds and borders (`bg-white`, `bg-gray-50`, `border-gray-200`) are a different question: `--muted` (#ececf0) is NOT the same value as `bg-gray-50` (#f9fafb), so swapping those changes how the app LOOKS, where these text swaps are near-identical in value and only change what the colour is DERIVED from.
-- **Two `text-gray-300`s remain**, both decorative icons in AIAnalytics (a chevron and an empty-state Brain). Not text, and there is no token at that value.
-
-**⚠ `--muted-foreground` DARKENED #717182 → #67687A, and it was MEASURED, not taste.** The old value is 4.79:1 on white — which passes AA, and is what Sprint 93 measured — **but the app's page background is `--canvas` (#F4F6FA), not white, where it is only 4.42:1**, and 4.35:1 on the gray-100 tab strips. Both below the 4.5:1 threshold. Moving 150 more strings onto the token turned a marginal shortfall into a systemic one. The new value measures **5.47:1 on white, 5.05:1 on canvas, 4.94:1 on gray-100**. DESIGN.md's `annotation-gray` updated in both places it pins the hex.
-
-**⚠ THE VERIFIER'S OWN BUGS ARE WORTH KNOWING — both would have produced confident nonsense:**
-- **Do not parse the colour string.** Chromium returns these tokens as `oklch()`, and a number-scrape read `oklch(1 0 0)` as `rgb(1,0,0)` — reporting **white-on-blue as 2.4:1**. It now paints the colour onto a 1×1 canvas and lets the browser convert. Without that I would have "fixed" a regression that did not exist.
-- **Never build a page function as a template literal.** Backticks eat the backslashes, so `\s` and `\d` arrived as literal `s` and `d` (`Invalid regular expression: /,s*0)$/`). The sweep is passed to `page.evaluate` as a real function.
-
-**⚠ THE SWEEP FOUND A WIDER, PRE-EXISTING CONTRAST PROBLEM — reported, NOT fixed, NOT hidden.** Failures are split into token-driven (gated) and accent/chip (counted and printed). Worst per screen: **audit-trail action colours 3.22:1** (76 instances — `text-green-600` etc. in `getActionColor`), **grade chips 2.85:1** (12), **risk stat tiles 2.94:1**, **school cards 3.11:1**. Fixing them means reopening DESIGN.md's state vocabulary and the per-grade palette — **its own sprint**. The verifier prints them every run so a green result is never mistaken for "the app passes AA".
-
-## Sprint 93 (today's date prefilled, and the one text colour that failed contrast) — DONE 2026-09-03 (tsc both + build clean; 7/7 browser-verified)
-Two of the three items in Open work 33's "NOT started, small" list. **The third turned out not to be small — see below.**
-
-**Date prefill — and MOST OF IT WAS ALREADY DONE.** Checked before building rather than assuming: the treatment form (`DentalChart.tsx:680`) and the RPC visit recorder (`RPCTracking.tsx:60`) already default to today. **The only entry date that did not was the appointment create form**, which started blank. It now prefills `TODAY` and **resets to today after a save rather than to blank** — clearing it would undo the prefill exactly when the next appointment is being booked.
-- ⚠ `TODAY` is computed once at module load. Right for a prefill (a tab left open past midnight shows yesterday in a field the user can see and change); **wrong** if it were ever used for a deadline, a filter default or a validation bound.
-- **NOT done, and it is the contentious half of the same doc line:** *"Hindi naeedit yung year kahit dentist"* — locking the school year from editing **REVERSES Sprint 34**, which gave the dentist those rights because the button was 403-ing. Still needs a decision; left in item 33.
-- **Rotation week start/end deliberately left blank.** Prefilling them needs a week policy (Mon–Fri? Mon–Sun?) that nobody has stated, and inventing clinical scheduling policy is not a prefill.
-
-**Contrast — MEASURED, and the honest result is that the app largely already passes.** Computed against WCAG relative luminance rather than eyeballed:
-- `--muted-foreground: #717182` on white = **4.79:1**, which passes AA for text (4.5:1). `text-gray-500` is 4.79:1 too. So the ~148 hardcoded greys are **not** a contrast problem.
-- **ONE real failure, now fixed:** `AccountManagement.tsx` rendered the "or set a password directly" hint in `text-gray-400` (#9ca3af ≈ **2.8:1**) — below AA. Now `text-muted-foreground`.
-- The two remaining `text-gray-300`s are **decorative icons** in `AIAnalytics.tsx` (a chevron and an empty-state Brain), not text. Left alone.
-
-**⚠ THE REAL FINDING: the greys are a TOKEN problem, not a contrast problem — and it is the dark-mode prerequisite.** 148 hardcoded `text-gray-*` occurrences across ~15 components bypass the token system entirely, so any theme change misses them. That is exactly what Open work 5 says dark mode needs ("via token migration, NOT scattered `dark:` classes"). **Migrating them is its own sprint** and would make dark mode mostly mechanical afterwards. Counted: gray-500 ×63, gray-700 ×27, gray-600 ×22, gray-900 ×19, gray-800 ×16, gray-300 ×2, gray-400 ×1.
-
-**⚠ "NOTIFICATIONS ABOVE LOGOUT" IS NOT A SMALL ITEM — it was mis-filed as one.** There is **no notification system in the app at all**; the sidebar footer has only Change Password and Logout. Adding a Notifications entry means building a real source, and per CLAUDE.md a control that shows nothing (or invented items) is worse than a missing feature. Candidate REAL sources that already exist: overdue RPC visits (`useRPCTracking` status `overdue`), today's/upcoming appointments, and risk assessments awaiting dentist validation. **Needs its own sprint and a decision on which of those belong.** Moved out of the "small" list.
-
-- `verify_sprint93.mjs` — **7/7**. The contrast half **computes the ratio from the live DOM** (computed colour, nearest non-transparent background, WCAG luminance) rather than asserting a class name: the failing element was `text-gray-400`, which looks like ordinary grey and would pass any eyeball review. It also probes the `muted-foreground` token itself, so a future token change that breaks AA fails a test.
-- ⚠ The hint it measures lives **inside the Reset Password modal**, not on the page — the check has to open it first. Read-only; nothing is submitted.
-
-## Sprint 92 (the audit trail read is bounded) — DONE 2026-09-03 (tsc both + build clean; 10/10 browser + 26/26 indexes)
-Closes the finding Sprint 91 surfaced: `GET /audit-trails` had **no filter, no sort and no limit** and returned the entire audit trail — the fastest-growing collection in the system, since every action by every user across three schools is logged forever. Same pattern as Sprint 56's appointment window.
-
-**⚠ THE BOUND WAS THE EASY HALF. THE DANGEROUS HALF WAS THE SCREEN'S OWN DATE FILTER.** Before this, the client fetched every log and filtered in the browser, so any Start Date worked. Bounding the fetch without touching the filter would have produced *"No audit logs found matching your filters"* for a period that has plenty — **a control that appears to work and lies, which CLAUDE.md names as worse than a missing feature.** So the fetch follows the filter: picking a Start Date earlier than the window REFETCHES from that date (`AuditTrail.tsx`, `fetchFrom`). The verifier asserts the refetch by watching the actual network requests, not by reading the table.
-
-- **Window: 90 days** (`AUDIT_WINDOW_DAYS`). Unlike appointments, the audit trail has **no natural boundary** — there is no school year to lean on — so this is a chosen default, not a derived one. "Show earlier" drops the bound entirely.
-- **The count in the header now names its window** (`"N activity logs · since <date>"` / `"all time"`). A bare count over a bounded window reads as the whole history and would understate it silently.
-- **⚠ THE DASHBOARD WAS THE SUBTLE ONE.** `Dashboard.tsx` fetches the audit trail too, and three of its four consumers want recent activity anyway — but **`actionsByModuleData` counted ALL TIME**. Bounding the fetch silently changes that chart's meaning, so its subtitle now reads *"· last 90 days"*. Bounding a number without relabelling it is the same lie in a different place.
-- `AuditTrail` has **no `isArchived`** — the one model without soft delete, deliberately: an audit record that can be archived is not an audit record. So the date range is the only filter, and `hasSoftDelete` is correctly false in `crudFactory`.
-
-**⚠ SPRINT 91'S VERIFIER HAD TO CHANGE, AND THE CHANGE IS THE POINT.** It asserted AuditTrail carried NO index. Sprint 91 was right at the time — nothing narrowed the collection, so an index would have been pure write cost. Bounding the route on `timestamp` **created the query shape that earns one**, so `{ timestamp: -1 }` was added and the verifier now requires it plus an IXSCAN on the windowed read. **The rule did not bend; the query changed.** 26/26.
-
-- `verify_sprint92.mjs` — **10/10**. Watches every `/audit-trails` request so the bound is OBSERVED, not inferred; asserts "Show earlier" refetches with no `from=`; and asserts a malformed `from=` is **rejected rather than silently ignored** (an ignored bad bound would quietly return everything).
-- ⚠ **Test gotcha: a System Admin lands on a SCHOOL PICKER, not the dashboard** — `a[href="/patients"]` does not exist until a school is chosen, so the dentist-based verifiers' login sequence hangs. Pick a school first.
-- ⚠ **The seeded admin email is `SEED_ADMIN_EMAIL`, not `admin@floral.com`** like the other four demo accounts. Read it from the environment.
-
-## Sprint 91 (the missing indexes) — DONE 2026-09-03 (tsc both + build clean; 25/25 against the live database)
-Closes the half of Open work 24 that was still genuinely open: **only Appointment and Student declared indexes; the other 15 models declared none.** Nine indexes added across eight models — server models only, no API or UI change.
-
-**⚠ EVIDENCE-DRIVEN, NOT BLANKET — that was the instruction in item 24 and it is the point of the sprint.** Every index below matches a query shape that actually exists in `routes/index.ts`; six models were deliberately left alone and the verifier ASSERTS they stay that way, so a later "let's index everything" pass has to argue with a test rather than quietly add write cost to every insert.
-- **Indexed:** `StudentIptr` ×2 · `MedicalHistory` · `DietarySocialHabits` · `OralHealthCondition` · `DentalChart` · `Treatment` · `PreventiveCareRecord` (all `{ isArchived, iptr_id }`, matching their `filterable: ["iptr_id"]`) · `ToothRecord` `{ isArchived, chart_id }`.
-- **NOT indexed, on purpose:** `School`, `User`, `Dentist`, `DentalAide`, `DentistRotation` hold single- to low-double-digit rows. `RiskStratification` and `AuditTrail` are only ever read WHOLE — nothing narrows them, so an index would be pure write cost.
-
-**⚠ THE TWO `StudentIptr` INDEXES ARE NOT REDUNDANT — do not "tidy" them into one.** `{ isArchived, student_id }` serves the filtered read; `{ student_id, school_year }` serves the **uniqueness check behind `uniqueBy`**, which runs on every create AND every restore (Sprint 76) and **carries no `isArchived`** — a restore must see archived rows. An `isArchived`-leading index cannot serve it. The verifier explains that exact query and requires an IXSCAN, so merging the two fails the test.
-
-**⚠ A DECLARED INDEX PROVES NOTHING — both halves are verified.** `schema.index(...)` only creates an index if `autoIndex` is on (it is: `mongoose.connect(uri)` with no options), and an index the planner ignores is write cost for nothing. `verifySprint91Indexes.ts` therefore checks that the index **exists in MongoDB** and that the representative query **reports an IXSCAN rather than a COLLSCAN**.
-- **Run it as:** `npm run verify:indexes`. Read-only — creates and changes nothing.
-- ⚠ **Index builds are ASYNC, and the first run said so the hard way:** `{ student_id, school_year }` was reported missing, then passed on a re-run minutes later with no code change — it had merely still been building. The script now `await`s `Model.init()` on every model first, so a failure means a real failure.
-- ⚠ **`User.email` carries a `unique: true` index and that is EXEMPT from the "not indexed" assertion.** It is a correctness constraint the database enforces, not a query optimisation; removing it would let two accounts share an email. The first version of the check flagged it — the check was wrong, not the schema.
-
-**FINDING, not fixed here: `AuditTrail` is the real remaining scale risk, and an index is not the fix.** It is served by the generic CRUD GET with no filter, no sort and no limit, so `GET /audit-trails` returns **the entire audit trail** — the fastest-growing collection in the system, since every action across three schools is logged. It needs the Sprint 56 treatment (a date bound + "show earlier"), not an index. Added to Open work 24.
-
-## Sprint 90 (Services Rendered wired to real numbers) — DONE 2026-09-03 (tsc both + build clean; 31/31, Sprints 89 + 83 re-run green)
-Section C printed dashes on every row. **The source was there the whole time:** `TOOTH_RECORD.treatment_code`, reachable through `DENTAL_CHART.iptr_id`, so a service lands in the right school year, age band and sex with **no schema change**.
-
-**⚠ READ `treatment_code`, NEVER `condition`.** `X` means *Extraction* as a treatment and *indicated for extraction* as a condition (the X/x durable gotcha). Reading the wrong column would report every tooth merely flagged for extraction as one already pulled.
-
-**⚠ THE 1st/2nd ORDINAL IS DERIVED FROM CHART DATES — an interpretation, and the one thing here most worth understanding.** Nothing records "this was the 2nd application"; PREVENTIVE_CARE_RECORD stores no services. So within one school year's IPTR the charts are ordered by `date_charted`: the first chart carrying the code is the 1st application, the second is the 2nd. **Counting occurrences WITHIN a chart would be wrong — five teeth varnished in one sitting is ONE application, not five.** A patient with two applications counts in BOTH rows, because the form asks how many received a 1st and how many a 2nd.
-
-**Wired (6 indicators, 12 sub-rows):** OP/Scaling 1st–2nd (`OP`) · Fluoride Varnish 1st–2nd (`FV`) · SDF 1st–2nd (`SDF`) · ART head/tooth (`TR`) · Sealants head/tooth (`PFS`) · Tooth Extraction head/tooth (`X`).
-- **`TR` for ART is the TARGET CLIENT LIST's existing mapping** (`TargetClientList.tsx:276`). Followed deliberately — inventing a second answer would make two filed DOH returns disagree about the same treatments.
-- **STILL `—` ON PURPOSE:** Oral Health Counselling and Root Surface Protection have **no treatment code in the system**. The `REAL_FIELDS` allowlist is what enforces that: a field not named there returns null and prints `—`. Mapping them to something plausible would put a fabricated number on a filed return.
-
-**⚠ EVERY SERVICES FIGURE READS 0, AND THAT IS CORRECT — do not treat it as a broken join.** Verified against the live database 2026-09-03: **all 27 tooth records carry only a `condition`; not one has a `treatment_code`** (conditions present: `D`4 `P`8 `p`6 `M`4 `d`5). Nobody has ever used the chart's treatment picker. Now that a source exists, `0` is the honest mark — "none found" — where `—` would now be wrong.
-- **Consequence for the demo:** section C will stay all zeros until treatments are actually charted. **If a Chapter 4 figure needs a populated Services Rendered section, someone must record treatments on the demo students first.** That is data entry, not a bug.
-
-**⚠ THE ARITHMETIC IS PROVED AGAINST CONTROLLED INPUT, NOT THE LIVE DATA — deliberately.** `tallyIptrServices` was extracted as an exported pure function precisely because a screen of zeros cannot demonstrate that four sealants in one visit is *one patient, four teeth, one application*. The alternative — writing junk into the database to make a live assertion pass — would pollute the ONE shared database (Open work 26) and the Chapter 4 demo data. `verify_sprint90.mjs` runs the real exported function through Vite's module graph with a two-sitting fixture.
-- Live checks still assert the invariants that hold at any scale: **tooth count ≥ head count**, and **2nd application never exceeds 1st**.
-- ⚠ **Two more whole-collection reads** (`/dental-charts`, `/tooth-records`) added to a hook already listed under the unbounded-reads work (**Open work 0b / 24**). Accepted: without them section C cannot be filled at all, and `useRPCTracking` already fetches the same two the same way. **It makes the pagination work more urgent, not less.**
-- The file-header note claiming Services Rendered "are shown but NOT populated" was **replaced, not appended to** — its reasoning (per-visit services are recorded nowhere) was true but beside the point.
-
-## Sprint 89 (Program Report section C, rebuilt against the FILED form) — DONE 2026-09-03 (tsc both + build clean; 35/35, and Sprints 83 + 85 re-run green)
-
-**⚠ THE SOURCE CHANGED, AND THAT IS THE HEADLINE. There are TWO different "Program Report" forms, and the app was tracking the wrong one.**
-- `TCLForm2andFHSISReport.xlsx` sheet **"2026 Form 2"** — the DOH workbook. Sprint 84 made this authoritative **for the Target Client List**. It is **NOT** this form: it separates Oral Debris from Calcular Deposits, adds Caries Free, Total dfx / Total DMFX with per-code breakdowns, a Gum Treatment Scaling row, "Number of Person Attended/Examined" headers, and puts Orally Fit under services.
-- **`Jan_2026_ORAL_HEALTH_PROGRAM_REPORTING_FORM.pdf` — the SIGNED January 2026 return the clinic actually filed**, one page per school (Bagong Tanyag Integrated, South Daang Hari, and a third). **This is what the app must match**, and it is what Sprint 89 transcribes. Its structure (A Patient Seeking Behaviour / B Oral Health Status / C Services Rendered / Other Procedures) confirms the Appendix F shape the app already had — the divergence was all in section C and the captions.
-
-**Section C now carries the form's own two-line split.** Six of nine indicators have sub-rows, four of them **Head Count / Tooth Count** — the same head-vs-tooth distinction Sprint 88's summary sheet turns on:
-`OP / Scaling` → 1st/2nd Scaling · `Fluoride Varnish` → 1st/2nd Application · `Silver Diamine Fluoride (SDF)` → 1st/2nd Application · `ART` → Head/Tooth Count · **`Sealants` (NEW)** → Head/Tooth Count · **`Root Surface Protection` (NEW)** → Head/Tooth Count · `Tooth Extraction` → Head/Tooth Count.
-
-**⚠ TWO THINGS WERE REMOVED, both deliberate:**
-- **`Number of patients given Permanent Filling` — it is not on the filed form.** The form is the form.
-- **ART's `Glass Ionomer / Composite` split**, added earlier as a dentist-detail convenience. The form splits ART by Head/Tooth Count instead, and the old split rendered dashes anyway. **The filling material is still recorded on the dental chart** — nothing was lost from the record.
-
-**⚠ THE ROW MODEL CHANGED — `children` (collapsible) became `subRows` (always shown).** A form-mandated line must not be foldable: hiding one files a form with a missing line. The parent now renders **no values of its own** and its label `rowSpan`s the group, because that is literally how the paper prints it — which is why the table gained a **second label column** (plain rows `colSpan={2}` across both). Consequences: the section bands span `visibleCols.length * 2 + 3`, `INDICATORS` is `colSpan={2}`, and the `expanded` state is gone.
-- **⚠ Rows are now keyed by an explicit `key`, NOT the label.** `Head Count` appears under four different parents; keying on the label would collide in React and silently break the hidden-rows set.
-
-**Other Procedures gained four missing rows** — `a. Oral Cancer Screening Referrals`, `b. Surgical Procedures`, `c. Referrals to Private Facilities`, and `No. of patients given Dental Prescriptions` — and **the band is UNLETTERED on the form**, where the app had invented "D. Other Parameters".
-
-**Captions corrected to the filed return:** `A. Patient Seeking Utilization` → **Behaviour** · `Calculus Deposits` → **Calcular Deposits** · `with suspected oral lesions` → **w/** · `provided Oral Health Counselling` → **provided with** · `examined / given` → **Examined / given** · RPOC rows use a hyphen, not an em dash · `referred to a Higher Level of Care` → **to Higher Level of Care** · `Number of patient given Root Surface Protection` keeps the form's singular "patient".
-
-- **`FORM_SUBROW_LABEL` added to `dohFormStyle.ts`** — the light lavender the form prints behind sub-row captions. **Sampled** from the filed scan at 200dpi (~rgb(224,216,227)); the amber band on that same scan measured rgb(228,189,93), within three points of the existing token, **which is what makes the sample trustworthy rather than a guess.**
-- **Sprint 83's verifier was UPDATED, not weakened** — its 7 failures were all caption assertions this sprint superseded. It is back to **16/16**, including "RPOC 1st-visit shows a real total", which proves the caption change broke no data path. Sprint 85 re-run **15/15**.
-- `verify_sprint89.mjs` — **35/35**. Asserts the removals as hard as the additions, that each parent's label `rowSpan`s exactly 2, that **no disclosure button survives in the table** (a foldable form row is the bug), and that exactly four indicators carry Head/Tooth Count.
-- ⚠ **Test gotcha: the DOH year picker defaults to the CURRENT school year (2026-2027) and the demo roster is on 2025-2026**, so the default view is legitimately all zeros. A "real values" assertion must select 2025-2026 first — it failed once for exactly this reason and it was not a regression.
-
-**STILL OPEN on this form (not started):** every section C row is `field: null`, so the section renders dashes. **The sources largely EXIST** — `TOOTH_RECORD.treatment_code` already carries OP, FV, SDF, PFS and X, and `useRPCTracking` already derives per-code tooth counts for the TCL. Wiring them needs `useDohReportData` to fetch dental charts + tooth records and tally per age band × sex, head and tooth separately. **That is the natural next sprint and it would make most of section C real.** Also still open: per-COLUMN blocked ranges (the paper blocks specific age columns per row, e.g. Root Surface Protection across the under-fives; the app models `blocked` per row only).
-
-## Sprint 88 (per-school summary sheet) — DONE 2026-09-03 (tsc both + build clean; 33/33 browser-verified)
-The last supplied official form the app produced **nothing** for. The Program Report aggregates by age band and the Target Client List is per patient; nothing produced this shape. New tab **School Summary** in Reports, sharing the DOH tab's school + school-year pickers (Sprint 57b).
-
-**⚠ THE COLUMN READING IS THE USER'S DECISION, NOT AN INFERENCE.** The sheet prints `MALE | TOTAL | FEMALE | TOTAL`, which is genuinely ambiguous on paper. Put to the user 2026-09-03 with three readings; they chose **head count / tooth count** and restated it unprompted (*"maybe gender is head count, total is tooth count"*). The rejected readings were "TOTAL = male+female" and "TOTAL = a per-sex subtotal". **Do not re-interpret without asking.**
-
-**Sources — the join is student → IPTR (that year) → DENTAL_CHART → TOOTH_RECORD.** `DENTAL_CHART.iptr_id` is what makes the year scoping exact rather than approximate, since an IPTR belongs to exactly one school year. ⚠ `useRPCTracking.conditionToothCounts` was NOT reused for this: it counts across a student's whole history, and a year-scoped DOH form cannot use it.
-- **Dental Caries is derived from tooth records, not a boolean.** There is no `dental_caries` field on ORAL_HEALTH_CONDITION (checked: gingivitis, periodontal_disease, debris, calculus, abnormal_growth, cleft_lip_palate only). Tooth records are also the better source — they carry a count, which the sheet needs.
-- ⚠ **Caries head count is deduplicated, teeth are summed.** A student with both a `D` and a `d` counts ONCE in the head column but contributes both teeth. Adding the two per-code head tallies would double-count exactly those students; the verifier asserts both halves.
-- **`No Flouride`** = students with no `FV` tooth-record treatment for the year, **including those with no record for the year at all**. The definition is printed on the sheet, because it is an interpretation — flag it to the dentist.
-
-**⚠ THREE ROWS/COLUMNS DELIBERATELY DECLINE TO ANSWER** — the CLAUDE.md rule that a blank on a DOH form is meaningful and a `0` is a claim:
-- **`Very Good (VG)` is blank in all four columns — the user's decision.** `ORAL_HEALTH_CONDITION.oral_hygiene` is FREE TEXT (`maxlength: 50`, chart placeholder *"e.g. Good, Fair, Poor"*) with no "Very Good" option and nothing enforcing a vocabulary. Counting matching strings was offered and declined as fragile. **Making this row real means putting a controlled dropdown on the dental chart first** — a separate sprint, and it touches existing records.
-- **Gingivitis / Debris / Calculus have head counts but `—` for teeth.** They are recorded once per patient, not per tooth; there is no per-tooth source anywhere in the data model.
-- Same for `No Flouride`.
-
-**⚠ CAPTIONS ARE VERBATIM, TYPOS INCLUDED** — `No Flouride`, and `Number Total decayed` in lower case against `Total Number Decayed` above it. Same rule as the DOH workbook's repeated "1st Visit" (Sprint 84). **And the sheet asks for (D)(M)(F)(X) but only (d)(f)(x) — there is NO temporary (m), which is correct dft** (a missing baby tooth is usually natural exfoliation). The verifier asserts its absence so nobody "completes the set" later.
-
-- Students whose `sex` is blank or unrecognised are counted in **neither** column and the count is stated on screen — the sheet has two sex columns and no total, so a wrong guess would be invisible.
-- **Format: PDF + Excel**, like the Program Report — aggregate counts, no patient names, bounded width, so none of the TCL's PII weight (Sprint 85's format table).
-- `verify_sprint88.mjs` — **33/33**. Asserts the absences as hard as the presences, plus the one arithmetic the sheet must get right (caries teeth = D + d, while the caries head count must be ≤ the sum). Downloads are captured for real.
-- ⚠ **Testing gotcha: the API allowlists origin `http://localhost:5173` only.** A second Vite instance lands on 5174 and every login returns **403 "Origin not allowed"**, which reads like a bad password. Free 5173 first.
-
-## Sprint 87 (OCR corrections) — DONE 2026-09-03 (tsc both + build clean; 21/21 new checks, and Sprint 86's 11/11 still green)
-Scoped as three small anchor edits. **The real form turned it into a bug hunt, and one of the finds was severe.**
-
-**⚠ THE SEVERE ONE: an upside-down BLANK IPTR reported 31 findings.** Measured, not theorised — `readIptrCheckboxes` on the genuine blank form flipped 180° returned **confidence 70 and 31 ticks**. Every Sprint 86 guard passed: the rules were all found, the row-count matched exactly. Rotation defeats them all because **row identity is POSITIONAL** — flip the page and the bands come back in reverse order, so ticks land on the wrong conditions. This is Sprint 86's invented-medical-history failure arriving by a second route.
-- Fixed **twice, deliberately**. (1) `iptrOcr.ts` corrects orientation before the grid is read. (2) `iptrCheckboxes.ts` now proves orientation itself and declines otherwise — the reader is positional, so it must not trust its caller.
-- **The structural proof: the label column is >2× any Year column and is printed on the LEFT**, so the widest band must sit in the table's left half. ⚠ **Test the widest band's POSITION, not its index** — the table has a DOUBLE left border, so band widths are `[9, 654, 277, 277, 277, 277, 276]` and the label column is band **1**. An "index must be 0" test rejects the genuine upright form; that exact mistake failed the verifier first time round.
-
-**⚠ WORD COUNT IS THE WRONG SIGNAL FOR ROTATION — the first attempt used it and did nothing.** Tesseract returned **more** words on the flipped page than upright (423 vs 401); it reads inverted glyphs as other letters quite happily. What collapses is quality: **mean confidence 36 vs 69, strong words (≥75%, ≥3 chars) 22 vs 180.** So the retry triggers on mean confidence < 55 or strong-word count < 8, and the two orientations are decided on strong-word count. A needless retry costs seconds and never costs accuracy, because the better-scoring orientation is the one kept.
-
-**⚠ A PRE-EXISTING REGEX BUG, LATENT SINCE THE MODULE WAS WRITTEN.** `findLabelValue` read the value from `match[1]` — but a label pattern with its OWN capturing group takes group 1 for itself. `contact\s*(no\.?|number|#)` did, so **Contact # extracted the literal string "#"** and prefilled it onto the add-student form. Now a named `(?<value>…)` group, and label alternations are non-capturing. This was invisible until a synthetic form with a known number was OCR'd — the blank real form produced "#" too, and it read like ordinary noise.
-
-**Two more "NOTHING COSMETIC" violations the blank form produced**, both prefilling invented values:
-- `4Ps ID` captured **`LagyanngvkungikawayNAKARANASoNAKARARANASngmgasumusunod`** — the form's own instruction line, stripped of spaces. `normalizeFourPs` now requires ≥4 digits: a prose sentence is never an identifier.
-- `address` captured **`0`** — a speck on the blank line. Now requires ≥4 alphanumerics.
-
-**What the original three-item scope actually changed:**
-- **`grade` / `section` anchors deleted, and the keys removed from `IptrOcrFieldKey`.** Confirmed by rendering the blank form: its Personal Information block is Name · Birthday · Age · Sex · Address · Occupation · Contact # · Philhealth # (Principal/Dependent) · 4Ps/NHTS, and **nothing else**. The app still needs both fields — required on STUDENT, snapshotted per year on STUDENT_IPTR — they are TYPED. Their inputs lost the scan hint/highlight, since a "✓ scanned" chip on a field that is not on the paper is a lie. **The bulk CSV/XLSX import still reads grade/section columns and still rejects rows missing them — untouched.**
-- **PhilHealth # + 4Ps/NHTS added**, both mapped to existing STUDENT fields, both showing the usual confidence highlight. ⚠ **The whole caption "Philhealth #: Principal / Dependent:" is consumed as the LABEL** — otherwise the capture begins at "Principal" and the number is lost. **Which of Principal/Dependent applies is CIRCLED on paper, not written, so it is never inferred** — the encoder picks it.
-- **`Occupation` is a stop-boundary, not an extracted field.** The form prints it; no model stores it. Extracting it would produce a value with nowhere to go. Same reasoning as Sprint 86's `unstorableFindings`.
-- Reading a 4Ps ID ticks the "4Ps / NHTS Member" box, because on this form the ID *is* the membership. It reveals the field just filled, and both stay editable before save.
-- **CLAUDE.md's OCR MODULE spec corrected** — it listed grade level and section as extracted fields.
-
-- `verify_sprint87.mjs` — **21/21**, running the real module in a browser against the genuine blank IPTR. It asserts the grid guard **directly** as well as through `extractIptrFields`, uses a synthetic machine-set block for the only exact-value assertions available (a blank form has nothing written to read), and keeps a negative for every positive: an unfilled PhilHealth blank must yield nothing rather than "Principal / Dependent".
-- **Run it as:** `node verify_sprint87.mjs http://localhost:5173 <path to blank IPTR page 1 png>` with the dev server up.
-- ⚠ **Render the test page at 300 DPI.** At 150 DPI (`pdftoppm -r 150`) the grid reader correctly declines — *"Found 6 column lines, expected at least 7"* — and it looks like a regression. It is not; the form is simply below the resolution the rules can be traced at. Use `pdftoppm -png -r 300`.
-
-**STILL PENDING on OCR:** page 2's odontogram and the `d m f x t` / `D M F X T` summary boxes are unread.
-
-## Sprint 86 (OCR reads the IPTR checkbox grid) — DONE 2026-09-03 (tsc both + build clean; 11/11 verified against the REAL form)
-Closes the capability HANDOFF item 36 called *"genuinely ahead of ours"* in the Base44 build. Unblocked by the **blank IPTR template** the user supplied 2026-09-03 — backlog #16 had been parked since 2026-08-08 for want of exactly that file.
-
-**⚠ THE CHECKBOXES ARE NOT READ WITH OCR, DELIBERATELY.** A handwritten tick is a mark in a known cell, not a character. `iptrCheckboxes.ts` (NEW) measures **ink density per cell** — more reliable than asking Tesseract to recognise "✓", much faster, and **no new dependency**. Character recognition stays for the identity fields, where the content really is text.
-
-- **The grid is found from the form's OWN RULED LINES**, not fixed coordinates. A phone photo is never framed twice the same way, so fractions of the page drift immediately; the printed rules are the one stable landmark.
-- **⚠ IT DECLINES RATHER THAN GUESSES.** Row identity comes from POSITION — the nth band is the nth form row — so one missed rule would shift every label by one and attribute a tick to the wrong condition. On a clinical record that is worse than returning nothing, so it requires an exact row-count match and otherwise returns `confidence: 0` with a human-readable reason.
-- **⚠ FINDINGS ARE SHOWN, NEVER APPLIED.** The add-student form lists them read-only, saving nothing. This is clinical history detected by a tick reader, and CLAUDE.md is explicit that OCR assists rather than decides. **Do not "finish" this by auto-writing MEDICAL_HISTORY.**
-
-**⚠ THE BUG THE REAL FORM CAUGHT — worth understanding before touching the geometry.** The first build reported **29 phantom findings on a BLANK form**. Cause: **page 1 carries a SECOND table** (Date / Weight / Temp / Chief Complaint / Diagnosis …) whose horizontal rules are just as long, so first-to-last horizontal line spanned BOTH tables (65 lines, y 526–3111) and slicing rows off the end read the *wrong* table — whose column rules fall inside the year-column bands and register as ink. Fixed by bounding the table by **where its own Year-column rules actually run** (longest continuous dark run down an interior rule). A detector that invents medical history on an empty form is the worst possible failure here.
-
-**Three rows are detected that THE DATA MODEL CANNOT STORE**, reported in `unstorableFindings` so a tick is visibly dropped rather than invisibly lost: **Blood Disorders** (no field on MEDICAL_HISTORY), **Orally Fit** and **Dental Caries** (derived elsewhere, not booleans), **Completely Edentulous** (no field on ORAL_HEALTH_CONDITION — the same gap the Program Report and TCL hit).
-
-- `verify_sprint86.mjs` — **11/11**, and it runs the **actual module** through Vite's dev module graph inside a browser against the **genuine blank IPTR**; reimplementing the algorithm in Node would test nothing. Asserts the grid is found, **zero ticks on a blank form**, that it declines on a non-form image and a too-small one — and, because "detect nothing" passes every negative test, a **positive case that draws ticks into three known cells and requires exactly those three rows back, in the right Year column** (catches off-by-one row identity).
-- **Run it as:** `node verify_sprint86.mjs http://localhost:5173 <path to blank IPTR page 1 png>` with the dev server up.
-
-**STILL PENDING on OCR** — ~~the first three~~ **CLOSED by Sprint 87** (grade/section anchors, PhilHealth/4Ps/Occupation, page rotation). Only page 2's odontogram and the `d m f x t` / `D M F X T` summary boxes remain unread.
-
-## Sprint 85 (official output for the forms that had none) — DONE 2026-09-03 (tsc both + build clean; 15/15 browser-verified)
-Before this, **only the DOH Consolidated tab and FHSIS could produce a file at all.** The Target Client List, the Program Report and the IPTR had no print, no PDF and no Excel — including the two forms Sprints 82–84 had just made accurate.
-
-**⚠ THE FORMAT OF EACH FORM IS A DECISION, NOT A DETAIL. Do not "add the missing export" to any of these.**
-
-| Form | Format | Why |
+| 127, 129 | REFERRAL + review | Five DOH rows had no source. **`purge:demo` now REFUSES unless every model is planned or excluded with a reason.** |
+| 128, 130 | Reports opened on empty periods | Two controls, same fault. A report defaulting to an empty period reads as broken. |
+| 130, 133 | Print by inclusion | The old CSS listed chrome to hide, so captions leaked onto DOH returns. |
+| 131, 132 | Day dialog + demo appointments | The dialog stacked because it was `max-w-md`; seeding appointments then exposed a clipped card. |
+| 134 | TCL filed as two sheets | **Both pages were in the manuscript all along.** The app was never short a column — the OUTPUT was one sheet. |
+| 135-137 | The IPTR forms | The PDF was a screenshot of the app. Now the real two-page form, **and Form 1 beside it — both are valid.** |
+| 138-143 | Reports moved server-side | ~382 KB of whole-collection reads → six aggregates, three **flat at any roll size**. |
+| 144-146 | The two list screens | Bounded `history`, then **both lists filtered, sorted and PAGED server-side** — every filter moved together. |
+| 147 | A visit records its SERVICES | `PREVENTIVE_CARE_RECORD` had four fields and never said what was DONE. |
+| 148-150 | A charting belongs to a VISIT | The chart screen hid later chartings; now a charting states its visit and the report reads it. |
+
+### ⚠ THE THREE LESSONS OF THIS SESSION
+1. **The source was in the repo the whole time.** Three items were recorded as blocked on "the workbook is on the other laptop" or "we need a scan". All three were base64 PNGs in `docs/Group404 - Manuscript.md` (Appendices E, F, G). **Grep the manuscript before calling a form blocked.**
+2. **`tsc` and the build cannot see a broken screen.** A hook after an early return blanked a page; a card was clipped out of its container; a ten-column grid printed across the next page; a matrix keyed by code was read by label; a `useEffect` wiped a deep link twice. **Every one shipped a clean build and was caught by opening the browser.**
+3. **A refactor of a filed report is only done when the NUMBERS are diffed.** Sprint 150's first attempt moved `sdf_1st` 9 → 7 and `sdf_2nd` 0 → 2 on a document that goes to the City Health Office, and it compiled perfectly. **Capture the totals before, compare after — every time.**
+
+### ▶ FIVE THINGS ONLY YOU CAN DO — each closes shipped work
+1. **Click `IPTR` and `Form 1`** on a pupil's record → closes Sprints 135-137 (producing a PDF means downloading, which I do not do).
+2. **Click `Excel` on the Target Client List** → confirm two sheets, `Page 1` / `Page 2` → closes Sprint 134 / #56.
+3. **Ctrl+P on the report tabs** → confirm the sheet is the form and nothing else → closes #57. Only pagination, landscape and the `zoom: 0.45` still need a real preview.
+4. ✅ **DONE on the PC 2026-09-07** — `SEED_BHO_PASSWORD` lengthened to 8, guard verified passing. See Dev demo accounts above for the part that is still open (the live `bho@floral.com` hash).
+5. **The Chapter 3 ERD figure** — now owes **eight** deviations: `school_ids[]`, `DAY_NOTE`, the name split, `REFERRAL`, the two IPTR forms' reading, `PREVENTIVE_CARE_RECORD`'s services, and `DENTAL_CHART.preventive_id`. A redraw, not a patch.
+
+### ⚠ READ BEFORE TOUCHING THE DATABASE
+- ⚠⚠ **`.env` DOES NOT POINT AT THE SAME CLUSTER ON BOTH DEVICES — check it, never assume it** (found on the PC, 2026-09-07). `.env` is untracked and per-device, so this line was only ever true of the machine that wrote it.
+  - **Laptop:** DEV (`cluster0.o7e3c5o`) — the state this note originally described.
+  - **PC:** **PRODUCTION** (`floral-cluster.edqpjtu`), and so is `.env.bak-20260903`. There is no dev config on the PC at all. **Any script run there hits the live database by default**, including `seed:demo`, `purge:demo` and `apply:seed-passwords`. `.env.production.bak-20260904-222928` is not on the PC either.
+  - The one-line check before any script: `grep -o 'mongodb+srv://[^:]*:[^@]*@[^/]*' .env | sed 's/:[^:@]*@/:***@/'` — or just read `announceTarget`'s banner, which every script prints.
+- ⚠ **`PRODUCTION_DB_HOST` was UNSET on the PC — the only key in `.env.example` that `.env` was missing — so BOTH guards were silently off** on the machine pointed at production. `announceTarget` printed "cannot tell you whether the cluster above is production", and because `isProduction` was `false`, `requireConfirmOnProduction` did not refuse (`backfillIptrGrades`, `seedAppointments`) and `verifyReferrals`' own production refusal did not fire either. Set 2026-09-07.
+- ⚠ **Its value must be the cluster HASH, not the friendly name.** `announceTarget` does `host.includes(prodHost)` against `mongoose.connection.host`, which for an SRV connection is the resolved shard (`ac-…-shard-00-02.edqpjtu.mongodb.net`) and does **not** contain `floral-cluster`. `PRODUCTION_DB_HOST=floral-cluster.edqpjtu` would never match while looking correctly configured. The PC now holds **`edqpjtu`**, checked against both host forms and against dev's `o7e3c5o`. **The laptop should use `edqpjtu` too — if it has the long form set, it is not protected.**
+  ⚠ Match logic verified offline only; a live connection was not made, so the banner has not been seen firing. First script run on the PC should confirm it says THIS IS THE PRODUCTION DATABASE.
+- Production also lives in Vercel's env vars; the PC's `.env` is a second copy of it, not the source of truth.
+- **`.env.production.bak-20260904-222928`** holds the old config. **Restore the WHOLE FILE, never one line** — different `FIELD_ENCRYPTION_SECRET`s.
+- Every script prints its target (`announceTarget.ts`). ⚠ Call it **after** `connectDB()`, or it prints `(unknown host)` and tells you nothing.
+- **Dev test data left in place, all plausible:** Ivan has a Visit 1 with services (2026-03-15); Castillo has a Visit 2 (2026-04-20) with an **empty charting attached** — the only chart carrying a `preventive_id`. Dev also holds **0 TREATMENT rows** and 0 referrals.
+
+### Next — everything scoped needs YOU or the dentist first
+1. **#55 structured treatment/condition dropdowns** — three questions for the dentist (per tooth or per visit? conditions without a tooth? chart click or number list?).
+2. **#59 the bulk-upload format** — the importer exists; whose column set wins cannot be settled without a real roster file.
+3. **#61 Form 1's eleven unmapped history questions** — the dentist decides which stored field, if any, answers each.
+4. **#63's leftover question:** should PAST chartings be read-only? Editing follows the picker now, so an old charting can be edited. One-line change either way.
+5. **Only unblocked engineering item:** the server still reads whole collections to build each aggregate. A `$lookup` pipeline is the answer **if** it ever hurts — nothing measured says it does at 26 pupils.
+
+⚠ **Two dev servers may still be running** (`dev:server` on :4000, `dev` on :5173). Kill them if the ports are wanted.
+
+
+## ✅ SCHOOL SWITCHER — BOTH FINDINGS FIXED (was 'NOT FIXED', corrected by the 2026-09-04 hygiene pass)
+Kept as one line because the heading claimed open work that has since shipped, and a stale blocker is worse than no note.
+
+- **Finding 1 (switcher presence inconsistent; seeder disagreed with live data)** — resolved. `USER.school_ids[]` replaced the single FK (Sprint 100), and a fresh seed now produces `school_ids: []` (= all schools) for admin/dentist/aide/bho with only `school_admin` pinned — **verified on a clean database in Sprint 116**, so the seeder and the intent now agree.
+- **Finding 2 (the school gate was CLIENT-SIDE ONLY)** — fixed by **Sprint 101**, which put `scopeFilter` on the read paths server-side. A `school_admin` pinned to Annex A previously received all three schools' students from the API.
+- Full detail for both: `docs/BUILD-LOG.md`, Sprints 100/101/116.
+- ⚠ **Still open from this investigation, and NOT a switcher bug:** `school_admin` can still reach clinical records at all, where CLAUDE.md says reports and dashboards only. That is a ROLE decision and sits in Open work.
+
+## ✅ DOH FORM RECONCILIATION — CLOSED 2026-09-05. Captions AND columns are both done; the old task list was stale.
+Re-verified against the code on 2026-09-05, counting properly this time (the WORD `unverified` vs the FLAG `unverified: true`):
+
+- **Captions: 0 flags in both files** (`grep -o "unverified: *true"`). The word appears 13x/7x — that is the type field, the comment and the self-hiding note. Sprint 103 really did settle them. Two successive HANDOFF entries ("16 still in the code", then "10 + 6") both repeated the same miscount.
+- **Columns: every one previously listed as missing is PRESENT in `TargetClientList.tsx`** — `Family Serial Number`, `Barangay`, `Age Group`, `Pit and Fissure Sealant (Tooth Count)`, `Temporary Filling (Tooth Count)`, `Complete Mouth Rehab`, the `Upon Oral Examination` / `After Complete Mouth Rehabilitation` pair, `Last Dental Visit`, `Next Dental Visit`, `REMARKS`. The four wrong captions are all corrected in the code (`Complete RPC for 1st Visit…`, the two `Gum Treatment` columns, 2nd SDF as a tooth count, `Referred Out`). Sprint 84 did this work; the note was never retired.
+- **`facility_based`** was added in Sprint 81, so the FHSIS facility rows are fed.
+- **What is genuinely left is NOT reconciliation:** 9 columns render blank and 2 render `—` because no model feeds them — `Counseling`, `Completely Edentulous / No Dentition`, `2nd Silver Diamine Fluoride App`, `Gum Treatment - Scaling`, `Gum Treatment - Prescription`, `Consultation`, `Referred Out`, `Complete Mouth Rehab`, `After Complete Mouth Rehabilitation`, plus `Family Serial Number` and `Barangay` at `—`. **That is correct behaviour** under CLAUDE.md's "official DOH forms keep ALL their rows and columns even when empty" — it is a missing DATA SOURCE, not a missing column. The referral half is already logged as backlog **#45 (a `REFERRAL` model)**.
+- **The 27 cohort tabs (age x sex) remain a PRESENTATION of the same rows**, not extra data. Cosmetic unless DOH filing requires the tab layout — **ask before building it.**
+- ⚠ **The workbooks (`TCLForm2andFHSISReport.xlsx`, `2026Form2withFHSIS.xlsx`) are NOT on this device.** `data/` is per-device; this machine holds only the Nutritional Status files. They were read on the other laptop during Sprint 84. Nothing needs them now, but do not plan a sprint here assuming they are on disk.
+
+## Sprint 125 (the one VERIFIED half of the audit finding) - DONE 2026-09-04, tsc + build clean, **9/9 verified**. Closes the actionable part of backlog #21.
+`selected-school` outlived logout carrying `{userId, school}`, so on a shared clinic PC DevTools showed the previous user's ID and school after they left. That was the only part of the 2026-08-25 audit report ever independently confirmed - the serious RBAC version was read against the code and does not hold.
+
+- **The record now stores a TAG, not the id:** `{"u":"roa3nf","school":"..."}`. **Explicitly NOT cryptography** - FNV-1a, and anyone holding the user list could match tags back. Its only job is that what survives logout is no longer a real user id. The comment says exactly that rather than overclaiming.
+- **⚠ "Just clear it on logout" was the wrong fix and the code already said why.** The id is what stops a second person on a shared PC inheriting the first one's school. Clearing it either re-asks every returning user or hands them someone else's school. Tagging keeps the guard and drops the disclosure.
+- **Synchronous on purpose.** `initialSchoolFor` derives initial state, so a SubtleCrypto digest (async) would ripple through the provider's first render for a value that is not a secret.
+- **Legacy records are migrated on READ, not left to rot:** a stored `{userId,...}` is honoured if it matches (so a returning user is not re-asked) and **immediately rewritten in the new shape** - otherwise the raw id would sit in storage until that user next changed school, which is the leak itself.
+- **9/9 verified:** school stored · no raw id · no `userId` field · **survives logout** · nothing identifying left after logout · `floral_cached_user` still cleared · **returning user not re-asked**.
+- ⚠ **The first run passed those checks VACUOUSLY.** It took the user id from `floral_cached_user`, which was empty at that moment, so "does not contain the raw user id" was comparing against `null`. It now reads `/auth/me` and **throws** if the id is missing, rather than comparing with nothing. Fourth false-pass of the session, same shape as the other three.
+- **Still open in #21, unchanged:** the auditor was never asked which DevTools pane or which role. The two non-findings (cookies visible in DevTools; `floral_cached_user` while signed in) have prepared answers in that item for defense.
+
+## Sprint 126 (dev and production are finally SEPARATE databases) - DONE 2026-09-04, tsc + build clean, verified end to end. Closes backlog #26.
+**Unblocked by the user:** *"we can use the floral rehersal"* - the throwaway Atlas cluster from Sprint 112 becomes the DEV database instead of being deleted.
+
+- **Local `.env` now points at the DEV cluster (`cluster0.o7e3c5o`). Production (`floral-cluster.edqpjtu`) lives only in Vercel.** The previous config is saved verbatim as **`.env.production.bak-20260904-222928`** (gitignored) - **restore the WHOLE FILE, never one line**, because the two databases have different `FIELD_ENCRYPTION_SECRET`s and mixing them makes every patient record read as garbage.
+- **Why it mattered, from this session alone:** a test record POSTed to production while proving a validator (Sprint 121), a migration run against it (117), and a real pupil transferred (123). All recoverable, none should have been possible inattentively. **There was no safety net; now there is a different database.**
+- **New `server/scripts/announceTarget.ts`, wired into all 19 scripts that connect.** Every one prints script / cluster / database before doing anything, and shouts when the target matches `PRODUCTION_DB_HOST`. **Before this, 13 of 21 scripts wrote to the database and only 5 said which one.**
+- **Dev seeded from scratch** (`seed:admin` → `demo` → `students` → `rpc-visit2` → `iptr-details` → `treatments`): 26 students, names decrypting with the DEV key, `ciphertext leaking? no`.
+- ⚠ **A 401 after seeding is EXPECTED and is not a broken database.** `seed:admin`/`seed:demo` skip accounts that already exist, so the dev admin kept the *rehearsal* password. `npm run apply:seed-passwords -- --confirm` fixes it (5 accounts updated). Now in the README, because it will happen to the next person.
+- ⚠ **The Sprint 120 guard caught a REAL config fault while doing this: `SEED_BHO_PASSWORD` was only 7 characters.** Regenerated for dev. ✅ **Lengthened in the production config too, on the PC, 2026-09-07** — the guard no longer refuses. (Sprint 126's note above says the local `.env` points at dev; that is the LAPTOP. See the per-device warning under READ BEFORE TOUCHING THE DATABASE.)
+- ⚠ **Dev data is SEEDED, never a copy of production.** Copying real records to a laptop is the thing this separation exists to prevent.
+- **Still true and unchanged:** production still holds the user's test input, untouched. `purge:demo` there still will not clear person-typed records - see the test-input section.
+
+## Sprint 127 (the DOH form's five referral rows have a source at last) - DONE 2026-09-05, tsc + build clean, **16/16 verified against DEV**. Closes backlog #45.
+Five rows of the Oral Health Program Report printed "—" because no model fed them. **A form the clinic files with the City Health Office was asking for counts the system could not produce** - that, not a wish, is why REFERRAL exists.
+
+- **It was FIVE rows, not the four HANDOFF claimed** - `OTHER_ROWS` also carries `No. of patients referred to other Primary Care Facilities`. The `Dental Prescriptions` row in the same block is also `field: null`, is NOT a referral, and stays blank.
+- **The enum is the form's own row list**, not a taxonomy of ours: `primary_care | higher_level | oral_cancer_screening | surgical | private_facility`. Each printed row is then a count of one value. ⚠ **a/b/c print INDENTED under the Higher Level total**, so `ref_higher` counts `higher_level` PLUS the three sub-kinds; recording a surgical referral as `higher_level` too would double-count the patient. Said in the model, in the hook, and in `DATA-MODEL.md`, because it is the one rule that makes the numbers wrong if forgotten.
+- **The form counts PATIENTS, not slips.** Two referrals of the same kind for one pupil in one school year is ONE patient on that row - a Set per IPTR, not a running total. The verifier writes two surgical slips for the same pupil specifically to prove this.
+- **Parented on `iptr_id` like TREATMENT**, not `student_id` like APPOINTMENT: a referral belongs to a school year, and the Referral Tracking table shows the grade AT THE TIME, which lives on STUDENT_IPTR since Sprint 57a. One `RULES` line in `schoolScope.ts` scopes it.
+- **`reason` + `notes` encrypted, `facility_name` deliberately not** - the first two are the class of `TREATMENT.diagnosis`; a facility is an institution, not patient PII, and stays queryable.
+- **ISSUE-ONLY, on purpose.** `status` defaults to `pending` and `follow_up_date` is optional; nothing closes a referral out, because nobody has confirmed the clinic does. **Ask the dentist before building on those two fields.**
+- **Three starved UIs now have data**, and all three were already written: the student record's Referrals tab (was an honest "not tracked" empty state) now records and lists; `Reports.tsx`'s Referral Tracking table (was `const referralRows = []`) computes its rows; the five report rows count. The tab's picker says on screen that the choice decides which DOH row the patient lands in.
+- **16/16 verified on the DEV cluster** (`npm run verify:referrals`, kept for the reason Sprint 74's suite earned its keep): ciphertext at rest in the raw collection · `facility_name` readable · decrypts back · defaults · enum refused an invalid value · all four count rules · **both indexes present in MongoDB, not merely declared** · cleanup. Then over HTTP: dentist POST 200 and reason readable on GET · `iptr_id` filter returns 1 · **school_admin POST 403** · archive PATCH 200 and the list drops to 0 · **`Created Referral` + `Archived Referral` both in the audit trail**.
+- ⚠ **My first verifier run printed `cluster: (unknown host)`** - I called `announceTarget()` BEFORE `connectDB()`, and it reads `mongoose.connection.host`, which is empty until the connection opens. The guard was fine; the call order was mine. **Same shape as last session's four false passes: it printed a banner that told me nothing and looked like it had worked.** Every wired script calls it after `connectDB()`.
+- ⚠ **`useDohReportData` now fetches ELEVEN whole collections.** Accepted for the same reason as the tenth - the rows cannot be filled otherwise - and logged against Open work 24, which this makes more urgent, not less.
+- **Left undone deliberately:** the TCL's `Referred Out` column. `TargetClientList.tsx` builds rows from `useStudents` + `useRPCTracking`, not from the DOH hook, so it needs its own fetch. A blank column on an official form breaks no rule (CLAUDE.md keeps every row and column), so it is a separate small sprint.
+
+## Sprint 129 (the code review's findings, and a guard so the same omission cannot recur) - DONE 2026-09-05, tsc + build clean, verified in the browser. Closes backlog #54 and the review of Sprint 127.
+`/code-review` over Sprint 127 returned 8 findings. Seven are fixed; #7 was a documentation decision and is now printed on the form itself.
+
+- **The one that would actually have bitten: `purge:demo` did not know about `Referral`.** Purging before deployment would have deleted the demo students and their IPTRs and left every referral behind - orphaned rows pointing at `iptr_id`s that no longer exist, invisible in every report because the join drops them, and permanent.
+- **So the fix is not just the missing line - it is `assertPlanCoversEveryModel`.** Every registered Mongoose model must now be either IN the purge plan or in `NOT_PURGED` **with a stated reason**, and the script REFUSES to run otherwise. A new model is a decision now, not an omission. ⚠ It compares against `mongoose.models`, which only holds what the file IMPORTS - so every model is imported there even though several are not deleted, and the check throws if the registry is empty rather than passing having compared nothing.
+- **Proven, not assumed:** with `Referral` deliberately removed from the plan the script printed `REFUSING TO RUN. 1 model(s) are neither purged nor explicitly excluded: - Referral`, then passed at `19 models registered, 12 in the plan, 7 deliberately excluded` once restored.
+- ⚠ **My own comment was false and the review caught it.** The route granted `archiveRoles: CLINICAL_WRITE_ROLES` justified by *"the tab shows the dentist a remove button"* - copied from the DAY_NOTE reasoning without checking, and **the Referrals tab has no such button.** The grant was dead code that would have told the next reader an archive path had been tested. Archiving is back to the `ADMIN_ONLY` default, matching TREATMENT.
+- **`Referral` added to `ArchiveManagement.tsx`'s `KINDS`** - without it an archived referral was invisible and unrestorable, i.e. soft-deleted in name only.
+- **Referral Tracking dates were rendering as raw ISO instants** (`2026-09-05T00:00:00.000Z`) beside a trimmed Follow-up column; both now use `formatDate`, with a separate `sortKey` holding the raw string because formatted dates do not sort.
+- **The verifier is hardened:** it now REFUSES to run against production (it writes 4 real referrals, and `announceTarget` only PRINTS the target - printing is not a guard), asserts its pupil starts with no referrals rather than assuming it, and counts only the fixtures it created, so a second run on dirty state cannot report a false failure. Still 16/16.
+- **`date_issued` is validated in the form** (it is required on the model, so clearing it surfaced a raw Mongoose casting error) and now carries a `*`. React key moved onto the fragment.
+- **Finding #7, the cross-footing, is now PRINTED ON THE FORM:** every referral row counts patients, not slips, so the Higher Level total is deliberately **not necessarily a + b + c** - a pupil in two sub-rows is still one patient in the total. Said on the report rather than left for an inspector to find, and it is a Chapter 4 talking point.
+- **Verified in the browser against dev:** recorded a referral through the tab (required markers present, picker captioned with the DOH row it feeds), saw it listed as `Sep 5, 2026`, then saw it in Reports -> Internal Reports -> Overview -> Referral Tracking as `Bonifacio, Miguel · BT Integrated · Grade 7 · Sep 5, 2026 · Taguig City Health Office · Pending`, `1 recorded`. The fixture was removed afterwards; dev is back to 0 referrals.
+- ⚠ **A dev-only red herring worth not re-diagnosing:** the chart page showed `Internal Server Error` mid-session. That was `tsx watch` restarting the API on my own edit to `routes/index.ts`, not a bug - it loaded normally on the next request.
+
+## Sprint 130 (the forms had no rows, and the printout had things that are not on the form) - DONE 2026-09-05, tsc + build clean. Two of three halves verified in the browser; **the print half is NOT verified on paper - see below.**
+Raised by the user: *"school summary is 0s"*, then *"they still dont have rows"*, then *"the print out should just be the forms"*. Three faults, two of them the same fault in different controls.
+
+- **Target Client List showed 0 rows** because its period anchor defaults to TODAY, and it has its OWN period control that Sprint 128's school-year fix never touched. Opening it in September 2026 asked for a month in which nothing happened; the 23 recorded consultations run **2026-02-16 to 2026-08-29**. The anchor now moves once to the latest consultation when the current period holds none, and the caption says so. **Verified: Aug 2026, 4 clients, anchor moved to 08/25/2026.**
+- **The DOH Consolidated grid was blank in every grade column** for a different reason: **0 of 26 IPTRs carried a `grade_level`** while all 26 students did. New `backfillIptrGrades.ts` copies it from the pupil's STUDENT record - dry-run by default, `requireConfirmOnProduction`, fills only EMPTY fields, and **SKIPS any pupil with more than one school year** because stamping today's grade on an older year would be wrong. Ran on dev: 26 filled, 0 left. **Verified: the grid now carries numbers per grade.**
+- **Printouts now print by INCLUSION.** The old print CSS enumerated chrome to hide, so everything not on that list reached paper: the page heading, the `School:` / `School year:` labels beside the hidden dropdowns, and every explanatory caption. `body * { visibility: hidden }` + `.form-print, .form-print * { visibility: visible }` inverts it - anything outside the marked form is hidden by default, so a caption added tomorrow cannot silently appear on a DOH return. `visibility` not `display`, because collapsing ancestors would remove the form itself. Six roots marked: DOH Consolidated, Program Report, FHSIS, School Summary, Target Client List, Consent Form.
+- ⚠ **THE PRINT CHANGE IS UNVERIFIED ON ACTUAL OUTPUT.** `window.print()` opens a modal that freezes the automated browser session, so I could not open print preview. **#57 stays OPEN until a human presses Ctrl+P on each of the six tabs** and confirms the sheet is indistinguishable from the form. Its own closing condition says exactly that.
+- ⚠ **Also worth a human eye: `position: absolute` on `.form-print`.** It is what stops the hidden layout leaving a blank first page, but it interacts with the existing `zoom: 0.45` on `#doh-report-printable` and with the wide tables' horizontal scroll. If a printed table is clipped or misplaced, that pairing is the first place to look.
+
+## Sprint 131 (the day dialog is two halves, and a day note can finally be edited) - DONE 2026-09-05, tsc + build clean, verified in the browser. Closes backlog #58.
+User: *"make it two halves one part is to fill in add note, the other half is the showing of current sched and notes and maybe can remove or delete? can edit also"*, then *"same function as the box below today upcoming completed missed rotation buttons"*, then *"the add note something does not expand down is that ok?"*.
+
+- **The stacking was never a layout choice - it was the WIDTH.** The dialog opened at `max-w-md` (~448px), where a schedule, the day's notes and a write box can only sit on top of each other, so on a busy day the write box fell below the fold. Now `max-w-3xl` with `grid md:grid-cols-2`: LEFT reads (schedule + notes, scrolling in its own `max-h-[60vh]`), RIGHT writes (always visible). **Single column below `md`** - at ~390px two columns are worse than one.
+- **Editing a day note did not exist ANYWHERE in the UI**, though `PUT /day-notes/:id` has accepted clinical roles since Sprint 108. Correcting a typo meant archiving the note and retyping it, **leaving the wrong wording in the archive permanently.** Inline edit added; the pencil sits beside the existing X.
+- **"Remove" is ARCHIVE, and the code says so** - never a hard delete, restorable by System Admin from `/archive`.
+- **The schedule half now reuses `AppointmentCard showActions`** - the same card the Today/Upcoming/Completed/Missed tabs render, so Mark Completed / Mark Missed / re-open work here too. It was already in scope in this file; the dialog simply never used it.
+- **⚠ The per-pupil rows stay NESTED under the card, deliberately.** The card is per SESSION (time + grade + section) while those rows are the individual pupils in it - swapping the card in wholesale would have dropped the per-pupil note and the chart link. Each pupil's name is now a link to **that pupil's** chart (`/dental-chart/:id`); the card's own link goes to the chart LIST, which is right for a session and wrong for a named child.
+- **The add-note box grows as you type** (user asked), capped at 220px so it can never push the Add button off a phone, with a 0/500 counter and the note's scope stated ("This school only" / "All schools"). ⚠ `scrollHeight` excludes the border on a border-box element, so the first version sat 2px short of its own content and showed a scrollbar for text that was already fully visible - hence the `+2`.
+- **Verified in the browser on dev:** added a 158-character note, saw it in the read half with the school named, **edited it to "EDITED - no clinic, holiday" ("Note updated.")**, then removed it ("Note removed."), leaving the date clean. The write half stayed visible throughout - the thing the user asked for.
+- ⚠ **NOT verified, and stated rather than glossed:** (1) the `AppointmentCard` half - **dev holds 0 appointments**, so the card, its actions and the nested pupil rows have never been seen rendering with real data. (2) The ~390px layout - `resize_window` reported success but the captured viewport did not change, so the phone stack is reasoned from `grid-cols-1 md:grid-cols-2`, not seen. **Both want a human eye on a day that actually has appointments.**
+
+## Sprint 132 (there were no demo appointments at all, and the card was clipped inside the new dialog) - DONE 2026-09-05, tsc + build clean, verified in the browser.
+Sprint 131 shipped with its schedule half unproven because **dev held 0 appointments against 26 students**. That gap was not just a verification problem: the whole Appointments screen demoed empty - every tab, the calendar, the day dialog.
+
+- **New `seedAppointments.ts` (`npm run seed:appointments`).** There was NO appointment seeder in the project. Spread deliberately, one bucket per tab: 2 sessions today, +3 and +10 days upcoming, -7 completed, -14 missed, with a note on two of them. **Only `is_demo` students are used**, so `purge:demo` removes these with their pupils - a person-encoded pupil is never given a fabricated appointment. Dry run by default, `requireConfirmOnProduction`, and it REFUSES if any appointment already exists rather than doubling the data. 15 created on dev; the BT Integrated view shows 10, the rest belonging to the other two schools.
+- ⚠ **A log that contradicts the app is a bug too.** The first version printed slot times with `toISOString()`, so a 9am session logged as `01:00` - the clinic is UTC+8. Now printed in local time.
+- **⚠ THE REAL FIND: `AppointmentCard` was CLIPPED inside Sprint 131's half-width column.** Its row was a bare `flex items-center justify-between` - exactly what CLAUDE.md forbids - so the status badge, the chart button and the mark-attended / mark-missed buttons ran off the right edge behind a scrollbar. **Controls you cannot reach.** Fixed with `flex-wrap` + `min-w-0`, which drops the action cluster onto its own line in any narrow container, a phone included. **This is what verifying with real data buys: the layout looked fine with zero rows.**
+- **Verified in the browser:** Today (4) / Upcoming (3) / Completed (2) / Missed (1) all populated, calendar chips on the right days, and the day dialog now showing session cards with their actions fully visible and the pupils nested underneath, each with Add note / Edit note and the seeded "Bring guardian" remark. **Sprint 131's unverified half is now verified.**
+- **Still unverified from Sprint 131:** the ~390px phone layout - `resize_window` reports success but the captured viewport does not change, so it remains reasoned from `grid-cols-1 md:grid-cols-2`, not seen.
+
+## Sprint 134 (the Target Client List is filed as TWO SHEETS, because the form is two pages) - DONE 2026-09-05, tsc + build clean. Closes the buildable half of #56.
+Read from the manuscript's own scans, which were on this machine all along: **`docs/Group404 - Manuscript.md` Appendix E embeds BOTH pages as base64 PNGs** - `image16` (page 1, the sheet the user photographed) and `image17` (page 2). Extract with base64 and read them; the workbook on the other laptop was never needed.
+
+- **The app was never short a column.** Page 2 holds a repeated `No.`, the FIRST and SECOND visit groups, OTHER SERVICES and REMARKS - and **every one of those is already in `TargetClientList.tsx`**. Page 1 ends at "Caries Free" / "Orally Fit Child", which the app also has. What was wrong was the OUTPUT: a two-page form filed as one 66-column sheet is a different document.
+- **New `exportSheetsToXlsx`** (a second function, not a flag on `exportToXlsx` - the single-sheet contract is used by other reports). The TCL now writes **Page 1** and **Page 2** into one workbook, same rows, same order.
+- **The split, by the scans:** Page 1 = 13 identity columns + the 21 ORAL HEALTH STATUS columns + the 2 ORALLY FIT CHILD columns (36). Page 2 = a **repeated `No.`** + FIRST (7) + SECOND (7) + OTHER SERVICES (12) + DENTAL VISIT (2) + REMARKS (30).
+- **⚠ `No.` is repeated on sheet 2 deliberately** - it is the form's own row link between pages; without it sheet 2 is an unjoinable block of ticks.
+- **The SCREEN table stays one continuous table, on purpose.** A 66-column sheet cannot be read any other way, and the filed artifact is the workbook (TCL is Excel-only, decided 2026-09-03). Form pagination belongs in the file, not in the browser.
+- **⚠ ONE PLACEMENT IS UNVERIFIED and is flagged in the code:** the scans are 540x375, and while ORAL HEALTH STATUS clearly ends page 1 and OTHER SERVICES clearly ends page 2, the **DENTAL VISIT pair (Last / Next Dental Visit) could not be resolved on either scan**. Placed on page 2 with the services. A sharper scan would settle it; it is a one-line change (`PAGE1_GROUPS`).
+- ⚠ **NOT VERIFIED: the workbook itself.** Producing it means downloading a file, which was not done. **Click Excel on the Target Client List and confirm two sheets named Page 1 / Page 2 with the column counts above.**
+- **A related find, for #37:** Appendix G ("Individual Patient Treatment Record") also embeds **TWO** images (`image19`, `image20`), and Appendix F one (`image18`). **The IPTR is a two-page form too** - worth checking our IPTR output against both pages before defense, exactly as this sprint did for the TCL.
+
+## Sprint 135 (the IPTR PDF is the DOH form now, not a screenshot of the app) - page 1 DONE 2026-09-05, tsc + build clean, verified on screen. Page 2 is the next sprint.
+The PDF button used to capture `recordRef`: the patient-info card, the tab strip, the **Edit buttons**, whatever tab was open. **That is the document a family or a referral is handed.**
+
+- **New `IptrForm.tsx`, built to the scan** in `docs/Group404 - Manuscript.md` Appendix G (`image19`, 576x740 and legible - far better than the TCL scans). It renders off-screen (`fixed -left-[10000px]`) and the PDF captures it. **Off-screen rather than conditionally mounted on purpose: html2canvas needs a laid-out element, so `display: none` would capture nothing.**
+- **Reproduced in the form's own order and wording:** DOH / City of Taguig header · Personal Information · the **Year 1-5 matrix** (DATE EXAMINED, then Medical History 14 rows, Dietary Habits and Social History 7, Oral Health Condition 10) · the Filipino consent paragraph verbatim · **Lagda ng Pasyente / Lagda ng Magulang o Guardian** · the 10-column visit table (Date · Weight · Temp · BP · Chief Complaint · Diagnosis · Treatment Done · Dentist · Signature · Remarks) with ruled blank rows so a printed copy is usable chairside.
+- **Every row of the paper form is rendered, blanks included.** No source: **Blood Disorders · Medical (Last Admission & Cause) · Orally Fit · Completely Edentulous · Occupation · Temp · BP · Chief Complaint · Signature**. They print empty, never omitted, and an on-screen note (carrying `print-hide`, so it stays off paper) names them.
+- **Dental Caries is DERIVED, not fabricated:** `ORAL_HEALTH_CONDITION` has no such boolean, so it reads that year's tooth records for a `D`/`d` **condition** - the same source the TCL already uses. ⚠ `condition`, never `treatment_code`: X means "indicated for extraction" as a condition and "extracted" as a treatment.
+- **More than five school years:** the form has five columns, so the LAST five are shown. Showing the oldest five would hide current care.
+- ⚠ **A hook after an early return broke the whole page**, briefly: `useRef` was added beside the PDF handler, which sits after `if (loading)` / `if (error)`, so React threw *"Rendered more hooks than during the previous render"* and the record page rendered nothing. Moved to the top with the other hooks. **Caught only because the form was opened in the browser** - `tsc` and the build were both clean.
+- **Verified on screen against the scan:** header, personal information carrying the pupil's real values with Occupation blank, the Year 1-5 matrix with `2025-2026` in Year 1 and real ticks (Nail Biting, Debris), consent, both signature lines, and the visit table with its ruled rows.
+- ⚠ **NOT verified: the PDF file itself** - producing it means downloading. Click **PDF** on a pupil's record and confirm the file is the form.
+
+## Sprint 136 (IPTR page 2 - the five per-year dental charts) - DONE 2026-09-05, tsc + build clean, verified on screen. Completes the Appendix G form.
+Built to the second scan (`image20`). The PDF is now **two pages**, because the form is two pages.
+
+- **New `exportPagesToPdf`** - one PDF page per element, each sized to itself. Capturing both pages into a single tall page would have produced a document that is not the form. It shares the capture rules of `exportDohReportToPdf` (canvas cap, white JPEG ground, explicit width/height).
+- **`IptrFormPage2`:** the heading "Dental Charting", **five charts** in the paper's own 2-2-1 arrangement with the two legends beside the fifth, each chart carrying its own Date, four arcs (upper temporary · upper permanent · lower permanent · lower temporary) with Treatment and Condition rows, and the `d m f x` / `D M F X T` summary boxes. Ends in **Signature of Examining Dentist**.
+- **⚠ ONE DELIBERATE DEVIATION, stated in the code rather than hidden:** the paper draws each arc as one band with treatment and condition written above and below the numbers by hand, at an angle. That is not reproducible as a table, so each arc is three aligned rows carrying the same three facts per tooth in the form's own arc order. **Nothing added, removed or renamed - only the geometry differs.**
+- **⚠ THE TREATMENT LEGEND IS THE FORM'S SIX, NOT THE APP'S NINE.** The form prints FV · PFS · PF · TF · X · SDF. The app also uses OEX, OP and TR internally; printing those would put codes on a DOH form that the form does not define. **The Condition legend matched the app's nine exactly** - independent confirmation that those codes were right.
+- **Summary boxes count CONDITIONS, never treatment codes** - `X` is "indicated for extraction" as a condition and "extracted" as a treatment, and the form's boxes are a dentition tally. `T` is the form's total column and has no single code, so it stays blank rather than being invented.
+- **Verified on screen against the scan:** all five charts, Year 1 dated `2025-2026` with the rest blank as on paper, both legends, the signature line.
+- ⚠ **Still not verified: the PDF file** - producing it means downloading. **Click PDF on a pupil's record and confirm two pages.**
+
+## Sprint 137 (the SECOND IPTR - DOH Form 1 - and the PDF button becomes a choice) - DONE 2026-09-05, tsc + build clean, verified on screen. Closes #61.
+The user supplied a legible photograph of Form 1 and confirmed **both IPTRs are valid**. The app now offers both and merges neither.
+
+- **⚠ PRIVACY, RAISED BEFORE ANYTHING WAS COMMITTED: the photo shows a real pupil's surname, first name, middle initial, birth date, age, sex, school and findings.** It is **NOT in the repo** - this repo is public and those are the exact fields the database encrypts. If a scan is ever added it must be a blank form, or have the handwriting blanked first. (Appendix G's images are safe: they are blank forms.)
+- **⚠ IT IS "Form 1", NOT "Form 3".** Backlog #37 recorded the wrong number; the sheet says Form 1.
+- **New `IptrFormV2.tsx`,** a two-column sheet reproduced from the photo: LEFT = "Patient's Medical and Dental History" (16 Filipino questions, Oo / Hindi / Remarks) · consent paragraph verbatim · *Lagda at Pangalan ng Pasyente* / *For Minor: Lagda ng Magulang* · **SERVICES RENDERED** (Date · Oral Prophylaxis · Temporary Filling · Permanent Filling · Sealant · Extraction · **Flouride** · Consultation · Others · Signature). RIGHT = Form 1 / Philhealth File No · DOH **Center for Health Development** · School · **INDIVIDUAL TREATMENT RECORD** · Name (Surname/Apelyido · First Name/Pangalan · M.I.) · Date of Birth · Age · Place of Birth · Sex M/F · Address · Occupation · **ORAL HEALTH STATUS** with five **Age** columns, section A (check present/absent) and section B (indicate number).
+- **Spelling is the sheet's, deliberately** - "Flouride", "Exaination", "meslodens", "meadaling mapagod". Same rule the School Summary follows.
+- **⚠ ONLY UNAMBIGUOUS HISTORY MAPPINGS WERE MADE** (diabetes, sakit sa puso, mataas na presyon, allergy, naospital). The other eleven print **blank, never a guessed "Hindi"** - on a signed medical history that is a clinical claim. *"Sakit sa atay"* is deliberately NOT answered from `hepatitis_disorders`: hepatitis is narrower than the question. **The dentist decides those mappings, not this file.**
+- **⚠ DENTITION IS DECIDED BY TOOTH NUMBER, NOT LETTER CASE.** `✓` (Sound/Sealed) is the same character in both dentitions, so a case test would have counted every sound baby tooth as permanent. FDI quadrants 5-8 are primary.
+- **⚠ A COUNTED ZERO PRINTS; AN UNCHARTED YEAR IS BLANK.** Section B is headed "Indicate Number", so 0 means "none found" and is an answer - but a year with no dental chart was never examined, and printing 0 there would claim it was.
+- **The toolbar now has TWO buttons, `IPTR` and `Form 1`**, each naming which document it produces. A single "PDF" button would have had to pick one silently.
+- **A layout bug caught only by looking:** the ten-column SERVICES RENDERED grid overflowed out of the left half and printed across the right page of the form. Fixed with its own tighter type and `table-fixed`; the sheet widened to 1040px.
+- **Verified on screen against the photo:** both halves, the pupil's real values, `Age 11` heading the first column with four blank Age columns, section A marks, section B counts, and the services row dated from the chart.
+- ⚠ **Still unverified: the PDF files** - producing them means downloading. **Click IPTR and Form 1 on a pupil's record.**
+
+## Sprint 138 (the DOH report's arithmetic moved to the server) - DONE 2026-09-05, tsc + build clean, numbers verified unchanged. First half of #24.
+Chosen over server-side filters because filters do not scale: at 8,000 pupils the id list IS an 8,000-entry query string. Aggregation ends the problem instead of relocating it.
+
+- **~108 KB across 11 whole collections → ONE request of 12.2 KB**, and the response does not grow with the roll: it is counts, not rows. The measurement that justified the sprint is in #24 (~4.1 KB per pupil per page open; ~32 MB at 8,000, 60-80 MB once mouths are charted realistically).
+- **The logic was MOVED to `shared/dohAggregate.ts`, not copied.** Two implementations of a DOH return would drift, and the drift would appear as two different numbers on a document filed with the City Health Office. `shared/` is the cross-boundary module Sprint 120/121 established, already in both tsconfigs.
+- **`useDohReportData` went from 487 lines to 147.** `getRealCount` / `getRealTotal` and the **REAL_FIELDS allowlist are unchanged** - that allowlist is what keeps "no source" honest, since a field not named in it returns null and the form prints "—".
+- **New `GET /stats/doh-report?school_year=&school=`**, gated by the same `scopeFilter` as `/stats/student-rows` — Sprint 101 caught that endpoint handing every school's pupils to a pinned `school_admin`, and a new endpoint must not reopen it. **Scoping happens server-side**, which is what makes the response small.
+- ⚠ **`.lean()` is safe HERE and would not be on a name field.** This reads only sex, birthday, school_id and ids, none encrypted. A lean read of an encrypted field returns `<iv>:<ciphertext>` silently (Sprint 118) — if this endpoint ever needs a name, it must drop lean for that query.
+- **VERIFIED THE NUMBERS DID NOT MOVE**, which is the only thing that matters in a refactor of a filed report: Dental Caries `3 1 · 0 1 · 3 2` (total 3/4 → 5) and Gingivitis `2 2 · 2 2 · 1 2` (total 3/4 → 7) are identical to the pre-change screenshot, and the endpoint's own totals agree (`gingivitis 7`, `DMF_total 5`, `examined 26`, `rpoc_visit1 22`).
+- **Still open in #24, deliberately:** `useRiskClassification` (9 whole reads), `useSchoolSummary` (6), `useRPCTracking` (6), `useFhsisData` (4), and `Reports.tsx`'s own five. Same treatment, one report at a time. ⚠ Also unchanged: **the SERVER still reads whole collections** to compute the aggregate — the browser no longer does. A `$lookup` pipeline is the next step if server memory becomes the constraint.
+
+## Sprint 139 (Risk Classification joins on the server; the name helpers stop being copied) - DONE 2026-09-05, tsc + build clean, verified in the browser. Second half of #24's worst two.
+- **NINE whole collections → one request of 16 KB** (students, schools, IPTRs, charts, tooth records, oral-health, dietary, preventive-care, risk stratifications ≈ 95 KB before). New `GET /stats/risk-candidates`, same `scopeFilter` gate as the other two aggregates.
+- **Logic MOVED to `shared/riskCandidates.ts`.** These features are what the ML service is asked to classify — two implementations would eventually disagree about a pupil's DMF score, and the disagreement would be invisible.
+- **⚠ THIS ONE STILL RETURNS ONE ROW PER PUPIL**, unlike `/stats/doh-report`, so the response grows with the roll — a row is ~13 numbers and a short history rather than nine collections of documents. **Paging it is still open (#24); saying so beats implying the problem is finished.**
+- **⚠ `Student.find()` here has NO `.lean()` and NO `.select()`, on purpose.** This endpoint needs the NAME. `mongoose-field-encryption` decrypts in `post('init')` using the `__enc_*` markers stored beside each value: a lean read never triggers it, and a projection that omits the markers leaves nothing to decrypt. Either returns `<iv>:<ciphertext>` **silently, with a 200** (Sprint 118). Probed the response explicitly — `ciphertext leaking? False`.
+- **The name helpers moved to `shared/studentName.ts`.** The server had hand-copied `surnameFirst`'s fallbacks TWICE (`/stats/student-nav`, `/stats/student-rows`), and both carried a comment warning that drift there reorders the prev/next patient navigation. **Three copies of a sort key is how two screens end up disagreeing about who comes next.** `src/app/utils/studentName.ts` now re-exports, so every existing import still works.
+- **Verified in the browser:** the page renders 6 Annex A pupils with decrypted names, schools, grades and badges (High 2 · Medium 2 · Low 1 · Unassessed 1), in surname order. Endpoint spot-check: `Aquino, Rafael dmf=1 D=1 idx=dmf hist=1`, `Bonifacio, Miguel dmf=0 idx=DMF hist=1`.
+- **Left of #24 after this:** `useSchoolSummary` (6 whole reads), `useRPCTracking` (6), `useFhsisData` (4), `Reports.tsx`'s own five. The two worst are done.
+
+## Sprint 140 (RPC Tracking joins on the server; the school-year rule stops being copied) - DONE 2026-09-05, tsc + build clean, verified in the browser.
+- **SIX whole collections → one request of 16.3 KB** (students, schools, IPTRs, preventive-care records, charts, tooth records ≈ 72 KB before). New `GET /stats/rpc-rows`, same `scopeFilter` gate.
+- **Logic MOVED to `shared/rpcTracking.ts`.** The 4-6 month window, the school-year cutoff (`tight` / `impossible`) and the tooth-count roll-ups decide what a DOH return reports — a second copy would drift invisibly until two screens disagreed.
+- **`schoolYear.ts` moved to `shared/` too.** Its own comment said `server/scripts/migrateIptrGrades.ts` keeps a private copy *"because server scripts do not import from src/"* — `shared/` removes that excuse. The client util re-exports, so no import changed. ⚠ The migration script's copy is still there; folding it in is a one-line follow-up, not done here.
+- **⚠ Same encryption rule as Sprint 139:** `Student.find()` with no `.lean()` and no `.select()`, because the row carries the NAME. Probed: `ciphertext? False`.
+- **⚠ Still one row per pupil** — grows with the roll, paging open under #24.
+- **Verified in the browser:** RPC Records lists the 6 Annex A pupils with Visit 1 dates, `Visit 1 Only` badges, Days Until Due (124d / 108d / 143d / 143d / 125d) and the Record buttons. Endpoint totals: 26 rows — pending 20, not-started 4, overdue 1, complete 1.
+- **⚠ A wasted round trip worth remembering:** the route is `/rpc`, not `/rpc-tracking`. The sidebar label and the path differ.
+- **Left of #24:** `useSchoolSummary` (6 reads), `useFhsisData` (4), `Reports.tsx`'s own five, plus paging the two row-per-pupil endpoints.
+
+## Sprint 141 (the per-school summary sheet tallies on the server) - DONE 2026-09-05, tsc + build clean, numbers verified unchanged.
+- **SIX whole collections (~72 KB) → 483 BYTES.** The biggest ratio of the four: like `/stats/doh-report` the output is COUNTS, so the response is **flat — it does not grow with the roll at all**. New `GET /stats/school-summary?school=&school_year=`, same `scopeFilter` gate.
+- **Logic MOVED to `shared/schoolSummary.ts`.** The **MALE/FEMALE count STUDENTS while each TOTAL counts TEETH** rule is the whole meaning of this sheet (confirmed with the user 2026-09-03); a second copy would eventually disagree with the filed one.
+- **⚠ `.lean()` IS safe on Student here** — it reads only `sex` and `school_id`. It would NOT be safe if the sheet ever needed a name (Sprint 118).
+- **VERIFIED THE NUMBERS DID NOT MOVE**, on screen and at the endpoint: Dental Caries `6 | 8 | 11 | 15` · Gingivitis `3 | — | 4 | —` · Debris `6 | — | 9 | —` · Calculus `3 | — | 4 | —` · No Flouride `1 | — | 2 | —` — identical to the Sprint 130 screenshot. Endpoint: students M10/F16, examined M10/F16, unsexed 0.
+- **#24 SCORECARD after four sprints (138-141):**
+
+| Hook | Before | After |
 |---|---|---|
-| Target Client List | **Excel ONLY** | 66 columns. Excel paginates them; a PDF is unreadably small or sprayed across pages — the same width problem the print stylesheet has never solved. Also the format the **City Health Office requires**. |
-| Program Report | PDF + Excel | Aggregate counts, no names, bounded width. |
-| IPTR | **PDF ONLY** | One patient's own record. A spreadsheet of a single patient is a decrypted PII file with no filing purpose. |
-| Consent form | **PDF ONLY** | Blank document, no data at all. |
-
-- **⚠ THE TCL EXCEL EXPORT IS A DELIBERATE, NARROW EXCEPTION TO SPRINT 52'S PII RULE** ("official aggregate output may leave the system; raw patient lists may not"). It is a named list of minors with addresses and PhilHealth numbers, and it is exported anyway **because the City Health Office requires the Excel format** — the DOH source itself ships as `TCLForm2andFHSISReport.xlsx`. **This is the filed statutory return, not a convenience dump.** User's decision 2026-09-03, after the conflict was put to them explicitly. **Do NOT generalise it into a "download the roster" feature** — that is exactly what Sprint 52 removed from Students/RPC/Appointments.
-- **The IPTR PDF closes the item Sprint 52 raised and left unbuilt** — *"the one export a clinic actually needs (a patient's own record for their file)"*. It captures a new `recordRef` region, **excluding the sticky toolbar**, so a downloaded record carries no Edit/Save buttons.
-- **Exports write exactly what the screen shows, `—` included.** Turning a `—` into `0` in a workbook converts "no source" into "none found" the moment the file leaves the app. Blocked cells export EMPTY, since the form forbids writing in them at all.
-- **`ConsentForm.tsx` (NEW) is blank BY DESIGN and must stay blank** (user: *"blank consent form only"*). Printed, sent home, filled in by hand. Pre-filling it would put a child's name, birthday and contact number on a document distributed in bulk through a school — and consent is the thing that must be *given*, not assumed. A verification asserts the printed region contains no seeded surname.
-  - ⚠ The supplied scan carries a **handwritten** "Philhealth PN" note beside GRADE&SECTION. It is an annotation on that copy, **not part of the printed form**, so it is not reproduced. Adding a PhilHealth field is a change to the form and needs the dentist's say-so.
-  - Service list is verbatim **including its grade ranges** (fluoride varnish Kinder–Grade 1, sealant Grade 2–3) — those are clinical eligibility rules, not prose to tidy.
-- **Reports' tab strip now scrolls in its own container.** A sixth tab no longer fits a 390px phone and `w-fit` alone would have pushed the page sideways, against the three-device-classes rule.
-- `verify_sprint85.mjs` — **15/15**, and it asserts the **absences** as hard as the presences: a stray Excel button on the IPTR is exactly the leak Sprint 52 removed. Downloads are captured for real, so a button that renders but produces nothing would fail.
-- **Test gotcha worth keeping:** the blank-form check first failed because it matched `body`, which includes the sidebar showing the signed-in dentist's own name. Scoped to the printed region rather than loosened — the check was right to be strict.
-
-## Sprint 84 (Target Client List reconciled against the SOURCE WORKBOOK) — DONE 2026-09-03 (tsc both + build clean; 24/24 browser-verified)
-**⚠ THE BLOCKER IS GONE. The user supplied the workbooks 2026-09-03** — `TCLForm2andFHSISReport.xlsx` and `2026Form2withFHSIS.xlsx` are now in `~/.claude/uploads/`. **Every "cannot verify on this machine" caveat in Sprints 82/83 is retired.** The TCL sheets are 27 cohort tabs (age × sex), each 66 columns; the authoritative header row is sheet **"6-9 Y.O (M)", columns B–BN**.
-
-**The real gap was bigger than the estimate.** Sprint 82 guessed "~16 columns missing"; the workbook shows the app was missing an entire **20-column `ORAL HEALTH STATUS` group (cols N–AG)** and carried four columns that do not exist on the form. **The table is now 66 columns and matches the workbook.**
-
-- **Added, all 20:** With Caries experience (+ in Temporary / in Permanent Dentition), 5 Year Old with Permanent Dentition, With Active Dental Caries, Gum/Perio Disease, Oral Debris, Calcular Deposits, Dento-Facial Anomaly, Completely Edentulous / No Dentition, `d f x` + Sound Temporary Tooth/Teeth, `D M F X` + Sound Permanent Tooth/Teeth, Caries Free.
-- **Caries EXPERIENCE ≠ Caries ACTIVE and the form asks both.** Experience = decayed *or missing or filled* (a treated tooth still counts); Active = currently decayed. Wiring them to the same source would have been wrong.
-- **Sound teeth needed FDI tooth numbers, not the code.** Every other condition encodes its dentition by case (`D`/`d`), but Sound is `'✓'` for both, so `useRPCTracking` splits it on `tooth_number` (permanent 11–48, primary 51–85) into the synthetic keys `SOUND_TEMPORARY` / `SOUND_PERMANENT`. Without that the form's two Sound columns are unbuildable.
-- **New `conditionToothCounts` on `RPCRow`** — counts what was FOUND, beside `treatmentToothCounts` which counts what was DONE. Conditions roll up on their own loop: a chart can carry conditions and no treatments, and the treatment loop `continue`s past exactly those charts.
-- **`oral` is null-aware:** a student with no ORAL_HEALTH_CONDITION renders `—`, not `0`. `0` claims a negative finding where there was no examination.
-
-**⚠ FOUR CORRECTIONS, and TWO OF THEM WERE MY OWN ERRORS FROM SPRINT 82:**
-- **Sprint 82 created a DUPLICATE `Temporary Filling` column** — it added the tooth-count variant beside the existing tick one. The form has only the tooth count. Verified as exactly one now.
-- **Sprint 82 left the filling/extraction columns as TICKS.** The workbook (AX–BD) makes Composite Filling, ART/Glass Ionomer, Temporary Filling, Extraction, PFS and both SDF applications **tooth counts**. All corrected.
-- **`Oral Hygiene Instruction` REMOVED** — the workbook's FIRST block is eight columns (AH–AO) and it is not among them. It came from the illegible scan.
-- **`Removal of Plaque / Calculus` REMOVED** — confirmed absent, like `Complete Health Record` in Sprint 82.
-- Captions aligned to the workbook (`Caries Risk assessment - Low/Moderate/High`, `Counseling`, `Calcular Deposits`).
-- **CONFIRMED, not a bug to "fix":** the workbook really does repeat *"Complete RPC for **1st** Visit"* under the SECOND block (col AW). The typo is in the DOH source. Leave it flagged.
-
-- **Fixed a stale-closure bug while in there:** the rows memo gained `orals`/`iptrs` fetches but not the matching deps, so the new oral columns would have stayed empty until some unrelated dependency changed.
-- `verify_sprint84.mjs` — **24/24**, captions transcribed from the workbook itself. Asserts all 20 status columns, the four removals/corrections, **66 leaf columns**, that group bands span exactly the leaves, and that body rows still carry one cell per column after 16 columns were added.
-
-## Sprint 83 (Program Report — the form's missing rows, and the printed forms' own colours) — DONE 2026-09-03 (tsc both + build clean; 16/16 browser-verified)
-User: *"i would like forms to also copy table colors from the original samples"* + *"copy the standard forms"*, and *"add the missing rows and match the form"*.
-
-**⚠ FINDING: a WHOLE PRINTED SECTION was missing from the Program Report.** Appendix F's **"A. Patient Seeking Utilization"** has four rows and the app carried **none** of them. All four turned out to have real sources already:
-- `visited the DENTAL FACILITY for the 1st time` / `visited NON-FACILITY for the 1st time` → Sprint 81's `facility_based` on the **earliest** visit. A null flag counts toward **neither** row, exactly as on FHSIS — the form's two rows are facility and non-facility, and "not recorded" is neither.
-- `RPOC — 1ST VISIT` / `2ND VISIT` → the visit numbers the RPC module has always recorded.
-- Sections are now lettered **A–D as the form letters them**; the app had I/II/III.
-
-**Section B corrections:**
-- **`Periodontitis` added — the data was there all along.** `ORAL_HEALTH_CONDITION.periodontal_disease` has existed since the schema was written but was **never mapped in `useDohReportData`**, so the row could not be built. One line in `REAL_ORAL_FIELDS`.
-- **`Oral Debris` + `Calculus Deposits` MERGED into one row**, as printed. ⚠ **Counted as `debris OR calculus` in the hook, NOT by adding the two tallies** — adding them double-counts every patient who has both.
-- Added `Completely Edentulous Adults / Elderly` and `OFC Upon Complete Oral Rehabilitation`; renamed `suspected oral lesions / anomaly` → `suspected oral lesions` to match the form.
-
-**⚠ A DISTINCTION THAT MUST NOT BE COLLAPSED — `blocked` vs `field: null`.**
-- **`blocked`** = the paper form fills the cell **solid dark grey**: it must not be written in. Rendered shaded and **EMPTY** — a `—` would invite a number. Used for `Completely Edentulous Adults / Elderly`, which is structurally impossible here (this table has no adult or elderly column at all).
-- **`field: null`** = the form **wants** a number and this system has no source. Rendered `—`.
-- Painting a no-source cell dark grey would tell a reader the form forbids a cell it merely leaves blank. Keep them separate.
-
-**Colours — `src/app/utils/dohFormStyle.ts` (NEW), shared by all three DOH tables.**
-- **SAMPLED, not guessed:** averaged off the manuscript's Appendix F scan (`image18`, 730×498) — section bands ≈ `rgb(232,195,95)`, blocked cells ≈ `rgb(86,86,86)`.
-- ⚠ **Those are values off a SCANNED PHOTOGRAPH** and carry its warmth/exposure. The token is `#f5c842` — the scan's **intent**, not its measured RGB, which would look muddy on screen and worse in print. **If the source workbook reaches this machine, read the real fill colours from it and correct the two constants.** Written into the file's header.
-- The band is painted on the **`td` as well as the `tr`**: html2canvas (the PDF export path) resolves cell backgrounds reliably and row backgrounds not always, so a tr-only fill can vanish from the exported form. The verification caught this — the assertion read `rgba(0,0,0,0)` off the cell.
-- `FhsisReport` and `TargetClientList` adopted the same band; the TCL's identity block keeps its cooler tone so the two halves of the sheet stay distinguishable.
-
-- `verify_sprint83.mjs` — **16/16, read-only.** Asserts each new row reaches the screen, the A–D lettering, the merge (and that the two old rows are gone), that the RPOC row shows a **real total rather than `—`**, that blocked cells are both **shaded and empty**, and that both tables' bands compute to the shared amber. Screenshot checked by eye, not just by assertion.
-- **Section A currently shows 0s in the visible columns and that is correct:** the report is scoped to SY 2026-2027 while the seeded RPC visits sit in 2025-2026 (the same rollover gap Sprint 81 flagged). True zeros, not fabricated ones.
-
-## Sprint 82 (Target Client List — the columns the real DOH form has) — DONE 2026-09-03 (tsc both + build clean; 17/17 browser-verified)
-Built from the missing-column list Sprint 80 read off the DOH workbook. **The table went 40 → 50 columns** (13 identity + 36 service + Remarks).
-
-**Columns added WITH a real source:**
-- **`Facility Based`** (column C of the paper form) — wired to Sprint 81's `facility_based`. Renders `—` when null, **never `0`**: "0 - No" is a claim, blank is the truth.
-- **`Pit and Fissure Sealant (Tooth Count)` / `Temporary Filling (Tooth Count)`** — real TOOTH COUNTS. `useRPCTracking` previously carried only a Set of codes ("ever had it"); it now also carries `treatmentToothCounts`, counted per chart then rolled up chart → iptr → student so the roll-up adds instead of overwriting.
-- **`Orally Fit Child — Upon Oral Examination`** — `useStudents`' own `oralStatus`, the same source the dashboard and the Program Report's OFC row read, so the three agree by construction.
-- **`Last Dental Visit` / `Next Dental Visit`** — from `APPOINTMENT`, split on *now* rather than on `status`, so a completed-but-future or an unstatused past booking still lands on the correct side.
-
-**Columns added deliberately BLANK** (on the form, nothing records them): `Family Serial Number`, `Barangay` (STUDENT has neither — address is one free-text line), `Complete Mouth Rehab`, `Orally Fit After Complete Mouth Rehabilitation`.
-
-**Two column-set CORRECTIONS from the workbook, not invented here:**
-- **`Gum Treatment` was one GUESSED column; the form has two** — `Gum Treatment - Scaling` and `Gum Treatment - Prescription`. Splitting them **removes** an `unverified` flag rather than adding one.
-- **`Complete Health Record` was REMOVED** — Sprint 80 established it does not exist on the real form at all. **This is the only deletion**; every other column stays even when empty, per CLAUDE.md's "forms keep all their rows and columns".
-
-- **Dead code removed:** `TCL_COLSPAN` hardcoded "10 identity columns", was read by **nothing** (the JSX computes colSpan from the VISIBLE columns, which is what a hideable table needs), and this sprint took identity to 13 — a dead constant that was also now wrong.
-- `verify_sprint82.mjs` — **17/17, read-only** (creates nothing, so no cleanup). Asserts each new caption reaches the SCREEN, the split and the deletion, both new group bands, and — the one that catches the classic grouped-header bug — that **band widths sum to the leaf-column count and every body row has one cell per leaf column** (50 = 50). A drifting band is invisible in a screenshot of the left edge.
-- ⚠ **Test gotcha, twice now:** the TCL's period filter defaults to the CURRENT month and seeded consultations are older, so the table is legitimately empty on load. The script widens to Annual/2026 before inspecting rows. An empty table there is the filter working, not a missing column.
-
-**⚠ STILL SHORT AND I COULD NOT SAY BY WHICH COLUMNS — read this before calling the TCL done.** HANDOFF records the real form as **66 columns**; this is **50**. The remaining ~16 could not be named because `TCLForm2andFHSISReport.xlsx` lives in per-device `data/` **on the other laptop** and is not in the repo. The additions above follow HANDOFF's written list from the session that DID read the file — second-hand but from the authoritative source. **The fix is to copy that one workbook onto this machine (not to switch machines) and reconcile.** The limitation is written into `TargetClientList.tsx`'s header so nobody reads the table as complete.
-
-## Sprint 81 (recording an RPC visit — Module 5 had no write path) — DONE 2026-09-03 (tsc both + build clean; 12/12 API + 19/19 UI verified)
-
-**The finding that produced this sprint: `PREVENTIVE_CARE_RECORD` had NO write path anywhere in the app.** Every `apiClient.post/put/patch` site in `src/` was enumerated — there was no `/preventive-care-records` write, and `RPCTracking.tsx` contained no `visit_date`/`visit_number` write at all. Every preventive-care record in the database came from `seedRpcVisit2.ts` / `seedStudents.ts`. So the two-visit RPC module (CLAUDE.md system module 5, and the source for the FHSIS report, the RPC worklist and the risk-assessment chain) could be read and filtered but **a visit could not be recorded**. `AIAnalytics.tsx:620-622` was already telling the dentist to *"Record Visit 1 in RPC Tracking first"* — an instruction that was impossible to follow.
-
-- **`PreventiveCareRecord.ts`** — new `facility_based: { type: Boolean, default: null }`. **Null, deliberately, NOT false.** FHSIS Section D splits each band into `a` (facility-based) / `b` (non-facility-based) sub-rows; every record created before this sprint genuinely has no answer, and defaulting to `false` would have silently filed all 23 of them as non-facility-based — inventing the split `FhsisReport` had explicitly refused to invent. A verification case asserts the omitted-field default is null.
-- **`RPCTracking.tsx`** — a Record column with a per-row `Visit 1` / `Visit 2` button and a modal (date + facility flag) using the shared `Modal`. Role gate `dentist | dental_aide | system_admin` mirrors the server's `CLINICAL_WRITE_ROLES` exactly, so the button is absent rather than present-and-403.
-- **⚠ The facility question has THREE states, not a checkbox** — Facility-based / Non-facility-based / **Not recorded** (the default). A checkbox would force every visit into one of two and manufacture the split. "Not recorded" is a real third answer.
-- **`useFhsisData.ts`** — `male`/`female` stay the band TOTAL (callers unchanged) with three sub-tallies added: `facility`, `nonFacility`, `unrecorded`. Null-flagged visits land in `unrecorded` and are never folded into a sub-row, so **`a + b` can be honestly less than the total**; the Remarks column says how many are unclassified so the gap reads as missing data, not as an arithmetic error on a form filed with the City Health Office.
-- **A sub-row with NOTHING flagged still renders `—`, not `0`.** `0` claims nobody had facility-based care; `—` says it was not recorded. A true 0 and an unfillable cell are different claims.
-
-**⚠ THE IMPORTANT DESIGN CORRECTION, found by the UI test failing — do not undo it.** The first build attached a visit to the student's **current-school-year** IPTR. That was wrong twice over:
-  1. **Wrong rule.** A visit belongs to the school year of **the visit date**, not of today — an encoder backdating a March visit must file it under the year running in March. The IPTR is now resolved from the chosen date (`schoolYearLabel(visitDate)`), recomputed as the date changes, and the modal states *"Will be filed under the 2025-2026 IPTR"* before saving.
-  2. **Unusable in practice.** The demo DB holds **26 IPTRs on 2025-2026, 2 on 2026-2027, 1 on 2027-2028** — so a current-year rule showed "No IPTR this year" on 24 of 26 rows. The test caught this as a genuine failure, not a fixture problem.
-  - When the chosen date's school year has no IPTR, saving is **blocked** with the year named — never filed against a different year. That is the bug class Sprint 57a fixed for grades and it is not being reintroduced.
-
-**⚠ DEMO-DATA CONSEQUENCE, unresolved and worth deciding:** today is in SY 2026-2027 and almost nothing is rolled over, so *recording a visit dated today* is blocked for 24 of 26 students. The code is right; the data is stale. **Sprint 74's Promote/Assign is the tool to fix it** — rolling the roster to 2026-2027 would make the common case work. Not done here because it changes the demo data every Chapter 4 figure shows (backlog 17).
-
-- **`verify_sprint81.mjs` — 12/12 against the real DB.** Covers create, all three flag states, the omitted-field default, read-back, the BHO 403, and the `visit_number` enum. **It ARCHIVES every record it creates** (soft delete; `archiveRoles` defaults to ADMIN_ONLY in `crudFactory`, so cleanup logs in as admin) — nothing is hard-deleted and the demo data is left as found.
-- **`verify_sprint81_ui.mjs` — 19/19 in a real browser.** Covers the role-gated column, the button not triggering the row's navigation, the three-state control, today's date in LOCAL time, the blocked-then-enabled date/school-year guard, the save, the DB round-trip, the list refetching itself, the FHSIS footnote, and a BHO viewer seeing no button. It archives what it creates; **the live collection is back to its original 23 records with zero `facility_based` values set — verified after the run.**
-- **⚠ One assertion in it was wrong before it was right, and the lesson matters:** it first checked that the new visit appears in the list, and that FAILED — correctly. The status filter defaults to `'outstanding'` (Sprint 51 made this a worklist), so recording the SECOND visit completes the student and drops the row out of view *by design*. The test now widens the filter first. **If a future change makes that row stay visible, the worklist is broken, not fixed.**
-- **Gotchas for anyone writing a verify script here:** auth is **COOKIE-based** (`access_token`, set by `setAuthCookies`), not a Bearer token — `POST /auth/login` returns the user object with no token in the body, so read `Set-Cookie` and send it back. The RPC route is **`/rpc`**, not `/rpc-tracking`. And the login limiter is **10 attempts / 15 min per IP**, which repeated script runs exhaust fast — `express-rate-limit` uses an in-memory store, so **restarting `npm run dev:server` resets it** rather than waiting or weakening the limiter.
-
-## Sprint 80 (DOH caption reconciliation) — DONE 2026-09-02 (tsc + build clean; 16/16 verified)
-Resolved the unverified captions against the machine-readable workbook. **Program Report: 12 flagged → 0 remaining. TCL: 4 of 7 resolved.**
-
-- **Real errors corrected, not just confirmations:** `Completed BPOC` → **`Complete RPC for 1st Visit Routine Preventative Care`** (the app had invented an acronym on a filed document); pregnant-women band **`20-59 y/o` → `20-49 yrs old`** (simply wrong); `0-6 mos` → `0-8 mos`; `Total (Infants)` → `Total (0-11 mos)`; `5 y/o` → `5 yrs old`; `5-9 y/o` → `Total (5 - 9 yrs old)`; `Total Adult` → `Total Other Adults`; `60 y/o and above` → `60 yrs & Above`; `Referral` → `Referred Out`; 2nd SDF is a **tooth count**, not a yes/no.
-- **THREE TCL captions stay flagged on purpose — the workbook does not settle them:** `Gum Treatment` (the real form has TWO columns, Scaling and Prescription, and which one this means is a guess), `Removal of Plaque / Calculus` (nearest real column is `Oral Prophylaxis`, which the table already has separately), and `Complete Health Record` (**no such column exists on the real form**).
-- ⚠ **The 2nd-visit RPC caption is still flagged because the SOURCE is self-contradictory** — the workbook repeats "Complete RPC for **1st** Visit" under its SECOND block (AW4). Rather than propagate the typo or invent wording, that one caption stays marked. Ask the dentist.
-- ⚠ **Structural differences remain and are NOT caption issues:** the real form groups columns as Infants (0-11 mos) / Under Five Children / School Age Children / Adolescent / Other Adults where this table uses UNDER FIVE CHILDREN / CHILDREN ABOVE 5 / ADULT / SENIOR CITIZEN, and it carries a `6 - 9 yrs old` column the table lacks. Both belong with the missing-columns work (TCL is 66 columns real vs 43 built).
-- `verify_sprint80.mjs` asserts the corrected captions reach the SCREEN and the wrong ones are gone — a rename that only lands in source is worth nothing for a document filed with the City Health Office.
-
-## ⚠ UNVERIFIED DOH CAPTIONS ARE NOW RESOLVABLE — the user supplied a machine-readable workbook (2026-09-02)
-**This retires a blocker HANDOFF listed as USER-ONLY** ("19 unverified DOH captions — needs a photo of blank forms; no higher-res version exists in the manuscript"). It does: `TCLForm2andFHSISReport.xlsx` and `2026Form2withFHSIS.xlsx` are real DOH files, not scans, so every caption can be read exactly. **No photo is needed any more.**
-
-- **14 `unverified` captions in `TargetClientList.tsx`, 17 in `OralHealthProgramReport.tsx`** were transcribed from the low-resolution Appendix E/F images. Spot-check against the workbook shows several are WRONG:
-  - `Completed BPOC (1st visit)` → the form says **`Complete RPC for 1st Visit Routine Preventative Care`**. The app invented "BPOC"; "RPC" is this system's own two-visit module. **Worst of the four — a made-up acronym on a form filed with the City Health Office.**
-  - `Gum Treatment` (one column) → the form has **two**: `Gum Treatment - Scaling` and `Gum Treatment - Prescription`.
-  - `Silver Diamine Fluoride (2nd app)` (yes/no) → `2nd Silver Diamine Fluoride App` is a **tooth count**, not a boolean.
-  - `Referral` → `Referred Out`.
-- **The real TCL is 66 columns; ours is 43.** Missing include `Family Serial Number`, `Barangay`, `Age Group`, `Pit and Fissure Sealant (Tooth Count)`, `Temporary Filling (Tooth Count)`, `Complete Mouth Rehab`, `Upon Oral Examination` / `After Complete Mouth Rehabilitation` (the "Orally Fit" pair), `Last Dental Visit`, `Next Dental Visit`, `REMARKS`.
-- **`Facility Based 0 - No 1 - Yes` is column C of the real TCL** — the field Sprint 79 found missing, which is why the FHSIS facility rows render `—`. Adding it to `PREVENTIVE_CARE_RECORD` would light up those rows.
-- **The 27 cohort tabs (age x sex) are a PRESENTATION of the same rows**, not extra data — our single table with an `Age Group` column carries the same information. Splitting into tabs is cosmetic unless DOH filing requires the tab layout; **ask before building it.**
-- **Recommended order:** reconcile captions first (cheap, corrects a filed document), then the missing columns, then `facility_based`, and only then consider cohort tabs.
-
-## Sprint 79 (FHSIS Section D — school-level oral health care services) — DONE 2026-09-02 (tsc both + build clean; 10/10 verified)
-New report tab. Source: the "FHSIS" sheet of the user-supplied `TCLForm2andFHSISReport.xlsx`.
-
-- **The workbooks carry TWO variants of the same forms** — one headed `Health Center:` (barangay/city level, in `2026Form2withFHSIS.xlsx`) and one headed `School:` (in `TCLForm2andFHSISReport.xlsx`). **This sprint built the SCHOOL one**, the level Floral is scoped to. The health-centre variant consolidates sources Floral does not hold and is a separate, still-unbuilt report.
-- **The numbers are REAL, unlike the Program Report's Services Rendered rows.** The form's two halves — *1st visit within a year* and *completed 2 visits within a year* — are exactly the two-visit RPC module, counted from `PREVENTIVE_CARE_RECORD`. Age is computed **at the visit date**, not today (same rule as Sprint 57b).
-- **Deliberately blank, per NOTHING COSMETIC:** (a) every `a`/`b` **facility-based / non-facility-based** sub-row — the paper TCL records this per patient as `Facility Based 0/1` but **Floral has no such field anywhere, verified 2026-09-02**; splitting the total on an assumption would invent a number on a form filed with the City Health Office; (b) the **Pregnant Women** block, no pregnancy field in the schema. Both render `—` with a "not recorded" remark, never 0.
-- **Infants and Seniors ARE computed**, not dashed: a birthday is recorded, so those cells are genuine counts that happen to be 0 at a school. A true 0 and an unfillable cell are different claims and the form shows them differently.
-- ⚠ **The hook reads whole collections and joins client-side** like every other report hook. NOT laziness: "completed 2 visits within a year" needs each pupil's visit-1 date, which may fall outside the report month, so a month-bounded fetch cannot answer it alone. Tracked with backlog 0b/24 — fix them together, server-side.
-- `verify_sprint79.mjs` **recomputes the expected counts independently from the API and compares them to the rendered table** (8 = 8 for the richest month, 2026-05), then sets an empty month and asserts every total drops to 0 while all rows stay. That second check is the Sprint 59 cosmetic-filter failure mode tested directly.
-- **PDF + Excel export added (Sprint 79b, same day):** reuses `exportDohReportToPdf` and `exportToXlsx`; filenames stamped `FHSIS-SectionD_<school>_<YYYY-MM>`. The `ref` is on the OUTER box so the School/Month band and section title are captured WITH the table — html2canvas clips to the ref'd element's own box, the trap already noted on the DOH Consolidated report. **The Excel export writes "—" where the screen shows "—"**, never 0: writing 0 would turn "not recorded" into "examined none" the moment the file left the app. Verified by asserting a real non-empty file arrives, not just that the button clicks.
-- **Still open:** the health-centre variant; and the four school-age TCL cohort tabs (`6-9`, `10-14`, `15-19` × M/F) which the workbook shows are fillable from the same RPC data.
-
-## Sprint 76 (archiving no longer blocks re-creation; restore guards instead) — DONE 2026-09-02 (tsc both clean; 8/8 verified, and it unblocked Sprint 74 to 14/14)
-Found by RUNNING verify_sprint74 on dirty state — a clean database hides this bug entirely, because it needs an archived record to exist first.
-
-- **The defect:** `crudFactory`'s `uniqueBy` create guard counted archived records. Archiving is the soft delete, so an IPTR recorded against the wrong pupil and archived left that pupil+year **permanently uncreatable** — a hard 409 against a record the UI cannot even display, with no path forward. On `crudFactory`, so every model with a `uniqueBy` inherited it (today only `student-iptrs`: `student_id + school_year`).
-- **It was NOT an oversight.** The old code carried a comment saying archived records count deliberately, to stop a later restore resurrecting a duplicate. It was a real trade-off — it just picked the worse horn. **So the fix needed BOTH halves; flipping the condition alone reintroduces exactly what that comment guarded against.**
-- **The fix:** creation counts only live records; the uniqueness check moved to **restore**, where the conflict is visible and an admin can act — refused with *"another StudentIptr is already active for that student_id + school_year. Archive that one first."*
-- `verify_sprint76.mjs` asserts both halves plus the case that had to keep working (a LIVE record still 409s a duplicate). Uses test year **2098-2099** so it cannot collide with real data or with sprint74's 2027-2028 rows; archives everything it creates.
-- ⚠ **If a future model gets a `uniqueBy` on an ENCRYPTED field, the restore guard silently won't match** — random IVs (Sprint 26) break equality queries. Today's only `uniqueBy` is unencrypted; check before adding another.
-
-## Sprint 75 (apply seed passwords to accounts that already exist) — DONE 2026-09-02 (tsc both clean; all 5 hashes verified)
-- **Why it was needed:** `seed:demo`'s `ensureUser` **skips accounts that already exist**, so editing the `SEED_*_PASSWORD` values in `.env` changed nothing. The `@floral.com` addresses have no real mailbox either, so the emailed reset flow does not apply to them — there was no way to rotate the demo passwords short of five manual admin resets.
-- `server/scripts/applySeedPasswords.ts` + `npm run apply:seed-passwords` (dry-run by default, `--confirm` writes). bcrypt at the app's own cost factor; never prints a password, only which account changed.
-- Verified with `bcrypt.compare` against the stored hashes — all 5 match. **Do not verify this by logging in repeatedly:** the login limiter is 10 attempts / 15 min per IP (`authRoutes.ts`), and a hash comparison is both cheaper and a stronger check.
-- ⚠ **`.env` does not sync between the two dev machines.** Copy the five `SEED_*_PASSWORD` lines to the other laptop and run the same command there, or its `.env` will disagree with the database — which breaks every `verify_*.mjs`, since they read passwords from `.env` to log in.
-- ⚠ **Demo accounts only.** At turnover the seeded logins get replaced with real staff emails, each person setting their own password. The script header says so.
-
-## Sprint 74 (Promote / Assign — bulk rollover) — DONE 2026-09-02 (tsc + build clean; **14/14 after Sprint 76**)
-Backlog 23's "option A", deferred as a rollout feature; the classmate's prototype arrived at the same answer independently. Button on Student Records → modal. Pick grade (+ optional section), review the roster, choose per pupil **Promote / Retain / Skip**, set next year's section, then one confirm.
-
-- **Two records change per pupil, deliberately**: a NEW StudentIptr for the target year carrying the new grade/section, and the STUDENT's own grade/section, which is CURRENT enrolment (what rosters and the appointment picker read). **Existing years are never touched** — the test asserts that specifically, and it passed.
-- Roster is server-filtered by `school_id` + `grade_level` (Sprint 56's whitelist), not a whole-collection pull.
-- Pupils who already have the target year are pre-marked **Skip** and cannot be re-created; the server's `uniqueBy` (student_id + school_year) refuses a duplicate with 409 regardless — asserted.
-- Grade 10 is the exit year: retain is offered, promote is not, and the UI says leaving school is not recorded here.
-- ⚠ **Real bug found by the verification, not by reading the code**: the roster and the "who already has next year" lookup arrive in TWO requests, so the preview effect ran twice and **a plain rebuild wiped every per-pupil choice made in between** — exactly the retain exception the screen exists to capture. It now MERGES with what is on screen. There is a regression check for it.
-- ~~⚠ **NOT fully green** (12/15, roster drifted to 1 pupil, cleanup threw)~~ **RESOLVED 2026-09-02 — now 14/14.** The re-run first failed differently ("0 moved, 0 skipped", then a crash on `newOnes[0]`), and the cause was NOT the roster: it was a real `crudFactory` bug where the archived residue of the PREVIOUS run permanently blocked re-creation. Fixed as **Sprint 76**; this suite passes clean, `NO pre-existing school year was modified` included, with no data drift.
-- ⚠ **The verification caused DATA DRIFT and it was repaired by hand**: a promoted pupil kept Grade 2 because the cleanup restored from the CURRENT school-year record, and she had none (her latest was 2025-2026). Repaired by restoring from each pupil's latest non-archived year. Grade 1 is back to Morales + Villanueva, 26 active students, both test-created year records archived. **Any test that promotes must restore from the LATEST year on record, not the current one.**
-
-## Sprint 73 (rows & grades picker on the DOH Consolidated report) — DONE 2026-09-02 (tsc + build clean; verified in-browser)
-Completes the hideable-columns work across all three report tabs. **This is the one that mattered most**: Consolidated is the only report with PDF **and Excel** export, so a hidden column here leaves in a FILE that gets forwarded without the screen it came from.
-
-- **Rows and grade columns are hideable**, persisted per browser, with a "Show everything" reset.
-- **PDF inherits hiding for free** — `exportPdf` runs html2canvas over `dohReportRef`, so it captures whatever the DOM shows.
-- ⚠ **Excel does NOT**: `exportDohReportToXlsx` is handed `rows` and `grades` explicitly, so it is now passed the FILTERED lists. Without that the spreadsheet would silently disagree with both the screen and the PDF. **Any future column/row work here must update that call too.**
-- **Shortened output is stamped, not just noted on screen**:
-  - A red **"SHORTENED FORM — not the complete DOH report: N row(s) and M grade(s) hidden"** banner sits **INSIDE `dohReportRef`**, so it is captured into the PDF. ⚠ I first placed it as a sibling ABOVE the ref'd div, which would have shown on screen and been missing from the PDF — the exact failure the banner exists to prevent. It must stay inside that element.
-  - The Excel sheet's header line gets `· SHORTENED — N row(s), M grade(s) hidden` appended to its month/year string.
-- Section headers stay visible even when all their data rows are hidden — they are structural, and a header over nothing is less confusing than a section vanishing.
-- **All three report tabs now have the picker** (71 Program Report, 72 Target Client List, 73 Consolidated).
-
-## Sprint 72 (column picker on the Target Client List) — DONE 2026-09-02 (tsc + build clean; verified in-browser)
-The dentist's note *"Column - puede mahide"* was written under the TCL, which is the sheet that needs it most — roughly 32 columns.
-
-- **All 32 columns are hideable**, identity and service alike. Half a hideable table would be worse than none, so the ten identity columns (No., Date of consultation, PhilHealth, Name, Address, Contact, Date of Birth, Age, Age Group, Sex) plus Remarks were made **data-driven** (`IDENTITY_COLUMNS`) to match how the service columns already worked.
-- Choices persist per browser (`tcl-hidden-cols`), with a "Show everything" reset.
-- **Same rule as Sprint 71: hiding changes what PRINTS.** The note above the table declares it — *"This sheet is not the complete standard form: N columns hidden, and hidden columns do not print."*
-- Group bands (FIRST / SECOND / OTHER SERVICES) are recomputed from the visible columns; the empty-state colspan follows too.
-- **Still not done**: the DOH Consolidated tab. It is the only report with PDF/Excel export, so hiding there means changing `exportPdf` and `exportDohXlsx` as well — a genuinely bigger piece, and the one place where a hidden column would reach the City Health Office inside a *file* rather than a printout.
-
-## Sprint 71 (hideable rows/columns + ART sub-rows on the Program Report) — DONE 2026-09-02 (tsc + build clean; verified in-browser)
-From the dentist, via the user: **"rows and columns are hideable so that report can change content ... like excels"**, and **"art has two sub rows gi and composite ... we can show art only, or also show the subrows"**.
-
-- **ART is now a parent row** with **Glass Ionomer (GI)** and **Composite** beneath it, collapsed by default and expanded with a caret. The parent is what the form asks for; the split is the detail behind it.
-- **Rows & columns picker** — every one of the 22 columns and every row can be unticked. Choices persist per browser (localStorage), survive reloads, and there is a "Show everything" reset.
-- ⚠ **HIDING CHANGES THE OUTPUT, not just the view — the user chose this explicitly** when asked, over "view only, export stays complete". The consequence is real: **a printed form can be missing official DOH columns.** So the note under the table says, in bold, *"This form is not the complete standard form: N rows and M columns are hidden, and hidden items do not print."* **A shortened form that LOOKS complete is the failure mode this prevents** — do not remove that disclosure without replacing it with something equivalent.
-- Header group bands are recomputed from the VISIBLE columns; spanning hidden ones would push the whole header out of alignment with its body.
-- **Note the tension, deliberately accepted**: the user earlier required these forms to carry "same rows and columns as the examples even if empty" (Sprint 64). Hiding is the opposite instinct. Both now coexist — the form ships complete, and the dentist can shorten it for a particular report, with the shortening declared on the page.
-- **Not done yet**: the same picker on the Target Client List, and on the DOH Consolidated tab. Only the Consolidated tab has PDF/Excel export, so applying hiding there means changing `exportPdf`/`exportDohXlsx` too — a bigger piece than this one.
-
-## Sprint 70 (the IPTR's grade and section are editable) — DONE 2026-09-02 (tsc clean, 6/6 verified; BUILD NOT RE-RUN — the build was interrupted, re-run before deploying)
-From the dentist's handwritten notes, where **"IPTR must be editable" appears twice**, with the case that motivates it: *"paano pag naretain ang student?"* — a retained pupil repeats a grade, so the year record has to be correctable. Sprint 57a put grade/section on the IPTR but only ever WROTE them at creation, so nothing could fix a mistake or record a retention.
-
-- **Two grades now exist on purpose**, and the panel labels them so they cannot be confused: STUDENT carries **current enrolment** (marked "· current" — what rosters and the appointment picker read), each IPTR carries **the grade that pupil was in that year** (marked with the school year, beside height/weight).
-- **The editor does NOT pre-fill today's grade when a year has none.** Blank means "never recorded"; pre-filling would let one careless Save stamp today's grade onto an old year — the exact lie 57a removed. Clearing writes null, not `""`.
-- **Verified independence, which is the whole point** (6/6): editing the year does not touch the student's current enrolment, the two can genuinely differ (a retained pupil is now expressible), other school years are unaffected, and clearing restores "not recorded".
-- Test-authoring note: the first run set the year grade to the value the student already had, so "they can differ" could not hold — a bad test value, not a code fault. It now picks a grade the student is demonstrably not in.
-
-## Sprint 69 (adding a student opens that school year's record) — DONE 2026-09-02 (tsc + build clean; 9/9 verified)
-Found while scoping intake-time checkbox capture: **adding a student created NO StudentIptr at all.** The year record only appeared when someone later opened the chart and clicked "Add Year", so a freshly encoded student had nowhere to hang a medical history, a charting or an RPC visit, and appeared in no year-scoped report until that second manual step happened.
-
-- The POST now returns the new id and a `student-iptrs` record is created for the CURRENT school year, with grade and section stamped from the form (57a's field).
-- **Best-effort, not fatal**: if the IPTR call fails the student still exists and "Add Year" still works, so the toast says which happened rather than failing the whole save.
-- ⚠ **This is the prerequisite for capturing the IPTR's checkbox sections at intake** — the thing the Base44 prototype does ("automatically creating a Dental Record for the current school year"). There was literally no record to write medical history / dietary habits / oral health conditions to.
-- ⚠ **Test-cleanup gotcha, learned the hard way**: archiving a STUDENT is ADMIN-ONLY (crudFactory `archiveRoles` default) while `student-iptrs` also allows the dentist. A verify script cleaning up on a dentist session got a silent 403 and **left a test student in the live database**. It was found and archived. **Any script that creates a student must clean up as admin.**
-- **Not covered**: bulk import and OCR intake still create students without opening a year record — they post directly and do not go through this path.
-
-## Sprint 68 (height, weight and derived BMI, per school year) — DONE 2026-09-02 (tsc both + build clean; 9/9 verified)
-From the P2 to-do, where it appears twice. Neither measurement existed anywhere in the data model.
-
-- **On STUDENT_IPTR, not STUDENT**: a pupil measured at 120 cm in Grade 3 is not 120 cm in Grade 6, so these are year-varying in exactly the way grade is (57a). The per-year container already existed, so this dropped in beside `grade_level`/`section`. **No migration** — nothing has ever been recorded, so there is nothing to backfill.
-- **BMI is DERIVED, never stored** (`utils/bmi.ts`). A stored copy drifts the moment either measurement is corrected — the same reason age is computed (57b). The test asserts `bmi` is not a field on the record.
-- ⚠ **NO BMI CATEGORY, and that is deliberate.** The familiar Underweight/Normal/Overweight cut-offs (18.5 / 25 / 30) are defined for ADULTS. Floral serves Kinder–Grade 10, i.e. almost entirely children, whose healthy BMI varies with age and sex — the correct measure is BMI-for-age against a WHO or DOH/DepEd growth reference, expressed as a z-score or percentile. Printing "Normal" beside a 12-year-old's BMI from adult thresholds would be a clinical claim the system cannot support. **If a category is ever wanted it needs the reference tables; the arithmetic is not the missing piece.** The reasoning is in `BMI_NOTE` and surfaces as a tooltip.
-- The edit panel writes to **two records** — student fields to STUDENT, height/weight to the selected year's IPTR — behind the one Edit button. The two measurement labels name the school year so it is clear which record they belong to.
-- **Blank clears to null, never 0**: a stored 0 would read as "measured at zero" and produce a nonsense BMI instead of "not measured". Asserted.
-- Verified year-scoping specifically: saving on one school year leaves the student's other years untouched (the test picks a multi-year student so the assertion is real, not skipped).
-
-## Sprint 67 (inline school switcher + local-language treatment terms) — DONE 2026-09-02 (tsc + build clean; 9/9 verified)
-Both borrowed from the Base44 prototype clone the user shared (scanned 2026-09-02 — see item 35).
-
-- **School switcher is now a sidebar dropdown**, not a button that cleared the selection and navigated to `/select-school`. Changing school no longer means leaving the screen you were on. Hidden for single-school accounts, where a one-option picker is noise.
-- ⚠ **"All schools" needed a real change, not just an option.** `RootLayout` redirected to the school gate whenever `selectedSchool` was null — so "all" and "not chosen yet" were indistinguishable and choosing all would have bounced the user straight back to the picker. AuthContext now stores a sentinel (`ALL_SCHOOLS`) and exposes `schoolChoiceMade`; the gate keys on the CHOICE, the screens still read `selectedSchool === null` as "all", which is what it already meant. **Nothing downstream changed.**
-- Verified the bounce specifically, plus that the choice survives a reload and that switching school keeps you on the same screen.
-- **Treatment codes carry the local term**: Extraction (Bunot), Oral Prophylaxis (Linis), Permanent Filling / Tooth Restoration (Pasta), Temporary Filling (Pansamantalang pasta), Oral Exam (Tingin). Shown on the chart's treatment buttons, the dashboard procedures chart and the RPC treatment filter.
-- ⚠ **NOT on the DOH reports** — those are filed with the City Health Office and keep the official wording. The test asserts no local term leaks into a report.
-- ⚠ **Only terms the dentist confirms belong in `treatmentCodes.local`.** A wrong local word on a clinical screen is worse than none — leave `local` off rather than guess. **USER TASK: have the dentist check these five.**
-
-## Sprint 66 (archive UI — System Admin can view and restore) — DONE 2026-09-02 (tsc + build clean; 10/10 round-tripped)
-Closes backlog 27. CLAUDE.md listed "restore archived records" as a System Admin capability and the API had supported it since Sprint 6, but `includeArchived` appeared NOWHERE in `src/app` — an archived record was invisible from inside the app and recoverable only by a direct database query.
-
-- **New `/archive` screen**, System Admin only: pick a record type (school years, students, schools, appointments, treatments), see what is archived, restore it. Foreign keys are resolved to names, so a row reads "Morales, Juan · SY 2025-2026 · Grade 3" rather than an ObjectId.
-- ⚠ **The trap this screen had to avoid**: `?includeArchived=true` returns **archived AND active** records — the server DROPS the isArchived filter rather than inverting it. Reading it as "archived only" would list every record in the system with a Restore button beside it. The screen filters to `isArchived` client-side, and the test asserts active records do NOT leak in.
-- The student/school lookups are themselves fetched with `includeArchived=true`, so an archived student's archived IPTR still shows a name instead of "Unknown student".
-- `archivedAt` can be null on older records; the row says "date not recorded" rather than rendering an empty cell that reads as "not archived".
-- **Verified as a full round trip** (`verify_sprint66.mjs`, 10/10): create → archive → gone from the normal list → listed in the archive screen → restored through the UI → back in the normal list with `archivedAt`/`archivedBy` cleared. Also asserts a dentist gets 403 on `includeArchived=true`. Cleans up after itself.
-- **Still true**: only school years and schools can be ARCHIVED from the UI. Students, appointments and treatments can be restored here but there is still no button that archives them — the API allows it, no screen offers it.
-
-## Sprint 65 (every student list is alphabetical by surname) — DONE 2026-09-02 (tsc both + build clean; 4/4 verified)
-From the P2 to-do ("Last Name sana... alphabetical per last per section") and restated by the user. Lists rendered in whatever order the API returned.
-
-- **Sorted at the SOURCE, not per screen**: `/stats/student-rows` sorts by the real name PARTS (last → first → middle, so a middle name never moves a row), which every `useStudents` consumer inherits; plus the two hooks that build their own rows, `useRPCTracking` and `useRiskClassification`.
-- ⚠ **Found while doing it: `useRPCTracking` displayed `s.full_name`, which is "First Middle Last"** — so RPC Tracking showed given-name-first while every other list showed surname-first (the house convention since Sprint 35), and sorting it would have ordered by GIVEN name. Now uses `surnameFirst`. Display bug fixed as a side effect.
-- Verified 4/4 across Students, Dental Charts, RPC Tracking and Risk Classification (the last has only 2 candidates, so its check is not a real assertion — noted rather than claimed).
-
-## Sprint 64 (Program Report carries the paper form's full column set) — DONE 2026-09-02 (tsc + build clean)
-User rule, 2026-09-02: **"tcl and program report should have same rows and columns as the examples even if empty"** and **"nothing should be cosmetic or placeholder, empty if none"**. This overrules the earlier decision to omit sections with no data source — a form missing columns is not the form.
-
-- **All 22 column positions now render** (× M/F): UNDER FIVE CHILDREN (0-6 mos, 9-11 mos, Total Infants, 1, 2, 3, 4, Total Under 5), CHILDREN ABOVE 5, ADOLESCENT, ADULT, SENIOR CITIZEN, PREGNANT WOMEN, TOTAL ALL AGES. Previously five age bands.
-- **Cells render `—`, never a guessed 0**, where the system has no source at that granularity: it stores a birthdate, not an age in months, and records no pregnancy at all. Columns that DO map to a computed band show real counts; Total columns are summed.
-- ⚠ **12 column captions are marked UNVERIFIED** — dotted amber underline, `title` tooltip, and a count in the note under the table. They were read off the low-resolution Appendix F scan and could not be made out with confidence. **An invented caption on a City-Health-Office submission is a placeholder**, so they are flagged rather than silently trusted. **USER TASK: check them against the paper form and clear `unverified` in `COLUMNS`** — same standing job as the DOH spelling check (Transfussion/Scalling/Flouride).
-- **The samples are extractable**: Appendix E is `[image16]`/`[image17]` and Appendix F is `[image18]`, base64 PNGs in `docs/Group404 - Manuscript.md`. Crop and upscale the header band; it is at its resolution limit, so a clearer photo of the blank paper forms would settle the remaining captions in one pass.
-- Two now-false notes were corrected in the same change — the UI text and the file header both still claimed those sections were omitted.
-- **STILL TO DO: the Target Client List.** It renders 24 of roughly 35 columns — SECOND visit is truncated to 2 of its ~7 (the paper form repeats the full service set), and OTHER SERVICES is missing ~6 (Gum Treatment, plaque/calculus removal, the two SDF applications, Consultation, referral). Same treatment: render them all, flag what cannot be read.
-
-## Sprint 63 (System Admin reaches the operational screens) — DONE 2026-09-02 (tsc + build clean; 15/15 verified)
-The user's requirement: "system admin is also a dentist capable... overall access". It was a NAV-ONLY gap — the server already agreed (`CLINICAL_WRITE_ROLES` includes `system_admin`, reads default to `ALL_ROLES`), so the API would have served every one of these screens; only the sidebar hid them.
-
-- **Granted**: Appointments, Students, Dental Charts, Treatment, RPC Tracking, Reports. Admin keeps Schools / User Management / Audit Trail.
-- ⚠ **Risk Classification deliberately NOT granted.** Validating a recommendation there is recorded as clinical sign-off in the audit trail, and CLAUDE.md's premise is that the DENTIST validates every recommendation before clinical action — a non-clinician signing off weakens exactly what Chapter 3 rests on. **One word to change if wanted**; the exclusion is asserted by the test so it cannot drift silently.
-- **Verified the screens RENDER for an admin account, not just that the nav lists them** — the risk was real, since admins have no `school_id`. 15/15, no uncaught page errors across all six.
-- **Behaviour worth knowing** (not a bug, and it surprised the test first): an account with no `school_id` resolves to ALL schools (`AuthContext.resolveUser`), so **admin hits the same "pick a school" gate any multi-school user gets** — BHO staff included — and lands on `/select-school` after login. They pick one and switch from the sidebar afterwards. If admin should instead get an all-schools view, that is a separate change to the gate, not to this nav.
-
-## Sprint 62 (required fields on Add Student) — DONE 2026-09-02 (tsc + build clean; 10/10 verified)
-Two defects, exactly inverted: **Address was required by the model AND enforced but carried no asterisk**, and **Guardian Name carried an asterisk but was never enforced** — behind a blanket "Please fill in all required fields" that named nothing, so a user leaving Address blank had no way to find out why.
-
-- **One shared source**: `REQUIRED_STUDENT_FIELDS` drives BOTH the asterisks and the validation, via a `req()` helper on the labels. The old drift was possible only because those were written independently.
-- **Now required**: Contact Number, Guardian Name, Guardian Contact, Address (plus the seven already correct). **4Ps ID is conditional** — required only when the 4Ps toggle is on; 0 of 26 students are 4Ps, so an unconditional requirement would block every ordinary student. That field was already conditionally rendered.
-- **Deliberately NOT required**: `middle_name` (some children genuinely have none, and `full_name` is DERIVED from the parts — forcing "N/A" would propagate a placeholder into every list, report and DOH form) and `philhealth_number` (the user's stated exception). `philhealth_status` always has a value.
-- ⚠ **Enforced at ENTRY, never in the schema — this is the important part.** All 26 existing students are missing `middle_name`, `contact_number`, `guardian_name`, `guardian_contact`, `philhealth_number` and `fourps_id` (measured, not assumed). CRUD updates go through `findById` + `save()`, which runs mongoose validation, so adding `required: true` would make **every existing record unsaveable on its next edit**, and there is nothing truthful to backfill a guardian's name with. If schema-level enforcement is ever wanted, it needs a backfill first.
-- The error now NAMES the missing fields, and renders through `Notice` rather than a bare `<p>` — it previously had no `role="alert"`, so a screen reader never announced a validation failure.
-- **Not covered**: the bulk-import and OCR paths post directly and are not gated by this check. Consistent with leaving the schema unchanged, but it means an import can still create students without guardian details.
-
-## Sprint 61 (split login layout) — DONE 2026-09-02 (tsc + build clean; 14/14 verified)
-User-requested: identity on the left, sign-in on the right, with a stylized divider between.
-
-- **Layout only.** The form, its three steps (credentials / OTP / forgot-password) and every handler are untouched — the change is the wrapper. That is deliberate: the login screen carries two features a restructure could silently break.
-- **Left pane** is `hidden lg:flex`, NOT reflowed. On a 390px screen a full-height brand block would push the password field below the fold, so phones and tablets keep the compact header they already had. Verified: password field above the fold at 390px, no horizontal scroll.
-- **Divider** is a gradient hairline on the aside's `::after`, fading out at both ends, rendered only at `lg:` where the panes are side by side. First attempt at 35% opacity was invisible in practice — 60% reads as deliberate.
-- ⚠ **Verified the two things this could have broken**, rather than assuming: Sprint 37's "Remember me" checkbox is still present, and Sprint 50's browser autofill still works — the check asserts `autocomplete="username"` and `autocomplete="current-password"` survived the move, since autofill depends entirely on those attributes. Confirmed live in the user's own Chrome, which autofilled after the change.
-- Copy states what the system is, with no marketing claims: records, two-visit preventive-care monitoring and caries-risk analytics for the three schools, plus "For clinic staff. Every record access is logged."
-
-## Sprint 60 (schools come from the database; admin can register them) — DONE 2026-09-02 (tsc + build clean; 9/9 end-to-end verified)
-Every school dropdown was a hardcoded array repeated in FOUR components (`PatientList`, `Appointments`, `DentalChart`, `Reports`), plus short-name and colour maps in `utils/schoolColors.ts`. Adding a school meant editing five files, and a school created through the admin API appeared in none of them — a cosmetic control by CLAUDE.md's rule: it looked like the system's school list and was a constant.
-
-- **`useSchools()`** is now the one source; the four constants are gone. Sorted alphabetically so dropdown order is stable rather than seeder-insertion order.
-- **New `SchoolManagement` screen** at `/schools`, System Admin only — add / edit / archive, with all six model-required fields (name, type, principal, street, barangay, city). Its validation names the missing fields rather than saying "fill in all required fields".
-- **Archive, never delete**, per the soft-delete rule; the confirm dialog says records filed against the school are kept and an admin can restore it.
-- `getSchoolColor` and `getSchoolShortName` already fall back gracefully (neutral grey, full name), so a newly registered school renders correctly without touching those maps. **A 4th+ school simply has no brand colour until one is added** — acceptable, and worth knowing before someone reports it as a bug.
-- **Verified end-to-end** (`verify_sprint60.mjs`, 9/9): a dentist is refused (403, admin-only); admin creates a school; **it then appears in BOTH the Add Student form and the DOH report filter** — the two places that read the constants; archiving removes it from the dropdowns and the count returns to 3. The script cleans up after itself, so demo data is unchanged.
-
-## Sprint 59 (the DOH School filter actually filters) — DONE 2026-09-02 (tsc clean; 6/6 browser-verified)
-**The School dropdown on the Reports tab was COSMETIC.** `useDohReportData` took no school argument, so selecting a school changed the printed header, the export filename and the export metadata — and nothing else. Picking "S. Daang Hari" produced a document TITLED S. Daang Hari containing all three schools' figures, over-reporting two schools and misattributing the third, on a report submitted to the City Health Office. Found 2026-09-02 by switching schools in the browser and watching the numbers not move.
-
-- **Fix**: the hook takes `schoolName`, resolves it to a `school_id` via `/schools` (students store the id; the dropdown carries the name) and scopes students before any counting. Same shape as 57b's year scoping.
-- **Also fixed a mislabel I introduced mid-sprint**: the Program Report header fell back to the sidebar's current school when the picker said "All Schools", labelling all-schools data with one school's name — the very bug being fixed. It now names the scope the figures actually cover.
-- **Verified arithmetically, not visually**: `verify_sprint59.mjs` 6/6. All Schools = 6 examined; BT Integrated 3 + BT Annex A 3 + S. Daang Hari 0 = 6. Per-school totals sum to the all-schools total, and at least one differs from it — the assertion the old behaviour could never pass.
-- The School and School-year selects now carry `id`/`htmlFor`/`aria-label`. Two test runs picked the page header's MONTH dropdown instead, because there are TWO `.doh-report-controls` blocks (`Reports.tsx:417` header, `:472` DOH tab). **Target `#doh-school` / `#doh-school-year`, never a positional selector.**
-
-## Sprint 58 (shared pagination + a save toast you can actually see) — DONE 2026-09-02 (tsc both + build clean; 32/32 browser-verified)
-From two classmate screenshots the user relayed: a paginator with items-per-page and first/last buttons, and a pop-up banner confirming a save ("indicator na nasave").
-
-- **`Pagination.tsx`** — `usePagination(items, resetKeys)` + a `<Pagination>` control. Items per page 10/25/50/100, a "from–to of total" label, and first/prev/next/last. Changing page size keeps you near the same records rather than dumping you back to page 1. Reset keys are the FILTER INPUTS, never the derived list — keying on the list lets a background refresh (Sprint 40) yank a reader back to page 1.
-- **Applied to all four list screens.** Only PatientList paged before (Sprint 53, fixed at 25); **DentalChartNav, TreatmentRecords and RPCTracking rendered EVERY filtered row** — fine at demo scale, thousands of DOM rows at ~8,000 students.
-- ⚠ **`DentalChartList.tsx` IS DEAD CODE — imported nowhere.** `/dental-charts` routes to **DentalChartNav**. It was paginated by mistake first (and reverted) because the name suggests it is the list page. Anyone touching "the dental charts list" wants `DentalChartNav`. Deleting the dead file is a separate call, not taken.
-- **Toast is now top-centre and filled** — success is a green-700 banner with white text, larger icon, 5.5s dwell (was a small white card, bottom-right, 4s). Error/info stay as cards. New `.toast-drop` animation; `.rise` moved the toast toward the edge it came from, which read as leaving.
-- ⚠ **The reference screenshot's light green was ~1.9:1 contrast and fails WCAG AA.** `--success` #15803D gives white-on-green ≈ 5.0:1, which passes. **Keep the fill on that token** — a lighter, friendlier green silently breaks contrast.
-- **Saves were ALREADY announced** (Sprint 43 + backlog 0f audited all 34 mutation sites). This changed prominence, not coverage. Login / ResetPassword / AccountManagement 2FA still use inline `Notice` on purpose — a multi-step modal needs a message that persists beside the field.
-- **Verified**: `verify_sprint58.mjs` 32/32 — every screen's page size actually changes the rows, Next changes them, Last/First disable correctly, and the toast is measured for position and computed background (`rgb(21,128,61)`), not eyeballed. Two test bugs found and fixed along the way (wrong route paths; an unconditional Last-click on a list already at its final page) — neither was a code defect.
-- **Server-side paging is NOT what this is**, and deliberately so — see Open work 24: name search is substring-based and names are encrypted with random IVs, so the server cannot filter by name.
-
-## Sprint 57b (the DOH reports are scoped to a school year) — DONE 2026-09-02 (tsc both + build clean; 7/7 API + browser-verified)
-Closes Open work 23. `useDohReportData` counted EVERY record ever created and keyed each count by the student's grade TODAY and their age TODAY — so it could not answer "what did we do this year?", and re-opening a filed report after a promotion or a birthday quietly produced different numbers.
-
-- **`useDohReportData(schoolYear)`** now scopes to one school year (null = all years, which is what it used to be hard-wired to and is still right for a cumulative count). Exposes `years` for the picker and `unplacedCount` for disclosure.
-- **Counts are per-IPTR, not per-student.** Grade comes from the IPTR (Sprint 57a) and age is measured at that year's FIRST RECORDED VISIT, falling back to June 1 of that school year. Deterministic on purpose: a submitted report re-opened next month must produce the numbers it was filed with, which an age computed to "today" cannot.
-- **⚠ `getRealTotal` exists because summing `getRealCount` over a grade list UNDERCOUNTS.** Records from years before 57a carry no grade, so a grade-list sum drops them from a submitted figure — here that was 26 instead of 29. The OHPRF reads the across-all-grades key instead. **Any future form that totals by age band only must use `getRealTotal`.**
-- **Year picker on the DOH tab**, shared with the OHPRF via a prop; OHPRF's "All records to date" now reflects the real scope. Footnote under the DOH table states the grade and age basis, and discloses how many records have no grade.
-- **Age off-by-one fixed** (`ageAt`): the old bracket used `yearA - yearB` with no month/day adjustment, so a child born Dec 2015 read as 11 during 2026 when they were 10 — roughly a twelfth of pupils one bracket too high on a submitted form. TargetClientList already adjusted, so the two DOH outputs could disagree with each other.
-- **TargetClientList age is now age AT CONSULTATION**, not today. **DentalChart `patientAge`** is anchored to the selected year's charting date, falling back to that school year's start — closing the `patientAge` item Open work 23 raised and 57a deliberately left.
-- **Verified**: `verify_sprint57b.mjs` 7/7 (per-year counts sum to the all-years total, scoping demonstrably changes the numbers, the grade-sum undercount is detected, a fixed anchor is reproducible, the December-birthday off-by-one is fixed). Browser-checked: all years 29 examined, 2025-2026 → 26, 2026-2027 → 2, 2027-2028 → 1, each matching the API.
-- ⚠ **Test-timing gotcha, not a bug**: the OHPRF needs ~4s after a year change before its numbers settle (its own hook instance refetches). A 1.8s wait read zeros and looked like a defect. Wait on the value, not a fixed delay.
-- ~~NOT done: the DOH report still does not filter by SCHOOL~~ **FIXED 2026-09-02 as Sprint 59.** Bulk promotion at rollover (option A) remains unbuilt.
-
-## Sprint 57a (the IPTR carries its own grade — old years stop lying) — DONE 2026-09-02, MIGRATION RUN + VERIFIED (tsc both + build clean)
-Option C of the three costed in Open work 23. `grade_level` + `section` now live on STUDENT_IPTR as well, so a past school year renders the grade the student actually was.
-
-- **Schema**: both fields OPTIONAL on `StudentIptr`. STUDENT keeps its own as the CURRENT values — enrolment lists and the appointment roster still want those.
-- **"Add Year" stamps them at creation** (`DentalChart.handleAddYear`), which is what makes "when do we update the grade?" answer itself.
-- **Read sites now year-scoped** (`DentalChart.tsx`): sticky header, patient card, GradePill, and the grade COLOUR — a 2025-2026 record tinted with this year's colour is the same quiet lie the text was telling.
-- **NO fallback to the student's current grade when the year is null — that fallback IS the bug.** Unrecorded years render "Grade not recorded".
-- **Migration `npm run migrate:iptr-grades`** (dry-run by default, `--confirm` writes). Backup taken first (`backups/backup-2026-09-02T06-31-52-176Z`, 435 docs). **RUN 2026-09-02: 26 latest IPTRs written, 3 left null, re-run writes 0 (idempotent).**
-- ⚠ **The dry run caught a case worth keeping**: two students' LATEST IPTR was a FUTURE school year (one at 2027-2028 while the current SY is 2026-2027). Writing today's grade there asserts a promotion that has not happened — the same false fact the sprint removes. The script now targets the latest year `<= current school year`; future-dated IPTRs stay null and get filled when that year starts.
-- **Verified**: `verify_sprint57a.mjs` 5/5 against the real DB, and proven end-to-end in a browser on Villanueva, Aldrin (current grade Grade 3) — the 2025-2026 tab reads "**Grade not recorded**" where it previously read "Grade 3 Jasmine", and 2026-2027 reads "Grade 3 Jasmine".
-- **NOT in this sprint, still open**: `patientAge` is still computed to TODAY, so a past year shows today's age (Open work 23's own correction calls this the same bug class, arguably higher stakes on a DOH form). Bulk promotion at rollover (option A) is not built — grade is set per student when that year's IPTR is created. 57b (year-scoping the DOH reports) is the approved next half.
-
-## DOH form fidelity — header bands match the paper samples (2026-09-02, tsc + build clean)
-The two forms added in Sprints 54/55 had headers that did not match their appendices. Both fixed; **the samples are readable and should be re-read rather than guessed at next time**: Appendix E/F are embedded in `docs/Group404 - Manuscript.md` as base64 PNGs under the link definitions `[image16]`/`[image17]` (Target Client List, two sheets) and `[image18]` (OHPRF). Extract with base64 → PNG and open them; they are low-resolution, so crop and upscale the header band.
-
-- **Target Client List** — the paper form uses ONE uniform tall header band: wide identity columns keep horizontal captions centred in it, narrow service columns carry captions rotated to read bottom-to-top (`writing-mode: vertical-rl` + 180°), under thin FIRST / SECOND / OTHER SERVICES group bands. Ours was a short two-row block of horizontal captions, which forced every service column to be at least as wide as its label. Now matches, and as a side effect the whole 26-column table fits ~1300px instead of needing horizontal scroll.
-- **OHPRF** — the form's header is THREE levels (population group → age column → M/F); ours had only the lower two. Added `AGE_GROUP_BANDS` for the four groups Floral can populate (UNDER FIVE CHILDREN / CHILDREN ABOVE 5 / ADOLESCENT / ADULT). The form's Senior Citizen and Pregnant Women bands stay omitted for the same documented reason the adult sections were: a school clinic has no source for them. ⚠ `AGE_GROUP_BANDS` must stay a partition of `AGE_BANDS` in the same order or the colSpans drift.
-- **Not touched, deliberately**: PDF/Excel export is gated to the DOH tab only (`Reports.tsx:425,431`), so neither form has an export path this could break. **Browser Print on these two tabs was NOT verified** — print is already a known-broken live warning for the DOH table. The narrower TCL is more likely to print than before, but that is an expectation, not a check.
-
-## Sprint 56b (the patient-list row joins server-side) — DONE 2026-09-02 (tsc both + build clean; 26/26 rows differentially verified, 11/11 live smoke, Sprint 56's 20/20 + 11/11 still green)
-Closes the rest of Open work 24's payload problem. `useStudents` built its rows in the browser by downloading SIX whole collections — students, schools, student-iptrs, dental-charts, preventive-care-records, risk-stratifications — and **eight components mount that hook**, so at the ~8,000-student scale it was the largest read in the app.
-
-- **New `GET /stats/student-rows`** does the join server-side, modeled directly on Sprint 23p's `/stats/high-risk-count`, which already did the narrower version of exactly this ("without the client re-fetching 6 collections on every page"). Client gets one slim array.
-- **`useStudents`'s return shape is byte-identical, so all eight consumers were left untouched** — Dashboard, PatientList, DentalChart, DentalChartList, DentalChartNav, Reports, TargetClientList, TreatmentRecords. That is what kept a wide-reach change surgical.
-- **Deliberately NOT paginated.** Three consumers (Reports, TargetClientList, dashboard stats) aggregate over the whole population, so paging this endpoint would break them. The win here is payload + browser CPU, not a smaller result set.
-- ⚠ **`students` is the one query in that endpoint that cannot use `.lean()`** — the name fields are encrypted and `mongoose-field-encryption` decrypts in `post('init')`, which only runs for real documents. A `.lean()` or `.aggregate()` read returns ciphertext. Everything else in the endpoint is lean because none of it is encrypted. **If a future change makes that read lean for speed, every name in the app silently becomes ciphertext.**
-- **Verification was differential, which is the only kind that mattered here**: `verify_sprint56b.mjs` rebuilds the rows the OLD way (fetching the six collections and running the exact former client join) and compares field by field. **26/26 rows matched on all 13 fields**, all decrypted, 22 carrying a risk level and 22 a last visit (so the joins are populated, not vacuously equal). The pre-existing `verify_live_smoke.mjs` also passed 11/11, exercising PatientList, Reports, RPC and the DOH PDF.
-
-## Sprint 56 (bounded appointment reads + the first indexes) — DONE 2026-09-02 (tsc both + build clean; 20/20 API + 11/11 UI verified against the real DB)
-Closes the appointments half of Open work 24. Scope was chosen as option B of three: bound the appointment reads AND stop the screen pulling every student, but NOT generic pagination across all CRUD (that would touch every list hook that assumes a plain array).
-
-- **`crudFactory` gained two GET options**, both opt-in per model so no existing route silently changed shape. `dateField` bounds a collection by `?from=`/`?to=` (inclusive instants — the caller decides what "end of day" means, so this layer never guesses a timezone). `filterableText` whitelists unencrypted STRING equality filters, kept separate from `filterable` because that one's validation IS `isValidObjectId` and folding strings in would have dissolved the guard.
-- **`/appointments` now takes a date window; `/students` takes `_id`, `school_id`, `grade_level`, `section`.**
-- **`useAppointments(window)` — the signature is now required, deliberately.** Each of the three callers had to state what it actually needs, and none needed everything: Appointments = current school year (widened to the calendar's displayed month so navigating to an older month still finds it, dropped entirely by "Show earlier"); Dashboard = the current calendar week (it only reads today's list + the week bar chart); DentalChart = today → +1 year (its one consumer filters `date >= today`).
-- **Students are fetched by the ids the appointments actually reference, chunked at 200** to match `MAX_FILTER_IDS`. Chunking rather than raising the cap was the user's call, and it is the right one — raising it reopens the unbounded `$in` that comment exists to prevent.
-- **Completed/Missed tabs now say what span they show** ("Showing this school year") with a "Show earlier" toggle, rather than implying they show everything. Header stacks below `sm:` per the three-device rule.
-- **New: `useGradeRoster`** replaces a `useStudents()` call on the Appointments screen. `useStudents` pulls SIX whole collections (students, schools, IPTRs, charts, preventive care, risk stratifications) and joins them into rows carrying risk level and last visit; the create form needed a name, sex and birthday for one section. It was by far the most expensive read on that screen.
-- **`schoolYearStart`/`schoolYearEnd` extracted to `utils/schoolYear.ts`**, shared with `useRPCTracking` (which had the only copy) so the appointments window and the RPC Visit-2 cutoff cannot drift.
-- **FIRST INDEXES IN THE CODEBASE.** No model declared one before this sprint — every query was a collection scan, which meant a date filter alone would only have moved the scan from the browser to the server. Added `{isArchived, appointment_datetime}` on Appointment and `{isArchived, school_id, grade_level, section}` + `{isArchived, school_id, birthday}` on Student (the second serves Sprint 47's duplicate prefilter). All three lead with `isArchived` because every GET filters on it. **Verified with `explain()`: the date query plan is `IXSCAN`, not `COLLSCAN`.**
-- **Verification** (correctness-only by agreement — demo scale is 26 students / 6 appointments, so no scale number was measurable): `verify_sprint56.mjs` = 20/20 against the real DB (inclusive bounds, empty windows, from-only, `_id` set membership, decryption still intact through the filter, the 200-id cap accepted at exactly 200 and rejected at 201, over-long/empty text filters rejected, non-whitelisted fields ignored rather than queried, repeated params rejected as arrays). `verify_sprint56_ui.mjs` = 11/11 in a browser: the Appointments screen issues NO bare `/students` or `/appointments` read, the section dropdown still populates, and the student picker still lists the section.
-- ⚠ **A scale number for Chapter 4 was NOT obtained** and cannot be until there is either real data or a bulk seed. The claim this sprint supports is structural ("the reads are bounded and indexed"), not measured.
-
-## Sprint 55 (Oral Health Program Reporting Form — Appendix F) — DONE 2026-09-02 (tsc + build clean)
-Fourth Reports tab, "Program Report". **APPENDIX F**, not E — the user said E, but E is the Target Client List (Sprint 54). Read the same way: extract the embedded base64 PNG (`image18`) and enlarge. This scan is far more legible than E's.
-- `OralHealthProgramReport.tsx` (NEW). Indicators down the left, **age band × sex** across the top, Grand Total column. Three sections: Oral Health Status, Services Rendered, Other Parameters.
-- **Reuses `useDohReportData.getRealCount`** — it is keyed by `grade|age|sex|field`, so each cell sums that field across all 11 grades to collapse grade out and leave the age×sex shape the form wants. No new fetching.
-- **Populated for real:** Dental Caries (`DMF_total`), Oral Debris, Calculus, Gingivitis, anomaly/suspected lesions, Orally Fit upon Exam, and patients examined. These come from the same source the DOH Consolidated tab uses, so the two agree by construction.
-- **The paper form's ADULT / SENIOR CITIZEN / PREGNANT WOMEN sections are omitted, not blanked.** The form covers a whole city population; Floral holds school children only. Thirty permanently empty columns would wreck the table and imply data that cannot exist here. The UI states this.
-- **Services Rendered rows render as `—`:** per-visit services are recorded nowhere (`PREVENTIVE_CARE_RECORD` = `iptr_id`/`visit_date`/`visit_number` only) — the same limitation Sprint 54 hit.
-- **⚠ A reporting-period selector was BUILT then REMOVED before commit.** `getRealCount` takes no date range, so the control would have looked like it filtered and silently would not. The header now reads "All records to date". **To add one properly, `useDohReportData` has to learn about date ranges** — that is the real task, and it would also serve the DOH Consolidated tab.
-
-## Sprint 54 (Target Client List — Appendix E) — DONE 2026-09-02 (tsc both + build clean)
-User asked for the manuscript's *"Target Client List for Oral Health Care and Services"* as a Reports tab, table only.
-
-**⚠ It is APPENDIX E, not D.** The user said Appendix D; Appendix D is the **DMFX Index Score**. Appendix E is the TCL, F is the Oral Health Program Reporting Form, G is the IPTR (`Group404 - Manuscript.md:663-690`). Worth knowing the letters drift in conversation.
-
-**How the columns were obtained — the appendix is an IMAGE, not text.** `![][image16]`/`![][image17]` are base64 PNGs embedded in the manuscript. Extracted them, then cropped/rotated/upscaled the header bands with PIL to read the rotated headers. **The scans are only ~540×375**, so three labels remain illegible and were NOT invented: the `Completed BPOC…` column's exact wording, one curative column between "Gum Treatment" and the SDF pair, and one near "Referred Out". The user said to build with what was readable.
-- `TargetClientList.tsx` (NEW) + a third Reports tab. Table scrolls inside its own container like the DOH table — the form is far wider than any screen and the page must never scroll sideways (CLAUDE.md three-device-classes rule).
-- **Period filter: Daily / Monthly / Quarterly / Annual**, anchored by a native `<input type="date">`, filtering on the form's own first column, *Date of consultation*. Ranges are built from LOCAL date parts, not UTC — same reason `toLocalDateString` exists (Sprint 20's vanishing-appointments bug).
-- **⚠ HONESTY: several columns are rendered but deliberately BLANK, marked `—`.** `PREVENTIVE_CARE_RECORD` stores only `iptr_id`, `visit_date`, `visit_number` — **no per-visit service is recorded anywhere in the data model**, so oral hygiene instruction, counselling, and the second-visit fluoride column have no source. Visit dates and curative treatment codes ARE real. The UI says so in plain words rather than showing empty cells that look like "not done".
-- Data is joined from `useStudents` (names, risk), `useRPCTracking` (visit dates, treatment codes) and a raw `/students` fetch for address / contact / PhilHealth, which the list hooks drop.
-- Clients with no recorded consultation appear in no period; the header states how many, so they are not silently missing.
-
-## Sprint 53 (students list pagination) — DONE 2026-09-02 (tsc both + build clean)
-Last item from the classmate notes: *"Students - Pagination"*. The table rendered **every** row — no slicing anywhere — which is unusable at the ~8,000-student scale Chapter 1 claims.
-
-**⚠ Read this before anyone calls #0b done: this paginates what you SEE, not what gets DOWNLOADED.** `/students` still fetches the whole collection (~6.1 MB at 8,000). That was the deliberate choice: slicing already-loaded rows leaves the counts, the filters and the offline queue's assumption that the full set is present all intact. Reducing the payload is #0b **Option 2** — server-side `?page&limit` plus moving filters and aggregates server-side — and is still open and still risky.
-- `PatientList.tsx` — `PAGE_SIZE = 25` (not 10: a clinic worklist reads better in bigger pages, and 10 would be five pages to see one section — matches #0b's own 25–50 note). Renders `paged` instead of `filtered`.
-- **`safePage` clamps the page** rather than trusting it: deleting or filtering can shrink the list under the current page, which would otherwise render an empty table.
-- **Page resets on filter change, keyed on the filter INPUTS not on `filtered`** — keying it on the derived list would let a Sprint 40 background refresh yank the user back to page 1 while they are reading page 3.
-- **Select-all is now page-scoped**, matching its own aria-label ("Select all students on this page"). Across the whole filtered set it would tick rows the user cannot see.
-- Footer shows `Showing 1–25 of N (filtered from M)`; the pager hides itself entirely at one page, since controls that can never do anything are noise.
-- Cleaned up: the `Download` icon import went unused in all three files once Sprint 52 removed the export menus.
-
-## Sprint 52 (exports restricted to official output) — DONE 2026-09-02 (tsc both + build clean)
-From the classmate notes: *"exports or downloads should only be for official files like the doh report and iptr, but features useful might be implemented"*. User confirmed the scope: **remove from Students, RPC and Appointments; KEEP Audit Trail.**
-
-**The real reason this matters is PII, not tidiness — worth using at defense.** Every removed CSV/XLSX wrote **decrypted** patient data to an unencrypted file on a staff device: `STUDENT` name/birthday/address/guardian fields are AES-256 encrypted at rest (CLAUDE.md DATA ENCRYPTION), and the Students export handed the whole roster out as plaintext. *"You encrypt the database, then export it in the clear?"* is a fair panel question, and it no longer has a target. **The governing rule is now: official AGGREGATE output may leave the system; raw patient lists may not.**
-
-- Removed `handleExport` + `<ExportMenu>` and the orphaned `exportToCsv` / `exportToXlsx` / `ExportMenu` / `ExportFormat` / `ExportColumn` / `toLocalDateString` imports from `PatientList.tsx`, `RPCTracking.tsx`, `Appointments.tsx`. Each site carries a comment saying why, so nobody "restores the missing export" later.
-- **KEPT — `AuditTrail.tsx`** (user's call, and I agree): admin-only, and an exported audit log is plausible Chapter 4 compliance evidence.
-- **KEPT — the DOH report** on `Reports.tsx`. It uses its own `exportDohReportToPdf` / Excel path, not `ExportMenu`, and was verified untouched. It is aggregate counts with **no names**, which is exactly why it passes the rule.
-- **`utils/exportCsv.ts` and `utils/exportXlsx.ts` are still used** (Audit Trail, Reports) — not deleted.
-- **NOT DONE, and it is an ADDITION not a removal:** the notes imply an **IPTR export should exist**, and there is none — `DentalChart.tsx` has no print or download path at all. That is the one export a clinic actually needs (a patient's own record for their file), and it is the "useful features might be implemented" half of the note. **Unscoped; needs approval.**
-
-## Sprint 51 (RPC becomes a worklist, not a dashboard) — DONE 2026-09-02 (tsc both + build clean)
-From the classmate notes, via the user: *"RPC Visit Filter - Treatment - automatic wala kapag completed na - no dashboards"*. Both halves built. **`RPCTracking.tsx` went 313 → 216 lines.**
-- **Dashboards removed:** the four stat tiles (Total Enrolled / Visit 1 Completed / Both Visits Complete / Overdue) and the "RPC Completion by School" stacked chart. **Nothing was lost from Chapter 4** — Figure 4.4.3's compliance funnel is cropped from `fig-4.4.1-dashboard-dentist.png`, NOT from this page, so the evidence for Module 5 still exists on the dentist dashboard. **`fig-4.2.3-rpc-tracking.png` IS now stale and needs re-capturing** (folds into the figure pass already owed after Sprint 45).
-- **Status filter now defaults to `'outstanding'`**, which excludes completed records, so the page opens on work still to do. "All Statuses (incl. complete)" and the individual statuses stay available. `hasActiveFilters`/`clearFilters` compare against `'outstanding'`, not `'all'` — otherwise "Clear All" would light up permanently and *widen* the list instead of resetting it.
-- `'outstanding'` had to be an explicit option in the dropdown: `FS` renders its `label` prop as the value-`'all'` option, so without an entry the select would have had no option matching its own value.
-- **Dead code found and removed while in there:** a whole per-school card block already wrapped in `{false && (…)}` (with a no-op `onClick={() => (() => {})()}`), and a `{true && <div>}` wrapper guard. Also removed what the deletion orphaned — `visit1Completed`, `visit2Completed`, `overdue`, `chartData`, `schoolSummary`, `SCHOOLS`, and the recharts / `ChartTooltip` / `CHART` / `schoolColors` imports.
-- **Still dead, and PRE-EXISTING — not touched, not mine to assume about:** `ViewToggle`, `drillSchool`, `selectedGrade`, `selectedSection` each appear exactly once (declaration only), and were already orphaned at HEAD before this sprint — verified with `git show HEAD:…`. The School-vs-List view they belonged to is gone. Worth a decision: delete them, or restore the feature.
-
-## Sprint 50 (sign-in autofill via the browser's credential manager) — DONE 2026-09-02 (tsc both + build clean)
-Closes the browser-delegated half of Open work #0d, raised again by a classmate note asking whether login autofill was "already done". It was not: Sprint 37's checkbox is session persistence, and the inputs carried **no `autoComplete` at all** — confirmed in code and matching the live DOM read of 2026-08-28.
-- `Login.tsx` — `autoComplete="username"` + `name="email"`, and `autoComplete="current-password"` + `name="password"`. The form was already a real `<form onSubmit>` with a `type="submit"` button (the other precondition), so the attributes alone are sufficient. **The app stores nothing itself** — no localStorage, no OWASP exposure at defense.
-- **⚠ This forced a second change; skipping it would have CREATED a bug that did not exist before.** Once browsers save credentials they offer them into every unmarked password field, so all five password-SETTING fields now carry `autoComplete="new-password"`: `ResetPassword.tsx` (new + confirm) and `AccountManagement.tsx` (temporary password on create, admin-set new + confirm). Without it the browser would fill the signed-in admin's own password into a field that sets ANOTHER user's.
-- Verified in the built bundle: 8 `autoComplete` occurrences — Login 3 (`username`, `current-password`, the pre-existing `one-time-code`), ResetPassword 2, AccountManagement 3.
-- **Self-inflicted break worth remembering:** the first attempt put a `{/* … */}` JSX comment between a ternary branch's `(` and its `<form>`, making two adjacent root nodes — `TS17002`, build failed. JSX comments go INSIDE the element, not beside it in a single-expression slot.
-- **Not built, and probably now pointless:** prefilling the email from localStorage. The credential manager already does it.
-
-## Sprint 49 (clear a tooth code without hunting for it) — DONE 2026-09-02 (tsc both + build clean)
-User report: *"if i edit a dental chart, if i try to toggle a condition or treatment i need to press a button first before i can toggle existing code off"*. Correct — `handleToothClick` only toggled OFF when the selected palette brush **equalled** the tooth's existing code, so removing a code meant first working out what was already there and hunting it down in the palette. A different brush replaced instead of cleared, and with nothing selected the click was **dead** (`if / else if`, no `else`).
-
-- `DentalChart.tsx` — added the missing `else`: in edit mode, with **no code selected**, clicking a tooth clears it. Fills the dead interaction, so no new palette button and no change to any existing behaviour.
-- **Clears BOTH condition and treatment, deliberately.** With neither brush active the intent is "empty this tooth"; precise single-code removal still works the old way (select that exact code, click to toggle it off). The two complement each other — coarse and fine.
-- Added the hint chip **"No code selected · Click teeth to clear"**, mirroring the existing "Applying: … · Click teeth to apply" chips. Without it the mode is folklore: the palette said what you were applying but nothing said what a bare click does.
-- Safe by construction: gated behind `editingChart`, nothing persists until **Save Chart**, and **Cancel Edit** discards. The existing "Clear" link (which deselects both brushes) is the one-click route into erase state.
-- Chip uses `bg-muted text-foreground`, not raw Tailwind grays — consistent with the beautify pass's token migration.
-
-**"maybe allow multiple code" — RAISED then DROPPED by the user the same day ("ignore multiple code"). Not built.** Kept because the analysis is the durable part: `ToothRecord.condition` and `.treatment_code` are single strings. **Multiple TREATMENTS per tooth is the easy half** (a tooth genuinely gets OEX + FV + PFS in one visit; treatments are not part of the DMF index, so nothing statistical breaks). **Multiple CONDITIONS is a clinical decision, not a coding one** — the DMF index counts each tooth ONCE by definition, so a tooth marked both Decayed and Filled needs a precedence rule (normally D > M > F) before `computeDMFT` (`DentalChart.tsx:84`) can be changed, and that number feeds the ML `dmf_score`. **Ask the dentist before any future attempt.**
-
-**impeccable hook:** two `gray-on-color` flags on the DMFT table header (`text-gray-800` on `bg-gray-100`, ~12.6:1, deliberately neutral so the total column reads apart from the red temporary / blue permanent columns). Pre-existing, line numbers only shifted by this edit. **False positive of the class already documented in CLAUDE.md — left unchanged and NOT suppressed.**
-
-## Sprint 48 (server-side filtering — the IPTR screen stops fetching the database) — DONE 2026-09-02 (tsc both + build clean, measured against the real DB)
-Answers Open work #0b, the reviewer's *"iptr takes too long to load because it retrieves all"*. **Their diagnosis was right and their prescribed fix — "retrieve only 10" — was aimed at the wrong screen:** pagination is for lists, but the worst offender was a DETAIL screen that should not have been fetching collections at all.
-
-**Measured before building** (real per-doc bytes off the live DB, extrapolated to the Chapter 1 scale of 8,000 students): students 803 B/doc, medical histories 499, oral conditions 337, dietary 332, risk 316, PCR 232, charts 217, IPTRs 204, tooth records 190. **Opening ONE student's IPTR downloaded 14-58 MB** — it pulled every IPTR, medical history, dietary record, oral condition, chart, treatment *and every tooth record in the system*, in three sequential waves, then filtered client-side to find ~3 rows. The tooth-record range is wide because it depends on teeth recorded per chart (demo averages 1.2; a full-mouth exam records up to 32).
-
-- `server/routes/crudFactory.ts` — new `filterable?: string[]` option: a **whitelist** of foreign-key fields that `GET /` accepts as query params. `?iptr_id=abc` or `?iptr_id=abc,def` (comma list → `$in`, capped at `MAX_FILTER_IDS = 200` so a crafted query cannot become an unbounded `$in`). Values must be valid ObjectIds or the request is 400. **Backward compatible — with no query params the behaviour is byte-identical to before**, which is why no other hook needed touching.
-- `server/routes/index.ts` — wired on 8 routes: `student-iptrs` (`student_id`), `tooth-records` (`chart_id`), and `iptr_id` on medical-histories / dietary-social-habits / oral-health-conditions / dental-charts / treatments / preventive-care-records.
-- `src/app/hooks/useDentalChartData.ts` — asks for what it needs instead of everything. Also skips five round-trips entirely when a student has no IPTR years (they could only return empty).
-- **Why this works where encrypted fields could not:** every join key is an unencrypted ObjectId, so plaintext equality matches. The Sprint 26 random-IV constraint does not apply here.
-
-**Verified against the real DB** (server run locally, throwaway script, no writes): filtered results are **identical** to the old client-filtered ones; multi-id `$in` matches; **payload for one student's chart fell 54,564 B → 4,064 B, −92.6%, at demo scale of 26 students** — and the gap widens at 8,000 because the old path grew linearly while the new one is flat. Injection rejected: `?iptr_id=abc` → 400, `?iptr_id[$ne]=x` → 400 (Express parses it as an object, which fails the string check before reaching the query). A non-whitelisted field is ignored rather than erroring, so it returns the unfiltered set — safe default, no filtering.
-
-**NOT fixed — this was Option 1 of three, and the list screens remain:**
-- `useRPCTracking` (6 collections) and `useStudents`, `useDohReportData`, `useRiskClassification` still fetch whole collections. **The same fix does NOT apply** — they are lists over ALL students, so they genuinely need the sets. Fixing them is Option 2: server-side `?page&limit` + moving filters, sort and aggregates server-side. **Page-size alone still breaks the counts**, exactly as #0b warns.
-- `/students` alone is ~6.1 MB at 8,000 students, and 10 places call it. Every one of those also AES-decrypts 8,000 records server-side.
-- Option 2 is now **easier**, since the filter mechanism and its validation already exist.
-
-## Chart grid token — `#f0f0f0` removed (2026-09-02, tsc both + build clean)
-Closes the last sub-item of Open work #2. Added `CHART.grid = '#F0F0F0'` to `utils/chartColors.ts` and pointed all **8** `CartesianGrid stroke` sites at it: `Dashboard.tsx` `:661/:822/:1193/:1406/:1426`, `Reports.tsx` `:736/:855`, `RPCTracking.tsx` `:216` (which needed the import added). **Value unchanged, so nothing renders differently** — this is tokenisation, not a restyle.
-- **Why a literal and not `var(--border)`:** recharts passes these straight through as SVG presentation attributes, where CSS custom properties do not resolve. Every chart prop in this app is a literal for that reason — checked before assuming.
-- **`grid` is deliberately its own token, not an alias of `--border`** (`rgba(0,0,0,.1)` ≈ `#E6E6E6`): gridlines sit lighter than UI borders on purpose, so pointing it at the border token would have darkened every chart.
-
-**Follow-up findings — the first three are now all DONE (2026-09-02); the fourth is new and open:**
-- ~~**`RPCTracking.tsx:222-225`** — four `Bar fill` literals that are *exactly* existing token values~~ **DONE 2026-09-02** (same day). Now `CHART.success` / `.brand` / `.danger` / `.neutral`; all four values verified identical to the literals they replaced, so nothing renders differently. The file's own comment claimed these "match dashboard risk/status colors" — that is now enforced rather than coincidental, and the two cannot drift. **`RPCTracking.tsx` contains zero raw hex.**
-- ~~**`Reports.tsx:860`** — `fill="#0E7490"`~~ **DONE 2026-09-02 → `CHART.cyan`, value unchanged.** My "invented hue" reading was WRONG: the call-site comment said *"cyan family (matches the appointments accent) instead of off-palette teal"*, i.e. NOT teal was a deliberate choice, and `#0E7490` is Tailwind cyan-700 — the same accent as the `text-cyan-600/700` chips in `Reports.tsx:718` and `RPCTracking.tsx:201`. **Do not "tidy" `cyan` into `teal` later; they mean different things and both are used.** The reasoning now lives on the token, not in a comment one file away.
-- ~~**`Dashboard.tsx:669-671`** — `stroke="#fff"`~~ **DONE 2026-09-02 → `CHART.surface`, value unchanged.** Named for its role: the effect is the card showing THROUGH the bar, not a white line drawn on it, so the token mirrors `--card` (#ffffff) and must follow it under a dark theme or every stacked bar gets bright seams.
-- **All three chart files now contain ZERO raw hex** (`Dashboard.tsx`, `Reports.tsx`, `RPCTracking.tsx`). tsc both + build clean.
-
-**⚠ NEW FINDING 2026-09-02 — a much larger hardcoded-hex population, different category, NOT scoped.** Auditing the above turned up **45 `#1E40AF` + 1 `#1E3A8A` + 1 `#E31E24` across 12 component files** (`Login` 9, `AccountManagement` 14, `AIAnalytics` 5, `AuditTrail` 5, `ResetPassword` 4, `TreatmentRecords` 2, `DentalChartNav` 2, plus singles in `ConfirmDialog`, `DentalChartList`, `SchoolSelect`, `UpdateToast`).
-- **These are NOT chart colors and `chartColors.ts` is the wrong fix.** They are Tailwind arbitrary-value classes inside `className` strings — `text-[#1E40AF]`, `focus:ring-[#1E40AF]`, `accent-[#1E40AF]`, `bg-[#E31E24]`. The fix is the theme's own utility classes (`text-primary`, `ring-ring`, …), not a JS import.
-- **`#1E40AF` is EXACTLY `--primary`** (`theme.css:14`), so all 45 are re-typed copies of a token that already exists — same defect as the RPCTracking bars, different mechanism and much wider.
-- `#E31E24` (`SchoolSelect.tsx:62`) is in NO palette — check whether it is a school brand red before touching it.
-- Sizing guess only: mostly mechanical, but it spans 12 files including auth screens, so it wants its own sprint and a real visual check rather than a blind replace.
-
-## Sprint 47 (duplicate student warning at entry) — DONE 2026-09-01 (tsc both + build clean, verified against the real DB)
-Closes **Open work #0**, the "double entry — doctor can choose" item. User confirmed it means a **duplicate STUDENT record**, and chose **warn at entry only** (merging existing duplicates was offered and declined) with **dentist + aide + admin** all able to resolve — so no permission change was needed.
-
-**Design: the guard lives on the route, not on a form.** `POST /students` answers **409 with the matching candidates** unless the body carries `confirm_duplicate: true`. One rule therefore covers all four entry paths — add form, bulk import, OCR, and offline replay — instead of three client-side copies that would drift.
-
-- `server/utils/studentDuplicates.ts` (NEW) — `findDuplicateStudents`. Match rule: **same school + same birthday + same last and first name**. `middle_name` is excluded (OCR drops it too often); `sex` is excluded from the key but returned for display. Names are NFD-folded and case/whitespace-normalised so "Peña"/"pena  " match.
-  - **Why a callback and not `uniqueBy`:** name fields are encrypted with random IVs (Sprint 26), so a server-side equality query on them can never match. `birthday`/`school_id`/`isArchived` are plaintext and do the narrowing in the DB; only that handful gets decrypted and compared in JS. This deliberately keeps the check OFF the unbounded-read path flagged in Open work #24.
-  - Archived students are excluded — the dialog offers "Open", and an archived record 404s for everyone but System Admin, so warning about one would dead-end the clinical staff who do the encoding.
-- `server/routes/crudFactory.ts` — new `duplicateCheck` option beside `uniqueBy` (that one is a hard 409 the client cannot override; this one is a decision). Strips `confirm_duplicate` from the body before `model.create`.
-- `src/app/api/client.ts` — `ApiError` gained a `body` field. It previously carried only `status` + `message`, so the candidate list had nowhere to travel.
-- `src/app/components/PatientList.tsx` — 409 opens an "Already on file?" modal listing each match (name, grade/section, sex, birthday) with **Open** / **Back to form** / **Add anyway**. Bulk import does NOT modal per row — a dialog every few rows through a large import is unusable; matches are skipped and reported in the existing failure summary instead.
-- `src/app/offline/queueProcessor.ts` — the queue now surfaces the server's own error text. It previously mapped every non-401/403 4xx to `"The server rejected this change (error 409)"`, which is unactionable for whoever has to clear a blocked queue.
-
-**Bug caught during the build:** the existing `onClick={handleAddStudent}` passed the click event as the new `confirmDuplicate` argument, and a MouseEvent is truthy — which would have silently disabled the guard on the main add button. Now wrapped as `onClick={() => handleAddStudent()}`, with a comment saying why.
-
-**Verified** (`verify_duplicate_students.ts`, NEW at project root, read-only and re-runnable): 8/8 matcher cases against the real DB — exact re-add, case/whitespace noise, date-only birthday, middle-name-ignored all match; different surname/birthday/school and a missing name all correctly don't. Over HTTP as the dentist: duplicate → 409 with the candidate payload; non-duplicate → 400 validation, NOT 409; `confirm_duplicate: true` → falls through to validation, proving the override works and the flag never reaches `create`. **Student count was 26 before and after every test — nothing was written.**
-
-**Not verified, and why:** the "Add anyway" path was never exercised through to an actual saved record. Local dev and production share one database (Open work #26), so doing that would leave a real junk student in the data every Chapter 4 figure is drawn from. The bypass itself is proven; only the final `create` on that path is untested.
-
-**Scope note:** this prevents NEW duplicates only — nothing detects the ones already stored. The verifier's last check reports existing duplicate groups and currently finds **0** among the 26 active students, so there is nothing to clean up today.
-
-## Sprint 46 (secondary age brackets match Grades 2-6) — DONE 2026-09-01 (tsc + build clean)
-**User challenged Sprint 41's brackets** — *"i think age bracket are same with others?"* — and was right. `GRADE_BRACKETS` in `Reports.tsx` now gives Grade 7-10 the SAME four brackets as Grades 2-6: `5-9 / 10-14 / 15-19 / 20 yrs & above`, replacing the three-bracket set (`10-14 / 15-19 / 20+`) Sprint 41 inferred.
-
-**Why Sprint 41's reasoning was wrong, kept so it isn't re-derived:** it dropped `5-9 yrs` because a Grade 7 pupil is ~12 and the cell could never be filled. That argument **proves too much** — a Grade 2 pupil is never 20 either, yet the form carries `20 yrs & above` for Grade 2. The DOH form assigns a uniform per-grade bracket set regardless of which cells are plausible, so the shortened secondary set was the one breaking the pattern.
-
-⚠ **Still NOT a reading of the paper form.** This is now an argument from the form's own internal consistency — better evidence than pupil-age inference, same category. Dentist should still confirm; only four `GRADE_BRACKETS` lines change if the real form differs.
-
-**NOT verified live** — needs deploy, then confirm the G7-10 table renders FOUR age columns per grade. The restored `5-9 yrs` column will be empty for secondary (seeded G7-9 are 10-14, G10 is 15-19); that is correct, not a gap.
-
-## Sprint 42 (update checks on refocus) — DONE 2026-08-28 (tsc both + build clean)
-Full detail lives in **Open work #25**, which is the item this closes — kept there to avoid splitting one story across two places. Summary: `UpdateToast.tsx` now calls `registration.update()` on `visibilitychange` → visible, window `focus`, and `online`, throttled 60s, in addition to the hourly interval added in `00b7bd06`. The hourly check alone left an up-to-an-hour window where a backgrounded tab ran stale code. **Not verified end-to-end** — proving it needs a deploy while a tab sits open, then a tab switch.
-
-## Sprint 45 (Grade 7-10 demo students — unblocks the secondary DOH report) — DONE 2026-09-01, LIVE-VERIFIED
-Closes backlog 0h. User approved touching demo data.
-
-**8 students added at Bagong Tanyag Integrated School only** (the one school with a secondary section), two per grade 7/8/9/10, M+F each, risks Low/Medium/High plus one deliberately unscreened. **`seedStudents.ts` is idempotent** — it skipped all 18 existing students, so nothing was rewritten. DB is now 26 students.
-- **Birthdays chosen to exercise BOTH secondary age brackets**: Grades 7-9 land in `10-14 yrs`, Grade 10 in `15-19 yrs`. Verified on the live report — a single bracket would have proved nothing.
-- **`dmf_index: "DMF"` (uppercase) on the secondary risk records**, via a new optional per-student field defaulting to `"dmf"`. Secondary pupils are assessed on PERMANENT dentition and the DOH table counts `DMF_total` on a different row from the primary-teeth `dmf_df`; the old hardcoded `"dmf"` would have filed high schoolers on the children's row.
-- **`seedIptrDetails.ts` had to be run afterwards** — `seedStudents` creates chart + preventive + risk records but NOT medical/dietary/oral ones, and the DOH counts key off `OralHealthCondition`. Without it the G7-10 band rendered with **every row empty**, which is precisely the "permanently-empty band reads as broken" failure Sprint 41 set out to avoid. Created 13 medical/dietary/oral records (the 8 new + 5 pre-existing IPTRs that lacked them). **Anyone adding demo students in future must run BOTH seeders.**
-- `seedIptrDetails.ts` was missing `import "../dnsFix.js"` and failed with `querySrv ECONNREFUSED` on this machine — the known Node 24 + Atlas SRV quirk. Import added; that is one fewer script carrying the trap.
-
-**LIVE-VERIFIED on the deployed site** (first live verification of any Sprint 41 behaviour): the band control appears in the school-filter bar, switching to "Grade 7–10" re-renders the table with GRADE 7/8/9/10 column groups, the age sub-columns read `10-14 / 15-19 / 20 yrs & above`, the header stamp changes to `GRADES: Grade 7-10`, and counts populate in the right brackets.
-
-⚠ **CHAPTER 4 FIGURES ARE NOW STALE.** Every figure in `docs/figures/` was captured against 18 students; the database holds 26. Any figure showing a student count, a dashboard total, or a full student list disagrees with the live app. **Re-capture the affected figures before defense** — see backlog #7.
-
-⚠ **G7-10 age brackets CORRECTED 2026-09-01 (user challenged them) — secondary now carries the SAME four brackets as Grades 2-6** (`5-9 / 10-14 / 15-19 / 20 yrs & above`), not the shortened three-bracket set Sprint 41 inferred. **Why the original reasoning was wrong:** Sprint 41 dropped `5-9 yrs` because a Grade 7 pupil is ~12 and the cell could never be filled — but that argument proves too much. A Grade 2 pupil is never 20 either, and the form still carries `20 yrs & above` for Grade 2. The DOH form uses a uniform per-grade bracket set regardless of which cells are plausible, so the shortened secondary set was the odd one out. ⚠ **Still unconfirmed against the actual paper form** — this is now an argument from the form s own internal consistency, not a reading of it. Dentist should still confirm; only four `GRADE_BRACKETS` lines change if it differs.
-
-**Method gotcha that cost several wrong readings this session:** the Reports page needs **~6 seconds** before `useStudents` (six collections) resolves and `hasSecondary` flips the control on. Checking at 2-4s reports the control as ABSENT and looks exactly like a bug. Wait, then assert.
-
-## Sprint 44 (DOH report refreshes itself) — DONE 2026-09-01 (tsc both + build clean)
-**User request:** *"reports should reflect real time numbers"*. Root cause found live: `useDohReportData` was `useEffect(…, [])` — **fetched once on mount and never again**. Open Reports, leave the tab, have someone save a chart, come back: the table still showed the numbers from when the page was first opened, with nothing indicating they were stale. Sprint 40 deliberately skipped this hook *because* it had no `reload()`, which fixed blanking but left staleness.
-
-**1 file — `hooks/useDohReportData.ts`. `Reports.tsx` needed NO change**, which is the point: the fix is entirely in the hook, and the page picks up both behaviours for free.
-- The mount-once effect became a `load` `useCallback`; the hook now adopts **`useLoadPhase`** (Sprint 40), so `dohLoading` is true only until the first paint. Background refreshes swap numbers in place instead of blanking the 77-column table.
-- Refresh triggers: `visibilitychange` → visible, window `focus`, `online` — **not an interval**. Same reasoning as Sprint 42: what matters is that the numbers are current *at the moment someone looks at them*. Throttled by `REFRESH_THROTTLE_MS` (30s) because each run is **seven unbounded collection reads** — see the perf caveat below.
-- **`runIdRef` replaces the old `cancelled` flag** and covers one hazard the flag did not: with refreshes, a slow EARLIER run could land after a newer one and resurrect old counts. Only the most recent run may commit. Unmount bumps the id so nothing in flight can write.
-- A successful refresh now clears a previous `error`, so a stale failure banner can't sit above correct numbers.
-- `reload` is exported for a future manual refresh button; nothing calls it yet.
-
-**Stale comment corrected in the same file.** Its header said unbacked DOH fields fall back to an "illustrative sparse table" — **not true since the fallback was removed**; `Reports.tsx:178` resolves them to `0`, never a fabricated number. The old wording caused a live misread this session and is dangerous in a report submitted to the City Health Office. Rewritten to say what the code does.
-
-⚠ **PERF — this is now on the wrong side of backlog #0b/#24.** Every refocus can re-run seven unbounded collection reads (`/students`, `/student-iptrs`, `/medical-histories`, `/dietary-social-habits`, `/oral-health-conditions`, `/preventive-care-records`, `/risk-stratifications`). At 18 demo students that is free; at the Chapter 1 scale of ~8,000 it is the single heaviest repeated request in the app. The 30s throttle is a mitigation, **not a fix** — when pagination/server-side aggregation is scoped, this hook should be first in line.
-
-**NOT verified live** — needs deploy, then: open Reports, change data in another tab, refocus Reports, confirm the numbers move and the table does NOT blank while doing so.
-
-## Sprint 43 (chart save + validation save now toast) — DONE 2026-09-01 (tsc both + build clean)
-Closes backlog 0f (1) and (2). Audit that drove it is in 0f: all 34 `apiClient` mutation sites walked, three opted out of the toast, two were real gaps.
-
-**`DentalChart.tsx`** — the main chart save (`handleSave`, the `Promise.all` over tooth records + medical history + dietary/social habits + oral health conditions) now calls `toast.success('Chart saved.')`, and its failure path calls `toast.error(message)` as well as keeping `setSaveError` for the inline line. `useToast` was already imported and wired (`:134`) — only the call sites were missing.
-- **The "Saved!" button label is DELIBERATELY KEPT.** It is a useful in-place echo for whoever is still looking at the button; the toast exists because that button sits at the top of a long scrolling form, so a dentist who edits teeth further down would otherwise get no confirmation at all. Both, not either.
-- **ONE message, not four** — the four writes are a single user action. Decided with the user before building.
-
-**`AIAnalytics.tsx`** — `saveMessage` state DELETED; `useToast` imported and wired. Success → `toast.success('Validated assessment saved: <level> risk.')`, failure → `toast.error(...)`. This removes the `saveMessage.startsWith('Failed')` styling branch, which would have silently inverted success/error colours if anyone reworded the error string.
-- **Two `setSaveMessage(null)` calls also deleted** (on student select, and on re-generate). They existed only to stop a stale inline message lingering across a student change — a toast auto-dismisses, so the bookkeeping is gone with it.
-- ⚠ **Gotcha that cost a tsc round-trip:** grepping `saveMessage` case-sensitively MISSES `setSaveMessage`. Two call sites were found only by the typecheck. Grep `-i` when removing a state variable.
-
-**Untouched on purpose:** `AccountManagement.tsx` 2FA + send-reset-link, `Login.tsx`, `ResetPassword.tsx`. Their inline `Notice`/message is correct — a multi-step modal needs a message that persists beside the field, not one that floats away after 4s. See 0f (3).
-
-**Impeccable hook flagged `DentalChart.tsx:1288` gray-on-color — FALSE POSITIVE, left alone.** It is `text-gray-800` on `bg-gray-100` (dark-on-light, fine contrast), pre-existing, and untouched by this sprint. Same recurring class already noted in Durable gotchas.
-
-**NOT verified live** — needs a deploy, then: save a chart and confirm one toast plus the "Saved!" label; validate a risk assessment and confirm the toast replaces the old green line.
-
-## Sprint 41 (DOH report — Grade 7-10 band) — DONE 2026-08-27 (tsc clean, build clean)
-**User confirmed it is the SAME DOH form, just different grades**, so this is a grade-band selector inside the existing DOH tab — NOT a second top-level tab and not a second report. One aggregation path, one set of columns, one export.
-
-**Changes (1 file, `components/Reports.tsx`):**
-- `GRADE_BRACKETS` extended with Grade 7-10. `GRADES` split into `ELEM_GRADES` (K-G6) + `HS_GRADES` (G7-10); new `gradeBand` state drives `dohGrades`, which replaced every `GRADES` reference in the DOH form (column build, `sumSummaryBracket`, the 4 header/body maps, `restCols`, and the xlsx export's `grades`).
-- Segmented control ("Kinder–Grade 6" / "Grade 7–10") sits in the existing school-filter bar, which is now `flex-wrap` so it doesn't overflow at ~390px.
-- **The control hides itself when the school in view has no G7-10 pupils** — only Bagong Tanyag Integrated School has a secondary section; the other two stop at G6. A permanently-empty band reads as a broken report. An effect also snaps the band back to `elem` if the user switches to an elementary-only school while viewing 7-10, which would otherwise strand them on an empty table with no visible way back.
-- **Band is stamped on every output**: on-screen header gains `GRADES: <band>`, PDF and XLSX filenames gain `K-G6` / `G7-10`, and the xlsx `monthYear` line carries the band. Two PDFs for the same school and month were otherwise indistinguishable once submitted.
-
-**⚠ ASSUMPTION needing confirmation before defense:** G7-10 age brackets are set to `10-14 / 15-19 / 20+` (a Grade 7 pupil is ~12, so "5-9 yrs" can't occur). This was inferred, NOT read off a real DOH secondary form. If the actual form differs, only the four `GRADE_BRACKETS` lines need changing. `SUMMARY_BRACKETS` deliberately keeps all five brackets in both bands — it's the same form.
-
-**Not verified live** — needs a deploy, then: switch bands on Bagong Tanyag Integrated (control should appear), confirm it's hidden on the two elementary schools, and download one PDF + one XLSX per band to check the header/filename stamping.
-
-## Sprint 40 (sync status icon + background refresh) — DONE 2026-08-27 (tsc clean, build clean)
-**User request:** *"online offline not banner just icon top right corner rotating arrows if syncing, page do not go blank and refresh but background refresh"*. Closes backlog item 0c.
-
-**`OfflineBanner.tsx` DELETED, replaced by `components/SyncStatus.tsx`.** The full-width strip is gone; a 36px round icon is pinned `fixed top-2 right-2 md:top-3 md:right-4 z-40`. Six states: offline (amber `WifiOff`), syncing (blue `RefreshCw` **animate-spin** — the rotating arrows), session-expired (amber), failed (red), conflicts (orange), all-clear (muted `Cloud`). **Deliberately always mounted** — connection state is a glanceable thing for field staff, not something that should only appear once broken.
-- Clicking opens a popover carrying everything the banner used to show inline: Retry / Discard this change (Sprint 36) and the full conflict diff table with Keep mine / Discard mine. Closes on outside click and Escape — a popover over page content that only the trigger can dismiss is a trap on touch.
-- Desktop has **no top bar at all** (sidebar-only layout), which is why this is `fixed` rather than living in a header.
-- `Root.tsx` mobile header: `px-4` → `pl-4 pr-14` so the icon doesn't cover the school short name.
-- **The Sprint 33 "top bar must NOT be `fixed`" constraint is now OBSOLETE** — it existed because OfflineBanner rendered in flow at the document top and a fixed bar would hide it. Nothing renders in flow there any more. Comment in `Root.tsx` rewritten to say so; `sticky` kept because it still works.
-
-**Background refresh — new `hooks/useLoadPhase.ts`, adopted by 7 hooks** (`useAppointments`, `useAuditTrail`, `useDentalChartData`, `useDentistRotations`, `useRiskClassification`, `useStudents`, `useUsers`). Every one of them called `setLoading(true)` at the top of `reload()`, and the screens render a full skeleton whenever `loading` is true — so ANY re-fetch (back online, a queued write syncing, a manual refresh) blanked the page and rebuilt it, losing scroll position. `useLoadPhase` keeps a `loadedRef`: `loading` goes true only until the first load completes, after which data swaps in place underneath the user. `endLoad()` runs in `finally`, so a FAILED refresh still counts as "painted once" — a retry doesn't blank the page either.
-- `useDohReportData` + `useRPCTracking` deliberately untouched: both are mount-once effects with no `reload()`, so they never re-fetch and never blanked.
-
-**Not verified live yet** — needs a deploy + eyeball at all three widths (~390 / 768 / 1280), plus: icon spins while a queued write syncs; popover reachable on touch; page does NOT blank when coming back online with queued writes.
-
-## Sprint 39 (RPC filter by treatment) — DONE 2026-08-27 (tsc clean, build clean)
-**User decision (asked before building):** filter on `TOOTH_RECORD.treatment_code` — the 9 existing codes. Two alternatives rejected: adding service fields to `PREVENTIVE_CARE_RECORD` first (schema change + ERD deviation + form work), and filtering the free-text `TREATMENT.treatment_done` (encrypted with a random IV, so unqueryable server-side).
-
-**⚠ SEMANTIC CAVEAT — have this answer ready for defense.** `PREVENTIVE_CARE_RECORD` stores **no services at all** (only `iptr_id`, `visit_date`, `visit_number` — confirmed in the Mongoose model, `api/types.ts`, and `docs/DATA-MODEL.md:32`). So this filter means **"the student has had this treatment"**, NOT "this treatment was done at the RPC visit". The RPC module's own services (prophylaxis, fluoride varnish, hygiene instruction, oral screening) are not recorded per visit anywhere in the system. If the panel asks "which students got fluoride varnish at Visit 2?", the app cannot answer that today — that needs the rejected option 2.
-
-**Changes (2 files):**
-- `hooks/useRPCTracking.ts` — fetches `/dental-charts` + `/tooth-records` alongside the existing 4; resolves codes through TOOTH_RECORD → DENTAL_CHART → STUDENT_IPTR → STUDENT into a new `RPCRow.treatmentCodes: string[]` (distinct).
-- `components/RPCTracking.tsx` — `treatmentFilter` state, "All Treatments" dropdown reusing the exported `treatmentCodes` from `DentalChart.tsx:118` (Dashboard already imports it the same way, so no new coupling), predicate + memo dep. Export respects it (exports `filtered`).
-- **Fixed in passing:** `sectionFilter` was missing from BOTH `hasActiveFilters` and `clearFilters` — an active section filter neither lit up "Clear All" nor got cleared by it. Pre-existing, same lines being edited.
-
-**⚠ PERF — this made a known problem worse, deliberately and with the user informed.** The RPC page now fetches **6** unbounded collections instead of 4. At ~8,000 students that is already heavy, and `/tooth-records` is the largest table in the system (up to 32 rows per chart). This is the same unbounded-read issue logged earlier. **Directly relevant to the user's pagination question raised the same day — see backlog item 0b.**
-
-## Sprint 38 (house date format "Aug 27, 2026") — DONE 2026-08-27 (tsc clean, build clean)
-**User decision:** house format is `Mon dd, yyyy`. Asked and answered: the dashboard/appointments "today" headers **keep a short weekday** (`Wed, Aug 27, 2026`) because staff schedule by day of week; everything else is strictly `Aug 27, 2026`.
-
-**Why this needed a util, not a find-and-replace:** dates were formatted inline on every screen across **four** locales — `en-PH`, `en-US`, `en-GB` and the browser default — so the same date rendered as "27 Aug 2026", "Aug 27, 2026" and "Wednesday, 27 August 2026" depending on where you looked.
-
-**Three formatters now live in `src/app/utils/localDate.ts`** (joining `toLocalDateString`/`toLocalTimeString`), locale pinned to `en-US` deliberately — letting the browser locale decide is what caused the drift, and this is a house decision, not a user preference:
-- `formatDate(v)` → `Aug 27, 2026` — the default for any user-facing date
-- `formatDateWithWeekday(v)` → `Wed, Aug 27, 2026` — dashboard + appointments headers only
-- `formatDateTime(v)` → `Aug 27, 2026, 3:04 PM` — audit trail
-- All three take `Date | string | number | null | undefined` + a fallback string. **A bare `YYYY-MM-DD` is pinned to LOCAL midnight before formatting** — `new Date('2026-08-27')` is UTC midnight and renders as the previous day in any timezone behind UTC. Same off-by-one class as the Sprint 20 appointment-vanishing bug.
-
-**Call sites updated (5 components):** `DentalChart` (`formatDateStamp` now delegates; 2 treatment-row dates), `AuditTrail` (`formatTimestamp`), `Appointments` (today header), `Dashboard` (**5** identical role-dashboard headers).
-
-**Deliberately NOT changed:**
-- Month-only labels — chart axis ticks (`Aug '26`), month navigation (`August 2026`), report periods (`Jan–Jun 2026`). Not dates.
-- `<input type="date">` — native control, must stay ISO.
-- **`PatientList.tsx` CSV/XLSX "Last Visit" column stays ISO `2026-08-27`.** Judgement call, flagged to the user: it's data for Excel, not a display, and ISO is the only format that sorts correctly in a spreadsheet. Say the word if you want it switched to house format.
-
-**⚠ Unrelated pre-existing finding surfaced by the design hook while editing:** `DentalChart.tsx:1280` gray text on a colored background (`gray-on-color`). Not introduced by this sprint and out of its scope — left alone, worth a look in the next beautify pass.
-
-## Sprint 37 ("Remember me" on login) — DONE 2026-08-27 (tsc client+server clean, build clean)
-**User decision (asked before building):** the box controls **cookie persistence**, not token lifetime, and **unticked is the NEW default**. Two other readings were offered and rejected: extending 7d→30d, and merely prefilling the email.
-
-**Why this was more than a checkbox:** auth cookies were ALREADY set with `maxAge` on every login (access 15min, refresh 7d), so every login on every machine was effectively "remember me" — a 7-day session on shared clinic PCs holding patient PII. Unticked now issues **session cookies** (no `maxAge`), so closing the browser ends the session. Ticked reproduces the old 7-day behaviour. Good OWASP/defense answer on session persistence.
-
-**Fix (5 files + this doc):**
-- `server/utils/jwt.ts` — new `RefreshTokenPayload extends AuthTokenPayload { remember?: boolean }`; `signRefreshToken`/`verifyRefreshToken` use it.
-- `server/controllers/authController.ts` — `setAuthCookies(res, access, refresh, remember)` spreads `maxAge` in only when remembered; `login` + `verifyOtp` read `req.body.remember === true`.
-- **The non-obvious bit:** `/auth/refresh` re-issues the access cookie 15 min in and had no idea which kind of login it belonged to — it would have silently promoted a session-only login to persistent. Hence `remember` riding **inside the refresh token payload**; `refresh()` reads `payload.remember`.
-- **2FA path:** `/auth/login` issues no cookies for `twofa_enabled` accounts, so the flag has to be re-sent to `/auth/verify-otp` — that's the request that actually mints the session. Frontend passes it to both, incl. the resend path.
-- `src/app/offline/authCache.ts` — `saveUserCache(user, remember)` writes to localStorage when remembered, **sessionStorage otherwise**, and clears the other tier. New `wasRemembered()` (used by the `/auth/me` restore, where the checkbox value is long gone). `clearUserCache()` clears both. Without this split an un-remembered login left `floral_cached_user` in localStorage and the offline-restore path could resurrect the identity after a browser close — defeating the whole point.
-- `src/app/context/AuthContext.tsx` — `login(email, password, remember)` / `verifyOtp(email, code, remember)`; `has-session` hint moved to the same storage tier via `setSessionHint`/`hasSessionHint`/`clearSessionHint`.
-- `src/app/components/Login.tsx` — "Keep me signed in on this device", **defaults to unticked**, in a `flex-wrap … justify-between` row shared with "Forgot password?" (per CLAUDE.md: never a bare `flex justify-between`). Ticking it reveals a one-line shared-PC warning.
-
-**Not verified live yet** — needs deploy + manual check: (1) untick → sign in → close browser → reopen = signed out; (2) tick → close → reopen = still signed in; (3) both survive a 15-min access-token refresh without changing persistence (the `payload.remember` path); (4) the 2FA account through both. Add to the before-defense checklist.
-
-**⚠ Existing sessions:** refresh tokens minted before this sprint have no `remember` claim, so `payload.remember` is `undefined` → falsy → their next `/auth/refresh` issues a session-scoped access cookie. Harmless (worst case someone is signed out at their next browser close and signs in again), but that's why it happens.
-
-## Sprint 36 (offline-queue retry that actually retries) — DONE 2026-08-27 (tsc clean, build clean)
-**Reported by the user:** the red banner "1 change failed to sync — check with a system admin. Other pending changes are paused until this is resolved" appeared in the live app and **pressing Retry did nothing**.
-
-**Root cause — three defects in the Sprint 19/20 offline queue:**
-1. `sendDirect()` tries a token refresh on 401; if the refresh ALSO fails it returned `{ok:false, status:401}`, and `processQueue()` treated every non-OK response as "server actively rejected it, retrying won't help" → `markFailed` forever. An expired session while offline therefore looked like a permanent data error, and the copy told the user to see a system admin when they only needed to sign in again.
-2. `markFailed` stored an `errorMessage` that **no UI ever read**, so a 401 was indistinguishable from a 400 validation error — for the user AND for us when debugging.
-3. `processQueue()` does `break` on the first `failed` item and there was no discard path (conflicts had Keep/Discard, failures had nothing) — so ONE bad write wedged the entire FIFO queue permanently. The banner's own "other pending changes are paused" text was literally true and had no escape.
-
-**Fix (3 files, surgical):**
-- `offline/db.ts` — new `'auth'` status on `QueuedWrite` + `markAuthRequired()`. Separate from `'failed'` because it IS retryable once signed in.
-- `offline/queueProcessor.ts` — 401/403 → `markAuthRequired` (not `markFailed`); loop breaks on `'auth'` too; `retryQueue()` resets the oldest `failed` OR `auth` item; new `discardFailedWrite(id)` drops a permanently-bad write and resumes the queue. Error strings are now user-facing sentences.
-- `hooks/useOfflineQueue.ts` — `failedCount` → `failed[]` + `authBlocked[]` (the banner needs `id` and `errorMessage`, not just a count). Only `OfflineBanner` consumed `failedCount`.
-- `components/OfflineBanner.tsx` — amber "Your session expired — sign in again to sync N changes" + Retry for auth blocks; red "1 change couldn't be saved: <reason>" + Retry + **Discard this change** for real rejections; both append "N other changes are waiting behind it." Row is `flex-wrap … text-center` so it doesn't overflow at ~390px.
-
-**⚠ Migration note:** a write already sitting in a device's IndexedDB as `status:'failed'` keeps its OLD `errorMessage` ("Server rejected with status 401"). That still surfaces now — which is useful, it reveals the code — and Discard clears it. New failures get the new copy.
-
-**Not verified live yet** — needs a deploy + a real stuck-queue repro (go offline, edit a record, let the session expire, come back online). Add to the before-defense checklist.
-
-## Sprint 34 (chart codes, year-archive permission, responsive headers) — DONE 2026-08-25 (tsc clean, pushed `3b95b9b3`)
-⚠ **The commit message mislabels this "Sprint 28"** — 28 was already used (period reports, 07-11). This is 34. History not rewritten because the other device shares the repo.
-- **Extraction condition code is `X/x`, not `DX/dx`** (user correction). `conditionCodes`, the colour map, the legend, and DMFT counting all updated; counting and colours still accept legacy `DX/dx` so charts saved before today keep working. No migration run — old records keep the old string.
-- **Arch rows reordered to the DOH IPTR layout**: temporary arches OUTSIDE (rows 1 and 4), permanent INSIDE (rows 2 and 3). Column alignment (55↔15 … 65↔25) verified in the browser.
-- **Bulk clear replaced per-tooth erase.** First build was an "Erase Mode" brush (click teeth one by one); user rejected it as still-1-by-1, so it became **Clear All Conditions (n)** / **Clear All Treatments (n)** — separate vocabularies, confirm dialog with count, disabled at 0, draft-only until Save. Verified: clearing treatments left all conditions intact.
-- **BUG FIXED — dentist could not remove a school year.** `/student-iptrs` had `writeRoles: CLINICAL_WRITE_ROLES` but no `archiveRoles`, so `PATCH /:id/archive` fell back to the factory's `ADMIN_ONLY` default while the trash button renders for `canEdit` (dentist) — every click 403'd as "Failed to remove school year". Now `archiveRoles: ["system_admin","dentist"]`, and **`restoreRoles` was split out of `archiveRoles`** in `crudFactory.ts` so restore stays admin-only per the soft-delete rule. Verified end-to-end as the dentist: added a throwaway 2029-2030, removed it, "School year removed."
-- **Responsive pass (see the new device-class rule in CLAUDE.md).** Five page headers were a bare `flex items-center justify-between`, pushing action buttons off the right edge of a 390px phone: Appointments, PatientList, DentalChartNav, RPCTracking, TreatmentRecords → now `flex-col … sm:flex-row`, matching AuditTrail/AccountManagement which were always correct. Appointments' tab strip scrolls instead of hiding its 5th tab ("Rotation"). Reports' "Procedure Counts" table got the scroll wrapper its three siblings already had.
-- **Seeder bug**: `seedStudents.ts:71` wrote `"<school>, Taguig City"` into the **home address** field, which is why every demo student shows their school as their address. Seeder fixed; **existing seeded records still carry the wrong value — user chose to leave them** (they'll correct at the next reseed).
-- **NOT verified: any real phone or tablet render.** `resize_window` reported success while Chrome kept painting at 1536px, so every responsive claim is read from CSS + one user screenshot. Confirm on a real device.
-- Also noticed, not fixed: selecting a condition code sometimes jumps page scroll away from the teeth (reproduced twice at desktop width).
-
-## Sprint 35 (student name split → last/first/middle) — DONE 2026-08-25 (tsc clean, migration RUN + verified)
-- `STUDENT` gains `last_name` (required), `first_name` (required), `middle_name`, all **encrypted** like the other PII. `full_name` stays but is now **DERIVED** by a `pre('save')` hook from the parts — registered BEFORE the encryption plugin on purpose, since mongoose runs pre-save hooks in registration order and registering it after would write plaintext over ciphertext. Parts are the single source of truth; nothing can drift.
-- **Migration `server/scripts/splitStudentNames.ts`** — dry-run by default, `--confirm` writes, idempotent (skips already-split records), includes archived students. Handles suffixes (`Ana Reyes Jr.` → last `Reyes Jr.`) and Spanish/Filipino surname particles (`dela Cruz`). Flags single-token and ambiguous 3-token names for human review instead of guessing silently. **RUN 2026-08-25: 20/20 students migrated, 0 flagged; re-run confirms 0 remaining.** Full backup taken first via `backupRaw.ts` (308 docs) — `backups/backup-2026-08-25T14-57-54-570Z`.
-- **`formatStudentName.ts` DELETED.** It was already doing surname-first display by naive last-token splitting — the exact fragile approach rejected in this sprint's decision — and it double-formatted the new value into "Juan, Morales,". Its 8 call sites (PatientList, DentalChartList, DentalChartNav, TreatmentRecords) now read the pre-formatted `row.name`.
-- New `src/app/utils/studentName.ts`: `surnameFirst` / `surnameFirstWithInitial` / `surnameOnly`, built from the parts, never from splitting a string.
-- `useStudents` exposes `lastName`/`firstName`/`middleName` and sets `name` to surname-first, so every list and any sort on `name` is surname order for free. Same for `useAppointments` + `useRiskClassification`.
-- Chart prev/next buttons showed `name.split(' ')[0]` = the FIRST name; now the surname, matching the order being stepped through.
-- Chart info editor: one "Full Name" box → three boxes (Last / First / Middle), matching the DOH form. `seedStudents` reuses the migration's splitter; `reencryptFieldIVs` now covers the new fields (**it would otherwise silently skip them on a future IV rotation**); `splitStudentNames` has a direct-invocation guard so the seeder's import cannot trigger the migration.
-- **Docs DONE 2026-08-25:** `/docs/DATA-MODEL.md` STUDENT entry now lists the three fields with the derived-`full_name` rationale, and CLAUDE.md's encryption scope line includes them. Defense point worth keeping: **DENTAL_AIDE already splits `last_name`/`first_name` in the original ERD**, so this extends the ERD's own convention rather than inventing one.
-- **⚠ USER-ONLY, before defense: the Chapter 3 ERD FIGURE still shows STUDENT with a single `full_name`.** The manuscript prose (~line 411) describes only entities and relationships and needed no edit — it never lists attributes — and there is no data dictionary section. The attributes exist **only inside the Figure 3.6 image**, which cannot be edited from here. Regenerate that diagram to add `last_name` / `first_name` / `middle_name`, or a panelist comparing the ERD to the live app will find the mismatch.
-- Noticed, not changed: the Student Records list is not sorted at all (seed order); `name` is now surname-first so adding a sort is one line whenever wanted.
-- **✅ RESOLVED 2026-08-25 — production IS on the same database.** Confirmed on the live site after a refresh: names render surname-first, which is only possible if `last_name` exists in the db production reads (`surnameFirst()` falls back to `full_name` = "Isabella Villanueva" when the parts are missing). So the migration already covered production; nothing further to run. Original note kept below for the reasoning trail.
-- **~~OPEN — is production on this same database?~~** The migration ran against whatever local `.env` points to: `floral-cluster.edqpjtu.mongodb.net/floral`. Evidence says prod is the SAME db (HANDOFF:199 records `backfill:soft-delete` being run this same way "against production", naming that cluster + `floral`), but this was NOT proven. Vercel confirms `MONGODB_URI` IS set for Production on project `dental-app-build`, but it is typed **Sensitive** = write-only, so its value cannot be read from the dashboard, the API, or `vercel env pull` by anyone. **Credential-free test that settles it:** open Students on the live site — `surnameFirst()` falls back to `full_name` when the parts are missing, so **"Morales, Juan" = same db (already migrated); "Juan Morales" = a different, UNMIGRATED db.** If it is a different db this matters: `last_name`/`first_name` are `required`, so editing any unmigrated student there fails validation until `splitStudentNames.ts` is run against it (backup + dry-run first).
-
-## IPTR encoding brief drafted (2026-09-01) → `docs/iptr-encoding-brief.md`
-Docs only. The instructions the dentist needs to produce the 50 records in a form `clean_excel.py` can read. **NOT ready to send** — Section 4 (risk labelling criteria) is deliberately blank pending her DOH risk-classification lecture/study, which is already on the user-only chase-up list. Everything else is final, and the brief tells her she can transfer the demographic and examination fields now and leave only `risk_level` for after.
-- Column list, accepted value formats and missing-value handling were read off `clean_excel.py`, not invented — `TRUE_TOKENS`/`FALSE_TOKENS`/`MISSING_TOKENS`, `DATE_FORMATS`, `parse_sex`/`parse_grade`/`parse_risk`. The parser is forgiving (`Yes`/`Y`/`1`/`✓`/`x` all read true), which the brief says so she doesn't over-format a hand-filled sheet.
-- Tells her explicitly **not to enter `0` for "not recorded"** — blank/`N/A`/`-` are handled, but `0` in a count column means genuinely zero teeth.
-- Selection guidance resolves the stratification chicken-and-egg: you cannot stratify on a label that does not exist until she assigns it, so she labels as she goes and favours under-represented categories, aiming at roughly 17/17/16. School and grade are "where convenient" and must not override the risk spread.
-- Carries an **"Open items for the research group"** section to delete before sending; the four items are repeated below so they are not lost if the brief is edited.
-
-**⚠ Found while writing it — `build_features.py` trains on 13 features, and must be cut to ~5 before the real run.** `FEATURE_COLUMNS` is `dmf_score` + the three counts + seven booleans + `age` + `sex`. At n=50 that is ~4 records per feature, past CLAUDE.md's ~5 cap and exactly the condition that makes RF/XGBoost post meaningless scores. Worse, `decayed_count + missing_count + filled_count` **sum to** `dmf_score`, so four of the thirteen carry one signal. Fine for the synthetic dry-run (unlimited rows), not fine at 50. **Separate sprint, NOT yet scoped — does not affect what the dentist encodes**, since feature selection happens downstream of encoding.
-
-**⚠ `rule_label()` must not fire on the real data.** It is the Sprint 21b threshold fallback for records with no dentist assessment. All 50 rows must carry a `risk_level`; if any arrive blank, chase them rather than letting the rule fill them, because Chapter 3 claims dentist-assigned labels and a rule-derived label is not one.
-
-## Chapter 5 "Limitations of the Study" written (2026-09-01) → `docs/chapter4-5-draft.md`
-Docs only, no code. Closes **Open work #20**. Placed between Conclusions and Recommendations (the section did not exist at all before; "limitation" had appeared only in passing). Eight sub-sections, in the manuscript's existing register: training-sample size, class imbalance, single-site scope + single-annotator labels, absence of prospective/longitudinal validation, evaluation-respondent composition, deliberate scope exclusions, standing of the predictive output as decision support, and the free-tier deployment's operating conditions.
-- **Written to survive the undecided sample size (Open work #3).** Only the record count itself is a `[PENDING]`; every surrounding claim holds anywhere in the pilot range, so nothing has to be rewritten once the number is fixed. Same treatment for the respondent count — it says 30 was *planned*, not achieved, so the draft cannot assert a number that never happened.
-- **Both new `[PENDING]`s are logged in the draft's own Drafting Notes**, under the "blocked until real data" and "blocked until the evaluation" headings that already existed.
-- **A note was added telling the next writer NOT to merge this with §4.6 Challenges Encountered.** They overlap in subject (paper-only source records appear in both) but answer different questions — 4.6 recounts obstacles met and handled, Limitations bounds what the findings may claim. The overlap is deliberate and neither is redundant.
-- Content is drawn only from decisions already recorded in CLAUDE.md (scope exclusions, K-Fold/F1 rationale, dentist-validation requirement, pilot constraints) and from verified deployment behaviour (Render cold start; offline queues writes but does not cache the full record set for reading). Nothing was invented, and no internal defects were dressed up as study limitations.
-
-## Chapter 4 + 5 draft (2026-07-28) → `docs/chapter4-5-draft.md`
-Not a sprint (docs only, no code). Read the 4 previous-group manuscripts in `docs/reference/` — LinkTech, Ethos, Nocturnal Coders are complete Chap I–V JRU manuscripts; **LIKHA is only a Capstone-1 proposal (no Ch4/5, useless for this)**. All three usable ones share one template: **Ch4 organized per Specific Objective** (not by module name), figures `Figure 4.x.y` as UI screenshots + 1–2 explanatory paragraphs each, ISO 25010 evaluation always LAST as its own SO, then Ch5 = Summary (one para per SO) → Conclusions (numbered, one per SO, each citing a concrete result) → Recommendations (grouped by audience). Draft follows this, mapped onto our 5 SOs (Ch1 line ~115) and 10 beneficiaries from Significance of the Study (Ch1 line ~145).
-- **Prose about what was BUILT is real** (sourced from BUILD-LOG) and safe to use.
-- **Two blocks are `[PENDING]` placeholders on purpose — do NOT let anyone fill them with invented numbers**: (1) §4.3 algo tables still carry the SYNTHETIC dry-run values, format-only, regenerate after 21a-d real-data re-run; (2) §4.5 ISO 25010 tables are empty — the 30-respondent survey has not been administered at all.
-- Draft also flags that Ch3 (line ~474) promises a **pilot test + Cronbach's Alpha instrument reliability check** before the formal evaluation — currently unaccounted for anywhere.
-- Screenshots for all `[SCREENSHOT — …]` figure slots are the one thing that can be done right now with no blockers.
-- **STANDING RULE (user, 2026-07-28): NEVER merge this draft into `docs/Group404 - Manuscript.md`.** `docs/chapter4-5-draft.md` stays a separate file permanently — not "until the pending blocks are filled", not once the ISO/algo numbers land. The user assembles the manuscript themselves. Do not append, inline, or auto-sync Chapter 4/5 into the manuscript file under any circumstance.
-- Housekeeping: subagent left `_scan*.py` scratch files in `docs/reference/` (Windows file-lock blocked deletion); gitignored via `docs/reference/_scan*.py`.
-
-## Technology documentation (2026-08-05) → `docs/technology-documentation.md`
-Not a sprint (docs only, no code). Manuscript-style companion to the Ch4/5 draft: external platforms + services, request-path diagram, technology→screen map with click paths, backend/security stack, ML service, tooling, and a break-glass troubleshooting table. Deliberately does NOT repeat the root README (setup/env/run) — it documents *what the tech is and where it shows up*, not how to install it.
-- **Every library listed was verified by locating a real `import`**, not by reading `package.json`. Method: cross-check each declared dependency against a project-wide search for its import string.
-- **FINDING — 51 of 73 runtime dependencies are never imported anywhere.** All 26 `@radix-ui/*`, `@mui/material` + `@mui/icons-material` + `@emotion/*`, `sonner`, `motion`, `vaul`, `cmdk`, `react-hook-form`, `next-themes`, `react-day-picker`, `react-dnd(+html5-backend)`, `canvas-confetti`, `embla-carousel-react`, `react-slick`, `input-otp`, `clsx`, `tailwind-merge`, `class-variance-authority`, `react-popper`, `@popperjs/core`, `react-resizable-panels`, `react-responsive-masonry`, `date-fns`. Figma Make prototype residue — there is no `components/ui/` directory at all. Actually used (22): react, react-dom, react-router, recharts, lucide-react, tesseract.js, pdfjs-dist, exceljs, jspdf, html2canvas-pro, @fontsource-variable/public-sans, tw-animate-css, express, mongoose, mongoose-field-encryption, bcryptjs, jsonwebtoken, helmet, express-rate-limit, cors, cookie-parser, dotenv.
-- **Do NOT prune the 51 before defense** (recorded as a decision, not an oversight): unused deps are tree-shaken out of the production bundle, so they cost install time + `npm audit` surface, not app weight. Breaking a working build for tidiness is a bad trade this close to defense. Revisit post-defense if ever.
-- Same failure mode as the 07-28 dead-token cleanup: a declaration is not usage. Search before believing `package.json`.
-- **DURABLE GOTCHA — do NOT generate .docx via LibreOffice from HTML.** `soffice --convert-to docx` imports HTML as a *Writer/**Web*** document (the conversion log literally says so), which produces a docx with **no `sectPr` at all** — no page size, no margins — so tables get absolute widths that overflow the page and rows get `hRule="exact"` that **crops the text inside every cell**. First export hit exactly this. **Use Word COM instead**: open the HTML, set `PageSetup` (612×792pt Letter, 43.2pt margins), then per table `PreferredWidthType=2 / PreferredWidth=100 / AutoFitBehavior(2) / Rows.HeightRule=0`, then `SaveAs2($path, 16)`. Verify by unzipping the docx and checking `word/document.xml` for `<w:pgSz>`, `<w:tblW w:type="pct">`, and **zero** `hRule="exact"`. pandoc is NOT installed on this machine; LibreOffice is (not on PATH: `C:\Program Files\LibreOffice\program\soffice.exe`). `chapter4-5-draft.docx` was made the LibreOffice way (07-28), so it was flagged as possibly carrying the same cropping — **user checked it 2026-08-06 and it renders fine. No re-export needed.** (Its tables are evidently narrow enough that the missing page setup never clipped them; the tech doc's 4-column tables were not.)
-- Windows lock gotcha: a .docx can stay locked with no WINWORD document holding it (Explorer preview pane). If overwrite fails, write to a new filename and swap after the lock clears.
-
-## Logo wired in (2026-08-06) — tsc both + build clean
-User supplied `dental-4-12-main/project/public/logo.svg` (240×240, blue `#1E40AF` tooth + white 5-petal flower on a full-bleed white `rx=54` rounded square).
-- **Replaced the two `logoImage = null` placeholders outright** (`Root.tsx`, `Login.tsx`) rather than just assigning the path — that deleted the dead `"BT"` fallback badges, which were painted `bg-[#E31E24]`. **That was a THIRD red** in a system whose One Red Rule allows exactly one (`#DC2626`); it is now gone from both files. `alt` corrected from "Barangay Tanyag" to "FLORAL" (this mark is the app logo, not the barangay seal).
-- **Added the missing favicon.** `index.html` had an `apple-touch-icon` but NO `<link rel="icon">` at all — browser tabs were showing the default globe. Now `<link rel="icon" type="image/svg+xml" href="/logo.svg" />`.
-- **Regenerated `icon-192.png` (0.8KB→4.3KB) and `icon-512.png` (3.6KB→12KB)** from the SVG via a throwaway Playwright rasterizer. **Corners deliberately squared (`rx=0`) in the PNGs only:** the manifest declares `purpose: 'any maskable'` (vite.config:27-28), so Android/iOS apply their own mask — shipping pre-rounded corners leaves transparent gaps under a square mask. The SVG keeps `rx=54` for the tab and in-app renders. Mark sits ~86px from centre on a 240 canvas, inside the 96px (80%) maskable safe zone, so nothing clips. Visually verified the rendered 512 PNG.
-- No config changes needed — `assetsInclude` already covered `**/*.svg` and the SW `globPatterns` already precached `svg` (precache 18→19 entries).
-- **To re-export the PNGs later:** render the SVG with `rx` set to 0 at 192/512. Any rasterizer works; don't hand-round the corners.
-
-## Codespaces devcontainer + prototype-residue cleanup (2026-08-06) — build clean, pushed
-Goal: let a groupmate do frontend work from a browser only — no local Node, MongoDB, or `.env`. Three commits: `5c7b2f9c`, `98c9a661`, `b54e1e95`, `6cc54696`.
-- **`.devcontainer/devcontainer.json`** (new) — Node 24 image (`typescript-node:1-24-bookworm`, matches both dev machines), `workspaceFolder` set to `dental-4-12-main/project` so terminals land where `package.json` is, `postCreateCommand: npm install`, forwards 5173 (auto-opens) + 4000. `.devcontainer/README.md` carries the staff-facing steps and the secrets warning.
-- **Added `npm run dev:host`** (`vite --host`). NOT cosmetic: Vite binds `127.0.0.1` inside the container, which the Codespaces port forwarder cannot reach — plain `npm run dev` appears to start fine and then serves nothing. Existing `dev` script untouched.
-- **A bare Codespace has no backend.** `vite.config.ts` proxies `/api` → `localhost:4000`; nothing runs there, so login and every data screen error out. Documented rather than worked around. Anyone needing real data gets a THROWAWAY dev DB + its own secret via GitHub Codespaces secrets — **never the production `FIELD_ENCRYPTION_SECRET`** (mismatching it makes existing records permanently undecryptable).
-- **Deleted three pieces of Figma-prototype residue**, all untouched since the initial prototype commit: `project/pnpm-workspace.yaml` (no `pnpm-lock.yaml` exists; npm ignores the file), `dental-4-12-main/netlify.toml` (build cmd was `npx pnpm install`; deployment is Vercel), and the `"pnpm": {overrides: {vite: "6.3.5"}}` block in `package.json` (contradicted devDeps' `^6.4.3`, which is what actually installs). `npm run build` verified passing after each removal. Repo-wide grep for `netlify`/`pnpm` now returns nothing outside `package-lock.json` + vendored skills.
-- **`PROJECT_DOCUMENTATION.md` had FOUR stale spots**, not the two first spotted — tech table, file tree, prerequisites (pnpm/Node 18 → npm/Node 24), and an entire §11 Deployment paragraph describing the now-deleted `netlify.toml`. All repointed to Vercel/`vercel.json`. **Unverified inference in that rewrite:** it now says the build command + output dir live in Vercel *project settings*, since `vercel.json` holds only rewrites and nothing in-repo sets them — plausible but not confirmed against the dashboard.
-- Same-day follow-on: backlog #10 (`default_shadcn_theme.css`) was the same class of prototype residue and is now **deleted** too — see that item.
-- **VERIFIED WORKING 2026-08-08** — Codespace launched, container built, `npm install` ran, Vite served, 5173 forwarded, login page rendered. Two fixes were needed to get there:
-  - **The image tag was wrong.** `typescript-node:1-24-bookworm` does not exist and the first launch dropped into recovery mode. Checked MCR's tag list: the `1-` image-version prefix pairs only with older Node lines (`1-22-bookworm` exists; there is no `1-24-*`). Now `24-bookworm`. **Verify any tag against the registry before changing it** — the failure mode is a container that won't build at all.
-  - **`workspaceFolder` does NOT take effect** — the terminal opens at the repo root, so `npm run dev:host` fails with `ENOENT` (no `package.json` there). Worked around by documenting `cd dental-4-12-main/project` in both `CONTRIBUTING.md` and `.devcontainer/README.md`. Root cause not investigated; the `cd` is a fine answer unless it starts annoying people.
-- **`CONTRIBUTING.md` added (2026-08-08)** — Codespace setup, branch-and-PR flow, design-system conventions, and four non-negotiables (no committed secrets, never touch production `FIELD_ENCRYPTION_SECRET`, no hard deletes, no real student data in the repo or a Codespace). Points at root README for the full local stack.
-- **`main` is now protected** — ruleset `protect-main`, PR required, with `Repository admin` on the bypass list so the CLAUDE.md sprint loop (commit + push straight to `main`) still works. Collaborators on Write go through PRs.
-- **Secret audit, clean (2026-08-08).** Full-history scan before considering making the repo public: no `.env` ever committed on any branch, no tracked file with a credential-ish name, no connection strings or `xkeysib-`/`rnd_`/AWS key patterns anywhere in history. Scan self-checked (searching `MONGODB_URI` returns the variable NAME in README/HANDOFF/`db.ts`, never a value). **Repo stayed PRIVATE anyway** — going public would expose the full source of a system holding real minors' PII, plus the manuscript; collaborator access gives the same workflow without publishing.
-
-## Repo housekeeping (2026-08-05)
-- Pushed `f89e4f55` — CLAUDE.md pointer edit + sprint33 figures + `.claude/settings.json` + `.codex/hooks.json`. Also unstranded `06c2613f`, which had been sitting unpushed.
-- **`.gitignore` now covers `.claude/skills/`, `.agents/skills/`, `*.tsbuildinfo`.** The vendored /impeccable skill (~195 files across two copies) stays per-machine — reinstall it rather than syncing it. **Consequence:** `.codex/hooks.json` points at `.agents/skills/impeccable/scripts/hook.mjs`, so that PostToolUse hook no-ops (5s timeout, non-blocking) on any machine where the skill isn't installed. Expected, not a bug.
-- **`docs/reference/` DECIDED 2026-08-05: stays untracked.** User declined committing the 27.8MB of previous-group PDFs. They remain on device 1 only. If device 2 ever needs them for Ch4/5 drafting, put them in shared cloud storage and link it here rather than committing.
-
-## Token cleanup (2026-07-28) — dead tokens deleted + the two reds unified (tsc both + build clean)
-`src/styles/theme.css` only. No component changes, no logic.
-- **Deleted ~23 dead tokens** (declared, consumed by zero screens — Figma-prototype residue): `--chart-1..5`, the whole `--sidebar-*` family (8), `--popover*`, `--secondary*`, `--accent*`, `--card-foreground`, `--destructive-foreground`, `--switch-background`, `--input-background`, plus their `@theme inline` `--color-*` mappings. **Method: grepped `src/` + `index.html` for every corresponding utility class (`bg-sidebar`, `text-accent`, …) and confirmed 0 hits before deleting.** Beware false positives when re-checking: `secondaryCell` (a `studentListTableStyles` property) and `sidebarCollapsed` (a localStorage key) match a naive grep for "secondary"/"sidebar" but are unrelated to the tokens.
-- **Two reds unified**: `--destructive` was `#d4183d` (prototype crimson), now `#DC2626` to match `CHART.danger` in `chartColors.ts`. This is a REAL visual change — it repaints ~35 `text-destructive` usages (Logout, destructive buttons, error text). Keep the two in step if either ever moves.
-- `--input: transparent` was KEPT — not verified as dead, and low-risk to leave.
-- DESIGN.md rules updated to match: "The Two Reds Debt" → **The One Red Rule**; "The Dead Token Rule" → **The No-Dead-Tokens Rule** (a token added must be consumed). Do's/Don'ts updated too.
-- ~~`.impeccable/design.json` NOT updated~~ **SYNCED 2026-08-05.** Sidecar-only refresh (per `document.md`: a stale-hint refresh preserves DESIGN.md and rewrites only the sidecar — so the hand-curated One Red Rule prose was never at risk). Fixed: `generatedAt` bumped; `colorMeta.destructive-crimson` deleted; `deadTokens` → `removedTokens` with a corrected note (they were DELETED from theme.css, not "still declared") and 4 missing names added (`--accent`, `--accent-foreground`, `--card-foreground`, `--destructive-foreground`, now 23); **narrative rules re-synced — the sidecar still carried the superseded "The Two Reds Debt" and "The Dead Token Rule", which contradicted DESIGN.md outright.** All 10 rule names now match.
-- **Also fixed 2026-08-05: DESIGN.md frontmatter still declared `destructive-crimson: "#D4183D"`** as a live token while its own One Red Rule said that crimson was removed — the design doc violated its own No-Dead-Tokens Rule. Removed. Verified `#D4183D` now survives only in a theme.css explanatory comment and in `dental-4-12-main/project/default_shadcn_theme.css`, **which nothing imports** (grep: zero references) — that file is dead prototype residue and is a candidate for deletion, not yet approved.
-- Known gap (low value, not done): sidecar `colorMeta` covers 12 of the 17 frontmatter colors — missing `official-blue-deep`, `form-white`, `muted-fill`, and the three `-surface` fills. Harmless; the sidecar extends rather than mirrors the frontmatter.
-
-## DESIGN.md created + PRODUCT.md softened (2026-07-28) — prep for the dashboard redesign
-Derived via `/impeccable document` (per CLAUDE.md: DESIGN.md is RE-DERIVED, never hand-edited — re-run that command after any material design change).
-- **North Star = "The Clinical Ledger"** (user's pick): the DOH paper form made fast and trustworthy — ruled lines, ordered columns, official blue used sparingly. Drives every ambiguous call.
-- **PRODUCT.md hero-metric ban SOFTENED (user decision).** Decorative hero-metrics (big number + gradient + supporting stats) stay banned; **one** hero *reading* per surface is now allowed where it carries clinical meaning against a **named threshold** (DMFT vs WHO 3.0; RPC compliance vs the school-year deadline) and shows that threshold. Scale must be earned by meaning. Corollary written in: four equal-weight count tiles in a row is the absence of hierarchy, and is why the dashboard reads generic.
-- Also updated PRODUCT.md's context-of-use to reflect Sprint 33 (phone is now fully usable, was "primarily desktop/tablet").
-- **Two findings the scan surfaced — BOTH FIXED same day, see the token-cleanup section below.**
-- **`.impeccable/design.json` sidecar was written but is GITIGNORED** (`.gitignore:32` `.impeccable/`) — so it does NOT sync to the second device. It is fully regenerable via `/impeccable document`, so this is probably fine; un-ignore it only if you want it versioned.
-- Skill update available: installed Impeccable v3.9.0, latest v4.0.2 (`npx impeccable update` — applies next session). Not run.
-
-## Sprint 33 (mobile navigation drawer) — DONE 2026-07-28, LIVE-VERIFIED on Vercel (tsc both + build clean; 25/25 checks at 375px + 1440px, locally AND against prod)
-`Root.tsx` + `Dashboard.tsx` only. No models, no API, no data changes.
-- **Was**: below `md` the sidebar shrank to a permanently-docked 60px icon rail with every label hidden and the `title` fallback gated on the *desktop* `collapsed` flag — so ten unlabeled glyphs, no tooltip (and `title` doesn't fire on touch regardless). School switcher was `hidden md:flex`, and `Dashboard`'s `SchoolBanner` — the only mobile-reachable switcher — was **dead code, never rendered**, so with `RootLayout` refusing to render without a school a phone user had no route back to `/select-school`.
-- **Now**: `<md` gets a 56px top bar (hamburger + FLORAL + current school) and a 280px off-canvas drawer holding the fully **labeled** nav, school switcher, and user identity. Closes on nav click, backdrop, and Escape. Focus moves into the drawer on open and back to the hamburger on close, Tab is trapped, body scroll locked. `main` is full-width below `md`. **Desktop ≥md unchanged** (verified: 220px sidebar, main offset 220px, no hamburger, collapse toggle still →60px).
-- **Key gotcha found during the build — do NOT make the mobile top bar `fixed`.** `OfflineBanner` renders in normal document flow at the top (`App.tsx` mounts it above `RouterProvider`), so a fixed bar sits on top of it and hides the offline/sync warning entirely. Fix: outer wrapper is `flex flex-col md:flex-row` and the bar is `sticky top-0` — stays in flow so the banner shows, still pins on scroll. A sticky bar *inside* `<main>` would NOT work either: `main` has `overflow-x-hidden`, which creates a scroll container and breaks `position:sticky`.
-- Label visibility pattern (reused for logo text, identity block, Change Password, Logout): `collapsed ? 'block md:hidden' : 'block'` — always visible below md, governed by `collapsed` at md+. Badge variant uses `inline-block`.
-- Offscreen drawer is `invisible` when closed (with `md:visible`) so it stays out of the tab order and a11y tree on mobile without hiding the desktop sidebar.
-- Removed dead `SchoolBanner` from `Dashboard.tsx` plus its now-orphaned imports (`useNavigate`, `ArrowLeft`, `School as SchoolIcon`, `getSchoolColor`) and `handleSwitchSchool`. Drawer covers every screen, not just the dashboard.
-- **Verification is reusable**: `dental-4-12-main/project/verify_sprint33.mjs` — 25 assertions across both breakpoints, screenshots to `docs/figures/sprint33/`. Defaults to the local stack (vite :5173 + `dev:server` :4000); pass `BASE_URL=https://dental-app-build.vercel.app` to run it against prod. Both passed 25/25 on 2026-07-28.
-
-## Chapter 4 figures captured (2026-07-28) → `docs/figures/` (18 PNGs)
-Three reusable capture scripts in `dental-4-12-main/project/`: `capture_figures.mjs` (main walk, all 4 roles), `capture_ml_figures.mjs` (predictive figures — wakes/waits for Render), `capture_export.mjs` (export dropdown). 1440×900 @2×, creds read from `.env`, never printed. **Playwright lives in `dental-4-12-main/project/node_modules`, NOT repo root — scripts must sit and run there.**
-- **Login gotcha**: after submit the redirect takes >4s; a fixed `waitForTimeout` then checking `url.includes('login')` gives a false "check credentials" failure. Poll for the URL to change instead.
-- **fullPage + fixed sidebar**: Playwright leaves `position:fixed` elements stranded at their viewport offset on tall pages. Fix is a temporary `addStyleTag` pinning `aside` to `position:absolute; top:0; height:100%` for the shot.
-- **Corrections the run forced into the draft**: medical history + oral conditions are ONE tab ("History & Oral"), not two screens — the old 4.1.2/4.1.3 split described a UI that doesn't exist. Record also has Consent / Treatment History / DMFT History / Referrals / Risk Classification tabs the draft never accounted for.
-- **Two honesty calls now visible in the images** (flagged in the draft, user decides): fig-4.3.5 shows the app's own "trained on synthetic placeholder data" banner; and every figure shows ~6 seeded students (0 High/2 Med/3 Low, Treatment Summary all zero) against Ch1's ~8,000-record claim.
-- Not captured: OCR module (opens inside the student-creation flow, needs a sample IPTR image) — capture by hand.
-
-## Sprint 30 (other roles' dashboards) — DONE 2026-07-12 (tsc both + build clean, pushed, aide view live-verified via screenshot)
-Aide / school-admin / BHO / system-admin dashboards got the dentist-dashboard (23h/23j) layout treatment — Dashboard.tsx only, no data changes: header row with date block + role-appropriate primary CTA (aide → New Appointment `?new=1`; school-admin + BHO → View Reports; admin → Manage Accounts), `space-y-6` rhythm, `.rise` entrance stagger, `[11px]` subtitles under chart h2s. Honest empty states untouched. Aide view confirmed live (CTA + subtitle + date block render); the other three are code-symmetric — skim them when convenient. CLAUDE.md backlog line removed. Closes the last big beautify layout item; remaining beautify after 23w = final polish only.
-
-## Sprint 23x (final polish pass — CLOSES the Sprint 23 beautify series) — DONE 2026-07-12, LIVE-VERIFIED same day
-Post-deploy verification (covers 23w too): prod CSS contains `toast-leave`/`modal-in`/`fill-foreground`; `verify_live_smoke.mjs` 11/11 PASS against prod; dentist-dashboard screenshot checked — sentence-case "Current school" sidebar label renders in the darker blue, all regions/charts render, no console errors. Motion (modal entrance, toast exit, region pop-in) is CSS-marker-verified; worth one human glance whenever convenient, nothing blocking.
-`/impeccable polish` sweep. Detector run over components+styles returned exactly one hit — the documented DentalChart gray-on-color false-positive family (not re-fixed). Real fixes:
-- **Root.tsx school indicator (audit U4's named item)**: the 10px tracked-uppercase "CURRENT SCHOOL" eyebrow was `text-blue-400` on blue-50 (~2.2:1, far under AA) — now sentence-case 11px `text-blue-700` (fill's own hue, AA); "Switch" blue-500→blue-700; literal `bg-blue-50`→`bg-primary-surface` token (hover:bg-blue-100 stays literal per chip/banner rule).
-- **Skeleton.tsx onto tokens**: `bg-white`/`border-gray-200`/`bg-gray-200` → `bg-card`/`border-border`/`bg-muted` — shells again match the real card shells post-token-pass.
-- **Dashboard chart consistency**: axis ticks unified to `fontSize: 12` + legends to 12 across aide/BHO/admin charts (dentist chart already had it; others inherited 16px); `allowDecimals={false}` added to the aide + BHO count YAxes (fractional appointment ticks); radial center `fill-gray-900`→`fill-foreground`.
-- **BHO age table**: header cells aligned to the shared 23q table vocabulary (`font-semibold text-foreground`, no tracked-uppercase one-off); `divide-gray-200`→`divide-gray-100`.
-- Deliberately NOT touched: chips/banners/OCR tints (await their own token pass), Dashboard pies→bars + per-file COLORS centralization (structural, separate approval), dashboard pie-center 10px "students" annotation (chart annotation, not a section eyebrow).
-
-## Sprint 23w (X3 per-region loading + X4 state motion) — DONE 2026-07-12 (tsc both + build clean; live-verified with 23x, see above)
-Closes the last two ranked audit items before the final polish pass:
-- **X3 (Dashboard.tsx)**: global `loading` gate (slowest of 8 fetches blocked the whole page) removed. Header renders instantly; each KPI tile takes a `loading` prop and pulses only its value until its own data source lands (`StatCard` shell/icon/label always visible); each chart card wraps its body in a new local `ChartBody` (skeleton `h-[220px]` → content) keyed to its own flag: students/appointments/rpc hook flags or `extraLoading` (the 8-call batch — audit-trail etc. no longer blocks stat tiles). All 4 role dashboards wired. The old full-page `SkeletonPageHeader/StatGrid/ChartCards` return is gone (those exports remain for other screens).
-- **X4 (index.css + Toast.tsx)**: all inside the existing `prefers-reduced-motion: no-preference` block — `dialog[open]` entrance (fade+rise+scale 200ms, backdrop fade; covers every Modal.tsx dialog app-wide, exits stay instant by design), toast exit (`.toast-leave` 150ms; Toast.tsx two-step dismiss keeps the item mounted ~160ms — under reduced motion it just disappears 160ms later, imperceptible), and content-arrival `.rise` on each ChartBody swap. Deliberately NOT built: per-row enter/leave motion on list mutations — needs new-ID tracking per screen, low value since toasts already acknowledge every mutation (YAGNI; revisit only if polish pass demands it).
-- Post-deploy eyeball wanted: dashboard on a cold load (regions should pop in independently), open any modal (entrance), dismiss a toast (exit).
-
-## Sprint 31 (dentist-validation UX, pattern locked 07-07) — DONE 2026-07-12, LIVE-VERIFIED E2E
-- **AIAnalytics.tsx**: accept/override radio replaced — model output now auto-fills EDITABLE fields (risk level select + recommendation textarea), each with a live chip: blue "AI-suggested" while matching the model, amber "edited — model suggested X" when the dentist changes it. One deliberate **Validate & Save** (notes still required, recommendation must be non-empty). Saved recommendation = dentist's edited text + notes (+ "[Dentist assessment: model predicted X, dentist assessed Y]" when the level changed).
-- **Audit trail records accepted-vs-changed (Chapter 4 gold)**: client sends audit-only `model_risk_level` + `recommendation_edited` in the POST body (strict schema drops them from the record); crudFactory gained an `auditCreateAction` option and the risk-stratifications router uses it — action reads "Created RiskStratification (dentist validated: accepted AI suggestion X)" or "(…changed AI suggestion X → Y; recommendation edited)". Chapter 4 can count accepted vs changed straight from the audit trail.
-- **ML cold-start fix (user-reported live)**: /predictions/status was checked ONCE on page load — a 503 during Render's ~30-60s wake (triggered by that same probe) branded the service "currently unavailable" all session. Now retries every 15s (~2 min) and clears itself; banner is an honest warning ("sleeps when idle… keeps checking automatically") instead of a terminal error.
-- **Live-verified via `verify_decision_support_ui.mjs` against prod** (script updated for the new UI): 2 AI-suggested chips render, edited-chip probe works, Validate & Save saves, and the prod audit trail shows "dentist validated: accepted AI suggestion Medium" from the real run. Gotcha caught live: mongoose modelName is `RiskStratification` (not ERD-style RISK_STRATIFICATION) — audit filters/actions must use that spelling.
-
-## Sprint 32 (chart polish — pies→bars + shared chart colors) — DONE 2026-07-12 (tsc both + build clean; deployed via push, post-deploy eyeball pending)
-- **New `src/app/utils/chartColors.ts`** — single source of truth (`CHART` semantic palette + `RISK_COLORS`); Dashboard's per-file `COLORS`/`RISK_COLORS` objects deleted, all Dashboard chart fills + Reports' two inline literals (procedures bar, consent-by-school ramp) now import from it.
-- **Both remaining pies converted to horizontal bars** (audit U3, easier reading for older staff): dentist Risk Distribution donut and school-admin Oral Health Status pie now use the same label·track·count bar idiom as the RPC funnel/procedures cards; honest empty states added (riskTotal 0 / no students); PieChart/Pie/Cell imports removed.
-- **PARKED (user, usage-conscious): CLAUDE.md hygiene pass** — due by its own every-~5-sprints rule (7 sprints since 07-11: 28/29/30/23w/23x/31/32). Do at next session start; also fold Sprint 31/32 into BUILD-LOG and compress this file's DONE sections then.
-- Post-deploy eyeball wanted: dentist dashboard Risk Distribution bars, school-admin Oral Health bars, Reports consent colors unchanged.
-
-## Sprint A (dentist clinic summary strip, design 3a) — DONE 2026-08-11, LIVE-VERIFIED. ON BRANCH `dashboard-top-row`, NOT MERGED
-Commit `98cf1b17`. tsc both configs + build clean; verified in the running app at 1440px logged in as the dentist. Rollback point is tag `pre-dashboard-redesign` (pushed) — `git checkout main` restores the old tile row exactly.
-- **What changed** (`Dashboard.tsx`, dentist branch only): the four equal-weight `StatCard`s became one bordered "Clinic summary" block — `bg-muted` title bar (label + today's date), four ruled cells via `divide-y lg:divide-y-0 lg:divide-x`, footer line. New local `SummaryCell` component sits next to `StatCard` so Sprint D (dental aide) can reuse it. The page header's right-aligned date/appointment-count block was deleted — both now appear in the strip.
-- **Behaviour preserved:** all four cells are still `<Link>`s to `/patients`, `/appointments`, `/patients?risk=high`, `/rpc`. Card lift → cell tint (`hover:bg-primary-surface`) + chevron; explicit focus ring added (the old tiles used the browser default). Chevron renders only when `linkTo` is set.
-- **New derived values** (all over existing state, no new fetching): `rpcBothVisitsCount`, `rpcVisit1Count`/`rpcVisit1Rate` (was inline in the funnel JSX), `mostOverdueDays` (null when nothing is overdue → footer drops the clause).
-- **Deliberate deviations from the spec, all flagged to the user:** (1) cell 1 says "N screened", NOT "N with a validated risk level" — nothing filters on `validated_at`, see item 13; (2) cell 4's trailing "N of M" uses the RPC denominator, not the student count, since they diverge the moment a student has no RPC record; (3) borders use the existing `--border` token (0.1) rather than the spec's 0.14 outer edge, which is not in DESIGN.md and would have introduced a new value; (4) footer says "N students overdue, most by D days" when several are overdue, since `mostOverdueDays` belongs to one student.
-- **Live verification proved the figures are computed, not transcribed:** footer showed **91** days overdue on 11 Aug where the mock showed 77 on 28 Jul — exactly the 14-day difference. Date rendered as today.
-- **⚠ Confirmed while verifying: the live DB is the stale one.** High-risk rendered `0` with "2 medium · 3 low", matching `fig-4.4.1` and NOT the current `seedStudents.ts` (2 High / 1 Medium / 2 Low). Direct confirmation of item 13 — re-running the seeder will not fix it (it skips by name); only a purge + reseed will.
-- **Still open before merge:** user review of the branch; the Risk Distribution card below still carries the false "Validated caries-risk classification" + "5 students with a validated risk level" (item 13); Sprint B (DESIGN.md blue line) and Sprint C (bar labels still render INSIDE the track, visibly unlike the 3a mock) not started.
-
-## Sprint B (DESIGN.md — blue carries operational state) — DONE 2026-08-11. ON BRANCH `dashboard-top-row`, NOT MERGED
-Commit `b70a0e15`. Adds **The Operational-vs-Clinical Rule** to `DESIGN.md`'s Named Rules and widens the Official Blue entry to include operational state (progress against an administrative target, coverage, completion). Green/amber/red stay clinical-condition-only. Kept on the branch rather than `main` on purpose: the rule exists because of the redesign, so rejecting the redesign should revert it too.
-- **Why it was forced:** at 17% RPC completion the existing status thresholds render amber, directly above a Risk Distribution bar where amber means medium caries risk. One color cannot mean both "this child needs watching" and "we are behind on paperwork".
-- **Stated consequence, deliberately:** blue figures are NOT graded. A blue reading says "this is where we stand"; the context line, not the color, says whether that is acceptable. Anyone later tempted to make the RPC figure go red at a threshold should read that line first.
-- **⚠ Hand-edited, against CLAUDE.md's doc-roles rule** that DESIGN.md is kept in sync by re-deriving via `/impeccable document`. Judgement call, flagged to the user at the time: a named rule is authored judgement about what a color MEANS, which a code scan cannot recover, so a re-derive would likely drop it. If `/impeccable document` is ever run, check this rule survives.
-- No new color introduced → no `.impeccable/` sidecar change needed, and DESIGN.md has no `colorMeta` block to update.
-
-## Sprint C (bar labels out of the clipping track) — DONE 2026-08-11. ON BRANCH `dashboard-top-row`, NOT MERGED
-Commit `0dac6b07`. tsc both + build clean; eyeballed at 1440px on the dentist dashboard (risk distribution + funnel).
-- **The bug:** the `n (n%)` value was absolutely positioned INSIDE an `overflow:hidden` track, flipping between "on the fill" (`right: calc(100-pct% + 8px)`) and "after the fill" (`left: calc(pct% + 8px)`) at a 22% threshold. Both branches clip — percentage offsets run past the right edge on short fills and leave no room after the fill on long ones.
-- **The fix:** value is now a fixed-width 68px right-aligned sibling OUTSIDE the track; track keeps `min-w-[110px]`; label is `basis-36 shrink min-w-0 truncate`. Extracted as one `BarRow` component replacing three identical copies — risk distribution (`:516`), RPC funnel (`:574`), school admin oral-health status (`:944`). Reads better than before: the values now align in a column instead of floating at three different x-positions.
-- **⚠ CORRECTION to what was said on 2026-08-11 earlier in the session:** the 3a prototype does **NOT** contain this fix, contrary to `README.md`'s v5 changelog item 8 ("Bar labels restructured out of the track"). Checked the markup directly — `Dentist Dashboard (3a).dc.html` still uses `position:absolute; left:calc(40% + 8px)` inside the `overflow:hidden` track, i.e. the old "doesn't fit" branch. The mock only *looked* fixed because at those percentages it always takes that branch. Sprint C follows the prompt's written spec, not the mock, and the built app now differs from the mock here deliberately.
-- **⚠ Open decision — `FUNNEL_RAMP.ink` is now unused.** It existed because Funnel Pale (`#9DB2EC`) is too light for a white label sitting ON the bar; with labels outside the track every value is foreground-colored. Left in `chartColors.ts` rather than deleted, because removing it also touches DESIGN.md's funnel-ramp prose, its frontmatter `funnel-ink` entry, and the `.impeccable/` sidecar. **This currently violates The No-Dead-Tokens Rule** — decide whether to remove it or to document why it stays.
-
-## Sprints D–G (the other role dashboards + the last donut) — DONE 2026-08-11, ALL FOUR ROLES LIVE-VERIFIED. ON BRANCH `dashboard-top-row`, NOT MERGED
-tsc both + build clean at each step. Verified in the running app by logging in as each role in turn (user signed in; Claude never enters passwords).
-- **Sprint D `255800e3` — dental aide.** Reused `SummaryCell` with **zero new props**, which is the point: the component generalised. Cells = appointments today / pending charts / RPC follow-ups overdue (keeps red-when-non-zero) / RPC visits pending. Verified: pending charts **1**, RPC visits pending **3**. The round-3 handoff had *inferred* 1 and 4 — the 1 was right, the 4 was wrong. Reading the computation beat guessing. No mock exists for this role; it follows the dentist pattern.
-- **Sprint E `f1f4d129` — school admin ("School summary").** Added the one thing `SummaryCell` lacked: **prose detection**. "Upcoming visits" is a DATE or the sentence "None scheduled", and a sentence at 28px/700 tabular-nums shouts louder than the real figures. Non-numeric values now step down to 15px/600 muted — exactly what the 3a mock specifies. Detected via `/^\d/` rather than a prop, mirroring `StatCard:269`, so no call site can forget it, and ISO dates stay full-size where the date IS the reading. **Note this is the same bug class as the already-fixed known-issue #2 — porting to a new component silently reintroduced it, and the mock is what caught it.**
-- **Sprint F `65405f1e` — BHO ("Barangay summary").** `SummaryCell` needed no changes; Sprint E closed the last gap. Coverage renders BLUE, orally-fit GREEN — **the mock and Sprint B's Operational-vs-Clinical Rule arrived at the same split independently**, which is decent evidence the rule is real rather than a rationalisation. Derived `orallyFitCount`/`needsTreatmentCount` (previously buried inside the percentage expression) so the strip shows "6 of 18" beside "33%".
-- **Sprint G `b5d2c214` — dropped the Screening Coverage donut** (school admin). Raised by the user, correctly: it rendered `coveragePct`, the *identical* figure the strip's second cell now reports with better context, so it was the same number twice on one screen. It was also **the last `RadialBarChart` in the app** — Sprint 32's pie purge swept `PieChart` and missed it, so DESIGN.md:507's donut ban had a surviving exception from July until now. Oral Health Status takes the full width. Removed the dead `screeningCoverageData` + both recharts imports.
-- **⚠ NOT verified: the school-admin layout AFTER the donut removal.** Every other screen was seen post-change; that one full-width-bars layout was not. Check it when next signed in as Rosa Cruz.
-- **⚠ NOT verified: narrow viewports anywhere.** The Chrome extension's `resize_window` reports success but the rendered viewport stays ~1536 CSS px, so Sprint C's clipping fix could not be proven in a browser. The structure is sound (a fixed-width sibling outside an `overflow:hidden` parent cannot be clipped by it) but drag the window narrow once to confirm.
-- **System admin deliberately NOT ported** — see item 12; it needs its four figures decided first.
-
-## Sprints G–H (school admin charts) — DONE 2026-08-11, LIVE-VERIFIED. ON BRANCH `dashboard-top-row`, NOT MERGED
-- **Sprint G `b5d2c214` — removed the Screening Coverage donut.** Raised by the user. It rendered `coveragePct`, the identical figure the strip's second cell now reports with better context, so it was the same number twice on one screen. Also **the last `RadialBarChart` in the app** — Sprint 32's pie purge swept `PieChart` and missed it, so DESIGN.md:507's donut ban had a surviving exception from July until now. Zero pies/donuts remain.
-- **Sprint H `54594be8` — "Screening Coverage by Grade" took its slot.** The user pushed back that Sprint G only *deleted* where the dentist got a pie→bars *conversion*; correct, and the cases differed (dentist's pie held 3 categories that lived nowhere else; the donut held one figure the strip now carries). Resolution was a third option: a chart carrying information the strip CANNOT — which grades are behind. On demo data Grade 6 sits at 1 of 2 while Grades 2 and 4 are complete.
-  - Rows derive from grades that actually have students — nothing hardcoded, a new cohort adds a row. Sorted by the numeral in the label so Grade 10 files after Grade 9, non-numeric (Kinder) first.
-  - Each bar is that grade's **own** coverage, not its share of the school. Because the denominator varies per row, `BarRow` gained an optional `valueText` override → "1 of 2" instead of an ambiguous "1 (50%)".
-  - Both cards **stacked full width**, not side by side: three rows on demo data but up to eleven at a K-G10 school, which would make it ~3× its neighbour's height.
-- **`42d6f48f` — capped `BarRow` at `max-w-3xl`.** A 100% bar across a full-width card was a long slab of solid color. Cap lives on `BarRow` so it is self-limiting: half-width chart cards are already narrower, so dentist/BHO are unaffected and no call site opts in. Also fixed Oral Health Status, which inherited the problem from Sprint G.
-- **Grade vocabulary stays K–Grade 10 — CHECKED AGAINST THE MANUSCRIPT 2026-08-11.** User asked whether to support K-12 (senior high). Manuscript line 104 states BT Integrated is "kindergarten to Grade 10" and the other two are K-6; line 454 confirms it offers "elementary and junior high" only. **None of the three schools has senior high, so do NOT add Grades 11–12** — it would put the app out of step with Ch1/Ch3. If it ever changes, the Sprint H chart needs no edit (it derives rows from data); the work is nine hardcoded `GRADES` arrays (`DentalChart.tsx:46`, `DentalChartList.tsx:12`, `DentalChartNav.tsx:14`, `PatientList.tsx:31`, `Reports.tsx:129`, `RPCTracking.tsx:22`, `TreatmentRecords.tsx:15`, `iptrOcr.ts:33`), `gradeColors.ts`, and `Reports.tsx:320` where the DOH `15-19` bracket maps to `['Grade 10']` alone.
-- **No hover/tooltip on `BarRow`, deliberately** — every value is printed beside its bar, so a tooltip would reveal nothing. The recharts charts on the same screens DO keep `<Tooltip>` because they do not print values on the marks.
-- **Bayanihan wording — LOOKED AT, DELIBERATELY LEFT ALONE 2026-08-11.** The manuscript uses "Bayanihan **activities**" (lines 432–433, describing the 18 deployed dentists/aides who make up most of the ISO respondent pool); the app says "Bayanihan **Mission**" (stored appointment `type`) and "Upcoming Bayanihan **Events**" (card title). Concept is documented, only the label differs. User decided **not** to change it for now, and **the paper must not be edited**. If ever aligned, change the CARD TITLE only — the stored `'Bayanihan Mission'` type value would need a data migration.
-
-## Sprints I–J + dental-chart polish — DONE 2026-08-11. ON BRANCH `dashboard-top-row`, NOT MERGED
-- **Sprint I `ddf23efd` — system admin summary strip.** Dropped the three `"N/A"` tiles (uptime, failed logins, pending actions — measured nowhere) for four real figures from `/users` and `/audit-trails`, both already fetched: active users (context = role mix), signed in today, audit events today (context = busiest module), archived accounts. Verified live: 6 active / 5 signed in / 0 events today / 0 archived. **"Signed in today" is APPROXIMATE** — `last_login` is one timestamp per user, not a session log; commented in place. No 3a mock exists for this role.
-- **Sprint J `2fba8600` + `e02ab1cb` — soft delete on the five clinical child models** (`MedicalHistory`, `DietarySocialHabits`, `OralHealthCondition`, `RiskStratification`, `ToothRecord`).
-  - Not a data-loss bug: **there is no hard-delete endpoint anywhere in the server** (no `router.delete`, no `deleteOne`/`deleteMany`/`findByIdAndDelete` outside `scripts/`), so nothing could delete them. The gap was **retraction** — a mis-charted tooth could only be overwritten in place, losing the original.
-  - Archive/restore routes needed no route code: `crudFactory.ts:42` detects support at runtime via `!!model.schema.path("isArchived")`.
-  - `AuditTrail` deliberately still has none — an archivable audit log defeats its purpose.
-  - **⚠ THE BACKFILL HAS ALREADY RUN AGAINST PRODUCTION** (`npm run backfill:soft-delete`, database `floral` on the Atlas cluster, 2026-08-11): 19/19/19/20/15 = **92 documents**. A second run reported 0 modified. **This was mandatory, not optional:** `crudFactory.ts:59` filters `{ isArchived: false }`, which does NOT match documents lacking the field, and Mongoose applies defaults on write only — without it every existing record of those five models would silently vanish from the UI. Verified afterwards with a read-only count: all five report `total === visible`. The DB change is live regardless of whether this branch merges, and is safe both ways (old code ignores the field).
-  - The backfill script needs `import "../dnsFix.js"` first — Node 24 on this machine fails the Atlas SRV lookup. **The other seed scripts do NOT have this and will fail the same way on this device.**
-- **`e2307d1a` — divider between the condition and treatment code palettes.** They sat in a 2-column grid with only a 16px gap and identical unselected buttons, so two different vocabularies read as one palette. Rule only renders when both are on screen. The legend lower down needed nothing — already separate `bg-gray-50` cards.
-- **`fd193f39` — equalised code-button size, MEASURED not eyeballed.** A condition button was **101px solo vs 89px paired**, and the new divider's one-sided padding made treatment buttons 86px — three sizes for one control. The pre-existing comment claiming more columns already kept them equal was simply wrong. Fixed with symmetric `lg:pr-4`/`lg:pl-4` plus `max-w-[86px]`; all three cases now measure 86px at 1440px.
-- **Recurring hook finding, classified FALSE POSITIVE:** `gray-on-color` on the DMFT table header (`DentalChart.tsx` ~`:1190`). `text-gray-800` on `bg-gray-100` is dark-on-light at ~10:1 and matches its `red-700/red-50` and `blue-700/blue-50` neighbours. Pre-existing. No suppression added — re-classify rather than silence.
-- **⚠ `/impeccable` hook reports `DESIGN.md` newer than `.impeccable/design.json`** and wants `/impeccable document`. NOT run: re-deriving could drop Sprint B's hand-written Operational-vs-Clinical Rule. Sidecar is gitignored so it is per-machine. If ever run, verify that rule survives.
-
-## PROPOSED Sprint K — odontogram (investigated 2026-08-11, NOT built, needs approval)
-One file, `DentalChart.tsx`, no data changes. Findings:
-1. **Temporary teeth are misaligned with their permanent successors — structural.** `:1019-1021` renders primary rows as `5 teeth + w-9 spacer + 5 teeth`, centred; but the permanent row has NO midline gap (11 and 21 are adjacent), so the spacer pushes both halves outward. Correct FDI equivalence is 55↔15, 54↔14, 53↔13, 52↔12, 51↔11, 61↔21 … 65↔25 — the primary row should occupy **slots 4–13 of the 16 permanent slots**. Fix: drop the midline spacer, render 16 slots with three invisible placeholders at each end, so alignment survives any tooth size.
-2. **Boxes can be ~27% bigger.** Fixed `w-[44px]` → row is 764px inside a ~950px card; `justify-center` absorbs ~100px each side. Filling gives ~56px. Bigger targets matter for a clinician clicking 32 squares.
-3. **Treatment code colour is crossed.** The palette selects conditions in teal-600 and treatments in blue-600 (`:968`, `:982`), but the tooth renders the treatment code in **teal-700** (`:509`) — the condition colour. Should be blue.
-4. **ADVISED AGAINST (user asked):** enlarging a code when it is the only one present. Varying type size for the same datum teaches the eye to read size as meaning; a lone condition would look more significant than one beside a treatment. Keep fixed sizes and a fixed slot order — the box already encodes condition via border and fill.
-5. **NOT YET INVESTIGATED:** user asked whether the sidebar's collapsed icons shifting position vs expanded is acceptable. No opinion formed — do not guess, read `Root.tsx` first.
-
-## MERGED + Sprint K + figures recaptured — 2026-08-11
-- **`36eefb8b` — `dashboard-top-row` MERGED into `main`** (`--no-ff`, 12 files, +732/−345), user-approved. Rollback unchanged: `git checkout pre-dashboard-redesign` → `237e2a69`. Vercel auto-deployed; production verified to carry the new build before figures were captured (`"Clinic summary"` present in the deployed bundle).
-- **`30444479` — sidebar nav icons centred when collapsed.** At 60px the rail kept `px-4`, so a 20px icon centred at 26px against the rail's 30px — 4px off, and misaligned with the footer buttons, which already added `md:justify-center`. Collapsing moved one group and not the other.
-- **`7311e835` — Sprint K, odontogram.** (1) Primary teeth now sit under the permanent teeth they replace: rows are 16 equal slots with three blank slots at each end, replacing `5 + w-9 midline spacer + 5`, which pushed both halves outward because the permanent arch has no midline gap. Measured after: 15/55, 11/51, 21/61, 25/65 share an identical x. (2) Teeth 44px → 56px, filling ~100px of slack each side. (3) Treatment code was **teal-700, the CONDITION colour** — now blue-700, matching the palette's teal/blue split. **Deliberately NOT done:** enlarging a code when it is the only one present — varying type size for the same datum makes the eye read size as meaning.
-- **`87c0e58f` + `a3c7f75f` — all 19 Chapter 4 figures recaptured** against production, same-day set. Two capture bugs fixed, neither caused by the redesign:
-  - The three tab figures failed as `no "Consent" tab`. **It was TIMING, not a missing feature** — the tabs are plain buttons with exactly those labels (verified in the live DOM); the script shot after a fixed 2.5s wait and called `count()` on a still-loading detail view. Now waits for the tab strip (20s) and each tab (15s).
-  - `fig-4.4.5-export-menu` looked for an Export button on `/reports`, **which has never had one** — Reports offers "Download PDF"/"Download Excel", and ExportMenu lives on Students/Appointments/RPC/Audit. `capture_export.mjs` already owned that figure and says so in its header. Stale block removed rather than patched.
-  - **Data drift in the new set:** dates read 11 August and the overdue figure is **91 days** where the old figures said 77. If the draft quotes "77 days" it no longer matches. Unresolved honesty calls carry over unchanged: every figure still shows ~6 seeded students against Ch1's ~8,000 claim, and `fig-4.3.5` still shows the synthetic-data banner.
-- **Process note (user asked 2026-08-11): spotted issues are NOT reliably written here.** The standing rule is to record them the same turn; in practice some landed only in commit messages and reached HANDOFF only when prompted. Commit messages are not where this gets read — when something is spotted mid-task, it belongs in Open work immediately.
+| `useDohReportData` | 11 collections, ~108 KB | 1 request, **12.2 KB — flat** |
+| `useRiskClassification` | 9, ~95 KB | 1, 16 KB (row per pupil) |
+| `useRPCTracking` | 6, ~72 KB | 1, 16.3 KB (row per pupil) |
+| `useSchoolSummary` | 6, ~72 KB | 1, **483 B — flat** |
+
+- **Left:** `useFhsisData` (4 reads), `Reports.tsx`'s own five, and paging the two row-per-pupil endpoints. ⚠ Also still true: **the SERVER reads whole collections** to build every one of these; a `$lookup` pipeline is the next step if server memory becomes the constraint.
+
+## Sprint 142 (FHSIS tallies on the server) - DONE 2026-09-05, tsc + build clean, verified end to end. **Every reporting hook is now server-side.**
+- **FOUR whole collections (~35 KB) → 2.9 KB**, most of which is the `schools` list the report's own dropdown needs. Output is COUNTS, so it is **flat**. New `GET /stats/fhsis?month=&school=`.
+- **Logic MOVED to `shared/fhsis.ts`.** The two rules that make this return honest are exactly the ones a copy would lose: the **"within a year"** qualifier on a completed 2nd visit, and **an unrecorded `facility_based` landing in `unrecorded` rather than being guessed into sub-row a or b**.
+- **Verified END TO END, not just at the endpoint:** set the form's Reporting month to August 2026 and the sheet rendered **Children 5-9 → M2 F4 total 6** and **Adolescents 10-19 → M2 F2 total 4**, matching `/stats/fhsis?month=2026-08` exactly.
+- ⚠ **A false alarm worth recording so it is not re-investigated:** the FHSIS tab shows zeros on first open because its **Reporting month defaults to the current month (September)**, and the seeded visits are in Aug/Jul/Apr/Feb. **That is NOT the Sprint 128/130 bug** — this form already discloses it, printing *"Visits recorded in: AUGUST 2026, JULY 2026, APRIL 2026, FEBRUARY 2026"* beside the picker. It is the honest-empty pattern working.
+- ⚠ **The FHSIS tab has its OWN month input**, separate from the page-level month/year dropdowns at top right. Changing the wrong one looks like the report ignoring you.
+
+### #24 — the client half is DONE (Sprints 138-142)
+
+| Hook | Before | After |
+|---|---|---|
+| `useDohReportData` | 11 collections, ~108 KB | 1 request, **12.2 KB — flat** |
+| `useRiskClassification` | 9, ~95 KB | 1, 16 KB (row per pupil) |
+| `useRPCTracking` | 6, ~72 KB | 1, 16.3 KB (row per pupil) |
+| `useSchoolSummary` | 6, ~72 KB | 1, **483 B — flat** |
+| `useFhsisData` | 4, ~35 KB | 1, **2.9 KB — flat** |
+
+**Still open in #24, and stated rather than buried:**
+1. **`Reports.tsx` fetches five whole collections of its own** (`treatments`, `tooth-records`, `dental-charts`, `student-iptrs`, `referrals`) for the Treatment Summary and Referral Tracking panels.
+2. **Two endpoints return a row per pupil** (`risk-candidates`, `rpc-rows`) and still grow with the roll — paging them is separate.
+3. **The SERVER still reads whole collections** to build every aggregate. A `$lookup` pipeline is the next step if server memory becomes the constraint; nothing measured says it is yet.
+
+## Sprint 143 (the Reports page's own five reads) - DONE 2026-09-05, tsc + build clean, verified in the browser. **#24's CLIENT HALF IS COMPLETE.**
+`Reports.tsx` fetched five whole collections of its own — treatments, tooth records, dental charts, IPTRs, referrals — on top of the five hooks already moved. Now one `GET /stats/reports-panels?from=&to=&school=`, **1.4 KB**, serving the Treatment Summary matrix, the two treatment counts and the Referral Tracking rows.
+
+- **Logic MOVED to `shared/reportsPanels.ts`.** Period and school are applied SERVER-side; filtering afterwards would put the whole population back on the wire, which is the thing #24 is about.
+- **⚠ THE MATRIX IS KEYED BY TREATMENT CODE, NOT LABEL** — labels carry the clinic's local terms ("Bunot", "Pasta") and belong to the UI; sending them from an API would make a wording change a server change.
+- **⚠⚠ THAT KEY CHANGE ALMOST SHIPPED A TABLE OF ZEROS WITH A CLEAN TYPECHECK.** The rows were still built from labels, so the render looked up `matrix['Extraction']` against a map keyed `X`. `Record<string, …>` accepts any key, so **tsc passed**. Caught by reading the render after changing the shape — the same lesson as the hook-order crash: *the type checker cannot see a wrong string*. Rows are now codes, displayed through a `labelForCode` map.
+- **Verified in the browser:** with Annual selected the table reads **Fluoride Varnish 3 / 5 / 8 · Oral Prophylaxis 1 / 1 / 2 · Silver Diamine Fluoride 1 / 1 / 2 · TOTAL 5 / 7 / 12**, matching the endpoint for the same range, and the row names render as labels rather than codes.
+- ⚠ **A zero that is NOT a bug:** the default Monthly/September period genuinely contains no charting dates, so the table opens at zero — as it did before this sprint. Also **dev holds 0 TREATMENT rows** (`npm run seed:treatments` produced none), so "Students Treated" is honestly 0; the tooth-level procedure counts above come from TOOTH_RECORD and are unaffected.
+
+### #24 — client half DONE (Sprints 138-143). What is left, stated plainly:
+1. **Two endpoints return a row per pupil** (`risk-candidates`, `rpc-rows`) and still grow with the roll. Paging them is the next real step.
+2. **The SERVER still reads whole collections** to build every aggregate. A `$lookup` pipeline is the answer if server memory becomes the constraint; **nothing measured says it is yet** — the demo is 26 pupils.
+3. Six aggregates now share one shape and one gate (`scopeFilter`), so paging or pipelining them is a repeat of the same change, not six different ones.
+
+## Sprint 144 (the one row field that grew with TIME is now bounded) - DONE 2026-09-05, tsc + build clean, verified in the browser.
+**⚠ THIS IS NOT THE PAGING SPRINT, AND THAT IS DELIBERATE.** Measured first: `risk-candidates` is **673 B/row** and `rpc-rows` **685 B/row** — about **5.4 MB each at 8,000 pupils**. Real, but an order of magnitude below the 32 MB the reports were.
+
+**Why paging was NOT built:** both pages filter the WHOLE population client-side — Risk has search + grade + section + risk level + gender + age group + priority sort + bulk "Assess Selected"; RPC has search + grade + section + gender + age group + outstanding-only + treatment. **Paging the query without moving all of those server-side produces filters that only filter the current page** — a control that appears to work and does not, which CLAUDE.md forbids outright. That is its own sprint per page, and it needs the bulk-select semantics decided first (does "Assess Selected" mean the page or the filtered set?).
+
+**What WAS done, because it is correct on its own merits:**
+- **`history` is bounded to the last TWO entries on the list** (`historyLimit`), with the true `historyCount` alongside. **It is the ONLY row field that grows with TIME as well as roll size** — a pupil followed K to G10 accumulates assessments forever, so the response grew every school year even if the roll never changed. The list only ever reads the latest (badge) and the last two (trend).
+- **New `GET /stats/risk-history?student_id=`** for the detail panel — read once per selection, not once per page. **It carries the same `scopeFilter` gate**; without it a pinned `school_admin` could pull any pupil's clinical history by id, which is exactly the hole Sprint 101 closed on the read paths. Unknown or out-of-scope id → 404.
+- ⚠ **A format bug caught by reading the endpoint's own output:** `.lean()` returns `visit_date` as a Date, so `String(date).slice(0,10)` produced **"Sun Aug 09"** instead of `2026-08-09` — the detail panel would have printed a different date format from the list for the same assessment. Converted to ISO first.
+- **Verified in the browser:** selecting a pupil shows Risk History `High · Visit: 2026-08-28 · DMF 5 · Not validated`, fetched per pupil, correctly formatted.
+
+**#24 remaining, unchanged and honest:** paging the two list endpoints (with their filters moved server-side), and the server still reading whole collections to build each aggregate. **Nothing measured says either is hurting yet at 26 pupils.**
+
+## Sprint 145 (Risk Classification is filtered, sorted and PAGED on the server) - DONE 2026-09-05, tsc + build clean, verified in the browser and at the endpoint.
+The paging sprint Sprint 144 deliberately did not attempt. **~5.4 MB at 8,000 pupils → one page of 50 rows (~34 KB), whatever the roll.**
+
+- **EVERY filter moved together, and that was the whole point.** Search · grade · section · risk level · gender · age group · sort · **and the SCHOOL context**. Paging the query while any one stayed in the browser would have filtered only the current page — a control that appears to work and does not.
+- **⚠ THE SCHOOL SCOPE WAS THE EASY ONE TO MISS.** The page filtered by `selectedSchool` client-side; leaving it there would have shown *"page 1 of the whole roll, minus the other schools"* with a page count that lies.
+- **⚠ COUNTS AND DROPDOWN OPTIONS ARE COMPUTED OVER THE WHOLE FILTERED POPULATION, never the page.** The four risk tiles must describe the roll, and a grade dropdown listing only page 1's grades hides the value you would need to pick next. Options are additionally scoped to the school context so they never offer another school's grades.
+- **"Assess Selected" still means what it always meant.** `checkedIds` was already a Set that survives paging, so the semantics did not change — but ticked pupils from other pages need their `features`, so every row ever loaded is kept in a `rowCacheRef`. Bulk assessment now iterates **all ticked ids**, not `filtered ∩ ticked`, which after paging would have silently assessed a subset. The pager says *"N selected across all pages"* so that is visible rather than assumed.
+- **`age.ts` moved to `shared/`** — its own comment warned that a second copy of the brackets is how two screens disagree about a 9-year-old, and the age-group filter now runs server-side.
+- **The selected pupil survives paging** — the detail panel falls back to the row cache, so opening a pupil then paging away does not blank it.
+- **Verified at the endpoint AND on screen:** Annex A → 6 rows / total 6, tiles High 2 · Medium 2 · Low 1 · Unassessed 1 (unchanged from before the sprint), grade options only Annex A's three grades; `risk=High` → 2 rows, total 2, the right two pupils; `limit=2&offset=2` → 2 rows with **total 26**, so the pager knows the true size. The pager hides itself below one page.
+- **Left in #24:** the same treatment for `rpc-rows` (seven filters of its own), and the server still reading whole collections per aggregate.
+
+## Sprint 146 (RPC Tracking filtered and paged on the server) - DONE 2026-09-05, tsc + build clean, verified in the browser and at the endpoint. **BOTH list screens are now paged.**
+A repeat of Sprint 145 on the second list: **~5.5 MB at 8,000 pupils → one page of 25 rows.**
+
+- **All seven filters moved together, plus the school context:** search · grade · section · gender · age group · status (`outstanding` is the resting value, not `all`) · treatment code. Any one left behind would have filtered only the visible page.
+- **`total`, `schoolTotal` and `sectionOptions` are computed over the POPULATION.** The pager's *"1-6 of 6"* and its *"(filtered from N)"* have to describe the roll, and the section dropdown narrows to the chosen grade over the whole school, not the page — verified: `grade=Grade 6` returns `sections: ["Topaz"]`.
+- **`usePagination` is gone from this screen**; the same page-size behaviour (changing 25 → 50 keeps you near the same records) is reimplemented against the server's totals so the control keeps working identically.
+- **⚠ A THIRD COPY OF THE DOH AGE BRACKETS DELETED.** `RPCTracking.tsx` had its own private `calculateAge`/`getAgeGroup` — `shared/age.ts` says in its own header that a second copy is how two screens disagree about a 9-year-old, and this was the third. The filter that used them runs on the server now.
+- **Verified at the endpoint:** Annex A → 6 rows / total 6 / schoolTotal 6, sections `Dahlia, Garnet, Topaz`; `grade=Grade 6` → 2 rows, sections narrowed to `Topaz`; `status=all` → 25 rows of **total 26** (page 1); `limit=2&offset=2` → 2 rows, total 26; `status=complete` → 1 pupil. **On screen the page is unchanged**: the same six pupils, `1-6 of 6 records`, items-per-page 25.
+
+### #24 — CLOSED for the client. Six aggregates, two paged lists.
+| Screen | Before | After |
+|---|---|---|
+| DOH Consolidated | 11 collections, ~108 KB | 12.2 KB, **flat** |
+| Risk Classification | 9, ~95 KB | one page of 50, **~34 KB** |
+| RPC Tracking | 6, ~72 KB | one page of 25, **~17 KB** |
+| School Summary | 6, ~72 KB | 483 B, **flat** |
+| FHSIS | 4, ~35 KB | 2.9 KB, **flat** |
+| Reports panels | 5, ~50 KB | 1.4 KB |
+
+**The one honest caveat left:** the SERVER still reads whole collections to build each aggregate. Nothing measured says that hurts at 26 pupils; a `$lookup` pipeline is the answer when it does. That is the only #24 item still open.
+
+## Sprint 147 (recording an RPC visit now records the TREATMENT too) - DONE 2026-09-05, tsc + build clean, verified end to end. Closes #62.
+User: *"record visit is also treatment, in rpc tracking"* — and the code agreed with them in three of its own comments.
+
+- **`PREVENTIVE_CARE_RECORD` had FOUR fields** and recorded that a pupil was seen, never what was done. It now carries `oral_screening`, `oral_prophylaxis`, `fluoride_varnish`, `oral_hygiene_instruction` and `caries_risk` — **the form's own per-visit columns**, in its order.
+- **⚠ DEFAULT null, NEVER false**, matching `facility_based`. Every pre-Sprint-147 visit has no answer, and `false` would claim on a filed return that a service was withheld. The TCL renders null as BLANK; only an explicit `true` ticks.
+- **⚠ THE FIX THAT MATTERS: an explicit "not done" is no longer overridden by the chart.** The TCL's per-visit columns used to read the DENTAL CHART — *"has this pupil ever had FV?"* — where the form asks *"was FV done at this visit?"*. They now read the visit, falling back to the chart **only where the visit recorded nothing**, so old records keep their previous behaviour and new ones are fact.
+- **`Counseling` had NO source at all** before this. It is the oral hygiene instruction, and the visit now records it.
+- **Modal defaults are TICKED, deliberately:** an RPC visit that happened performed the routine set, so the dentist unticks the exception — the rarer action. ⚠ The ticks **reset after each save**, or the next pupil would inherit them, and a service on a form because a modal remembered it is a fabricated entry.
+- **⚠ `caries_risk` stores "Moderate"**, the FORM's word for the band the predictive module calls "Medium". On the form, the form wins.
+- **NOT routed through TREATMENT or TOOTH_RECORD**, deliberately: `TREATMENT` is free-text chairside notes, and a varnish or prophylaxis is whole-mouth, so a per-tooth record would invent data the dentist never gave.
+- **Verified end to end on dev:** recorded Visit 1 for Villanueva, Ivan on 2026-03-15 with **fluoride varnish deliberately UNTICKED** and risk Moderate. Stored: `{oralScreening:true, oralProphylaxis:true, fluorideVarnish:false, oralHygieneInstruction:true, cariesRisk:"Moderate"}`. The TCL row then read **Oral screening ✓ · Counseling ✓ · Oral Prophylaxis ✓ · Fluoride Varnish App BLANK · Caries Risk Moderate ✓ · Low blank** — the explicit "not done" survived, rather than being re-ticked from his chart history.
+- ⚠ **That test visit is still in the dev database** (Ivan now reads `overdue`). It is real, plausible demo data on a disposable seeded database, so it was left rather than deleted — but it is the only visit carrying services, which is worth knowing when reading dev.
+- **ERD deviation recorded in `docs/DATA-MODEL.md`; the Chapter 3 figure now owes SIX.**
+
+## Sprint 148 (the chart screen stopped hiding later chartings) - DONE 2026-09-05, tsc + build clean, verified in the browser. #63 step 1.
+**A live bug with measured data loss**, found while answering the user's question about visit-1 vs visit-2 charting.
+
+- **The screen rendered `charts[0]` — the OLDEST charting of the school year — and hid every later one.** `useDentalChartData` did `.find()`; there was no picker, so nothing said another existed. **Measured on dev: 22 of 26 IPTRs have two or more chartings.**
+- **Now: every charting is listed and selectable, and the LATEST is the default** — that is the current state of the mouth, where the old code showed the oldest.
+- **Verified on a pupil with three** (Aug 15 2025 · Jan 20 2026 · Jul 9 2026): the picker reads *"3 chartings this school year"*, and switching between them renders **12 / 10 / 9** marks respectively. Only the first was ever reachable before.
+- **The picker hides itself at one charting** — a control with a single option is noise.
+- **Each charting is read ALONE, never merged**, per the user's answer that the dentist screens and treats at the same visit: a charting is that visit's findings and its treatments.
+- ⚠ **Editing follows the selection**, because `handleSaveChart` writes to `currentYearData.dentalChart`. **So selecting an old charting and editing it edits history.** That is arguably right — a typo from January should be fixable — but it is now possible where it was not, and the only guard is that the picker shows which date is selected and flags the latest. **If the dentist wants past chartings read-only, say so and it is a one-line condition.**
+- ⚠ **Creating a NEW charting from this screen is still not possible** — unchanged from before. That is #63 step 2's job: Record Visit will create the charting already attached to the visit.
+
+## Sprint 149 (a charting now belongs to a visit) - DONE 2026-09-05, tsc + build clean, verified end to end. #63 step 2.
+- **`DENTAL_CHART.preventive_id`** (nullable FK, ERD deviation) — the visit a charting was done at.
+- **Record Visit has TWO exits now:** *Record visit* alone, and ***Record visit & chart now***, which creates the visit, creates the charting **already attached to it**, and opens that charting. **Two acts, two buttons** — a plain visit leaves no empty charting behind for someone to read as *"charted, found nothing"*.
+- **⚠ The chart-now button is hidden for an AIDE.** `DENTAL_CHART.dentist_id` is required and an aide has no DENTIST row; absent beats failing at save.
+- **The charting picker labels a linked charting `· Visit 1` / `· Visit 2`** and shows the date alone for unlinked ones rather than guessing a number.
+- **Verified end to end:** recorded Visit 2 for Castillo, Nico on 2026-04-20 via *chart now* → landed on `/dental-chart/…?tab=chart&chart=…` with the picker reading **Aug 15 2025 · Apr 20 2026 · Visit 2 (selected) · Aug 9 2026 · latest**.
+- ⚠⚠ **TWO FAILED FIXES BEFORE THAT WORKED, both with clean typechecks and builds.** A `useEffect` keyed on `selectedYear` wiped the `?chart=` deep link: it fires on mount, **and again when the year index resolves after the data loads**, so a first-run guard was not enough either. **The right answer was NO effect at all** — a stale chart id needs no clearing, because the lookup already falls back to the latest charting when the id is not in the year on display. Caught only by opening the browser, twice.
+- ⚠ **Step 3 is NOT done:** the reports still infer "1st / 2nd application" from chart dates. They can now read `preventive_id` instead, which is the point of the link.
+- ⚠ **Dev test data:** Castillo, Nico now has a Visit 2 (2026-04-20) and an empty charting attached to it. Left in place — dev is seeded and disposable — but it is the only chart carrying a `preventive_id`.
+
+## Sprint 150 (the DOH report's 1st/2nd application stopped being a guess) - DONE 2026-09-05, tsc + build clean, **filed numbers verified UNCHANGED on today's data**. #63 step 3 — the series is complete.
+`tallyIptrServices` used to ORDER CHARTS BY DATE and call the first one carrying a code the 1st application. Its own comment called that "an interpretation". Sprint 149's `preventive_id` means a linked charting STATES its visit, so the ordinal is now a lookup.
+
+- **⚠ LINKED AND UNLINKED CHARTINGS ARE COUNTED BY DIFFERENT RULES, deliberately.** A linked charting's codes go to the visit it names. Unlinked chartings keep the OLD per-code sittings rule exactly — one sitting is a 1st application, two or more adds a 2nd. A linked charting is excluded from the sittings tally so nothing is counted twice.
+- **⚠⚠ THE FIRST ATTEMPT SILENTLY CHANGED A FILED RETURN.** It filled "slot 1 then slot 2" per CHART, oldest first, and dropped everything after the second charting — but the old rule was per CODE, so a code appearing only in a pupil's THIRD charting still counted as a 1st application. **Diffing the report before and after caught it: `sdf_1st` fell 9 → 7 and `sdf_2nd` rose 0 → 2.** Both versions typechecked and built. **A refactor of a filed report is only done when the numbers are diffed, not when it compiles.**
+- **VERIFIED BOTH WAYS.** *Nothing lost:* **0 of the report's keys changed** against the pre-sprint baseline — today's data is entirely unlinked, so the old rule still governs it. *The link works:* adding an SDF tooth record to a chart **linked to Visit 2** moved `sdf_2nd` 0 → 1 and left `sdf_1st` at 9 — where the date rule would have called it a 1st application, because that charting is the 2nd of three by date.
+- The fabricated tooth record used for that proof was removed afterwards; Castillo's empty Visit-2 charting from Sprint 149 remains.
+
+### #63 IS COMPLETE (Sprints 148 → 150)
+1. **148** — the chart screen stopped hiding later chartings (22 of 26 IPTRs have more than one; one pupil was showing 3 of 4 tooth records).
+2. **149** — a charting belongs to a visit (`preventive_id`), and Record Visit can create it already attached.
+3. **150** — the report reads the link instead of inferring from dates, with the old rule kept as the fallback for every charting made before 149.
+
+**What this bought:** the user's observation — *"visit 1 is charting to treatment, same as visit 2"* — is now something the data model can actually say. Combined with Sprint 147's service ticks, an RPC visit records **what was done** and **which visit did it**, and three filed figures stopped being approximations.
+
+## Sprint 151 (the audit program starts, and the map it audits against was stale) - DONE 2026-09-11, no code touched
+
+**Read-only, as the program requires.** `git diff --stat` over `dental-4-12-main/` and `ml-service/` is empty. Only docs changed.
+
+**Written:** `docs/audit/LEDGER-sec.md` (3 seeded + 11 new findings) · `docs/audit/LEDGER-bug.md` (2 seeded) · `docs/audit/trust-boundaries.md` (new) · `docs/ARCHITECTURE.md` (re-derived).
+
+**THE STRUCTURAL FINDING — `ARCH-01`: there are TWO read surfaces and only one of them is guarded.** 20 models go through `createCrudRouter`, which enforces role, school scope, archive visibility and per-role redaction in one place. Beside it sit **12 hand-written `GET /stats/*` routes carrying `requireAuth` and nothing else — not one has `requireRole`.** Every guarantee the factory makes must be re-made by hand twelve times, and a new `/stats` route inherits none of them. The factory's own `redact` docblock states the principle its neighbour breaks: *"Hiding the screens is not enough; the API is the door."* This is the root of both HIGH findings below.
+
+**TWO HIGH FINDINGS, both read off the code, neither yet confirmed live:**
+- **`SEC-03` — four `/stats/*` routes return pupil NAMES with no role gate and no redaction** (`index.ts:846` student-rows, `:362` reports-panels, `:492` rpc-rows, `:566` risk-candidates), while `GET /api/students` redacts exactly those fields for `school_admin` (`:921-926`). Same hole Sprint 101 closed on `/students`, still open on the parallel surface. ⚠ **Sprint 153 must confirm it against a live login before it is treated as proven.**
+- **`SEC-04` — school scoping FAILS OPEN on an empty `school_ids`.** `userSchools()` returns `null` for an empty array (`schoolScope.ts:137`), `scopeFilter` reads `null` as "no restriction" (`:155`), and the query goes out unfiltered. A scoped user with no schools assigned sees EVERY school. The same file fails *closed*, deliberately and with a comment, for an unknown model (`:161`) — **the two halves disagree about which way to fail.** Today `system_admin`/`bho_staff`/clinical staff legitimately hold no `school_ids`, so "unscoped by role" and "unassigned by accident" are the same state.
+
+**Also recorded:** `SEC-05`/`SEC-06` archive+restore use `findByIdAndUpdate` on encrypted models (the thing this codebase forbids everywhere else) and skip `decryptForResponse` — **flagged to VERIFY in Sprint 155, not to fix on the strength of the rule** · `SEC-07` cookie auth with no CSRF token, severity rests on the cookie's SameSite flag (152) · `SEC-08` the SW caches `/api/*` into Cache Storage, so decrypted PII outlives logout on a shared clinic PC — encryption at rest undone at the edge (156) · `SEC-09` Mongoose validation messages returned verbatim · `SEC-10` `/auth/refresh` is the one sensitive auth route with no rate limiter · `SEC-11` helmet covers the JSON API but the SPA's HTML is a Vercel static asset with no CSP at all.
+
+**⚠ `ARCHITECTURE.md` was stale on SIX counts** (`ARCH-03`, now fixed) and every later audit sprint would have been measured against it: documented `PATCH /:id` where the factory registers **`PUT /:id`** · listed 4 `CrudOptions` where **12** exist · described school scoping **nowhere** (new §2.5) · listed 1 `/stats` route where 12 exist · omitted `/day-notes` and `/referrals` · said "the 16 ERD models" where `models/index.ts` exports 19 · and described the `findByIdAndUpdate` failure as *"the write lands as plaintext"* when the real mode is **corruption plus a crash on the next decrypt**. That last one matters: it is the difference between a recoverable mistake and an unrecoverable one.
+
+**`ARCH-02`, small but worth naming:** `middleware/auth.ts:21` still says *"school_ids is carried but NOT yet enforced on any query — Sprint 101"*. Sprint 101 shipped the enforcement. The comment sits at the exact spot a reader checks to learn whether scoping is on, and it says the opposite of the truth.
+
+**Next: Sprint 152 (auth & session).** It also re-severities `SEC-07` and answers `SEC-10`.
+
+---
+
+## Sprint 152 (auth and session; and the finding that corrected one of 151's) - DONE 2026-09-11, no code touched
+
+**Read-only.** `git diff --stat` over `dental-4-12-main/` and `ml-service/` empty. 7 new findings, and **four earlier rows changed status** — which is the ledger doing its job rather than accumulating.
+
+**⚠ SEC-04's CLAIM WAS WRONG AND IS NOW CORRECTED.** Sprint 151 called the empty-`school_ids` behaviour a fail-open bug and said the two halves of `schoolScope.ts` disagreed. **They do not.** `User.ts:14` (Sprint 100) documents it as deliberate, verbatim: *"EMPTY ARRAY MEANS ALL SCHOOLS: that keeps system_admin and bho_staff working exactly as the old `school_id: null` did, with one rule instead of a per-role special case."* **The finding survives; its cause does not.** The real problem is that "all schools" and "assigned to nothing" are the SAME VALUE, so the second cannot be expressed — a `school_admin` whose assignments are cleared is promoted to global rather than reduced to nothing. Still HIGH. **Sprint 153 settles the true severity by answering one question: can a `school_admin` actually REACH an empty `school_ids` through the UI or the API?**
+
+**SEC-07 CLOSED — not a bug.** `baseCookieOptions` is `{httpOnly: true, secure: isProd, sameSite: "lax"}`. Lax withholds the cookie from cross-site POST/PUT/PATCH, which is the whole CSRF vector here; every state change in this API is one of those verbs. Recorded so nobody re-raises it. Re-open only if a state-changing GET is ever added or `sameSite` is loosened.
+
+**SEC-08 upgraded from inference to CONFIRMED.** `AuthContext.tsx:259-268` is the entire logout path — `/auth/logout`, `setUser(null)`, `clearUserCache()`, `clearSessionHint()`, `setSelectedSchoolState(null)`. **No `caches.delete('api-cache')`.** Decrypted patient data outlives logout on a shared clinic PC. Note `authCache` IS cleared — that one holds staff identity, not patient data; they are different stores and only one is a problem.
+
+**SEC-10 raised LOW to MED and re-aimed.** 151 guessed the unlimited route that mattered was `/auth/refresh`. It is **`/auth/change-password`** (`authRoutes.ts:32`) — it verifies the current password and has no limiter, which is exactly the oracle `/auth/verify-password` was limited to prevent, **two lines below it, with the reason in the comment** (*"an unlimited yes/no on a password is an oracle"*). Anyone on a live session can brute-force the current password at unlimited rate.
+
+**NEW — the one to act on first is `SEC-12` (MED): there is no way to revoke a session.** `logout` clears cookies and nothing else; there is no denylist and no `token_version` on User for `refresh` to check. `changePassword` and `resetPassword` both rewrite the hash and touch no token state. **So a refresh token copied before logout is good for its full 7 days, and changing a password does not evict an attacker.** Concrete instance: Sprint 75 rotated all five demo passwords against the live DB — any session live at that moment survived it. Partly mitigated by the default, where both cookies are session cookies that die with the browser.
+
+**Also new:** `SEC-13` the reset link's host comes from `req.headers.origin` — **not exploitable today because the CORS allowlist rejects a forged origin first, and THAT is the finding**: CORS is load-bearing for reset-link integrity, which is not what it was added for, and `app.ts` records this block used to be `origin: true`. Restoring anything like it turns this into account takeover with no change to the reset code. Fix is to read `APP_URL` unconditionally; the header buys nothing when production is same-origin · `SEC-14` login is a timing oracle for account enumeration (unknown email skips bcrypt entirely, so the generic message is undone by the clock) · `SEC-15` rate limiting is per-IP with no per-account lockout — ten bad logins from one clinic lock out every member of staff there, while an attacker spread across IPs faces no account ceiling at all; `verifyOtp` also never counts attempts or clears the code on a wrong guess · `SEC-16` the 2FA code is in the email SUBJECT, so it shows in a lock-screen preview · `SEC-17` refresh tokens are never rotated · `ARCH-04` `secretGuard` warns and never throws (deliberate — a hard exit on Vercel's boot would take the live site down; already backlog #49).
+
+**What is CORRECT here is recorded in the ledger too**, so no later sprint re-derives it: HS256 pinned on sign and verify with separate access/refresh secrets · bcrypt 12 rounds · OTP from `randomInt` and reset token from `randomBytes(32)`, only SHA-256 hashes stored, all three hash fields `select: false` so the whole-document responses from `/auth/me` and `login` cannot carry them · OTP single-use, cleared before the session is issued · `forgotPassword` always returns the same generic 200 · `refresh` re-reads the DB instead of trusting token claims.
+
+**⚠ One budget note:** `User.ts` (41 lines) was read although it belongs to Sprint 155's list. Deliberate — `/auth/me` and `login` both return a whole User document, and "nothing sensitive leaks" could not be claimed honestly without seeing the schema. It is also what corrected SEC-04.
+
+**Next: Sprint 153 (RBAC + multi-school tenancy)** — the highest-consequence sprint, and it now carries two inherited questions: confirm `SEC-03` against a live `school_admin` login, and answer whether an empty `school_ids` is reachable.
+
+---
+
+## Sprint 153 (RBAC and tenancy - the highest-consequence sprint, and it found a one-word bug) - DONE 2026-09-11, no code touched
+
+**Read-only.** 4 new findings plus the role x model x verb matrix, now in `docs/audit/LEDGER-sec.md`. **⚠ The live spot-check was NOT run — see the bottom of this section.**
+
+**⚠ SEC-18 (HIGH) — `createUser` WRITES A FIELD THE SCHEMA DOES NOT HAVE, so every account created through the API gets `school_ids: []`, which MEANS ALL SCHOOLS.**
+- `userController.ts:11` destructures **`school_id`** (singular); `:33` writes `school_id: school_id || null`. **`User.ts` has no such path** — Sprint 100 renamed it `school_ids`. Mongoose strict drops the unknown key, the write is a no-op, and `school_ids` takes its `[]` default. The controller **never reads `school_ids` at all**.
+- **The UI sends the right thing and is ignored.** `AccountManagement.tsx:98` holds `school_ids: [] as string[]`, `:385` binds the school picker to it, `:204` posts the whole form. The admin picks a school; the server discards it.
+- **So a School Administrator created and assigned to ONE school is created with access to ALL THREE.** Not an edge case — the outcome of every account creation.
+- **This is the concrete answer to Sprint 152's inherited SEC-04 question.** An empty `school_ids` is not merely reachable; it is the default state of every new user.
+- **Why nobody noticed:** editing a user afterwards goes through `crudFactory`'s PUT, where `school_ids` IS a schema field and does save. Create-then-edit ends up correct; create-only does not.
+- ⚠ **A fix must also audit EXISTING accounts** — every user created since Sprint 100 may be carrying `[]` unintentionally. Check the `school_admin` first.
+- Verified there is no compensating mapping: `grep "school_id\b"` minus `school_ids` returns only those two lines plus Student's own legitimate field, and there is no `pre('save')` hook on `User.ts` or `models/shared/`.
+
+**SEC-19 (HIGH) — thirteen clinical models are readable, UNREDACTED, by `school_admin` and `bho_staff`.** Every clinical mount omits `readRoles` and so takes `crudFactory`'s `ALL_ROLES` default; only `Student` carries a `redact` block. `GET /api/medical-histories?iptr_id=X` returns allergies and the hypertension/diabetes/hepatitis/blood-disorder flags; `GET /api/treatments?iptr_id=X` returns `diagnosis` and `treatment_done`. **Both hold AES-256 encrypted fields — encrypted because they are sensitive — and the API decrypts them on the way out for a role CLAUDE.md says gets "no clinical records".** The grant is deliberate (`index.ts:876`) and its comment cites CLAUDE.md while contradicting that clause.
+- ⚠ **Do NOT narrow it blind.** The grant was written when dashboards read raw collections; Sprint 151 found twelve `/stats/*` aggregates that now serve those screens. **First task of the fix sprint is to grep which hooks the school_admin and bho_staff screens actually use** — if they are on `/stats`, this is dead weight and safe to narrow; if any screen still reads a raw clinical collection, narrowing breaks it.
+
+**SEC-20 (MED)** — the student `redact` block names `school_admin` only, so **`bho_staff` reads full pupil identity across every school** (names, addresses, guardian contacts, PhilHealth, 4Ps for all ~8,000). CLAUDE.md gives that role consolidated reports, which need no identified rows. One word to fix, after the same load-bearing check.
+
+**SEC-21 (LOW)** — creating a user with a duplicate email answers **500**, not 409: no uniqueness check in `createUser`, and `app.ts` only special-cases `ValidationError`/`CastError`, so the Mongo duplicate-key error falls through to the generic handler.
+
+**SEC-13 has a SECOND call site** — `userController.sendResetLink` builds its reset link from `req.headers.origin` exactly as `forgotPassword` does. **Both must change together**, or the admin-initiated path keeps the coupling.
+
+**What the matrix shows is RIGHT, and is worth saying:** archive and restore are admin-only almost everywhere, the two deviations (StudentIptr archive to dentist, DayNote archive to clinical) each carry a written reason, `AuditTrail` is admin-read and unwritable through the API, and the write column is properly split clinical-vs-admin throughout. **The problem is not the write column — it is that the read column is `all 5` on thirteen clinical models.**
+
+**⚠ THE LIVE SPOT-CHECK WAS NOT RUN, DELIBERATELY.** The program calls for logging in as `school_admin` to confirm SEC-03 and SEC-19 against a running server. **This PC's `.env` points at PRODUCTION and there is no dev database here (SEC-00).** Probing live patient records with a low-privilege account to prove an access-control finding is not something to do casually. **So both HIGH read-access findings remain read-off-the-code, not demonstrated** — confirm them on the laptop's dev database, or once a dev `.env` reaches this PC, before any fix sprint acts on them. **SEC-18 needs no live check**; the schema mismatch is decisive on its own.
+
+**Next: Sprint 154 (route-by-route input validation + authz)** — `routes/index.ts` at 1006 lines, expected to split into 154b.
+
+---
+
+## Sprint 153a (the FIX for SEC-18 - every account was created holding every school) - DONE 2026-09-11, tsc x2 + build clean
+
+**The bug in one line:** `createUser` destructured **`school_id`** (singular, the name Sprint 100 renamed away) and wrote it back as `school_id: school_id || null`. `User.ts` has no such path, so mongoose strict dropped the key and `school_ids` took its `[]` default — which `User.ts:14` documents as **ALL SCHOOLS**. The account form had been sending `school_ids` correctly the whole time; nothing on the server read it.
+
+**Changed — `server/controllers/userController.ts`:**
+- destructures `school_ids` and passes it to `User.create()`; the dead `school_id` write is gone
+- validates it explicitly as an array of ObjectIds. Deliberate, two reasons: a non-array would otherwise CAST to a single-element array rather than fail, and a bad id would surface as a mongoose CastError that `app.ts` turns into a 400 quoting internal schema detail (that is SEC-09, still open)
+- carries a comment naming SEC-18, so the next reader knows why the plural matters
+
+**New — `server/scripts/auditUserSchools.ts` + `npm run audit:user-schools`.** READ-ONLY. Lists every account with an empty `school_ids`, split into: **casualties** (`school_admin` — a real grant), **REVIEW** (dentist/aide — `[]` is probably right since one of each rotates across all three schools, but the script refuses to judge that for you), **OK** (`system_admin`/`bho_staff`, unscoped by design), and **migration stragglers** (a leftover singular `school_id`, meaning `migrateUserSchools` never ran over that row — its value is ignored by every read in the app). Reads the RAW collection, not the model, for the same reason `migrateUserSchools` does: a leftover `school_id` is invisible through a model that no longer declares it.
+
+**⚠ THE CODE IS FIXED; THE DATA IS NOT YET CHECKED.** `npm run audit:user-schools` **has not been run** — this PC points at production and the sandbox refused the read. **Run it on the laptop's dev database, and against production when convenient.** Anything it lists under the first heading is repaired by editing that account in Account Management: the EDIT path goes through `crudFactory`'s PUT, where `school_ids` is a real schema field, and has always written correctly. That asymmetry is also why this was never noticed — create-then-edit ends up right, create-only does not.
+
+**Verified the fix is complete, not just local:** the only other `school_id:` writes in scripts/controllers are on `Dentist` and `DentalAide`, which legitimately carry that field (`schoolScope.ts` RULES scopes both `via: school_id`), and `seedDemo` already passes `school_ids` explicitly through `ensureUser`. `createUser` was the only site.
+
+**⚠ What was deliberately NOT done: rejecting an empty `school_ids` for a scoped role.** Creating a `school_admin` and selecting no school still produces an unscoped account. That is **SEC-04**, a design issue — "all schools" and "assigned to nothing" are still the same value — and it stays OPEN. Folding it in would have changed create behaviour for `system_admin` and `bho_staff` too, which is a bigger decision than the bug this sprint was approved for. The UI does not require a school either (`handleCreate` checks only name/email/password), so the guard is worth its own sprint.
+
+**Next: Sprint 154 (route-by-route input validation + authz)**, or SEC-19/SEC-20 as a second fix sprint — but those two need the load-bearing check first (which hooks the school_admin and bho_staff screens actually use) and ideally the live confirmation that SEC-00 is blocking.
+
+---
+
+## Sprint 154 (route-by-route input validation and authz) - DONE 2026-09-11, no code touched
+
+**Read-only.** 4 new findings + 1 architecture note. **⚠ NO 154b IS NEEDED** — the program predicted this sprint would split. `routes/index.ts` is 1006 lines but far more uniform than that suggests: twelve `/stats` routes sharing one shape and input handling identical in all 32 places, so targeted reads plus pattern counts answered the sprint's questions without reading every aggregation line.
+
+**⚠ THE `/stats` SURFACE IS READ-ONLY, which bounds ARCH-01 materially.** All twelve routes are GET and eleven of twelve call `scopeFilter` themselves. So the unguarded parallel surface is a **read** problem (SEC-03, SEC-19, SEC-22) and never a write one. Worth knowing before anyone sizes the ARCH-01 fix.
+
+**SEC-22 (MED) — `/stats/notifications` returns an UNSCOPED `appointmentsToday`.** `index.ts:180` counts appointments with `{isArchived:false, appointment_datetime:{...}}` and no scope clause, while the other two counts in the same handler both filter through `scopedIptrIds`. **The comment one line away states the rule it breaks:** *"A risk row whose preventive record is outside the selected school must not be counted; without the scope check the badge would ignore the school switcher entirely."* A user pinned to one school sees a bell count including every school. Counts only, no patient data crosses — so this is a trust failure rather than a disclosure: the switcher changes two of three numbers and silently not the third.
+
+**SEC-23 (MED, LATENT — do NOT fix as a live bug) — the security clause is merged two different ways and the safe idiom is the MINORITY.** Nine sites spread it (`{isArchived:false, ...scope}`), two use `$and`. **It is correct today**: the two `$and` sites are exactly the routes whose base filter carries a `school_id` from `?school`, which is where a spread would let the caller's choice overwrite the permission clause; the nine spread sites have no colliding key. The finding is that the rule lives only inside two comments while the fragile idiom is what a new route will copy — nine examples against two. A future `/stats` route that spreads AND filters by school silently reinstates the Sprint 101 bug and nothing fails. Fix is a helper that merges with `$and` unconditionally, so the safe form is also the easy form.
+
+**SEC-24 (MED) — the `/stats` routes read whole collections, unbounded, and nothing rate-limits them.** 37 `.find(active)` calls with no limit; `/stats/reports-panels` alone reads seven collections in full per request; `express-rate-limit` is applied only in `authRoutes.ts`. At ~8,000 pupils this is the largest class of read in the app and any authenticated user can trigger it as fast as they can issue requests. ⚠ Partly deliberate — three consumers aggregate over the whole population, so paging the DATA would break them. **The finding is the absence of any ceiling, not the design.** A rate limiter on `/stats` is the cheap half and touches none of the joins.
+
+**SEC-25 (LOW)** — `limit` has no upper bound (`Number(req.query.limit) > 0 ? ... : 25`), so `?limit=1e9` passes. Minor because the DB read is already whole-collection and the limit applies afterwards in JS. The guard IS safe against non-numeric input: an array gives `NaN`, and `NaN > 0` is false.
+
+**ARCH-05 (LOW, deliberate)** — `logAudit` is fire-and-forget, so a failed audit write is swallowed and a mutation can succeed unaudited. Defensible (lose an audit row rather than fail a clinical write) but it means **the trail cannot be claimed complete** — worth knowing before Chapter 4 describes it that way.
+
+**What is CORRECT here, recorded so no later sprint re-derives it:** only `/health` is unauthenticated and it returns a connection-state word with no version or host · all six mutating routes outside `crudFactory` are `requireAuth` + `ADMIN_ONLY` · **every one of the 32 `req.query` reads is guarded by `typeof === "string"`**, which defeats Express query-object injection (`?school[$ne]=x` arrives as an object, fails the guard, never reaches the query) — done consistently, not sporadically, and it is the best thing in the file · `/stats/risk-history` validates the ObjectId AND re-applies the scope before returning one pupil's history · `asyncHandler` wraps every async route so a rejected promise reaches the error handler rather than hanging.
+
+**Next: Sprint 155 (data layer)** — all 20 models, 705 lines, small enough to read in full. It also owes verdicts on **SEC-05** and **SEC-06** (archive/restore use `findByIdAndUpdate` on encrypted models, and skip `decryptForResponse`), both of which were flagged to VERIFY rather than fix.
+
+---
+
+## Sprint 155 (data layer - the sprint that CLOSED two rows instead of adding to the pile) - DONE 2026-09-11, no code touched
+
+**Read-only.** All 19 models read in full (705 lines) plus the encryption plugin's own hooks. **SEC-05 and SEC-06 are both NOT-A-BUG**, each settled by reading `node_modules/mongoose-field-encryption` rather than reasoning from the codebase's rule about it.
+
+**SEC-05 CLOSED — `findByIdAndUpdate` on archive/restore CANNOT corrupt encrypted fields.** The plugin's `updateHook` loops the encrypted fields and does work only inside `if (!encryptedFieldValue && plainTextValue)`, where `plainTextValue = this._update.$set[field] || this._update[field]`. Archive writes `{isArchived, archivedAt, archivedBy}` and restore writes them back — **none is an encrypted field on any model** — so every iteration is skipped and the hook falls through to `next()` having done nothing. Safe as written. **No fix, and none should be made.**
+
+**SEC-06 CLOSED — the missing `decryptForResponse` on archive/restore is CORRECT, not an oversight.** The plugin registers `schema.post("init")`, which decrypts every document mongoose hydrates from the database; `findByIdAndUpdate(…, {new: true})` returns a hydrated document, so the fields are already plaintext. `decryptForResponse` exists for the OTHER case — after `create()`/`save()` the in-memory doc was encrypted in place by `pre('save')` and no `init` ever runs, which is exactly why POST and PUT call it and archive/restore do not.
+
+**⚠ ARCH-06 — THE STATED REASON FOR THE `findByIdAndUpdate` BAN IS WRONG AGAIN.** Both `ARCHITECTURE.md` §5 and HANDOFF's durable gotchas say the plugin hook "calls a removed Node crypto API". That API is `crypto.createCipher`, reached only via `encryptAes256Ctr`, selected by `options.useAes256Ctr` — which **defaults to false** (plugin source `:88`) and is **not set** in `shared/fieldEncryption.ts`. The live strategy is `encrypt`, using `crypto.createCipheriv`, which works fine. **Sprint 151 already corrected this line once** (from "the write lands as plaintext" to "corruption plus a crash"); the replacement is also not the mechanism. **KEEP THE RULE** — `findById`+`.save()` is the right default and SEC-05's exception is narrow — but nobody should cite the reason until it is re-derived, and a fix sprint acting on it would be working from a wrong model of the bug.
+
+**SEC-26 (LOW) — CLAUDE.md's encrypted-field list is STALE ON TWO COUNTS**, and it is the document this project treats as authoritative for exactly that question. It names four models; the code encrypts **five** — `Referral.ts:66` encrypts `reason` and `notes` (Sprint 127, never added). And Student carries **twelve** fields, not the ten listed: `place_of_birth` and `guardian_occupation` were added in Sprint 174. No live violation today, but the "never put an encrypted field in `filterableText`" rule is enforced by a human reading that list — someone adding `?place_of_birth=` as a text filter would get one that silently matches nothing, the exact failure CLAUDE.md calls worse than a loud one.
+
+**ARCH-07 (LOW)** — CLAUDE.md says "**ALL** models include isArchived"; `AuditTrail` correctly does not, and `crudFactory`'s own comment says so. The code is right and the rule is absolute, so a reader reconciling them could "fix" the model and make audit entries archivable.
+
+⚠ **SEC-26 and ARCH-07 are CLAUDE.md edits, so they are their own approved change** — deliberately not slipped into an audit commit.
+
+**What is CORRECT here, recorded so no later sprint re-derives it:** **every one of the ten `.lean()` reads of an encrypted model projects only UNENCRYPTED fields** — the trap HANDOFF warns about hardest, clean everywhere · no encrypted field appears in any `filterableText` · soft delete on 18 of 19 models, the one exception correct · **`Student`'s `pre('save')` is registered BEFORE the encryption plugin**, so `full_name` is rebuilt from the name parts while still plaintext and only then encrypted — registering it after would write a plaintext `full_name` over the encrypted one · `secret` is passed as a function so a missing `FIELD_ENCRYPTION_SECRET` throws at use, not at import · random IV per value confirmed at source (no `saltGenerator`, and `decrypt` reads the IV back out of the stored value rather than from config, which is why removing the old constant IV stayed backward-compatible) · indexes on 13 of 19 models, the six without being tiny collections or never queried by field.
+
+**Next: Sprint 156 (client-side + supply chain)** — SW cache scope (it owes the SEC-08 detail), XSS sinks, `npm audit`, bundle secrets, and whether the dynamic-import exclusions still hold.
+
+---
+
+## Sprint 156 (client-side and supply chain) - DONE 2026-09-11, no code touched
+
+**Read-only.** 3 new findings; SEC-08's mechanism confirmed at source and SEC-11 reinforced. Also ran `npm audit` and an XSS sweep against the built bundle, so several claims here are measured rather than read.
+
+**SEC-08 MECHANISM CONFIRMED — `src/sw.ts` caches EVERY `GET /api/*` with no exclusion of any kind.** One Workbox route: `request.method === 'GET' && url.pathname.startsWith('/api/')` → `NetworkFirst({cacheName: 'api-cache'})`. So `/api/students`, `/api/medical-histories`, `/api/treatments`, `/api/stats/student-rows` **and `/api/auth/me`** all sit in Cache Storage in full, decrypted. Refined fix: logout should `caches.delete('api-cache')` — ⚠ **after** any pending queue drain, because `captureBaselineSnapshot` reads that cache for conflict detection.
+
+**SEC-27 (MED) — THE OFFLINE QUEUE IS A SECOND PLAINTEXT PATIENT-DATA STORE, AND ITS ROWS HAVE NO OWNER.** `QueuedWrite` carries `body`, `baselineSnapshot` and `conflictServerRecord` — all patient data, plaintext in IndexedDB `floral-offline`. **The interface has no user id field at all**, so the queue cannot tell whose write a row is. And `grep` for `clearQueue`/`deleteDatabase`/`floral-offline` across `src/` returns only the declaration — **no clearing path exists anywhere in the app.**
+- **The consequence on a shared clinic PC:** aide A captures records offline and logs out; dentist B signs in; the queue drains **under B's session**, and `logAudit(req.user!.id, …)` records **B** as the author of A's work. The audit trail then attributes clinical data entry to the wrong person — the one thing an audit trail exists to get right.
+- ⚠ **Clearing the queue on logout would be the WRONG fix** — unsynced field data is exactly what must survive a logout. The fix is ownership: stamp the row with the user id at enqueue, then hold or refuse rows belonging to someone else.
+- ⚠ **Sprint 159 must confirm the replay path in `queueProcessor.ts` first.** That the queue has no owner is decisive from `db.ts`; whether `processQueue` fires on login, on `online`, or both decides how easily this is reached.
+
+**SEC-28 (LOW) — `npm audit` has DRIFTED FROM 0 TO 3 MODERATE, and HANDOFF still says 0.** Two `qs` advisories reached via `express@4.22.2` → `body-parser`: GHSA-x5fp-wj9c-mxmx (array-limit bypass via bracket-key comma parsing) and GHSA-4mjr-xmp4-gh2g (DoS via attacker-controlled `isBuffer`). **The first is largely blunted by work already done** — Sprint 154 found all 32 `req.query` reads are `typeof === "string"` guarded, so a bracket-key array fails the guard and never reaches a query. The second is not blunted by anything. ⚠ **Do NOT fix before the defense:** the only clean fix is `express@5.2.1`, breaking across every route and middleware signature, for two moderate advisories on an internal app behind authentication. Update the stale durable-gotcha line either way.
+
+**SEC-29 (LOW, payload not security)** — two chunks of the PDF-export feature slip the precache exclusions, because `globIgnores` matches **filenames** and these two do not carry the family's name: `index.es-*.js` (156 KB, and its first line is `import{_ as La}from"./jspdf.es.min-…js"`) and `purify.es-*.js` (27.5 KB, DOMPurify, a jspdf dependency). ~184 KB every device downloads on SW install for a feature most staff never use — the same waste the file's own comment says was fixed for the 382 KB jspdf chunk. **tesseract and pdfjs are FINE**: both are bundled inside `iptrOcr-*.js`, which IS excluded, so HANDOFF's claim about them holds — just by a different route than their own filenames.
+
+**What is CORRECT here, and two of these are the good news of the whole audit so far:**
+- **ZERO XSS SINKS IN THE ENTIRE FRONTEND.** `dangerouslySetInnerHTML`, `innerHTML`, `eval(`, `new Function`, `document.write` — grep across all of `src/` returns **nothing**. React's escaping is intact end to end, including the OCR and report-rendering paths, which were the ones worth worrying about.
+- **NO SECRETS REACH THE BUNDLE.** No `import.meta.env` usage anywhere in `src/`, and a grep of built `dist/assets/` for connection strings, JWT/Brevo/encryption key names and API-key patterns finds nothing.
+- The SW never caches or replays **writes** — GET only, deliberately, so the app's own queue stays the single source of truth · no unconditional `skipWaiting()`, so open tabs are not silently swapped onto stale assets · `index.html` is clean apart from the missing CSP: no inline script, no inline style, no third-party tag.
+
+**Next: Sprint 157 (ML boundary)** — the last Track A sprint. Whether Render authenticates the inbound request at all, and which patient fields actually cross the wire versus what CLAUDE.md requires.
+
+---
+
+## Sprint 157 (ML boundary) - DONE 2026-09-11, no code touched. ▶ TRACK A COMPLETE
+
+**Read-only.** 3 new findings. Last of the seven Track A audits.
+
+**▶ THE HEADLINE IS GOOD NEWS: CLAUDE.md's privacy rule is ENFORCED, not merely intended.** `predictionRoutes.ts` builds the outbound body from a **13-key allowlist** (`for (const k of FEATURE_KEYS) body[k] = features[k]`), so a name, address or record id **cannot cross even if the client sends it**. `student_id` is accepted by the route but used ONLY for the audit log and is never forwarded. And no feature values are logged — the only `print` calls in `predictor.py` sit in its `__main__` demo block, not the request path, so nothing patient-derived reaches Render's logs, which are outside the trust boundary.
+
+**⚠ SEC-30 — THE ONE THING I COULD NOT ANSWER, AND IT NEEDS YOU: is `ML_SERVICE_API_KEY` set on Render?**
+- `main.py`: `def _check_key(request): if API_KEY and request.headers.get("x-api-key") != API_KEY: raise HTTPException(401)`. **With the key empty the condition short-circuits and every request is accepted.** The module docstring says it outright: *"Unset = open, for local dev."* Express mirrors the shape — it sends no header when its own value is empty.
+- `.env.example:71` has `# ML_SERVICE_API_KEY=`, commented and empty. This machine's `.env` does not define it at all.
+- ⚠ **Neither proves anything about the deployed service** — Render's environment is configured in its dashboard, independently of any `.env` here. It proves only that nothing in the repo would set it.
+- **If it IS unset on Render:** `POST /predict` at the public URL accepts any caller. **This is NOT a patient-data disclosure** — the request carries only the 13 numbers the caller supplies and the response is a risk band for those numbers, so an attacker learns nothing about any pupil. It is an **open compute endpoint**, and there is **no rate limiting anywhere in the FastAPI app**. On the free tier that is a plausible way to exhaust the service during defense week — the moment HANDOFF already flags as when it most needs to answer. The URL is not secret; it is in HANDOFF and in `.env.example`.
+- **One look at the Render dashboard closes this row either way.** If set → NOT-A-BUG with the reason recorded. If not → set it on both Render and Vercel, same value.
+
+**⚠ THE PATTERN WORTH REMEMBERING FROM TRACK A — this is the THIRD fail-open.** `if API_KEY and …` joins **SEC-04** (an empty `school_ids` means ALL SCHOOLS) and **SEC-13**'s origin fallback: three places where **an absent or empty value is read as permission** rather than as a misconfiguration. Each is individually defensible and locally documented; together they are a habit, and the failure is always silent and always in the permissive direction.
+
+**SEC-31 (LOW)** — `/health` takes a `Request` but **never calls `_check_key`**, unlike `/predict` which calls it on line one. Discloses the algorithm name, training metadata and the `synthetic_data` flag. No patient data; reasonable for a health check, but worth being a deliberate choice rather than an omission. **SEC-32 (LOW)** — Express forwards the ML service's error body verbatim (`detail: result` on 502); a FastAPI 422 names the field and constraint. Same class as SEC-09 but milder — ML feature names, not patient schema.
+
+**Also correct:** pydantic range-validates all 13 features · Express is `requireAuth` + `requireRole(dentist, system_admin)` with every assessment audit-logged · **503 on unreachable and 502 on rejection, so the UI degrades honestly rather than inventing a risk band** · every response re-states the clinical disclaimer and carries the `synthetic_data` flag that drives the honesty banner, so CLAUDE.md's "dentist must validate" rule travels in the payload rather than living only in a screen.
+
+---
+
+## ▶ TRACK A COMPLETE — Sprints 151-157 (+153a)
+
+**31 findings recorded · 3 closed · 1 fixed.**
+
+**Still HIGH and open:** SEC-02 (PII in git history — accepted, WONTFIX, repo stays private) · **SEC-00** (this PC points at production) · **SEC-03 + SEC-19** (clinical reads by non-clinical roles — read off the code, **never demonstrated live**) · SEC-04 (empty-value-means-all) · **SEC-30** (conditional, one dashboard check).
+
+**⚠ TWO THINGS TRACK A COULD NOT DO, BOTH FOR THE SAME REASON.** The live RBAC spot-check (Sprint 153) and any probe of the deployed ML service both need an environment that is not production. **SEC-00 is therefore not just a finding — it is the blocker on closing two HIGH rows.** Getting a dev `.env` onto this PC (the whole file from the laptop, never one line — the `FIELD_ENCRYPTION_SECRET`s differ) is what unblocks them, and it was already the 10th session's top recommendation.
+
+**Next, three options:** (a) **SEC fix sprints** — SEC-22 and SEC-12 are self-contained and need no live check; (b) **Track B**, starting with Sprint 158's Vitest harness, which gates the 162 refactor; (c) the **CLAUDE.md doc-drift fixes** (SEC-26, ARCH-07, and ARCH-06's wrong justification), which are small and make the next reader's model of the system correct.
+
+---
+
+## Sprint 157a (the FIX for the doc drift Track A found) - DONE 2026-09-11, tsc x2 clean
+
+**Five corrections. Only one line of code changed, and it is a comment.** These were separated from the audit sprints deliberately: three are CLAUDE.md edits, which is injected into every session, so a wrong line there taxes everything until it is fixed.
+
+**SEC-26 — CLAUDE.md's encrypted-field list was short a whole model and two fields.** Now names **five** models (REFERRAL: `reason`, `notes`, Sprint 127, was missing entirely) and Student's **twelve** fields (`place_of_birth`, `guardian_occupation` added Sprint 174). Also states explicitly that this list is **what the `filterableText` rule is checked against** — so the next reader is told why it must stay exact, not just what it contains.
+
+**ARCH-06 — the `findByIdAndUpdate` ban's stated reason has now been WRONG TWICE, and all three places say so.** CLAUDE.md, `ARCHITECTURE.md` §5 and HANDOFF's durable gotchas now state it as a **convention**, record both wrong reasons (Sprint 151 killed "the write lands as plaintext"; Sprint 155 killed "calls a removed Node crypto API" — `useAes256Ctr` defaults false and is never set, so the live path is `createCipheriv`, which works), and say plainly that **the real mechanism has not been re-derived, so none should be cited.** Each also now carries SEC-05's verified exception, so the rule and its one legitimate violation travel together instead of reading as a contradiction.
+
+**ARCH-07** — CLAUDE.md's "**ALL** models include isArchived" → "All models … **except AUDIT_TRAIL, deliberately**", with the reason. The absolute wording is what invited someone to "fix" the model to match and make audit entries archivable.
+
+**ARCH-02** — `server/middleware/auth.ts` said *"school_ids is carried but NOT yet enforced on any query"*. Sprint 101 shipped that enforcement. The comment now says scoping IS enforced, points at `schoolScope.ts`, and adds the **empty-array-means-ALL-SCHOOLS** warning with a pointer to SEC-04 — so the exact spot a reader checks to learn whether scoping is on now tells them both true things. The only code touched this sprint; `tsc` clean on both configs.
+
+**SEC-28 (half)** — HANDOFF's durable gotcha claimed `npm audit` was at 0. **Measured at 3 moderate on 2026-09-11.** The line now carries the real number, both `qs` advisories, the note that the array-limit bypass is largely blunted by the `typeof === "string"` guard on all 32 `req.query` reads, and the decision **not** to fix before the defense (express 5 is breaking). The uuid-override warning is kept — it is still load-bearing. **The advisories stay open by decision; only the stale claim was fixed.**
+
+**Next:** SEC fix sprints (**SEC-22**, the unscoped bell count, is the most self-contained and needs no live check; **SEC-12**, session revocation, is the most valuable), or Track B starting with Sprint 158's Vitest harness. ⚠ And one thing that is not a sprint: **check the Render dashboard for `ML_SERVICE_API_KEY`** — that single look closes SEC-30 either way.
+
+---
+
+## Sprint 158 (the regression net - Track B opens) - DONE 2026-09-11, 46/46 green, tsc x2 + build clean
+
+**`npm test` exists for the first time.** vitest as a dev dependency, `npm test` (`vitest run`) and `npm run test:watch`, plus a **`Test` step in `.github/workflows/ci.yml`** between the typechecks and the build. Pure functions only — no component or database tests — so CI needs no services and no secrets.
+
+**46 tests across three files:**
+- `shared/studentValidation.test.ts` (25) — the gate `crudFactory` calls on every Student write, and the module's own header notes it is the **only** check the offline queue passes through, since the queue replays POSTs through no form at all.
+- `shared/age.test.ts` (11) — the DOH age brackets plus the cross-implementation pins below.
+- `src/app/utils/bmi.test.ts` (10) — BMI-for-Age, focused on the property that it **refuses rather than guesses** outside the table's 6-19 coverage, which is CLAUDE.md's no-filler rule enforced in code.
+
+**⚠ THE NET WAS VERIFIED, NOT ASSUMED.** Changed `getAgeGroup`'s `age <= 9` boundary to `age <= 8`; the suite went red on *"getAgeGroup maps each boundary to its bracket"*; restored the file and `git diff` confirmed clean. A test suite nobody has watched fail is not yet a net.
+
+**BUG-02 (MED, latent) — there are THREE age implementations and TWO bracket implementations in `shared/`, and every filed DOH figure rests on them.** `calculateAge(birthdate)` (always today), `ageAt(birthdate, on)`, and `ageOn(birth, on = new Date())` all run the same arithmetic; `getAgeGroup` returns `'5-9'` where `bracketOf` returns `'5-9 yrs'` — same boundaries, different labels. **`age.ts`'s own header warns about exactly this** (*"a second copy is how two screens end up disagreeing about which bracket a 9-year-old is in… a divergence would be a reporting error, not a cosmetic one"*) — there are now three copies. **They agree today, and the new tests PIN them together** so a future divergence fails in CI rather than quietly in a report filed with the City Health Office. One real asymmetry is already pinned: **`ageOn` returns `NaN` on a bad date where the other two return `null`** — safe only because `validateBirthdate` guards before calling it.
+
+**⚠ THREE ITEMS ON THE PLAN'S ORIGINAL LIST WERE NOT TESTABLE AS PURE FUNCTIONS, and none was forced:** `computeDMFT` is module-local inside `DentalChart.tsx` (extracting it is **Sprint 162's** job — doing it here would be the very refactor 158 exists to make safe), `readIptrCheckboxes` needs an `HTMLCanvasElement`, and `findDuplicateStudents` is async and hits the database. **The plan's list predated Track A mapping the codebase.** The better target it did not know about is **`shared/` — 2,129 lines of framework-free logic imported by BOTH server and client**; this sprint covers three of its modules, and `dohAggregate`, `rpcTracking`, `riskCandidates`, `schoolSummary`, `fhsis` and `reportsPanels` are the obvious next ones. They are also exactly what Sprint 161 reads, so 161 should write tests as it goes rather than reading twice.
+
+**Housekeeping:** `.vitest/` (the run-artifact directory) added to `.gitignore`.
+
+**⚠ Note for the other machine:** `npm ci` after pulling — `package.json` and `package-lock.json` both changed.
+
+**Next: Sprint 159 (offline and sync races)**, which also owes the confirmation SEC-27 is waiting on — whether `processQueue` fires on login, on `online`, or both, which decides how easily one user's queued writes drain under another's session.
+
+---
+
+## Sprint 159 (offline and sync races - a REAL race condition, and SEC-27 confirmed) - DONE 2026-09-11, no code touched
+
+**Read-only.** 3 new findings, and the one Track B was opened to look for.
+
+**⚠ BUG-03 (HIGH) — THE QUEUE CAN DRAIN TWICE AT ONCE AND SEND THE SAME WRITE TWICE.** `let processing = false` in `queueProcessor.ts` is **module scope**, and the page and the service worker are **separate JS contexts with separate module instances** — `sw.ts` imports `processQueue`, and the SW is built as its own bundle (`injectManifest`). **Two independent `processing` flags over one shared IndexedDB queue, neither able to see the other.**
+- **Both fire on the same event.** `initQueueProcessor` adds a `window` `online` listener AND calls `processQueue()` immediately when `navigator.onLine`; the SW's `sync` handler runs `processQueue()` on the `floral-queue-sync` tag. **Coming back online and opening the app is the normal field workflow and triggers both.**
+- **Nothing in IndexedDB prevents it:** `getQueue()` is a readonly transaction and `removeFromQueue` runs only AFTER a successful send, so both contexts read the same rows and both send before either removes.
+- **The quiet case is the bad one.** Models with `uniqueBy`/`duplicateCheck` (StudentIptr, Student) get a 409 on the second POST, which `markFailed`s and **wedges the whole queue** — the encoder is told "already exists" for a record they created once. Models with **neither** (ToothRecord, Treatment, DayNote, Appointment, PreventiveCareRecord, MedicalHistory) get **two identical records, silently.** On a tooth record or a treatment that is a duplicated clinical entry in a patient's chart.
+- ⚠ **Honest bounds:** Background Sync is Chromium-only (guarded by `'SyncManager' in window`, no-ops on Safari) and the two triggers must land close together. **This is a race, not a certainty** — but the window is the exact moment the feature exists for.
+- **Fix needs the guard where both contexts can see it** — a claim/lease field on the queue ROW, written in the same readwrite transaction that reads it, not a module variable. ⚠ `navigator.locks` is simpler but is not shared with the SW in every browser; verify before choosing it.
+
+**⚠ SEC-27 CONFIRMED, and the trigger is worse than assumed.** `App.tsx:10-12` calls `initQueueProcessor()` in a root `useEffect(…, [])` **OUTSIDE `AuthProvider`**, and it calls `processQueue()` immediately whenever `navigator.onLine`. So the queue drains **on every app load**, before and regardless of any login check, with `credentials: 'include'`.
+- **Nobody logged in** → 401 → refresh fails → `markAuthRequired`, stop. **Fails safe.**
+- **A DIFFERENT user logged in** → the writes land under **their** session and `logAudit(req.user!.id, …)` records **them** as the author of someone else's work. **No unusual timing needed — just the next person to sign in on that clinic PC.**
+
+**BUG-04 (MED) — a queued edit can write into an ARCHIVED record, because `PUT /:id` has no archive check.** `crudFactory`'s `GET /:id` explicitly 404s an archived record for non-admins; **PUT does not** — it is `findById` → 404-if-missing → `isInScope` → `Object.assign` → `save()`, and `findById` finds archived rows. The offline route in: `checkForConflict` returns `null` on ANY non-OK response, including that 404, so the check is skipped and the PUT proceeds. A pupil is archived while an aide is offline; the aide's queued edit syncs into the archived record, which no screen lists, and the encoder is told it succeeded. ⚠ **Reachable through the API directly too, not only via the queue.** When fixing, decide deliberately what the queue should DO with the rejection — `markFailed` wedges it, so this probably wants to be a conflict.
+
+**BUG-05 (LOW, known limitation)** — conflict detection is check-then-act: `checkForConflict` GETs and compares, `sendDirect` then PUTs, and a writer landing between the two is not detected. **Cannot be closed on the client alone** — no model carries a version or updated-at token for an `If-Match`. Recorded so the conflict feature is not described as stronger than it is.
+
+**What is CORRECT here, recorded so no later sprint re-derives it:** **FIFO is real** (`timestamp` index, equal timestamps falling back to the autoincrement key) · **the queue stops rather than skips**, exactly as CLAUDE.md requires — network failure `break`s and leaves the item pending, server rejection marks failed and `break`s, and only a *conflict* uses `continue`, which the comment records as the user's explicit choice · **`sendDirect` deliberately bypasses `apiClient`**, with the reason written down: `apiClient` queues failed writes, so reusing it would re-queue a failed sync attempt and defeat the whole rule · `discardFailedWrite` exists because a permanently-rejected item would otherwise wedge the FIFO forever · the conflict check compares only the fields the write actually touches.
+
+**Next: Sprint 160 (data-fetch hooks)** — all 20 of `src/app/hooks/*`, 1,698 lines, read in two passes of ~10. HANDOFF already documents one refetch-loop class there (`useAppointments`'s required date window); this confirms whether the other 19 share it.
+
+---
+
+## Sprint 159a (the FIX for BUG-03 + SEC-27) - DONE 2026-09-11, 55/55 tests, tsc x2 + build clean
+
+**One cause, one fix.** The queue row carried neither an owner nor a cross-context claim. It now carries both.
+
+**BUG-03 — the guard moved from a module variable to the ROW.** `claimWrite(id, contextId)` in `db.ts` reads and writes the claim **inside a SINGLE readwrite transaction** — that is the part that matters, because IndexedDB serialises overlapping readwrite transactions on the same store, so two contexts calling it at the same instant cannot both win. `processQueue` claims before sending and skips any row already claimed; `CONTEXT_ID` tells the page and the service worker apart; a 60s lease frees a row whose context was killed mid-send, and every failure path calls `releaseClaim` so an ordinary retry does not wait out a lease. **`processing` is KEPT** — it still stops one context re-entering itself — with its comment corrected to say it was never the cross-context guard it was taken for.
+
+**SEC-27 — `enqueueWrite` stamps `userId` from `authCache`** (written at login, cleared at logout, readable synchronously where there is no React context to ask), and `processQueue` checks it via `isOwnedBy`. Nobody signed in → send nothing. Another user's row → **HELD, never dropped** (`continue`, not `break` — a row waiting for its owner must not wedge the writes of the person actually sitting there). **Legacy rows with no `userId` drain under whoever is signed in, deliberately** — refusing them would strand real unsynced work behind an app update, a worse failure than the one being fixed, and the window closes the first time the queue drains.
+
+**⚠ THIS DEGRADES A GRADED FEATURE, AND YOU SHOULD KNOW BEFORE THE DEFENSE.** **Background Sync (Sprint 20 — "the queue drains even if the tab was closed") now HOLDS every row instead of sending it.** A service worker can learn who owns a row but **cannot learn whose session it is about to write under**: the session is an httpOnly cookie it may send but never read, and `localStorage` does not exist in a worker, so `loadUserCache()` returns null there by design. **A worker that cannot tell whose session it is writing under must not write.** Rows now wait and the page drains them on next open, as itself. **The cost is a later sync; the gain is that it can no longer sync as the wrong person.** Documented at length in `sw.ts` so nobody "fixes" it later with a storage shim. **If you would rather have the old behaviour back, that is a decision to make deliberately — say so and I will scope it.**
+
+**⚠ NOT claimed as solved: exactly-once.** A context killed AFTER the server accepted a write but BEFORE the row is removed will re-send once the lease expires. Closing that needs server-side idempotency, which no route has. **The window went from "two contexts racing on every reconnect" to "a context dies in the gap between send and remove"** — much smaller, not zero.
+
+**New pure module `src/app/offline/queueRules.ts`** holds both decisions (`isClaimable`, `isOwnedBy`) so they are testable without IndexedDB, a browser or a worker — **the first real use of Sprint 158's harness**, with 9 tests covering the two cases that were wrong before, plus the empty-string-owner edge that a `??`/`||` slip would otherwise swallow.
+
+**Files:** `offline/queueRules.ts` (new) · `offline/queueRules.test.ts` (new) · `offline/db.ts` · `offline/queueProcessor.ts` · `api/client.ts` · `sw.ts`.
+
+**⚠ Still OPEN from Sprint 159: BUG-04** (`PUT /:id` has no archived check where `GET /:id` does, so a queued edit can write into an archived record) and **BUG-05** (conflict detection is check-then-act). BUG-04 is the next sensible fix and is server-side, so it is independent of all of this.
+
+**Next:** BUG-04, or Sprint 160 (data-fetch hooks, 20 files / 1,698 lines).
+
+---
+
+## Sprint 159b (the FIX for BUG-04 - PUT could write into an archived record) - DONE 2026-09-11, 55/55, tsc x2 + build clean
+
+**Both halves, because fixing only the server would have turned a silent bad write into a WEDGED QUEUE** — not obviously better.
+
+**Server — `crudFactory` PUT now carries the same archived check GET has.** 404 not 403, admin-exempt, **mirroring the GET path exactly so the two cannot drift**. A System Admin may already READ archived records, so editing one stays their call; everyone else is not even told it exists. ⚠ The stricter alternative — refuse the edit for EVERYONE, on the grounds that an archived record should be restored before being edited — was considered and **deliberately not taken**: it removes a capability an admin may rely on, and this sprint was approved for a bug, not a policy change.
+
+**Client — a 404 on a queued write now gets an actionable message** instead of the server's bare "Not found": *"The record this change belongs to was archived or removed while you were offline… Discard this change."* The write still fails and still stops the queue, which is correct under CLAUDE.md's *"stop queue if sync fails, never skip"* — what changed is that the person clearing it is told **Discard** is the action, not Retry.
+
+**Also corrected while in that block:** the PUT handler's own comment still carried the ARCH-06 justification that Sprint 157a fixed in three other places. It now says what they say.
+
+**⚠ NOT COVERED BY AN AUTOMATED TEST, and I want that on the record.** This is a route guard over a Mongoose model, not a pure function, so Sprint 158's harness does not reach it. The `verify_*.mjs` pattern is the right tool and needs a live server, which **SEC-00 blocks on this machine**. Verified by `tsc` on both configs, `npm run build` and 55/55 unit tests — **none of which exercise this line.** Worth ten seconds on the laptop: archive a record, then PUT to it as the dentist and confirm 404.
+
+**⚠ NEW — BUG-06 (MED), found while fixing BUG-04 and deliberately NOT fixed with it: the scope walk ignores `isArchived` ENTIRELY.** All four walk functions in `schoolScope.ts:99-132` gather ids with no archive filter. Two effects:
+- **Writes:** `isInScope("ToothRecord", req, body)` returns true for a `chart_id` whose chart is archived, so a POST can create a **live** tooth record under an **archived** chart. BUG-04 closed edit-into-archived; this is create-under-archived.
+- **Reads:** a list route filters `isArchived: false` on the CHILD only, so a live child of an archived parent still returns — archiving an IPTR does not hide its medical history, charts or tooth records from an `?iptr_id=` query.
+- ⚠ **Whether the read half is WRONG is a genuine design question, not an obvious bug** — the child record is itself live. **The fix is a policy decision first:** does archiving a parent archive its children (a cascade, which nothing in the app does today), or merely hide them? Answer that before touching the walk. That is why it was not bundled in here.
+- Noted in passing: each walk is an unbounded whole-collection read memoised per request — at full scale `studentIds` pulls ~8,000 ids on every scoped request. Same family as SEC-24; only `school_admin` pays it, which is why nobody has noticed.
+
+**Track B status: BUG-03, BUG-04 and SEC-27 fixed; BUG-00, BUG-01, BUG-02, BUG-05, BUG-06 open.**
+
+**Next:** Sprint 160 (data-fetch hooks, 20 files / 1,698 lines), or BUG-06 if the archive-cascade policy is worth settling now.
+
+---
+
+## Sprint 160 (data-fetch hooks) - DONE 2026-09-11, no code touched
+
+**Read-only.** All 20 hooks, structurally first (dep arrays, guard patterns) then in full for the ones whose inputs a user can flip fast. 3 new findings.
+
+**The shape of this sprint: THE FIX ALREADY EXISTS IN THIS CODEBASE.** Five hooks guard against out-of-order responses — `useDohReportData` and `useSchoolSummary` with an `isStale()`/`runIdRef` pair, `useGradeRoster` and `useLiveNumbers` with a `cancelled` flag, plus `useStudentNav`. **Fifteen do not.** So this is not "nobody thought about it"; it is a known, working, in-house pattern applied to some hooks and not others.
+
+**⚠ A CORRECTION TO MY OWN FIRST PASS, recorded because it nearly became a wrong finding.** An early grep truncated at 10 lines and I read it as *"only 2 of 20 hooks guard"*. **The real count is 5 of 20** — `useDohReportData` and `useSchoolSummary` both guard and were missed. Every count in the ledger now comes from a per-file check, not a truncated grep.
+
+**⚠ BUG-07 (HIGH) — THE DENTAL CHART CAN SHOW ONE PUPIL'S IDENTITY ABOVE ANOTHER PUPIL'S TEETH.** This is not ordinary staleness: a **mixed** state is reachable, because the hook commits at **two different awaits**. `useDentalChartData`'s `reload` is keyed `[studentId]` with **no cancellation guard**; it awaits a first `Promise.all` and immediately commits `setStudent`/`setSchoolName`/`setDentists`, then awaits a **second** `Promise.all` and commits `setYears`. With two runs in flight this interleaving is reachable: `A-first → setStudent(A)`, `B-first → setStudent(B)`, `A-second → setYears(A)` — leaving **pupil B's name, school and dentist above pupil A's chart years.**
+- **The trigger is the ordinary way of working:** `useStudentNav` puts prev/next patient buttons on this very screen, and paging through a class means clicking next repeatedly. The screen then shows a clinically wrong record that **looks entirely normal** — no error, no empty state.
+- ⚠ **`useStudentNav` itself GUARDS. The hook it navigates WITH does not.** Same screen.
+- **Fix must check the guard before BOTH commit points**, not just the last — a guard only on `setYears` would still allow the mixed state.
+- ⚠ **This is also the hook carrying BUG-00** (`myCharts.find` hiding later chartings). **Fix them SEPARATELY** — BUG-00 changes *what* is displayed, BUG-07 changes *when* it is committed, and bundling them makes a regression unattributable.
+
+**BUG-08 (MED)** — the guard is on 5 of 20 hooks. **At risk without one:** `useDentalChartData`, `useAppointments` `[fromMs, toMs]` (calendar paging), `useFhsisData` `[month, schoolName]`, `useRPCTracking`, `useRiskClassification`, `useAuditTrail`, `useDayNotes`, `useNotifications`. **Fine without one:** `useSchools`/`useUsers`/`useStudents` (fetch once on `[]`) and `useLoadPhase`/`usePrintOrientation`/`useOfflineQueue`/`useRefreshOnFocus` (not fetch hooks). Every at-risk hook feeds a screen with a school switcher, month selector or date range — the controls people click twice in a second — and the failure is silent: the older response wins and the screen shows the previous selection's numbers under the new selection's label. ⚠ **Not a mechanical sweep** — per hook, checking each commit point, ideally alongside whatever sprint already touches it. Noted so it is not re-reported: **no hook uses `AbortController`** — the in-house guard discards a late *result* rather than cancelling the request, which is a reasonable trade but still pays the bandwidth.
+
+**BUG-09 (LOW)** — `useAppointments:206` is a `useMemo` that never hits its cache: `pendingWrites` comes from `queue.filter(...)`, a new array every render. The effect 23 lines above gets it right with `pendingWrites.length`. Wasted work, not wrong output; worth fixing mainly because the same file demonstrates the correct form.
+
+**What is CORRECT here:** **dependency arrays are overwhelmingly primitives** (`fromMs`, `fromKey`, `key`, `schoolName`, `studentId`) rather than objects or arrays — the right defence against the refetch loop HANDOFF documents for `useAppointments`, applied broadly · `useRefreshOnFocus` is unusually well-reasoned: throttled at 30s, listening on `visibilitychange`/`focus`/`online`, with an explicit argument for why an interval is the wrong shape (a billed invocation per tick to keep an unwatched tab warm) and an explicit warning never to put it on a screen holding unsaved edits.
+
+**Track B: BUG-03/04 and SEC-27 fixed. Open: BUG-00, BUG-01, BUG-02, BUG-05, BUG-06, BUG-07, BUG-08, BUG-09.**
+
+**Next: BUG-07** is the one to fix — it is a HIGH, it is contained to one hook, and it sits in the file Sprint 162 will decompose, so fixing it first means 162 starts from correct behaviour. Then Sprint 161 (report arithmetic).
+
+---
+
+## Sprint 160a (the FIX for BUG-07 - the chart could show two pupils at once) - DONE 2026-09-11, 55/55, tsc x2 + build clean
+
+**One file, 32 lines, five guard points.** Adopted the in-house `runIdRef`/`isStale()` pattern from `useDohReportData` rather than inventing a third variant — the codebase already had two.
+
+**Guarded at FIVE points, not one, which is the whole reason this was worse than ordinary staleness:**
+- **commit point 1** (`:104`) — identity (`setStudent`/`setSchoolName`/`setDentists`). **Returns rather than falling through**, so a superseded run also stops issuing its second round of requests.
+- **commit point 2** (`:174`) — `setYears`.
+- **the error path** (`:181`) — a superseded run's failure must not raise "Failed to load" over a pupil the user already navigated past.
+- **`endLoad`** (`:186`) — an abandoned run finishing first must not report the screen ready while the run whose data is actually wanted is still in flight.
+- **effect cleanup** (`:194`) — bumps the id on unmount, matching `useDohReportData`.
+
+**⚠ CHECKED BEFORE WRITING IT: `useLoadPhase` is IDEMPOTENT, not a counter.** `beginLoad` sets a flag, `endLoad` clears it unconditionally — so gating `endLoad` cannot unbalance anything and leave a stuck spinner, and the newest run always clears it. Worth the two minutes: gating a *counted* begin/end pair would have shipped a hung skeleton.
+
+**⚠ NOT UNIT-TESTED, same reason as BUG-04.** This is a React hook over `apiClient`, and Sprint 158's harness is pure functions only. Testing it needs `@testing-library/react` + jsdom — a new dependency and a scope decision, not something to slip into a fix sprint. Verified by `tsc` both configs, `npm run build` and 55/55 existing tests, **none of which exercise this hook.** **The real check is manual and takes ten seconds:** open a pupil's chart, click prev/next rapidly, confirm the name above the chart always matches the chart.
+
+**Deliberately NOT bundled: BUG-00 lives in this same hook** (`myCharts.find` hiding later chartings — 22 of 26 IPTRs have more than one chart). It changes *what* is displayed where this changed *when* it is committed. Separate commits keep any regression attributable.
+
+**A note for BUG-08's sweep:** this inlines the pattern a **third** time. At three sites that is right — extracting a shared helper for three call sites is premature. **At the eight further sites BUG-08 names, the extraction starts paying for itself**, and that is the moment to do it.
+
+**Track B: BUG-03, BUG-04, BUG-07 and SEC-27 fixed. Open: BUG-00, BUG-01, BUG-02, BUG-05, BUG-06, BUG-08, BUG-09.**
+
+**Next: Sprint 161 (report arithmetic)**, which reads `useDohReportData`/`useFhsisData`/`useSchoolSummary`/`useRPCTracking`/`useRiskClassification` and the `shared/` tally helpers — and should **write tests as it goes**, since those helpers are pure and are exactly what Sprint 158's harness was built for.
+
+---
+
+## Sprint 161 (report arithmetic - the sprint that mostly VALIDATED the code) - DONE 2026-09-11, 78/78, tsc x2 + build clean
+
+**23 tests added, 2 LOW findings, no app or server code touched.** The first audit sprint that could write tests as it went, because the report arithmetic is pure functions — exactly what Sprint 158's harness was built for.
+
+**▶ THE HEADLINE IS THAT THIS ARITHMETIC HELD UP.** Unlike 159 and 160, this sprint largely **validated** the code. Sprints 138-150 did careful work here and it shows.
+- **`tallyIptrServices` behaves exactly as documented**, including the guarantee that matters most: **with nothing linked — which is all real data today — it reproduces the pre-Sprint-150 numbers EXACTLY**, so Sprint 150 moved no filed return. Now pinned by test.
+- The linked/unlinked rule is **per CODE, not per chart**, and the case its docblock records as a real regression — a code appearing only in a pupil's THIRD charting still counting as a 1st application, caught by diffing filed numbers (`sdf_1st` 9→7, `sdf_2nd` 0→2) — is genuinely handled. Pinned.
+- **Sittings, not teeth:** five teeth varnished in one visit is one application, not five. Pinned.
+- **No division by a count anywhere in `shared/`** — the empty-cohort divide-by-zero the plan asked about **does not exist**. These aggregates are counts and sets throughout; no percentage is computed in the shared layer.
+- ⚠ **The plan's concern about "1st/2nd application inferred from chart dates" is RESOLVED — the plan is out of date in a good way.** Sprint 149 gave `DENTAL_CHART` a `preventive_id` and Sprint 150 made the ordinal a lookup. The date-order rule survives only as the fallback for pre-149 chartings, which it must, or services would vanish from returns already filed.
+
+**BUG-10 (LOW) — the DISPLAYED RPC deadline and the ENFORCED one disagree by up to 24 hours.** `schoolYearEnd` returns `new Date(y, 3, 30)` — **April 30 at 00:00:00**, the START of the last day. `rpcTracking.ts:273-280` compares `windowCloses > syEnd.getTime()` to set `syCutoff` ('tight'/'impossible'), then formats and shows `syDeadline` as `"YYYY-04-30"`. A second-visit window closing at 09:00 on April 30 is therefore **past the enforced deadline while still inside the displayed one**. Narrow: it is a warning shown to staff, not a filed figure, so **no DOH number moves**. ⚠ Fix both call sites together (`rpcTracking.ts` and `Appointments.tsx:105`) — changing the returned instant changes both.
+
+**BUG-11 (LOW) — a duplicated school-year rule survives in a script whose stated reason for existing has been REMOVED.** `migrateIptrGrades.ts:37` keeps its own `schoolYearLabel`, identical to `shared/schoolYear.ts`. That file's header explains the original reason (server code could not import from `src/`) and then says **"`shared/` removes that excuse — one school-year rule for every consumer, which is the whole point of the file."** The excuse is gone; the copy is not. A fifth variant also exists privately at `dohAggregate.ts:207` (`schoolYearStartDate`). Same family as BUG-02's three age implementations — they agree today, and the risk is a future change to the June-April rule landing in `shared/` and not in the script.
+
+**The 23 new tests:** `shared/dohAggregate.test.ts` (13 — tooth counts, the unlinked sittings rule, the linked-visit rule, and the no-links compatibility guarantee) and `shared/schoolYear.test.ts` (10 — the three functions agreeing across the year including the **May seam**, which is bucketed forward on purpose so no date falls between April 30 and June 1, plus the BUG-10 boundary pinned).
+
+**Track B: BUG-03, BUG-04, BUG-07 and SEC-27 fixed. Open: BUG-00, BUG-01, BUG-02, BUG-05, BUG-06, BUG-08, BUG-09, BUG-10, BUG-11.**
+
+**Next: Sprint 162 (`DentalChart.tsx` decomposition, 3,088 lines)** — the last Track B sprint and the flagship multi-file refactor. ⚠ **Its gate is satisfied**: 158's harness exists, 78 tests green, and BUG-07 (the race in its data hook) is already fixed so 162 starts from correct behaviour. ⚠ **BUG-00 still lives in that hook** and should be fixed BEFORE or AFTER 162, never inside it.
+
+---
+
+## Sprint 162 (DentalChart decomposition) - PARTIAL, STOPPED CLEANLY 2026-09-11. 91/91, tsc x2 + build clean
+
+**Two extractions, each fully verified before the next was started. 3,088 → 2,934 lines.** No behaviour change intended and none made.
+
+**162a — the chart's vocabulary and arithmetic** → `src/app/utils/dentalChartCodes.ts`. **The coupling mattered more than the line count:** Dashboard, Reports, RPCTracking and IptrForm all imported `treatmentCodes`/`treatmentLabel` from a **3,088-line component**, so opening any of those screens pulled the whole chart module in behind them. All four now import from the new module — which is why that commit touches five files and leaves **no re-exports**; leaving them would have kept the coupling and defeated the point.
+- **It unblocked Sprint 158's deferral.** `computeDMFT` was module-local and untestable; 158 recorded that extracting it was this sprint's job. It now has **13 tests**, including a pin on the deliberate `X`/`x` vs `DX`/`dx` divergence from the printed DOH legend (HANDOFF's durable gotcha — so nobody "fixes" it), and one recording that **a miscased entry is silently dropped from BOTH indices** (an uppercase code on a deciduous tooth counts as neither). Pinned as current behaviour, **not endorsed**.
+- ⚠ The typecheck earned its keep immediately: two symbols used deep in the component (`temporaryTeeth`, `WHOLE_MOUTH_TREATMENT_CODES`) were caught as missing imports.
+
+**162b — the DMFT History tab** → `src/app/components/DmftHistoryTab.tsx`. Of the seven panels this is the only one reading **nothing but `years`** — no handlers, no local state, no callbacks — so it moves on one prop.
+
+**▶ 162c — THE SEAM MAP IS IN `docs/audit/LEDGER-bug.md`, at CURRENT line numbers** (re-derived after the extractions, because a stale map is worse than none): TAB 7 AI Risk `:2791` (~45) · TAB 5 Treatment History `:2539` (~75) · TAB 6 Referrals `:2617` (~170) · TAB 1 History `:1788` (~190) · **TAB 2 Dental Chart `:1981` (~555, the big one)** · `ToothButton` `:916`, an inner component and a seam *within* TAB 2.
+
+**⚠ WHY THIS STOPPED HERE — it is not an arbitrary budget cut.** The two extractions done were **structurally** safe: one moved non-React constants, the other a panel with a single prop. **The remaining six panels all share MUTABLE CHART STATE with the host**, so each needs its handlers threaded deliberately, and a mistake there changes behaviour **silently, on a clinical screen**. Different risk class; it deserves its own approval rather than the tail end of a sprint.
+
+**⚠ Order for 162c: smallest first** — TAB 7, then 5, then 6, then 1 — and **leave TAB 2 last, extracting `ToothButton` before attempting the panel around it.** One commit per extraction, `tsc` x2 + `npm test` + `npm run build` after each, exactly as 162a/b did.
+
+**⚠ NEITHER EXTRACTION IS COVERED BY A RENDERING TEST.** The suite is pure functions only, so `tsc` proves the wiring, not the pixels. **A browser pass over the chart screen at 390 / 768 / 1280 px is still owed** — and it is the honest verification for 162a/b, not just for 162c.
+
+**⚠ BUG-00 still lives in `useDentalChartData`** (`myCharts.find` hiding later chartings; 22 of 26 IPTRs have more than one) and must be fixed **before or after** 162c, never inside it.
+
+**Track B: BUG-03, BUG-04, BUG-07 and SEC-27 fixed; 158-161 done; 162 partial. Open: BUG-00, BUG-01, BUG-02, BUG-05, BUG-06, BUG-08, BUG-09, BUG-10, BUG-11.**
+
+---
+
+## BUG-00 + BUG-01 CLOSED 2026-09-11 - no code change needed, they were ALREADY FIXED
+
+**⚠ I was asked to fix BUG-00 and it did not need fixing.** It was fixed before the audit began, by Sprints 148/149/154, and **I carried it as the top open HIGH for eleven sprints without checking.**
+
+**The row was SEEDED from backlog #63, which describes the state on 2026-09-05.** Those three sprints landed after that date. All three parts of the original claim are addressed:
+
+1. **Display** — `useDentalChartData` keeps **every** charting for the year, sorted oldest-first, and its own comment names the bug: *"⚠ ALL of them, oldest first — `.find()` here is what hid every charting after the first (Sprint 148)."* The default shown is `charts[charts.length - 1]` — **the LATEST, not the first** (*"a pupil charted again in January showed August's findings"*). `grep` for `myCharts.find` and `charts[0]` across the hook and the component returns **nothing**.
+2. **Selection** — there is a **real on-screen picker** (`DentalChart.tsx:2142-2160`): one button per charting, shown when `charts.length > 1`, labelled with the date, annotated with the visit number where linked, tooth-record count in the tooltip. `selectedChartId` also accepts a `?chart=` URL param. **A dentist can reach every charting of the year.**
+3. **Creation** — a second charting CAN be made: `RPCTracking.tsx:132`, "Record visit & chart now", creates one attached to the visit via `preventive_id` and navigates straight to it.
+
+**⚠ The `if (!chartId)` guard at `DentalChart.tsx:726` remains and is now CORRECT rather than the bug it was.** Editing appends to the charting currently selected; starting a new one belongs to Record Visit — which is right, because a charting created from the chart screen would be attached to **no visit**, exactly the unlinked case `tallyIptrServices` must fall back on. **Do not "fix" it.**
+
+**BUG-01 closes with it.** The contradiction was that the reporting layer assumed several chartings a year while the chart screen assumed one. **Both now assume several**, so they agree.
+
+**⚠ THE PROCESS LESSON, now recorded at the top of `LEDGER-bug.md`.** These two rows were **seeded from a backlog entry rather than read off the code**, and nothing verified them before they were carried forward. **A seeded row is a claim about the PAST — verify it against current code before acting on it**, the same way a row read off the code gets an Evidence line. Second instance of this class this session: Sprint 160 nearly reported "2 of 20 hooks guard" from a truncated grep, when it was 5.
+
+**Worth re-checking for the same staleness:** the other rows seeded rather than derived — `SEC-00`, `SEC-01`, `SEC-02` in the security ledger. SEC-00 and SEC-02 were re-confirmed this session; **SEC-01 (the branch-protection bypass) has not been looked at since 2026-09-02.**
+
+**Verified from code, not from a running app** — the 22-of-26 measurement in the original row was taken on dev and is not re-checked here. **The browser pass already owed for Sprint 162a/b would confirm all of this at the same time.**
+
+---
 
 ## Open work (each needs approval; sprint loop applies)
+
+65. **AUDIT PROGRAM — SCOPED 2026-09-11. **TRACK A COMPLETE** — Sprints 151-157 DONE (+153a SEC-18 fix, +157a doc drift). **Track B OPEN: 158-159 DONE** (`npm test` exists, 46 tests, wired into CI; **BUG-03 is a real double-drain race** and SEC-27 is confirmed); 160-162 and the SEC fix sprints remain, each needs its own approval.** ⚠ No 154b is needed — 154 did not split. ⚠ SEC-26 + ARCH-07 were fixed in 157a. ⚠ Two HIGH read-access findings (SEC-03, SEC-19) are read-off-the-code and NOT yet demonstrated live — SEC-00 (this PC points at production) is what blocks the check.
+    - **Full program: `docs/audit/PROGRAM.md`** (in the repo deliberately — the plan-mode file lives in `~/.claude/plans` and does NOT sync between the two machines). Read that, not this entry, before running any audit sprint.
+    - **User decisions taken 2026-09-11:** security/architecture track FIRST · audit sprints are **READ-ONLY**, fixes are separate approved sprints · **Vitest for pure logic only** before any refactor · output is **internal hardening** (terse ledger, no manuscript formatting).
+    - **Track A (151-157, read-only):** 151 architecture map re-derivation + trust boundaries · 152 auth/session · 153 **RBAC + multi-school tenancy (highest consequence)** · 154 route-by-route input+authz (expected to split into 154b) · 155 data layer · 156 client-side + supply chain · 157 ML boundary. Then SEC fix sprints, 1-3 findings each.
+    - **Track B (158-162):** 158 Vitest harness + characterization tests (**gates 162**) · 159 offline/sync races · 160 data-fetch hooks · 161 report arithmetic edge cases · 162 `DentalChart.tsx` decomposition.
+    - **Ledgers:** `docs/audit/LEDGER-sec.md` (`SEC-nn`/`ARCH-nn`), `docs/audit/LEDGER-bug.md` (`BUG-nn`). Append-only, stable IDs, fixed row format (Claim/Evidence/Impact/Fix), status `OPEN` / `FIXED (Sprint N)` / `WONTFIX` / `NOT-A-BUG`. Nothing is ever deleted — status changes instead. **The point of the ledger is that a cold session can execute a fix from one row plus the file it names, without re-deriving the analysis.**
+    - **⚠ THE READ BUDGET IS PART OF THE DESIGN, not a suggestion.** Each audit sprint may read only: CLAUDE.md, its ledger, and the file list declared at its top. **Never read this file wholesale — it is 296 KB.** Take `## Live warnings` and `## Durable gotchas` by line range instead. Files over ~800 lines are read in sections located by `grep -n`, never opened whole. Anything found outside the declared list becomes a FINDING, not an expansion of scope. A sprint nearing its budget writes what it has, marks the surface `PARTIAL` with the exact stopping point, and ends.
+    - **Two facts that shaped the program:** (a) **there is no test framework** — CI runs `tsc` x2 + `build` only, and the ~60 `verify_sprint*.mjs` scripts need a live server, so multi-file refactoring currently has no regression net; (b) **`docs/ARCHITECTURE.md` is stale**, derived 2026-08-08, before sprints ~103-150 — which is why re-deriving it is sprint 151 rather than an afterthought.
+    - **Three findings are seeded into the SEC ledger at 151 rather than rediscovered:** `SEC-00` this PC's `.env` points at PRODUCTION with no dev database on the machine · `SEC-01` branch-protection bypass "Repository admin - Always allow" is active · `SEC-02` real patient PII (Appendix E) is committed and in git history.
+    - **OWASP Top 10 write-up + ZAP scan** stay on the before-defense checklist and are **derived from the finished `LEDGER-sec.md` in one later sprint** — not formatted into every sprint along the way. That is a consequence of choosing internal-hardening output.
+
+64. **ADOPTING THE COLLABORATOR'S DESIGN — decided 2026-09-05, checkpointed, NOT started.**
+    - **✅ CHECKPOINT TAG: `pre-design-adoption`** (pushed). Main at the end of the 8th session, sprints 127-150. **Everything below that tag is entirely our own work** — nothing from `peanutbutterjelly03/dental-app-build` had been merged, cherry-picked or copied at that point. Return with `git switch -c rollback pre-design-adoption`; see what changed after with `git diff pre-design-adoption..main`.
+    - **THE DECISION: take her LAYOUT, keep our LOGIC.** Her branch is 114 commits behind ours and does not contain sprints 127-150. Every adopted piece binds to OUR data sources; nothing of hers touches our models.
+    - **Her repo:** `classmate` remote (local only). Her work is on branch **`majorUpdates`** (81 commits, 43 files, +7302/-1391), forked from `ad527606` (2026-09-03). Her `main` is stale; two PRs exist on HER repo, none on ours.
+    - **A — PURE LAYOUT, safe to copy (no schema, binds to our data):** the Dental Condition Summary + Treatment Summary panels with **Tooth Count / Tooth Numbers** (derived from the odontogram we already have — this is backlog #55's per-tooth half) · the **Legend** button (collapses the always-on code grid into a popover) · **Charting Mode** (a boolean plus a module-level memo) · the status strip, school chip and year-strip styling.
+    - **B — REAL FEATURES, separate decisions, NOT part of a layout port:** consent per school year (`STUDENT_IPTR.consent_status` + a server-set `consent_given_at` — **genuinely better than our student-level field**) · `UpdateSchoolYear.tsx` (521 lines, ⚠ likely overlaps our PromoteAssign) · `Notifications.tsx` (110 lines — we have the `useNotifications` hook from Sprint 97 but no panel) · a much larger `bmi.ts` (+385).
+    - **C — ⚠ DO NOT COPY, these undo newer work:** her `draftServices` writing services onto `DENTAL_CHART` (**Sprint 147 stores those on PREVENTIVE_CARE_RECORD, and the DOH report reads ours**) · her `useDentalChartData`, still `myCharts.find(...)` (**the Sprint 148 bug that hides later chartings for 22 of 26 pupils**) · her chart header, which has ONE PDF button where we have IPTR + Form 1 · anything touching `Appointments.tsx`, `routes/index.ts`, `api/types.ts` or `DATA-MODEL.md`.
+    - **METHOD:** branch `adopt-design`, **one piece per commit, verified in the browser each time**, never copying a whole file — `DentalChart.tsx` has diverged ~2,100 lines on her side and heavily on ours. Credit her approach in the commits; the reasoning is hers.
+    - ⚠ **`studentDuplicates.ts` exists on BOTH sides**, added independently. It will conflict if her branch is ever merged.
+
+
+63. **⚠ A CHARTING BELONGS TO A VISIT, AND THE APP CANNOT SAY WHICH — user, 2026-09-05: *"visit 1 is charting to treatment, same as visit 2"*.** NOT scoped. **Contains a LIVE BUG, measured, that should be fixed first and separately.**
+    - **⚠ THE LIVE BUG: the Dental Chart page shows only the FIRST charting of a school year and hides the rest.** `useDentalChartData:85` does `myCharts.find(c => c.iptr_id === iptr._id)` — the first match — and chart creation only fires `if (!chartId)`, so a second charting can never be made from the UI either. **Measured on dev 2026-09-05: 22 of 26 IPTRs have MORE THAN ONE chart.** One pupil has three (2025-08-14, 2026-01-19, 2026-07-09) and the page shows **3 of their 4 tooth records** — the January finding is invisible.
+    - **⚠ THE APP CONTRADICTS ITSELF ABOUT THIS.** `tallyIptrServices` deliberately orders MULTIPLE charts per IPTR by date and treats each as a SITTING — that is how the DOH report derives "1st / 2nd application". So the reporting layer assumes several chartings a year while the chart screen assumes one. Both cannot be right.
+    - **WHY THE USER'S POINT LANDS HERE:** if Visit 1 and Visit 2 each involve charting, today they collide in one chart and the second overwrites the first, invisibly.
+    - **✅ ANSWERED BY THE USER 2026-09-05: THE DENTIST SCREENS AND TREATS AT THE SAME VISIT.** Asked directly ("does she treat at the same visit she screens, or does Visit 1 screen and Visit 2 treat?") — the answer is the first.
+      - **So a charting is SELF-CONTAINED: one visit's findings AND the treatments done at that visit, on the same `TOOTH_RECORD` rows.** The model's existing shape — `condition` and `treatment_code` on one row — is therefore CORRECT and needs no change.
+      - **⚠ This kills the expensive version of this work.** A tooth does NOT need a history assembled across visits (decayed on chart 1, filled on chart 2, shown together), which would have meant redesigning the chart screen. Each charting stands alone and is read alone.
+      - **And it makes the ordinal exact:** one chart per visit means "1st / 2nd application" is read from the visit the chart belongs to, not inferred from dates. That is step 3 below, and it is now a lookup rather than an interpretation.
+    - **RECOMMENDED ORDER — three steps, and the first is worth doing alone:**
+      1. **Make the chart screen year-complete.** Show every charting for the year with its date, not silently the first, and let a new one be created. This is a data-visibility bug independent of any visit link, and it is what a dentist would notice first.
+      2. **Link the charting to the visit:** nullable `preventive_id` on `DENTAL_CHART`. Then a charting BELONGS to Visit 1 or Visit 2 instead of being guessed at by date, and Record Visit can offer *"chart now"*, creating the chart already attached.
+      3. **Let the reports read the link.** `useDohReportData`'s 1st/2nd application stops being **inferred from chart dates** — its own comment calls that "an interpretation worth understanding" — and the TCL's per-visit tooth counts become fact, the same move Sprint 147 made for the service ticks.
+    - **⚠ `TREATMENT` is NOT the right home for this and should stay where it is.** The user's phrase is *charting to treatment*: what a visit DOES to teeth is `TOOTH_RECORD.treatment_code` on that visit's chart. `TREATMENT` is the free-text chairside note (diagnosis / treatment_done) and answers a different question.
+    - **⚠ Existing charts have no visit.** `preventive_id` must be nullable and old rows stay null — the date-based inference remains the fallback for them, exactly as Sprint 147 kept the chart fallback for visits recorded before it.
+
+
+62. **~~RECORDING AN RPC VISIT IS ALSO RECORDING TREATMENT~~ — BUILT 2026-09-05 as Sprint 147.** Original note:  **⚠ user, 2026-09-05. `PREVENTIVE_CARE_RECORD` STORES NO SERVICES AT ALL.** NOT scoped; it is a model change, so it needs approval.
+    - **The model has four fields:** `iptr_id`, `visit_date`, `visit_number`, `facility_based`. That is it. **A visit records that someone was seen, never what was done to them.**
+    - **The Record Visit modal saves exactly those** (`RPCTracking.tsx:78` → `POST /preventive-care-records` with date, number, facility flag). The dentist ticks nothing.
+    - **But CLAUDE.md's own module 5 says an RPC visit IS a set of services:** *"oral screening, prophylaxis, fluoride varnish, hygiene instruction, caries risk assessment"* — and page 2 of the Target Client List prints exactly those as per-visit tick columns for FIRST and SECOND visit.
+    - **⚠ THIS IS WHY SEVERAL FILED FIGURES ARE APPROXIMATIONS, and the code already says so in three places.** `useRPCTracking`'s own comment: *"this is 'the student has had this treatment', NOT 'this was done at the RPC visit' — PREVENTIVE_CARE_RECORD stores no services at all, so per-visit treatment data does not exist to filter on."* The TCL therefore answers "did this pupil ever have FV?" where the form asks "was FV done at this visit?", and `useDohReportData` derives 1st/2nd application from CHART DATES because nothing records the ordinal.
+    - **RECOMMENDED SHAPE — service ticks ON the visit, not a join:** add to `PREVENTIVE_CARE_RECORD` the columns the form actually prints — `oral_screening`, `oral_prophylaxis`, `fluoride_varnish`, `oral_hygiene_instruction`, and the visit's `caries_risk` (Low/Moderate/High). Booleans default **false**, risk defaults **null**. The Record Visit modal grows a tick row. **The TCL's per-visit columns then read the visit instead of guessing from the chart, and 1st/2nd application stops being inferred from dates.**
+    - **⚠ Do NOT route this through TREATMENT or TOOTH_RECORD.** `TREATMENT` is free-text diagnosis/treatment_done for a chairside entry; `TOOTH_RECORD` is per-tooth, and a fluoride varnish or a prophylaxis is whole-mouth — there is no tooth to hang it on. Forcing either would invent per-tooth data the dentist never recorded.
+    - **⚠ ERD deviation** — same treatment as `REFERRAL` got: build it, then update `docs/DATA-MODEL.md` and the Chapter 3 figure.
+    - **⚠ Existing rows have no answer.** Every visit recorded before this change must read as *not recorded*, never as "not done" — the same rule `facility_based` already follows (default null, and FHSIS prints "not recorded" rather than inventing the split). Booleans defaulting false would silently claim no service was given.
+    - **Distinct from #55**, which is about structured entry on the CHART. This is about the visit.
+
+
+61. **~~THERE ARE TWO IPTR VERSIONS AND BOTH ARE VALID~~ — BUILT 2026-09-05 as Sprint 137.** Both forms are offered; the PDF button is now a choice. ⚠ The photo of Form 1 is NOT in the repo (real patient data - see that sprint). Original note:
+    - The user has now confirmed what backlog **#37** suspected: the Taguig City Health Office **"INDIVIDUAL PATIENT TREATMENT RECORD"** (manuscript Appendix G, the one Sprint 135 built) and the **"Form 3 / INDIVIDUAL TREATMENT RECORD"** they photographed on 2026-09-03 are **both in use**. Neither supersedes the other.
+    - **So the app must OFFER BOTH, not choose.** Sprint 135's `IptrForm` is version A; version B needs its own component built to its own scan, and the PDF button becomes a choice ("which form?") rather than a single action.
+    - **Before building version B:** get a legible scan of it into the repo the way Appendix G already is. The 2026-09-03 photo was a phone snap; the Appendix G images are embedded base64 in the manuscript and are what made Sprint 135 possible.
+    - ⚠ **Do not "reconcile" the two into one merged form.** Two valid forms filed with the same office are two documents; merging them would produce a third that is neither, which is exactly what the form-fidelity rule forbids.
+
+
+60. **⚠ THE "IPTR PDF" IS A SCREENSHOT OF THE APP, NOT THE DOH FORM — found 2026-09-05, SCOPED, not built.** `DentalChart.tsx:875` captures `recordRef`, which spans lines 953-1832: the patient-info card, the tab strip, the Edit buttons, whatever tab happens to be open. **That is the document a family or a referral receives.** Under CLAUDE.md's form rule ("reproduce every page … the form is the form") and the printout rule, it is the wrong artifact.
+    - **Both official pages are ON THIS MACHINE and are LEGIBLE** (unlike the TCL scans): manuscript **Appendix G**, `image19` = page 1, `image20` = page 2, 576x740 each.
+    - **PAGE 1, read from the scan:** DOH / City of Taguig header · **Personal Information** (Patient's Name, Birthday, Age, Sex, Address, Occupation, Contact #, PhilHealth Principal/Dependent, 4Ps/NHTS) · a **Year 1 … Year 5 matrix** whose rows are DATE EXAMINED, then **Medical History** (Allergies, Hypertension/CVA, Diabetes Mellitus, Blood Disorders, Cardiovascular/Heart, Thyroid, Hepatitis, Malignancy, History of Previous Hospitalization, Medical (Last Admission & Cause), Surgical (Post-Operative), Blood transfusion (Month & Year), Tattoo, Others), **Dietary Habits and Social History** (Sugar Sweetened Beverages, Alcohol Drinker, Tobacco User, Betel Nut Chewer, Body Piercing, Nail Biting, Thumbsucking) and **Oral Health Condition** (Orally Fit, Dental Caries, Gingivitis, Periodontal Diseases, Debris, Calculus, Abnormal Growth, Cleft Lip/Palate, Completely Edentulous, Others) · the **Filipino consent paragraph** · **Lagda ng Pasyente / Lagda ng Magulang o Guardian** · and a visit table: **Date · Weight · Temp · BP · Chief Complaint · Diagnosis · Treatment Done · Dentist · Signature · Remarks**.
+    - **PAGE 2:** **Dental Charting** — FIVE tooth charts, one per year, each with its own Date, the FDI grid with Treatment and Condition rows and a d/m/f/x + D/M/F/X/T summary — plus **Legend: Condition** (√ Sound/Sealed · D/d Decayed · M/m Missing · F/f Filled · DX/dx Indicated for Extraction · Un/un Unerupted · S/s Supernumerary · JC/jc Jacket Crown · P/p Pontic) and **Legend: Treatment** (FV Fluoride Varnish · PFS Pit and Fissure Sealant · PF Permanent Filling · TF Temporary Filling · X Extraction · SDF Silver Diamine Fluoride), ending in **Signature of Examining Dentist**.
+    - **✅ The data model fits the form almost exactly, which is why this is worth doing:** the Year 1-5 matrix IS five `STUDENT_IPTR` years; its three row-blocks are `MEDICAL_HISTORY`, `DIETARY_SOCIAL_HABITS` and `ORAL_HEALTH_CONDITION` field for field; page 2's five charts are `DENTAL_CHART` + `TOOTH_RECORD` per year; the legends confirm the codes the app already uses.
+    - **What has NO source and must print BLANK** (never omitted): Occupation (no model stores it — the OCR note says the same), and the visit table's **Temp**, **BP**, **Chief Complaint** and **Signature** columns. Weight exists (`STUDENT_IPTR.weight_kg`, Sprint 68); Date/Diagnosis/Treatment Done/Dentist/Remarks come from `TREATMENT`.
+    - **Scope when approved:** a real `IptrForm` component built to the scan — two printable pages with `.form-print` — replacing the `recordRef` screen capture as the PDF source. It is the biggest single form left, and it is the one a parent actually holds.
+
+
+59. **Bulk upload of student records from Excel — ⚠ ALREADY BUILT (Sprint 23m). The request is really about the FORMAT.** User 2026-09-05: *"add a button bulk upload student records in students tab using excel, but i dont know the excel format yet or have excel files yet… this is also needed for data cleaning right? for prediction right"*.
+    - **It exists and takes .xlsx.** `PatientList.tsx` has a bulk-import modal (`showBulkUpload`, `buildBulkRow`, `bulkStep`) that reads **CSV or .xlsx** (ExcelJS, `wb.xlsx.load`), previews the rows, and reports parse errors. **Do not build a second one** — look at this first.
+    - **The format it expects today:** required **Last Name, First Name, Sex, Grade Level, Section, Birthday, Address**; optional **Middle Name, Contact Number**. Sprint 120/121's value rules apply on both sides (birthday bounds 3-25, names capped 60, PH phone structure).
+    - **So the real open question is whose format wins** when the school's actual roster file arrives: bend the importer to the school's columns, or hand the school a template. **Cannot be answered until a real file exists** — that is the blocker the user named, not the button.
+    - **On *"can upload IPTR image also be bulk?"* — NO today, and the reason is not the file input.** `PatientList.tsx:896` takes ONE file (`e.target.files?.[0]`, no `multiple`), image or PDF, and OCR runs **in the browser** via Tesseract.
+      - **Adding `multiple` is trivial; making it USABLE is not.** Every scan produces findings a human must review before anything is saved — Sprints 86/87 made that a rule, and the reader declines rather than guesses (an upside-down page once reported 31 phantom findings on a blank form). A 40-scan batch therefore produces 40 review screens, not 40 saved pupils, so the sprint is really a REVIEW QUEUE: run them in sequence, hold the results, let the aide accept/correct/skip each, then commit.
+      - ⚠ **Browser-side Tesseract is the practical limit.** One page already takes seconds; a class set run in one tab will lock the UI unless the work is queued and progressed one file at a time. Measure with a real batch before promising it.
+      - **Order to build in, if it is wanted:** the review queue first (it is the actual work), `multiple` on the input last (it is one attribute).
+    - **On *"needed for data cleaning / for prediction"* — RELATED, BUT NOT THE SAME PATH, and it matters that these do not get conflated:**
+      - The ML pipeline does NOT read the app. It reads `data/raw` offline: `clean_excel.py` → `build_features.py` → `run_experiments.py`. Nothing there depends on this button.
+      - Where they DO meet: the 50 hand-encoded records (decided 2026-09-01). If the dentist encodes them in Excel, ONE spreadsheet layout could feed both the importer and `clean_excel.py` — which is an argument for settling the format once, for both, rather than twice.
+      - ⚠ **The importer only covers STUDENT identity fields.** The ML features are DMF/dmf, oral conditions, dietary habits, medical history — none of which this importer accepts. **Bulk-uploading rosters does not produce training data**, and treating it as though it does would be the mistake to avoid here.
+
+
+58. **~~Day-note dialog: split it into two halves~~ — BUILT 2026-09-05 as Sprint 131** (see that section; two items left unverified there). Original scoping: Their words: *"how about make it two halves one part is to fill in add note, the other half is the showing of current sched and notes instead of topping each other"*.
+    - **The cause is one line, and it is not the layout — it is the WIDTH.** The day panel is a `Modal` opened with `maxWidth="max-w-md"` (`Appointments.tsx:683`), i.e. ~448px. At that width a two-column split is unusable, so everything stacks: **Appointments** (the day's schedule) → **Notes** (existing notes) → the add-note textarea and button. On a busy day the write box is pushed below the fold, which is exactly the "topping each other" complaint.
+    - **How I would implement it:** widen the modal to `max-w-3xl`, then inside it `grid grid-cols-1 md:grid-cols-2 gap-4` — LEFT = schedule + existing notes (the read half), RIGHT = the add-note form (the write half, always visible). Give the left column `max-h-[60vh] overflow-y-auto` so a long day scrolls inside its own half instead of pushing the form away.
+    - **On *"same function as the box below the Today/Upcoming/Completed/Missed/Rotation buttons"* — the answer is REUSE, not rebuild.** That box renders `<AppointmentCard a={a} showActions />` (`Appointments.tsx:372`, used at 573/597/615/630). With `showActions` it already gives: **Mark Completed** and **Mark Missed** on a Scheduled session, **Mark Completed** on one In Progress, and **re-open to Scheduled** on a Completed/Missed one — plus a `Link to="/dental-charts"` titled "Open Dental Charts". The day dialog today reimplements none of that: it has only a per-appointment note editor.
+      - `AppointmentCard` is declared INSIDE the `Appointments` component, so the day dialog can use it as-is with no extraction and no prop plumbing.
+      - **⚠ THE ONE REAL MISMATCH TO SOLVE FIRST: the two lists are at different granularities.** `AppointmentCard` takes an `AppointmentSession` (one card per time+grade+section), while the day dialog lists **individual students inside** each session (`st.appointmentId`, `st.name`, `st.notes`). Dropping the card in wholesale would lose the per-student rows. Decide deliberately: either the read half shows session cards WITH the student rows nested underneath, or the per-student actions get lifted into the card. **This is the design decision of the sprint — everything else is layout.**
+      - ⚠ The card's chart link goes to the LIST (`/dental-charts`), not to that pupil's chart. If "open chart" is meant to land on the pupil, that is a small separate improvement — the student rows in the day dialog know the id, the card does not.
+    - **⚠ Keep the stack below `md:`.** CLAUDE.md's three device classes apply: at ~390px two columns are worse than one, so the phone keeps today's single column with the form last. This is a widescreen improvement, not a layout replacement.
+    - **On *"maybe can remove or delete?"* — half of it already exists, half does not, and neither is a delete.**
+      - **DAY NOTES already have it:** each note in that list carries an X (`archiveDayNote`, Sprint 108), and Sprint 108 had to widen `archiveRoles` so the dentist and aide could actually use it. Nothing to build; the split just has to keep that control reachable in the read half.
+      - **APPOINTMENTS in this panel do NOT.** The only per-appointment control there is edit-notes (`setApptNoteId` → textarea → Save/Cancel). Cancelling or removing an appointment has to be done elsewhere. **That is the actual gap**, and it is worth confirming with the user that appointments — not just notes — are what they want removable from this dialog.
+      - **On *"can edit also"* — this one genuinely does not exist, and the API is already there.** `Appointments.tsx` calls exactly two day-note endpoints: `POST /day-notes` (280) and `PATCH /day-notes/:id/archive` (322). **There is no edit path in the UI at all**, so correcting a typo today means archiving the note and retyping it — which leaves the wrong note in the archive forever. The route's `PUT /:id` already accepts `CLINICAL_WRITE_ROLES`, so this is UI-only: inline edit on the note row (click to open a textarea, Save / Cancel), `apiClient.put`, exactly the shape the per-appointment note editor beside it already uses.
+      - ⚠ **It can never be a DELETE.** CLAUDE.md: never hard delete any record. Both cases are ARCHIVE (`PATCH /:id/archive`), recoverable by System Admin from `/archive`. Label the control "Remove" in the UI if that reads better, but say archive in the code and keep restore admin-only.
+    - **Check while in there:** the same dialog is where a note is archived (Sprint 108's remove button), so the read half must keep that control reachable after the split.
+
+
+57. **Printouts must contain ONLY the form — user rule 2026-09-05, NOT scoped.** Their words: *"the print out should just be the forms do not include headers or somethings from the webpage not inside the forms"*. Now also a standing rule in CLAUDE.md.
+    - **What the print CSS does today** (`src/styles/index.css:76-140`): hides `aside`, `header`, `nav`, `button`, `[role="navigation"]` and `.doh-report-controls`, sets landscape, and zooms `#doh-report-printable` to 0.45.
+    - **⚠ What it does NOT hide, and therefore still prints** (read from the CSS and the DOM, not yet confirmed on paper): the page title block ("Reports · DOH Consolidated Report & Internal Reports"), the `<label>` text beside the hidden `<select>`s ("School:", "School year:"), and every explanatory caption — "Every column of the paper form is shown…", "Covering school year …", "Sep 2026 — showing 0 clients consulted…". Those explain the APP; none of them is on the DOH form.
+    - **The fix is a different STRATEGY, not more selectors.** Hiding chrome element by element is why this keeps leaking as the UI grows. Print by inclusion: give each report ONE printable root, hide everything outside it in `@media print`, and move anything that genuinely belongs on paper inside it.
+    - **Check the PDF/Excel exports the same way** — `exportDohReportToPdf` captures a ref, so whatever sits inside that element goes into the PDF too; the captions may already be in the filed PDF.
+    - **PARTLY VERIFIED 2026-09-05 without opening the print dialog.** `window.print()` freezes the automated browser, so instead the SHIPPED `@media print` rules were copied onto the screen and screenshotted — 1 print block, 15 style rules, i.e. the real stylesheet, not a re-typed copy of it.
+      - **DOH Consolidated: PASSES.** Only the table, its DOH title row and the "Prepared by" footer. No sidebar, no page heading, no tab strip, no `School:` / `School year:` labels, none of the explanatory captions.
+      - **RESOLVED 2026-09-05 (Sprint 133): the footnotes are DROPPED from paper.** User chose the form-fidelity rule over the note-why rule. New `.print-hide` class, applied to the School Summary's five explanatory notes, hides them in `@media print` while they stay on screen beside the table they describe. **Re-verified the same way: the printed sheet is now the table alone**, and the notes render normally again once the emulation is removed. Use `print-hide` for any future on-screen explanation that lives inside a printable root - do not move such notes out of the root, because on screen they belong with their table.
+      - **School Summary: passed for chrome, and raised the QUESTION now resolved above.** The sheet prints alone — and so do its five explanatory footnotes ("MALE / FEMALE count students; each TOTAL counts teeth", "Very Good (VG) is left blank…", "Rows follow the printed sheet exactly…"). **Those are not on the paper form.** They sit inside the `.form-print` root, so inclusion-printing keeps them. Two rules pull opposite ways: *a printout is the form and nothing else* says drop them; *leave a cell blank and note why* says keep them. **ASK THE USER — do not decide this silently.** If dropped, the mechanism is a `print-hide` class on those blocks, not another root.
+      - **STILL UNVERIFIED, and only a human can do it:** pagination, `@page landscape`, the `zoom: 0.45` on the wide table, and whether `position: absolute` leaves a blank first page. Emulating the rules on screen cannot show page breaks.
+    - **Verify on actual output, not by reading CSS:** print-preview each of the seven report tabs, or export the PDF and open it. This item is only closed when a printed sheet is indistinguishable from the official form.
+
+
+56. **The real Target Client List is TWO PAGES; ours is one — ⚠ ANSWERED 2026-09-05, and it is NOT a missing-column problem. Both pages were read.**
+    - **THE BLOCKER IS GONE: both scans are ON THIS MACHINE, inside the manuscript.** `docs/Group404 - Manuscript.md`, **Appendix E**, embeds TWO base64 PNGs — `image16` (page 1, the same sheet the user photographed, headed "BTIS") and **`image17` (page 2)**. Extract with a few lines of base64 and read them; no other laptop and no workbook are needed. *(The earlier note saying the workbook is on the other laptop was true of the .xlsx and irrelevant — the form itself was in the repo all along.)*
+    - **What page 2 actually holds, read from the scan:** a repeated **No.** column, then **FIRST** visit (Oral screening · Caries Risk assessment Low/Moderate/High · oral hygiene instruction · Counseling · Oral Prophylaxis · Fluoride Varnish App · Complete RPC for 1st Visit Routine Preventive Care), the **SUBSEQUENT / 2nd visit** repeat of the same group, and **OTHER SERVICES** (Gum Treatment · Permanent/Temporary Filling Tooth Count · 1st and 2nd Silver Diamine Fluoride App tooth counts · Consultation · Referred Out · Complete Mouth Rehab) ending in **REMARKS (Specify other findings)**.
+    - **⚠ EVERY ONE OF THOSE COLUMNS IS ALREADY IN `TargetClientList.tsx`.** Page 1's identity + ORAL HEALTH STATUS columns are there too. **The app is not short a single column — it renders both pages' columns as ONE continuous 66-column table.**
+    - **So the real gap is the PRINTED PRESENTATION, not the data:** the official form splits those columns across two sheets, joined by the `No.` column, and the app emits one very wide sheet. Under CLAUDE.md's form rule ("reproduce every page … the form is the form"), the output should split the same way: **page 1 = identity + oral health status; page 2 = the visit and services groups, repeating `No.`**.
+    - **Scope when built:** an export/print concern in `TargetClientList.tsx` + `exportXlsx` — two sheets (or two print pages) instead of one, sharing the row order. No model change, no new columns.
+    - **What the user said:** *"target client list is two pages, we only have 1"*.
+    - **⚠ WHETHER to build it is NOT a question — the user has said before, and again on 2026-09-05, that forms are copied EXACTLY.** Page 2 gets reproduced whatever it turns out to hold, blank cells included. CLAUDE.md's form rule was strengthened the same day to say so, because the earlier wording ("keep all rows and columns") let a whole missing PAGE pass. **The open question below is only HOW, never whether.**
+    - **What is NOT yet known, and must be established before building:** whether "two pages" means (a) the printed form runs onto a second sheet with MORE COLUMNS our 66 do not include, (b) the same columns continued onto a second page of ROWS (a pure print/pagination matter), or (c) two distinct sheets in the workbook with different headings. These need different work — (a) is a data gap, (b) is a print stylesheet job, (c) is a second report. **Do not start until the page-2 heading row has been read — read the whole workbook end to end this time, not the part already transcribed.**
+    - **⚠ The source workbook is NOT on this device.** `TCLForm2andFHSISReport.xlsx` / `2026Form2withFHSIS.xlsx` were read on the other laptop during Sprint 84; `data/` is per-device and this machine holds only the Nutritional Status files. Either pull the workbook over or check it on that machine.
+    - **What exists today:** `TargetClientList.tsx` renders ONE continuous 66-column table (Sprint 84), Excel-export only — no PDF, decided 2026-09-03 because Excel paginates columns natively where a PDF sprays them across pages. If page 2 turns out to be a print concern, that decision is the relevant context, not a bug to fix.
+    - **A PHOTO OF A FILLED PAGE 1 was supplied by the user 2026-09-05 (headed "BTIS"), and there is reportedly a scan in the manuscript/docs — READ THAT before building.** Observations from the photo, recorded as LEADS, not facts, because a phone photo of one page is not the form:
+      - Its header row reads: No. · Date of Consult (mm/dd/yy) · PhilHealth No. · Name (LastName, FullName, MI) · Complete Address · Contact Number · Date of Birth · Age (in years) · Age Group · Sex · With Caries experience · …in Temporary Dentition · …in Permanent Dentition · With Active Dental Caries · Gingivitis/Periodontal Disease · Oral Debris · Calcular Deposits · Dento-Facial Anomaly · Completely Edentulous/No Dentition · d f x · D M F X · Sound Temporary Teeth · Sound Permanent Teeth · Caries Free · Orally Fit Child.
+      - **⚠ Three columns our app renders are NOT visible on it: `Family Serial Number`, `Barangay`, `Facility Based`.** And `Orally Fit Child` appears as ONE column where we render the `Upon Oral Examination` / `After Complete Mouth Rehabilitation` pair.
+      - **Do not "fix" the app from this photo.** It may be a different edition, or those columns may sit on the second page — which is the very thing this item exists to establish. Read the scan in the manuscript/docs and the workbook together, then reconcile once.
+    - **Related but distinct, already logged:** the 27 cohort tabs (age x sex) are a PRESENTATION of the same rows, not extra data. Do not conflate "two pages" with those tabs until the form is read.
+
+
+55. **Structured TREATMENT entry: dropdowns for treatment and condition, plus tooth numbers on both — user idea 2026-09-05, NOT scoped, to be done after the current workflow.** Their words: *"noting or adding or what treatment can be dropdown, adding condition can be drop down and can also indicated teeth numbers on them both, i dont know how to implement any thoughts?"*
+    - **The vocabulary already exists and must not be reinvented.** `DentalChart.tsx` exports `treatmentCodes` (OEX, OP, FV, PFS, TR, TF, X, SDF …) and holds the condition codes; the DOH reports, the TCL and `useDohReportData` all read those exact codes. A second, parallel list typed into a Treatment form would drift from them within a sprint and the forms would disagree.
+    - **Tooth numbers also already exist**, as `TOOTH_RECORD` rows keyed by FDI number under a `DENTAL_CHART`. So the honest question is not "where do we store teeth" but **which store is the source of truth**.
+    - **⚠ THE REAL DESIGN RISK: two places would then answer "which teeth were treated?"** — the chart and the treatment entry — and they can disagree. Whatever is built, ONE of them must be the source and the other must read it.
+    - **My recommendation, to argue with rather than accept:** keep `TOOTH_RECORD` as the source. The Treatment form gains (a) a treatment dropdown of the existing codes, (b) a condition dropdown, (c) a tooth-number picker, and **writes tooth records** for the selected teeth on the selected chart, while `TREATMENT.diagnosis`/`treatment_done` stay as the free-text narrative. Nothing new is stored twice, and the DOH tooth-count columns light up from the same rows they already read.
+    - **Why it is worth doing at all, beyond convenience:** the DOH forms count TEETH (`Composite Filling (Tooth Count)`, `Extraction (Tooth Count)`, the SDF applications). Free text cannot be counted; a code plus a tooth list can. It also removes spelling variance from a filed form.
+    - **Open questions for the dentist before building:** does she record a treatment per tooth or per visit? Is a condition ever recorded WITHOUT a tooth (soft-tissue findings)? Should picking teeth be a chart click or a number list on phones?
+
+54. **~~A NEW MODEL HAS A CHECKLIST, and nothing enforces it~~ — ENFORCED 2026-09-05 as part of Sprint 129.** `purgeDemoData.ts` now refuses to run unless every registered model is in the plan or explicitly excluded with a reason; proven by removing `Referral` and watching it refuse. The checklist below is still the reference for the OTHER places a new model must be registered — those are not yet guarded. Original note: Their words: *"things or variables or something we add might be needed to be purge demo something idea"*. **This is not hypothetical: Sprint 127's `Referral` was already missed.** The code review found `purgeDemoData.ts`'s plan lists every IPTR-child collection except the one added that day, so `npm run purge:demo -- --confirm` before deployment would delete the demo students and their IPTRs and **leave every referral behind, orphaned, pointing at `iptr_id`s that no longer exist** — invisible in every report (the join drops them) and permanent, since nothing is hard-deleted afterwards.
+    - **The places a new model has to be registered, from tracing `Referral` through the codebase:** `models/index.ts` · a `createCrudRouter` block in `routes/index.ts` · `RULES` in `schoolScope.ts` · **`purgeDemoData.ts`'s plan** · `ArchiveManagement.tsx`'s `KINDS` (or an archived record is invisible and unrestorable) · `docs/DATA-MODEL.md` · the Chapter 3 ERD figure (user-only) · `is_demo` if seeders will create rows of it.
+    - **A note is the weak version; a GUARD is the fix.** `purgeDemoData.ts` can assert coverage: enumerate the registered Mongoose models and REFUSE to run when one is neither in the plan nor on an explicit exclusion list with a stated reason. That converts "someone must remember" into "the script stops" — and it is the same principle as the 2026-09-04 lesson, since a purge that silently skips a collection reports success having compared nothing.
+    - Scope estimate: the guard is one function inside `purgeDemoData.ts` plus a short exclusion list; the checklist belongs in CLAUDE.md, where it constrains every session, not in HANDOFF.
+
 0. **"Double entry — doctor can choose" — ~~open~~ DONE 2026-09-01 as Sprint 47** (see that section above for the design, the verification, and the one untested path). Raised 2026-08-27 as *"for double entry, doctor can choose they said"*. **User confirmed it means (a): a duplicate STUDENT record** — the same child encoded twice (e.g. once by OCR, once by hand). The other readings (appointment double-booking, conflicting IPTR entries) are NOT what was meant and are not in scope. **Still open if ever wanted: merging duplicates already in the database** — explicitly declined for Sprint 47, and the notes below are kept because that build would need them.
     - **Decided scope = WARN AT ENTRY ONLY.** Merging/deduplicating records already in the DB was offered and declined — no archiving, no repointing of child records, no referential-integrity work. Because nothing is ever archived, the Student `archiveRoles` question is moot for this sprint.
     - **Decided actors = dentist + dental aide + system admin** can all resolve a warning ("save anyway"). No permission change needed: all three are already in `CLINICAL_WRITE_ROLES`/admin for student writes.
@@ -1923,6 +1912,10 @@ One file, `DentalChart.tsx`, no data changes. Findings:
     - ~~**STILL OPEN — indexes exist on Appointment and Student only.**~~ **DONE 2026-09-03 as Sprint 91** — nine indexes across eight models, each matching a real query shape; six models deliberately left unindexed and the verifier asserts they stay that way. `npm run verify:indexes`.
     - ~~**STILL OPEN — `AuditTrail` is served by the generic CRUD GET with no filter, no sort and no limit**~~ **DONE 2026-09-03 as Sprint 92** — 90-day window + "Show earlier", the screen's date filter widens the fetch, and the dashboard's all-time chart was relabelled. Original finding follows: `GET /audit-trails` returned THE ENTIRE AUDIT TRAIL (found while auditing query shapes for Sprint 91). It is the fastest-growing collection in the system — every action, every user, three schools, forever — and **an index does not fix an unbounded read**. It needs the Sprint 56 treatment: a date bound plus an explicit "show earlier". This is now the largest remaining unbounded read.
     - Archiving old appointments remains the WRONG fix — soft delete is for records removed in error, and archived records are admin-only to view, which would hide routine history from the dentist.
+    - **📏 MEASURED 2026-09-05 against dev (26 students), so the scale claim is a number, not a worry.** One open of the Reports page pulls **~108 KB across 11 whole collections**: students 20.9 KB (26 rows) · tooth-records 25.2 KB (130) · medical-histories 13.0 KB · dental-charts 11.5 KB · dietary 8.6 KB · oral-health 8.7 KB · student-iptrs 7.3 KB · preventive 5.8 KB · risk 5.8 KB · schools 1.1 KB · referrals 0.
+      - **That is ~4.1 KB per pupil per page open.** At the Chapter 1 scale of **8,000 pupils that is ~32 MB** — and the demo charts only ~5 teeth per pupil. At a realistic 20-32 teeth the tooth records alone reach ~6 KB/pupil, putting a single Reports open near **60-80 MB**.
+      - **The hooks are not equally guilty:** `useDohReportData` 11 whole-collection reads, `useRiskClassification` 9, `useSchoolSummary` 6, `useRPCTracking` 6, `useFhsisData` 4.
+      - **⚠ THE FORK, which needs a decision before any code:** (a) **server-side aggregation** — one endpoint per report returning the counts, the way Sprint 56b did for the patient list; correct, ends the problem, and the reports' whole join logic moves to the server. (b) **server-side FILTERS** — make `student-iptrs` filterable by `school_year` and scope the children to the resulting ids; smaller, but at 8,000 pupils the id list itself becomes an 8,000-entry query string, so it does not actually scale. **(a) is the real fix; (b) is a smaller sprint that mostly moves the problem.**
 25. **PWA updates on an open tab — BUILT (2026-08-25 hourly + Sprint 42 event-driven) and now VERIFIED END-TO-END 2026-09-02. Only the two ⚠ notes at the end remain live.** Original finding: Cost real debugging time today: after Sprints 34/35 deployed, the live site kept serving the pre-deploy build, the "new version" toast never appeared, and F5 fixed it. Nothing was broken in the code — `UpdateToast.tsx` is correct and mounted (`App.tsx:19`), `/sw.js` serves fine on Vercel (static files win over the SPA rewrite in `vercel.json`). **The gap: `useRegisterSW()` is called with NO options (`UpdateToast.tsx:12`), so there is no periodic update check, and the browser only re-checks `sw.js` on a real page load in scope — SPA route changes never trigger it.** With `registerType: 'prompt'`, a long-open tab therefore runs a stale build indefinitely and is never told.
     - **Diagnostic trap worth remembering:** a stale build looks *partly correct*. The OLD `formatStudentName()` also rendered lists surname-first, so the Students list looked right while the chart nav still showed given names — which initially pointed at the data rather than at caching. If a fix "isn't showing", check the SW before re-reading the code.
     - **Preferred fix (A):** `useRegisterSW({ onRegisteredSW(url, r) { setInterval(() => r.update(), 60 * 60 * 1000) } })` — keeps the deliberate "ask before updating" behaviour (this app has forms staff can be mid-way through) while making updates actually get found. ~3 lines.
@@ -1935,7 +1928,7 @@ One file, `DentalChart.tsx`, no data changes. Findings:
       - ⚠ **Testing gotcha that will otherwise produce a false failure:** `lastCheck` is initialised to `Date.now()` at registration and `MIN_CHECK_GAP_MS` is 60 s, so a refocus sooner than a minute after load is *correctly* skipped. Wait past 60 s or the test "fails" for the wrong reason. Note also that focusing the tab to run a query is itself a focus event that resets the throttle.
       - Cleanup done: `index.html` reverted (`git checkout`), `dist` rebuilt clean (0 occurrences of the marker), preview server stopped, test tab closed.
     - ⚠ **`registerType: 'prompt'` is a deliberate choice, not a bug**: staff can be mid-form, so the app asks rather than reloading under them. It follows that a user who ignores or dismisses the toast KEEPS running the old build. No amount of check-frequency work changes that. If a panelist or adviser is to be guaranteed current code, tell them to hard-refresh, or switch to `autoUpdate` for the defense window only.
-26. **No separation between dev and production data (raised 2026-08-25, NOT scoped).** There is ONE database: local `.env` `MONGODB_URI` points at `floral-cluster.edqpjtu.mongodb.net/floral`, which is the same database the Vercel app serves (confirmed 2026-08-25 via the surname-first render on the live site). Consequences, stated plainly so nobody rediscovers them the hard way:
+26. ~~**No separation between dev and production data**~~ - **CLOSED 2026-09-04 as Sprint 126.** The Sprint 112 rehearsal cluster became the dev database; production's URI lives only in Vercel; all 19 scripts announce their target. Original note follows for the reasoning. **(raised 2026-08-25).** There is ONE database: local `.env` `MONGODB_URI` points at `floral-cluster.edqpjtu.mongodb.net/floral`, which is the same database the Vercel app serves (confirmed 2026-08-25 via the surname-first render on the live site). Consequences, stated plainly so nobody rediscovers them the hard way:
     - **Every maintenance script run from a dev machine hits live records.** Today alone: `backupRaw` (read 308 docs), `splitStudentNames --confirm` (wrote 20 students), and a throwaway 2029-2030 school year added + archived while testing the year-delete fix. All intended and backed up first — but there is no safety net if one is not.
     - **`FIELD_ENCRYPTION_SECRET` sits in the same `.env`**, so anything run on a dev machine decrypts patient PII (names, addresses, contacts, guardians). Encryption protects data at rest in Atlas; it restricts nothing running locally.
     - This is also why the parked demo-data purge (item 17) is genuinely risky: its dry-run and its real run target the same database the clinic would use.
@@ -1946,15 +1939,20 @@ One file, `DentalChart.tsx`, no data changes. Findings:
 27. ~~**Archive exists in the API but barely in the UI**~~ **CLOSED 2026-09-02 as Sprint 66** — `/archive` lets System Admin view and restore archived records across five types. See that section above, including the `includeArchived` trap.
     - **Still open**: no UI ARCHIVES a student, appointment or treatment. The API allows it and the archive screen can restore them, but nothing creates them in that state except a direct API call. Only school years (chart "Edit Years") and schools (Sprint 60) have an archive button.
     - Note: no FILE storage exists anywhere — archiving is about records only. See item 32 if photos are ever added.
-28. **`DentalChartList.tsx` is dead code (found 2026-09-02).** Imported nowhere; `/dental-charts` routes to `DentalChartNav`. Deleting it is a one-line call nobody has made. Kept here because the NAME actively misleads — a session asked to change "the dental charts list" will edit the wrong file, which already happened once in Sprint 58.
+28. **~~`DentalChartList.tsx` is dead code~~ DELETED 2026-09-04 as Sprint 106.** Original note: Imported nowhere; `/dental-charts` routes to `DentalChartNav`. Deleting it is a one-line call nobody has made. Kept here because the NAME actively misleads — a session asked to change "the dental charts list" will edit the wrong file, which already happened once in Sprint 58.
 
 29. **Citable source sent by a classmate 2026-09-02 — Bhatia, Gupta, Kumar, Mahajan et al., "Artificial intelligence based techniques for caries risk prediction and assessment: A scoping review", *Journal of Oral Biology and Craniofacial Research* 15(6), Sept 2025, DOI 10.1016/j.jobcr.2025.08.027, CC BY 4.0.** Read from the ABSTRACT only (screenshot) — get the full text before citing specifics.
     - **Directly supports the algorithm choice**: of 13 included studies, the most-used methods were **logistic regression (n=9) and random forest (n=8)** — both are in Floral's five. Reported sensitivity 0.59–0.996, specificity 0.531–0.943, explicitly heterogeneous.
     - **Supports the honest SVM framing** in `docs/ch2-additions-draft.md`: SVM does NOT appear among the most-used methods, which is consistent with defending it as a comparison baseline rather than an expected winner.
     - ⚠ **One discrepancy worth confronting rather than hiding**: the review's most frequent predictors are **socio-demographic factors, oral hygiene habits and dietary habits** — it does not foreground DMF/dmf, which CLAUDE.md makes Floral's PRIMARY feature. Floral does use dietary habits and oral-health conditions too, so this is a Chapter 4 discussion point, not a contradiction.
     - Manuscript work is paused, so this is logged as a source, not drafted into Chapter 2.
-30. **Calendar date notes (idea, 2026-09-02, NOT scoped).** "Can I put notes on a date, if I click a date?" — the Appointments calendar renders month grids (`getAppointmentsForDay`) but a day tile is not clickable and there is no note model. Needs a decision on what a note IS: a clinic-wide day note (rotation, holiday, no-clinic day) or a per-student note? The former is a small new model; the latter overlaps TREATMENT remarks and APPOINTMENT.
-31. **~~Default list order should be alphabetical~~ ALREADY DONE — this entry was STALE, verified 2026-09-05 by reading the code before writing any.** Every list is alphabetical by surname already, and it is sorted at the SOURCE so no list can forget: `server/routes/index.ts` `/stats/student-rows` sorts `lastName → firstName → middleName` on the way out (so PatientList, DentalChartNav, TreatmentRecords and every other `useStudents` consumer inherit it), `useRPCTracking` sorts `studentName`, `useRiskClassification` sorts `name`, `useSchools` sorts (Sprint 60). The one list that deliberately differs is **PatientList**, which re-sorts grade → section → sex → surname because a paper roster reads that way and the DOH forms group by it — that is a documented choice, not a miss. Nothing to build.
+30. **~~Calendar date notes~~ DONE 2026-09-04 — BOTH halves built: Sprint 108 (`DAY_NOTE`, about the date) and Sprint 109 (`APPOINTMENT.notes`, about the pupil).** ⚠ Two ERD deviations came out of it; **Chapter 3's figure still needs updating by hand.** Original decision and its reasoning follow. The open question was what a note is ABOUT; the user answered *both, they're different things* — a holiday is not a patient remark.
+    - **Sprint A (108) — `DAY_NOTE`, a clinic-wide note on a date.** New small model: `date`, `school_id` (**nullable — null means every school**, for a barangay-wide holiday), `note`, `created_by`, plus soft-delete fields. Day tiles become clickable. ⚠ **ERD deviation** — update `docs/DATA-MODEL.md` and the Chapter 3 figure, same as Sprint 100.
+    - **Sprint B — `APPOINTMENT.notes`.** A remark on one appointment ("bring guardian", "reschedule, absent"). ⚠ **`APPOINTMENT` has NO notes field today** — verified. One new optional String, no migration needed since it defaults empty.
+    - ⚠ **Sprint 101 interaction, easy to get wrong:** `DAY_NOTE` carries a school_id that may be NULL, and the school-scope clause is `{school_id: {$in: [...]}}`, which **excludes null** — a barangay-wide note would vanish for every scoped user. Needs its own rule shape, and the model MUST be added to `schoolScope.ts`'s table or it fails closed and returns nothing at all.
+    - **`DENTIST_ROTATION` already has a week-scoped `notes` field** (school + dentist + week_start/week_end). It is a rotation schedule note, not a day note — do not overload it — but "which school is the dentist at this week" may already be answered there.
+    - Original note follows. "Can I put notes on a date, if I click a date?" — the Appointments calendar renders month grids (`getAppointmentsForDay`) but a day tile is not clickable and there is no note model. Needs a decision on what a note IS: a clinic-wide day note (rotation, holiday, no-clinic day) or a per-student note? The former is a small new model; the latter overlaps TREATMENT remarks and APPOINTMENT.
+31. **~~Default list order should be alphabetical~~ ALREADY DONE — item was STALE, verified 2026-09-04.** Sprint 65 sorted at the source (`/stats/student-rows` by real name parts, plus `useRPCTracking` and `useRiskClassification`). Every `sort()` left in the list components is on filter DROPDOWN options, not rows. Original note below. Stated as a rule, not yet applied. `useSchools` sorts alphabetically (Sprint 60) and `DentalChart`'s nav list sorts by name, but PatientList, DentalChartNav, TreatmentRecords and RPCTracking render in whatever order the API returns. With the shared paginator in place this is now a small, single change per list — or better, sort once in `useStudents`.
 32. **Photos of students, and of staff accounts (idea, 2026-09-02, NOT scoped) — ⚠ this is the app's FIRST file storage.** Verified 2026-09-02: there is NO file storage anywhere — no multer/GridFS/S3, no upload route, and OCR runs in-browser via Tesseract.js without persisting the image. Adding photos therefore means choosing where bytes live and how they are protected.
     - **Photographs of identifiable minors are the most sensitive data the system would hold** — more so than the encrypted text fields, and unlike them, an image cannot be field-encrypted the way `mongoose-field-encryption` works today.
     - Options with real trade-offs: GridFS in Atlas (stays inside the existing 512 MB free tier — ~8,000 photos at 200 KB is 1.6 GB, so it does NOT fit); object storage (new vendor, new key, turnover item); or per-record base64 (bloats documents, breaks the backup script's shape).
@@ -1983,7 +1981,7 @@ One file, `DentalChart.tsx`, no data changes. Findings:
       - **Sprint 86's grid reader should DECLINE on a Form 3 today rather than misread it** — it requires an EXACT row-count match against the other form's 31 rows, and Form 3's status table has 8 + 13. That is by construction, **not yet verified against a real Form 3 scan**; verify it explicitly rather than assuming, because a silent misread here is the worst outcome on the whole module.
       - **Open beyond OCR, and bigger:** the app's IPTR screen and the Sprint 85 IPTR PDF are modelled on the Taguig form only. If a school files Form 3, printing a Taguig-shaped record for it is wrong. **Not scoped — needs the user's call on whether the app must produce both.**
     - **⚠ STILL BLOCKED ON A FLAT SCAN OF A BLANK FORM 3, front and back** (user-only, no sprint). Angled phone photos are not usable input: the grid reader needs straight rules and there is nothing to verify against without a blank. This is the same blocker that parked backlog #16 from 2026-08-08 until the blank Taguig IPTR arrived and unblocked Sprint 86.
-34. **Risk Classification has 3 filters (grade, section, risk) where other lists have 4–5** (they add gender + age group). Not wrong, but an inconsistency nobody chose. Small alignment job.
+34. **~~Risk Classification has 3 filters where other lists have 4–5~~ DONE 2026-09-04 as Sprint 106.** Original note: (they add gender + age group). Not wrong, but an inconsistency nobody chose. Small alignment job.
 
 35. **Base44 prototype clone scanned 2026-09-02** (`app.base44.com/apps/6a9808c5efed05fe080b1e51`, a clone of a "Floral: Barangay Tanyag" template). React + Vite + Tailwind + lucide + shadcn — the SAME stack family, so patterns are portable. 9 entities vs our 17: Appointment, CariesRiskAssessment, DentalRecord, DentistSchedule, GradeAssignment, Referral, School, Student, TreatmentVisit, User.
     - **Taken**: the inline school switcher and the local-language service terms (both Sprint 67).
@@ -2000,18 +1998,138 @@ One file, `DentalChart.tsx`, no data changes. Findings:
     - **Human-readable student IDs** (`TIS-240000` — school prefix + serial). Floral shows no ID; staff use one on paper. Small, useful, and it makes duplicate-checking a human task as well as an algorithmic one.
     - **Consent has THREE states** (complete / pending / **missing**); Floral has two (pending / complete). "Missing" and "pending" are different clinic realities.
     - **School gate is per-SCREEN, not global**: "All Schools" is fine app-wide, but opening Students prompts "which school's records do you want to manage?". Narrower than our old global gate, and a reasonable alternative to Sprint 67's inline switcher.
+39. **Opening ONE student's IPTR fires ~16 requests in 3 sequential waves — MEASURED against production 2026-09-04.** Raised when a classmate blamed `CLAUDE.md` / `.claude/` for slow loads; that claim is **false and disproven** (`dist/` contains zero `.md` files and zero "claude" matches, and the repo-root docs sit outside Vercel's build root). The real cost is on the API side, and Sprint 56b/48 already took the payload win — what is left is **round trips and duplication**:
+    - `useDentalChartData` is 3 sequential waves (4 → 5 → 1) because each wave needs the previous wave's ids. Latency multiplies; payload is already small.
+    - `DentalChart.tsx:156` calls `useStudents()` — the WHOLE roster via `/stats/student-rows` (~444 KB gzipped at 8,000 students, measured in item 24) — **only to build the prev/next patient `navList`**.
+    - **`/schools` is fetched FOUR TIMES on this one screen** (`useStudents`, `useSchools`, `useAppointments`, `useDentalChartData`) and from **14 call sites** app-wide, for a 3-row table that never changes. There is no shared GET cache anywhere — no context, no SWR/react-query — so every hook refetches on every mount.
+    - Ranked fixes: (1) one `/stats/student-record/:id` doing the joins server-side, the proven Sprint 56b pattern — 10 requests/3 waves → 1/1; (2) cache `/schools` app-wide; (3) a slim id+name nav list instead of the full roster; (4) decide whether the appointments strip earns its 3+ requests here.
+    - **THE NUMBERS (`probe_iptr_timing.mjs`, 3 runs against `dental-app-build.vercel.app`).** Cold first run: login **7.1 s**, waves **5872/969/496 = 7337 ms**. Warm runs 2 and 3 are stable and are the honest steady state: waves **529/515/491 = 1535 ms** and **556/508/508 = 1572 ms**.
+    - **⚠ THE FINDING THAT DECIDES THE FIX: every request costs ~500 ms REGARDLESS OF WHAT IT DOES.** `/oral-health-conditions` returning 1 row = 483 ms; `/tooth-records` returning 8 rows = 491 ms; `/schools` returning 3 rows = 465 ms; `/students/:id` = 525 ms. The work is ~0. **Cost is COUNT OF WAVES x ~500 ms — not payload, not query time.** Every byte-level optimisation is already spent; only round trips are left.
+    - **Where the ~500 ms goes** (`rtt.mjs`, warm, 3 samples each): static `/index.html` = **31-40 ms** (raw network RTT to Vercel edge) · `/api/health`, which runs NO database query and NO auth = **249/258/252 ms** · a real authenticated DB route = **~500 ms**. So roughly **~35 ms network + ~215 ms serverless function invocation + ~250 ms auth and the Atlas round trip**. The middle ~250 ms is PER-REQUEST OVERHEAD a consolidated endpoint pays ONCE instead of ten times.
+    - **Projected win for fix (1):** ~250 ms overhead + parallel Mongo queries inside one invocation ~= **400-500 ms, against 1535 ms today — roughly 3x on this hook**, before counting the 3 duplicate `/schools` and the whole-roster fetch it also removes.
+    - **Fix ranking CHANGED after measuring.** (1) the single `/stats/student-record/:id` endpoint is clearly first — waves are sequential and each costs a flat ~500 ms. The `/schools` cache drops to second: it removes 3 invocations but hides inside a PARALLEL wave, so its wall-clock saving is much smaller than the code read suggested. **This is exactly why the probe was run before building.**
+    - **Cold start is a separate, real cost the users actually feel: 7.3 s.** Serverless-inherent, not fixable by consolidating queries — but consolidation cuts the number of functions that can BE cold on one screen open.
+    - `stats/student-rows` is **788 ms warm for 26 students**, above the ~500 ms floor, so unlike the others it carries real work and will grow with the roster.
+    - **⚠⚠ THE ROOT CAUSE IS GEOGRAPHY, NOT CODE — measured 2026-09-04, and it is the single biggest performance fact in the app.** `x-vercel-id` on an API response reads **`hkg1::iad1`**: the request enters Vercel's **Hong Kong** edge and is then executed by a function in **`iad1` = Washington DC, us-east-1**. Meanwhile the Atlas cluster is in **Singapore** — TCP connect from this machine to `ac-mnhdfsk-shard-00-0{0,1,2}.edqpjtu.mongodb.net` is **33-34 ms**, matching `ec2.ap-southeast-1` at **35 ms**, while `ec2.us-east-1` is **226 ms**. So every single API call is **Philippines → hkg1 (22 ms) → Washington DC (~226 ms) → back across the Pacific to Singapore for MongoDB → back again.** The function-to-database hop crosses the ocean a SECOND time. That is the whole ~500 ms.
+    - ~~Region selection is a paid-plan feature, on Hobby you cannot move it~~ **WRONG — corrected 2026-09-04. "Hobby plans can select any single region."** The plan gates the NUMBER of regions, not which. This was fixed for free in Sprint 99; see that section.
+    - ~~Move the Atlas cluster to us-east-1~~ **BUILT, THEN DELETED — it was a workaround for the false premise above.** Moving the FUNCTION to `sin1` was free all along and is ~4x better. Done as Sprint 99.
+    - ⚠ **Not the same problem as backlog #6.** Bundle/route splitting is a FIRST-VISIT-per-device cost; this is felt on every student open, after login. Do not conflate them.
+    - **`probe_iptr_timing.mjs` is committed and reproduces all of this.** ⚠ Numbers above are the PRE-Sprint-99 baseline; after the `sin1` move the same screen is ~390 ms and the per-request floor is ~70-150 ms, so **re-measure before acting on the ranked fixes** — consolidation now saves ~200 ms, not ~1000 ms.
 
-## Sprint 28 (period reports — Treatment Summary made REAL) — DONE 2026-07-11 (tsc both + build clean, pushed)
-From the dentist interview ask (monthly → quarterly → semiannual → annual). Reports.tsx only:
-- **Treatment Summary was fake-empty** (`treatmentMatrix = {}` since the fake-data purge; its period selector was cosmetic). Now real: counts from `ToothRecord.treatment_code` joined chart→iptr→student (same chain as the dashboard procedures chart), rows = the 9 `treatmentCodes` labels (single vocabulary with DentalChart, replacing the prototype's PROCEDURES list). Gender/grade/age filters work against it; NEW school filter; "Students Treated" card is now period+school-filtered via dated `Treatment` records (admin Overview keeps the all-time count).
-- **Period selector now actually filters**: monthly/quarterly (NEW)/bi-annual/annual, anchored to the header month/year (quarter/half/year containing the selected month); label shows the real range (e.g. "Jul–Sep 2026").
-- **Honesty note in UI + code**: tooth records carry no date, so each is dated by its chart's `date_charted` (closest real date in the ERD) — footnote under the table says so. Condition Summary stays honestly empty (no real per-condition aggregation yet).
-- **LIVE-VERIFIED 2026-07-12** via `verify_live_smoke.mjs` (project root, reusable — 11/11 PASS against prod, screenshots checked): login, dashboard CTA opens create form + ?new=1 stripped, students rows render (token pass + decrypt fine), RPC fluoride subtitle live + Trisha Santos shows the amber "by 2026-04-30" cutoff chip, Quarterly button + honesty footnote + SDF row present, period label correct ("Jul–Dec 2026" on Bi-Annual), DOH PDF downloads 1.7MB. Treatment Summary totals are all 0 — HONEST: seeded tooth records have no treatment codes and there are 0 Treatment docs (same reason the dashboard procedures chart is empty). Real counts appear once the dentist charts with treatment codes. Script gotcha: `button:has-text("Annual")` also matches "Bi-Annual" — use exact text if precision matters.
+44. **~~Sprint 100 gave the dentist a school-picker step at login~~ MEASURED 2026-09-04 — IT IS A ONE-TIME-PER-DEVICE PROMPT. No action needed; just tell the dentist.** Found by Sprint 104's verifier, which kept landing on `/select-school` and reading every count as 0.
+    - **What changed:** `AuthContext.initialSchoolFor` auto-selects only when a user holds exactly ONE school. The dentist was pinned to Bagong Tanyag Integrated, so login went straight through; Sprint 100 gave her all three, so the gate now fires.
+    - **Measured in a real browser, four cases — the picker appears ONCE per device:**
 
-## Dentist interview distilled (2026-07-11) → `docs/dentist-interview-findings.md`
-Mostly confirms the build (SDF code, age brackets, RPC window, consent, auto-counting all match). Remaining backlog candidates (each needs approval): (a) **D-count risk thresholds** (1–2 Low / 3–5 Med / >5 High; filled+missing NOT contributing) — feeds the Sprint 21a-d real-data labeling, dentist will send the DOH classification study (CHASE IT); (b) ~~quarterly/semiannual/annual report aggregation~~ DONE as Sprint 28; (c) ~~RPC school-year cutoff flag~~ DONE as Sprint 29 (2026-07-12): `useRPCTracking` computes `syCutoff` ('tight' = 4–6mo window extends past April 30, chip "by YYYY-04-30"; 'impossible' = even +4mo lands after SY end, red "won't fit SY" chip; May bucketed to next SY) on pending/overdue rows, chips in the Visit 2 cell with explanatory tooltips; logic node-smoke-tested against the dentist's own examples (Aug→fine, Nov/Dec→tight, Jan+→impossible); (d) ~~fluoride-specific wording on the RPC interval~~ DONE 2026-07-12 (subtitle now "2nd fluoride dose due 4–6 months after Visit 1; other treatments may be done anytime"); (e) future work: adult/staff records, 18–25-school scale-out. Chapter 1/4/5 material in the doc. **All actionable interview items closed** — only (a) D-count labeling remains, blocked on real data + the DOH study.
+      | | picker? |
+      |---|---|
+      | first login on a fresh profile | **yes** |
+      | reload, same session | no |
+      | log out and log back in, same device | **no** |
+      | a different device, same account | **yes** (once) |
+
+      `loadStoredSchool` is read BEFORE the auto-select branch and the choice persists in `localStorage` as `selected-school={"userId":…,"school":…}`, keyed to the user — so it survives logout and is not shared between accounts on a shared machine.
+    - **Conclusion: leave it as it is.** One click on first use per device, after which it never appears again, and it makes the active school explicit for a dentist who genuinely rotates between three. She can change it any time with the inline switcher (Sprints 67/95).
+    - ⚠ **It WILL re-appear if `localStorage` is cleared** — private window, cleared site data, a new browser, or a different machine. Worth one sentence to the dentist so an occasional extra screen is expected rather than alarming.
+
+52. ~~**Server-side enforcement of the Sprint 120 value rules**~~ - **CLOSED 2026-09-04 as Sprint 121.** `shared/studentValidation.ts` is now included by both tsconfigs and enforced by a new `validateBody` option on the CRUD factory, so the offline queue passes through it too. Original note follows. **(raised 2026-09-04).** All validation is client-side. **The offline queue replays POSTs straight to the API**, so anything crafted around the UI still gets in, and a second client would inherit none of it. The blocker is structural, not effort: duplicating the rules under `server/` re-creates the drift this sprint exists to prevent, and there is no precedent in this project for a module shared across the `src/` / `server/` boundary. Decide the sharing mechanism first. ⚠ Phone/name checks must run BEFORE encryption in the route (Sprint 26) - a DB constraint is impossible.
+51. ~~**Input-field validation across the forms**~~ — **CLOSED 2026-09-04 as Sprint 120** (birthday bounds 3-25, names capped at 60 with ALL CAPS allowed, PH phone structure; form + import + edit). Server-side is #52. Original note follows. **REQUESTED 2026-09-04.** Verbatim: *"make the values in input field valid like birthday, maybe limit characters of names, is all caps ok to allow? contact numbers valid phone or cellphone numbers, maybe just valid ph local numbers structure?"* Four separate questions, and two of them are **decisions, not tasks**:
+    - **Birthday** — must be a real date, not in the future, and within a plausible school-age range. The IPTR is for K–Grade 10, so an 80-year-old birthdate is a typo, not a pupil. **Decide the bounds** (reject outright, or accept with a warning?). Age is derived at examination date (Sprint 57b), so a wrong birthday silently corrupts every age-bracket count in the DOH reports — this is a reporting-correctness issue, not cosmetic.
+    - **Name length** — a cap is easy; `docs/DATA-MODEL.md` already specifies VARCHAR 60 per part and 150 for `full_name`, so **the spec exists and the forms do not enforce it.** Enforce to match the documented model rather than inventing new numbers.
+    - **⚠ ALL CAPS — this is a policy question, and my read is ALLOW it.** DOH paper forms are filled in caps, OCR reads caps, and the encoder is copying a form. Rejecting caps would fight the source document. If consistency is wanted, normalise for *display* (the surname-first helper already builds the display string) rather than rejecting input — never rewrite what the encoder typed, since the record must match the paper form on audit.
+    - **PH phone numbers** — the realistic shapes are mobile `09XXXXXXXXX` / `+639XXXXXXXXX` (11 digits / +63 and 10), and Metro Manila landline `(02) XXXX-XXXX` (8 digits after the 02 area code). ⚠ **`contact_number` and `guardian_contact` are ENCRYPTED**, so validation must happen client-side and in the route BEFORE encryption — a DB-level constraint or regex query is impossible (Sprint 26 random-IV rule).
+    - **Scope note:** touches Add Student, the student edit form, the IPTR form and the bulk CSV/xlsx import — the import is the one that matters most, since it can insert hundreds of bad rows silently. Check what `PatientList.tsx` already enforces before building; Sprint 62 added required-field marking and may have covered part of this.
+50. **Rotate the two production JWT secrets — USER-ONLY, offered 2026-09-04 and NOT done.** Vercel stores `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` as Sensitive (write-only), so **nobody can confirm they are not `.env.example` placeholders** — `vercel env pull` substitutes `[SENSITIVE]` rather than failing, which already produced one false all-clear (see Sprint 114). Rotating sidesteps the question entirely: Vercel → Settings → Environment Variables → new values from `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` → redeploy. **Cost: everyone signed in is logged out once.** Nothing else changes, and the local `.env` does NOT need updating — JWT secrets are per-environment and never need to match. **Do NOT rotate `FIELD_ENCRYPTION_SECRET`** (confirmed real, and changing it makes existing records permanently undecryptable). After rotation, Sprint 114's warning can be tightened to a hard refusal.
+49. ~~**No startup guard on the JWT and field-encryption placeholders**~~ — **CLOSED 2026-09-04 as Sprint 114** (warns, does not refuse; see that section for why, and for the false all-clear that nearly settled it wrongly). Original note kept for the reasoning: **No startup guard on the JWT and field-encryption placeholders (raised 2026-09-04 while building Sprint 113).** `.env.example` ships `JWT_ACCESS_SECRET=replace-with-a-long-random-string`, `JWT_REFRESH_SECRET=replace-with-a-different-long-random-string` and `FIELD_ENCRYPTION_SECRET=must-match-the-key-existing-records-were-encrypted-with`, and **nothing at app startup rejects any of them** — the app boots and issues tokens signed with a string published in a committed file. **This is worse than #48 was:** a known password reaches one account, a known JWT secret lets anyone mint a token for ANY role, including system_admin, defeating the whole RBAC layer. `seedEnv.ts` already lists these three strings, so the matching logic exists — what is missing is a check on the boot path (`server/app.ts` or `config/`), which must refuse in production and is the reason this was not folded into #48: it can hard-fail a deploy if done carelessly, and Vercel env vars are set separately from `.env`. **Verify the deployed values are real before adding the guard**, not after. Also decide whether the check runs in dev (a warning) or only in production (a refusal).
+48. ~~**`seed:demo` accepts the `.env.example` placeholder password**~~ — **CLOSED 2026-09-04 as Sprint 113** (see that section; production was verified unaffected first). Original note kept for the reasoning: **`seed:demo` accepts the `.env.example` placeholder password and creates four live accounts with it (found by Sprint 112's rehearsal 2026-09-04).** `.env.example` ships `SEED_DENTIST_PASSWORD=choose-a-password` for dentist/aide/schooladmin/bho; `seedDemo.ts` reads it, hashes it, creates the account and prints `Created … user` with **no warning**. All four log in with that literal string — measured, HTTP 200 each. **Why it matters beyond tidiness:** the placeholder is a public string in a committed file, so this is a known-credential hole that anyone who follows the README literally will have, including on the deployed instance if the same path was ever used there. **The README warning shipped in Sprint 112 is a mitigation, not the fix.** Shape when scoped, ~1 file: `seedDemo.ts` refuses to run if any `SEED_*_PASSWORD` is missing, still equals `choose-a-password`, or is under some minimum length — exit non-zero with the variable name, the way `purgeDemoData.ts:62` already refuses without `SEED_ADMIN_EMAIL`. That existing refusal is the pattern to copy. **Check the deployed database for these four passwords separately** — `apply:seed-passwords` exists precisely because `seed:demo` skips existing accounts, so a bad password set once persists.
+47. ~~**13 npm advisories on a fresh install**~~ — **CLOSED 2026-09-04 as Sprint 115: 13 → 4.** `pdfjs-dist` (the only reachable one) patched. The 4 left are the `express@4` chain (needs a breaking express@5) and an unreachable `brace-expansion` under exceljs — both recorded in the README with the reasoning. Original note kept: **13 npm advisories on a fresh install — 9 high, 4 moderate (found by Sprint 111's rehearsal 2026-09-04).** The README asserted `npm audit` "must stay at 0"; a clean clone + install today reports 13. **This is drift, not a regression** — advisories publish against versions already pinned in `package-lock.json`, so the count rises with nobody touching the repo. **Why it needs a decision rather than a shrug:** CLAUDE.md promises *"OWASP Top 10 compliance before deployment"* and a ZAP scan, and a panelist who runs `npm audit` gets 13 highs on the spot. **Two are not generic:** `pdfjs-dist` — *arbitrary JS execution upon opening a malicious PDF*, and the OCR upload path accepts PDFs from users, so this is reachable, not theoretical; and `dompurify` — sanitizer bypass. The rest: `react-router` (CSRF bypass in RSC mode — the app does not use RSC), `tar`, `postcss`, `nanoid`, `brace-expansion`, `browserslist`, `fast-uri`, `ip-address`, `body-parser`, `qs`/`express`. **Do NOT run `npm audit fix --force` casually** — it takes breaking major bumps across `react-router`/`express`, and this build is deployed and working. Shape when scoped: run plain `npm audit fix` first, re-run both typechecks + `npm run build` + a live smoke test, and handle `pdfjs-dist` deliberately since it is the one with a real attack path in this app. Record the final number for Chapter 4 rather than the stale 0.
+46. **Patient list — per-row "Actions" column vs tick-box + bulk queue. ✅ CODE-VERIFIED, then DECIDED 2026-09-04: (a) KEEP BOTH.** Option (b) was actually built as Sprint 107 and reverted the same day without ever reaching production — see that section. **Revisit only if the dental aide says she never uses the row button**; the removal commit `228174c9` is in history to cherry-pick.
+    - **They do NOT share a handler.** Row button → `addQueuedStudentId(id)` / `removeQueuedStudentId(id)` (`PatientList.tsx:791`, single-id helpers in `utils/queueStorage.ts`). Bulk button → `queueTicked()` / `unqueueTicked()` (`:333-345`), which merge or filter against `tickedIds` and then clear the ticks. **Different code paths, same persisted store** — so they cannot disagree about state, but they can drift in behaviour.
+    - **The row action DOES something the bulk one cannot:** queue one pupil in a single click. The bulk path costs two gestures (tick, then "Queue Selected"). For the common one-off that is genuinely faster, which is the case for (a).
+    - **⚠ THE DECIDING FINDING, and it is not in the original note: the Actions column is also the ONLY per-row indicator of queued state.** `isQueued` appears five times in the file and every one of them is inside that button — its label flips to **"Queued ✓"** and it turns green. **Nothing else in the row shows that a pupil is queued.** So option (b) "drop the row action" would silently remove the queued indicator too, not just a duplicate control. If (b) is ever chosen, a separate badge has to replace it.
+    - **Still worth asking the dental aide which she reaches for** — that is a "what do people actually click" question. But the answer now only decides emphasis, not whether the column can go.
+    - ⚠ **Responsive:** the column's width is a factor at ~390px (CLAUDE.md's three device classes). If the aide says she only ever uses the bulk path, the cheapest win is shrinking the button to an icon + tooltip on narrow widths, keeping the state indication.
+
+45. **~~A `REFERRAL` model~~ — BUILT 2026-09-05 as Sprint 127** (see that section; 16/16 verified, `npm run verify:referrals` re-runs it). ⚠ **One thing does NOT close with it: the Chapter 3 ERD figure has no REFERRAL entity** — user-only, same as the Sprint 100/108 deviations. Original scoping kept below because it is the reasoning behind the enum. **Still unanswered and deliberately not built on: whether the clinic ever closes a referral out** — `status`/`follow_up_date` exist, default `pending`, and nothing drives a workflow. Original note: The DOH Oral Health Program Report renders four referral rows that all print "—" because nothing feeds them: `Total no. of patients referred to Higher Level of Care`, and `a.` Oral Cancer Screening, `b.` Surgical Procedures, `c.` Referrals to Private Facilities (`OralHealthProgramReport.tsx:285-288`, all `field: null`). **So this is not a nice-to-have — a form the clinic files already asks for these counts.**
+    - The base44 prototype models `Referral` as a first-class entity (backlog #35), so the shape is worth looking at before designing one.
+    - Existing UI that would light up: the student record's Referrals tab and the Reports → Referral Tracking table, whose column set (student, school, grade, date issued, facility, reason, follow-up, status) is already a reasonable field list.
+    - ⚠ **ERD deviation** — `REFERRAL` is not in Chapter 3, so it needs the same treatment Sprint 100 got: build it, then update `docs/DATA-MODEL.md` and the Chapter 3 ERD figure.
+    - Ask the dentist whether referrals are actually issued often enough to track, and how she records them today, before designing fields.
+    - **SCOPED 2026-09-05 against the code. Nothing below is guessed — every claim was read.**
+      - **It is FIVE rows, not four.** `OTHER_ROWS` also carries `No. of patients referred to other Primary Care Facilities`. `No. of patients given Dental Prescriptions` sits in the same block, is `field: null` too, and is **NOT a referral** — it stays blank.
+      - **The enum comes from the form, not from taste:** `referral_type` ∈ `primary_care | higher_level | oral_cancer_screening | surgical | private_facility`. Each DOH row is then a count of one enum value, which is why the rows can be honest without a judgement call at report time. **a/b/c are sub-rows of `higher_level` on the form** — decide whether `higher_level` is the SUM of a+b+c or an independent value, and say so in the code, or the form will double-count.
+      - **Parent = `iptr_id`, matching TREATMENT** (not `student_id` like APPOINTMENT). That buys school-year and grade scoping for free — `grade` is a column of the Referral Tracking table and lives on STUDENT_IPTR since Sprint 57a — and it is one line in `schoolScope.ts`'s `RULES` (`via: "iptr_id"`).
+      - **Encrypt `reason` and `notes`, not `facility_name`.** `reason` is the same class as `TREATMENT.diagnosis`, which is already encrypted; a facility is an institution, not patient PII, and leaving it clear keeps it queryable. Sprint 26's random-IV rule then applies to `reason`.
+      - **The UI is already written and is waiting on data, in three places:** `Reports.tsx:1183-1240` renders the full Referral Tracking table INCLUDING the expandable detail row and the status pills, driven by `const referralRows = []` (`Reports.tsx:156`); `DentalChart.tsx:1650` is the student record's Referrals tab, currently an honest "not tracked" empty state; `TargetClientList.tsx`'s `Referred Out` column has no value fn. The existing markup fixes the field list: **student, school, grade, date_issued, facility_name, reason, follow_up_date, status**. Status values the pills already expect: `completed`, `no-show`, everything else neutral.
+      - **Estimated touch:** `server/models/Referral.ts` (new) + `models/index.ts` + one `createCrudRouter` block with `writeRoles: CLINICAL_WRITE_ROLES`, `filterable: ["iptr_id"]`, `dateField: "date_issued"` + one `RULES` entry + one index; client: a hook, the Referrals tab form, `referralRows`, 5 counts in `useDohReportData`, 1 TCL value fn. **~10 files, 1 new model, no new deps.**
+      - ⚠ **`useDohReportData` already fetches TEN whole collections** (its own comment says so). Adding `/referrals` makes eleven. Acceptable for the same reason the other two were, but it is another entry against Open work 24.
+      - **Optional / droppable:** the TCL `Referred Out` column needs its own fetch inside `TargetClientList.tsx` (it builds rows from `useStudents` + `useRPCTracking`, not from the DOH hook). Cheap but separable — a blank column there breaks no rule.
+      - **Not worth doing first:** reading base44's `Referral` entity. The DOH form dictates the enum and the existing table markup dictates the rest, so the prototype has nothing left to decide.
+
+43. **~~The last 16 `unverified` DOH captions~~ MISCOUNTED — DONE as Sprint 103, 2026-09-04.** ⚠ **The "16" was wrong, and the cause is worth remembering: I ran `grep -c unverified`, which counts every occurrence of the WORD** — the type field, the count expression, the component prop, the tooltip string, the file comments — **not flagged captions.** The real figure was **ONE**. `OralHealthProgramReport.tsx` had **zero** and says so in its own line 56; all six of its hits are machinery. **Count the thing itself (`unverified: true`), never the word — the same class of error as trusting a `$ne: ""` count on an encrypted field (Sprint 99 notes).**
+
+42. **~~Sprint 102 — make Promote/Assign RE-RUNNABLE (upsert)~~ DONE 2026-09-04** (see the Sprint 102 section above for what was built and verified). Original scoping kept below because the design risk it names is the reason the sprint is not trivial. Chosen by the user from the two gaps in #41: *"the upsert one"*. **Grade history as a first-class `GRADE_ASSIGNMENT` model was NOT chosen and is out of scope.**
+    - **The defect is sharper than "it duplicates" — correction is IMPOSSIBLE.** `PromoteAssign.tsx:125`: a pupil who already has an IPTR for the target year is FORCED to `action: 'skip'` and the control is disabled, with the comment *"the server would refuse it anyway"* (the route carries `uniqueBy: ["student_id","school_year"]`, so a second POST 409s). So if a section is applied wrongly — wrong section letter, wrong grade, a retain that should have been a promote — **the screen that made the mistake cannot fix it.** The only route back is editing each pupil's IPTR by hand (Sprint 70). At a section's worth of pupils that is exactly the manual work this screen exists to remove.
+    - **The fix, mirroring base44's `bulkApplyAssignments`:** replace the forced skip with a third action, `update`. For a pupil who already holds the target year, `PUT /student-iptrs/:id` with the new grade/section instead of POSTing a duplicate; keep POST for pupils who do not. The STUDENT current-enrolment `PUT` (`:159`) stays as-is for both — that is what promotion means.
+    - **⚠ THE DESIGN RISK, and it is the whole difficulty: a re-run can silently overwrite a deliberate manual correction.** Someone may have hand-fixed one pupil's section via Sprint 70; a blind second pass would stamp over it. So `update` must NOT be the default action for already-assigned pupils — it must be opt-in per row, and the row must SHOW the existing value alongside the proposed one ("Grade 4 · Sampaguita → Grade 4 · Rosal"). Defaulting it on would trade a visible failure for an invisible one, which is the worse bug. **Same class as the Sprint 101 lesson: wrong data inside the boundary beats a clean error.**
+    - **Scope estimate:** 1 file (`PromoteAssign.tsx`), no schema, no migration, no server change — the PUT route and `uniqueBy` already exist and need no edit. Medium complexity, all of it in the row-state logic and the confirmation display.
+    - **NOT in scope, noted so it is a decision rather than an oversight:** the apply loop is **2 requests per pupil in a sequential `for` loop** (`:150-159`), where base44 does the whole cohort in a constant 5. At ~70-150 ms per request post-Sprint-99 a 40-pupil section is ~10 s of serial round trips. A `/stats/bulk-assign` endpoint would fix it, but that is a server sprint of its own and belongs with backlog #39's consolidation work, not here.
+    - Verify by running it twice: the second pass must correct rather than 409, and must leave untouched any row not explicitly set to `update`.
+
+53. ~~**"Bulk Transfer" as a separate mode**~~ - **CLOSED 2026-09-04 as Sprint 123.** User confirmed the case is real (*"sections are declared start of school year but can be changed anytime"*). Built as a second mode on the Promote / Assign modal. Original note follows. **(found by reading the prototype's source).** Their `BulkPromotion.jsx` has TWO tabs: `Promote / Assign` and **`Bulk Transfer`**. Transfer moves a set of pupils to another grade/section **without opening a new school year** - a mid-year section reshuffle, or a pupil moved between classes. **Ours has no equivalent as a bulk action**: Sprint 70 can edit grade/section on one pupil's year record, and Promote/Assign always opens the NEXT year. So a mid-year reshuffle of 30 pupils is 30 separate edits today. **Decide whether that case is real for this clinic before building** - if sections are set once a year, it is not.
+41. **Promote/Assign + bulk sectioning — ANSWERED 2026-09-04. The prototype has NO promote/assign; the tickbox flow was built anyway as Sprint 119.** Walked `tanyag-smile-sync.base44.app` directly: no checkbox column, no row selection, no promote/bulk-assign on its Students tab or anywhere in its sidebar. Its "Bulk Upload" is a CSV/OCR import Floral already has. **So there is no parity gap to close on that screen.** Sprint 119 added tick-and-apply to our Promote / Assign on its own merits. **Still open ONLY IF the classmate meant a different build** — the editable clone in item 35 (`app.base44.com/apps/6a9808c5…`) may differ from the deployed one; ask them to point at the screen. The remainder below (grade HISTORY as a first-class model — the prototype has `GradeAssignment`, we do not) is a REAL and separate gap. Original note follows.
+41b. ~~**match the BASE44 PROTOTYPE's flow (requested 2026-09-04, RE-RAISED 2026-09-04)**~~ ⚠ **The user has now raised this twice** — *"we cant do this student tab promote assign like the base 44 promote assign? classmate always spouting that."* So it is not a passing remark; it is a recurring ask that keeps coming back through a classmate. The classmate wants the prototype's behaviour; Floral already HAS a Promote/Assign (Sprint 74, 14/14 verified) and it was made re-runnable in Sprint 102. So this is a PARITY question, not a new feature. **Do not rebuild what exists until the gap is named.**
+    - **The blocker is information, not effort, and it has not moved:** nobody has said what the Base44 flow DOES that ours does not. Item 35 records the prototype's entity list (it has `GradeAssignment` as a first-class model, which ours does not — see #41's remainder), and item 36 records the live prototype at `tanyag-smile-sync.base44.app` holding no real data.
+    - **Cheapest way to settle it:** open the prototype's promote/assign screen side by side with ours and list the differences — it is publicly reachable, so this needs no access from anyone. That is a 20-minute look, not a sprint, and it converts "always spouting that" into a scoped diff. **Offer to do this before building anything.**
+    - Possible real gaps worth checking for specifically: bulk section assignment in the same step as promotion; a preview of what will change before committing; per-student override inside a bulk action; and whether the prototype keeps grade HISTORY (ours does not — that is #41's remainder and a genuine model gap).
+    - **✅ SCANNED 2026-09-04 — the source was read directly, so this is no longer inference.** Base44's editor has Dashboard → **Code**, a full read-only file browser (`src/pages`, `src/lib`, …). Editing is paid-only; reading is not. **That is the way to answer any future question about this prototype — do not squint at screenshots.** ⚠ The clone itself is EMPTY (0 schools, 0 students) and its Students page is gated behind a "Select School" modal with no selectable options, so the flow **cannot be exercised** there — only read.
+    - **It is a whole PAGE, `src/pages/BulkPromotion.jsx`, not a modal inside Students.** State: `mode` (`'assign'` | promote, as tabs), `schoolYear`, `targetGrade`/`targetSection`, `fromGrade`/`fromSection` (both default `'all'`), a `search` box, a `selected` Set, and a `showConfirm` step. So: **filter a source cohort → tick individuals → choose a destination → confirm.**
+    - **Grade lists are per school TYPE** — `GRADE_LEVELS_TIS` is Kinder–Grade 10, `GRADE_LEVELS_ELEM` is Kinder–Grade 6, chosen by `school.school_type === 'integrated'`. Floral has the same three-school split and could do the same.
+    - **⚠ THE MECHANISM, which is the part worth copying — `src/lib/gradeAssignment.js`, `bulkApplyAssignments()`. Its own comment: *"Updates each student's current grade_level/section AND writes a historical GradeAssignment record (created if none exists for that student+year, updated if one already exists). Runs in a constant number of API calls regardless of how many students are selected."*** Concretely: (1) one `Student.bulkUpdate` setting `grade_level`/`section` on every selected pupil; (2) one `GradeAssignment.filter({school_id, school_year})` to load what already exists; (3) partition into `toUpdate`/`toCreate` keyed by `student_id`; (4) one `bulkUpdate` and one `bulkCreate`. **Five API calls total, no matter how many pupils.** A created row carries `student_id, school_id, school_year, grade_level, section, assigned_date`.
+    - **The two things Floral genuinely lacks, both consequences of the data model:** (a) **an upsert keyed on student+school_year**, which makes re-running the operation idempotent — run it twice and it corrects rather than duplicates; and (b) **grade history as a first-class queryable row**, independent of whether an IPTR exists. Floral puts grade/section on the IPTR (Sprint 57a), so a pupil with no IPTR for a year has no recorded grade for that year.
+    - **NOT observed, still unknown:** what the promote tab does differently from assign (both funnel into the same `bulkApplyAssignments`, so the difference is almost certainly only how the source cohort is preselected), whether repeaters are special-cased, and whether it is reversible. The file is ~250 lines and the editor scrolls ~3 lines per wheel tick — budget for that if the rest is needed.
+    - ⚠ Original note kept, now superseded: **THE PROTOTYPE'S FLOW HAD NEVER BEEN SEEN.** Backlog #36 is explicit: Promote/Assign there *"exists only in the editor preview the user screenshotted, so the flow itself was never seen, only the entry point."* Everything recorded about it is inference from a screenshot plus the entity list. **Nothing can be specified from what is on file — the editor preview has to be opened first.**
+    - **URL supplied 2026-09-04:** `https://app.base44.com/apps/6a9808c5efed05fe080b1e51/editor/preview` (login-gated, so it needs the user's browser session).
+    - **The one structural difference already known** (#35): base44 models **`GradeAssignment` as its own entity**, whereas Floral puts grade/section on the IPTR (Sprint 57a) and on STUDENT for "today". A separate assignment entity makes grade history directly queryable without an IPTR — which is very likely WHY their bulk sectioning flow can differ from ours. **Expect the gap to be data-model-shaped, not UI-shaped.**
+    - **What to capture when it is opened:** what one selects (whole grade? section? checkbox list?), what happens to pupils who repeat a year, whether sectioning is separate from promotion, what it writes, and whether it is reversible.
+    - Compare against Sprint 74's existing behaviour before proposing anything, and note that Sprint 74's rollover **changes the demo data every Chapter 4 figure shows**.
+
+40. **~~Reports should show live/updating numbers~~ DONE 2026-09-04 as Sprint 104** — see that section. Reading (a) turned out to be already true everywhere, and Sprint 44's focus-refresh (better than polling on a serverless plan) was extended from one hook to all three reports. **Only (c), true push, remains unbuilt and it is NOT viable on Vercel serverless** — functions are request-scoped and cannot hold a socket. Reopen only if someone asks for numbers that move while nobody is looking, and price the hosting change first. Original scoping kept below. Asked as *"reports show realtime time numbers updating"*. **The ask needs pinning down before any build — three readings, and they cost very different amounts:**
+    - **(a) Refresh-on-revisit** — the figures are recomputed whenever the Reports screen is opened or its filters change. Cheap; may already be true, so CHECK before building anything.
+    - **(b) Polling** — the open screen re-fetches on an interval (say 30-60 s) and the numbers change under the viewer. Small: one hook, no server change. ⚠ It multiplies function invocations on a serverless plan, so bound it to the visible tab.
+    - **(c) True realtime push** (WebSocket / SSE, numbers move the instant another user saves). **⚠ NOT viable on the current architecture** — Vercel serverless functions are request-scoped and cannot hold an open socket; this would need a separate always-on service, which is a hosting change, not a feature.
+    - **✅ (a) CHECKED 2026-09-04, and the answer changes the sprint.** Every report hook already reloads when its filters change (`useDohReportData` on `[schoolYear, schoolName]`, `useFhsisData` on `[month, schoolName]`, `useSchoolSummary` on `[schoolName, schoolYear]`), so **reading (a) is already satisfied everywhere.**
+    - **⚠ AND SPRINT 44 ALREADY BUILT SOMETHING BETTER THAN POLLING — on exactly ONE hook.** `useDohReportData:432` refreshes on `visibilitychange` + `focus` + `online`, throttled to 30 s (`REFRESH_THROTTLE_MS`). Its own comment makes the argument: *"an interval is the wrong shape here — what matters is that the numbers are current at the moment someone looks at them."* **Of 16 hooks, that is the only one with it** — `useFhsisData`, `useSchoolSummary`, `useRiskClassification`, `useRPCTracking` and the rest have none.
+    - **So the real gap is CONSISTENCY, not polling.** Extract Sprint 44's effect into a shared `useRefreshOnFocus(load)` and apply it to the other report hooks. Zero cost while nobody is looking, which polling cannot claim on a serverless plan.
+    - ⚠ **Apply it to READ-ONLY screens only.** A refocus refetch on a screen holding unsaved edits would overwrite them; reports are safe precisely because they are read-only.
+    - **Recommend (b), and confirm (a) first.** With `sin1` the report endpoints are now ~70-150 ms, so polling is far cheaper than it would have been before Sprint 99.
+    - ⚠ **Whatever is built must not violate NOTHING COSMETIC**: a number that merely re-renders on a timer without re-reading the DB is a fake live indicator. If a "last updated" timestamp is shown, it must be the time of the actual fetch.
+
+38. **✅ CLOSED 2026-09-04 — both halves run (Sprint 111 install, Sprint 112 database).** The collaborator-can-run-this-project claim is now *proven*, not reasoned: fresh clone → install → empty Atlas M0 → all six seeders in order → three-process boot → login → encrypted read. Four README claims were wrong and are fixed; two new backlog items came out of it (#47 advisories, #48 the `choose-a-password` seeder gap). Nothing below is outstanding. Original note and the superseded blocker follow, for the reasoning only. ~~INSTALL HALF DONE 2026-09-04 as Sprint 111; the DATABASE half is still open.~~ What remains: point a fresh clone at an **empty** cluster, run the 6 seeders in order, boot the 3 processes, log in as a seeded account. **Blocked on one thing only — an empty MongoDB.** This machine has no local `mongod`/`mongosh`, and #38 forbids the shared cluster. Options offered 2026-09-04: (a) you create a free empty Atlas cluster + allowlist the IP + hand over the string (the only one that proves the documented Atlas path, including the IP-allowlist and SRV/DNS gotchas the README warns about), or (b) install MongoDB Community locally (full end-to-end run, but proves a path the README does not document). **User deferred the choice**, so this sits here until picked. Original note follows. ⚠ The install half already disproved the README's headline claim — see Sprint 111.
+    **The fresh-clone rehearsal of the README — INTERRUPTED 2026-09-03 by the Claude outage, never run.** After the README/`.env.example` work (Install step, `APP_URL`, "what documentation cannot supply"), the collaborator-can-run-local claim was *reasoned*, not *proven*. The user said **"rehearse it"** at 21:26 local; every attempt returned API 500/529 and the session ended there. Nothing was written, nothing lost — the tree was already clean at `ad527606`. **What the rehearsal means:** clone the repo to a fresh directory, `npm install` from scratch, `cp .env.example .env`, generate secrets with the documented one-liner, point at an EMPTY Atlas cluster, run the seeders in order, boot the three processes — and fix whatever the README omits. Do NOT rehearse against the shared cluster; the point is the no-secrets-from-anyone path.
+
+## ⚠ EVERY STUDENT RECORD ON PRODUCTION IS TEST INPUT (user, 2026-09-04)
+Verbatim: *"all items right now is test input i will tell if we are to clear them all test input etc, aditional items maybe test input also"*. **Do NOT clean any of it up until the user says so, and do NOT assume a NEW record is real just because a person typed it.** Records added from here on may also be test input; **ask before treating any student row as real data**, and never cite one as evidence that real encoding has begun.
+
+- **This CORRECTS an earlier note of mine.** Sprints 116/117 called the 2026-09-04 record (`6a9aa0b2…`) "the first real hand-encoded record" and partly justified `STUDENT.is_demo` by protecting it. It is test input. The flag still behaves correctly - it was typed by a person, not seeded, so `is_demo=false` is right - but the framing was wrong.
+- **⚠ `npm run purge:demo` WILL NOT CLEAR IT.** The purge deletes on `is_demo`, which ONLY the seeders set. Every person-typed record is `is_demo=false` and is deliberately out of scope - that is the safety property, and it means **clearing test input is a separate, deliberate step**. As of now that is at least `6a9aa0b2…` (unarchived) and `6a9aafdf…` (`DFDFAAAA...`, archived).
+- **⚠ THE RULE FOR IDENTIFYING TEST INPUT, from the user 2026-09-04:** *"input by seeded character or officers are test inputs"*. So test input is anything **either** seeded (`is_demo=true`) **or created by a seeded DEMO STAFF ACCOUNT** - the five `@floral.com` officers (admin / dentist / aide / schooladmin / bho) and the archived `@floral.local` ones. Real data would be entered by REAL staff accounts, which do not exist yet.
+  - **This is mechanically derivable, not a judgement call.** `AUDIT_TRAIL` logs `user_id` + `affected_record_id` + `affected_model` on every create (crudFactory's `logAudit`), so "who typed this row" can be joined rather than guessed. Sprint 92 indexed it `{ timestamp: -1 }`.
+  - ⚠ **Two gaps to check before relying on it:** (a) records created BEFORE the audit trail covered that model, or whose audit rows were removed, have no creator - fall back to explicit id; (b) `purge:demo` deletes demo-staff audit rows, so **run any creator-based identification BEFORE the purge, not after**, or the evidence goes with it.
+- **When the word comes**, the shape is: purge the seeded set with `purge:demo --confirm`, then remove the person-typed rows by explicit id (never by name pattern - a real pupil could share any name), taking `npm run backup:raw` first. Do not widen the purge's matching to catch them; that would undo the guarantee that a hand-encoded record is untouchable.
 
 ## User-only items (no sprint)
+- **⚠ OPEN 2026-09-04 — delete the throwaway Atlas rehearsal project, or rotate that DB user's password.** Sprint 112 used a new free M0 in a separate Atlas project (host and DB user deliberately not recorded here); **the password was pasted into the session transcript.** It holds only seeded demo data and touches nothing real — the existing cluster was never involved — so this is hygiene, not an incident. Delete the whole project when convenient; that removes the cluster, the user and the IP allowlist entry in one action. **Do not reuse that password anywhere.** The rehearsal clone under the session scratchpad also holds a `.env` with it and will age out with the temp directory.
+- ~~Delete the Atlas Admin API key `oiifrvkq`~~ **DONE by the user 2026-09-04, and CONFIRMED DEAD** — the same credential now returns **HTTP 401** from `GET /api/atlas/v2/orgs`. **No credential from this session is live any more**; the Voyage AI model key created by mistake at `ai.mongodb.com` was deleted earlier the same day.
+  - Kept as a note because the assessment is worth reusing: the key was **Organization Project Creator only** (it listed zero projects, so it could never reach the `floral` cluster), and Atlas enforces a **per-key IP access list**. Neither the earlier "urgent security item" framing nor a patient-data risk was warranted — the honest reason to remove it was that nothing needed it once the `us-east-1` migration was torn down.
+  - ⚠ **Nothing in the repo depended on it** — `ATLAS_*` was already out of `.env` and no code reads it, so the deletion breaks no script. If Atlas API access is ever wanted again, make a fresh key then.
+
+- **⚠ UPDATE CHAPTER 3's ERD FIGURE — now THREE deviations behind (2026-09-04).** `USER.school_ids[]` (Sprint 100), the new **`DAY_NOTE`** model (108), and **`APPOINTMENT.notes`** (109). All three are documented in `docs/DATA-MODEL.md`; the figure is hand-edited and cannot be changed from here. Three deviations is the point where a panelist notices the diagram and the database disagree.
+- **Two things to raise with the DENTIST (both from 2026-09-04, neither is a bug):**
+  - **She now sees a school picker on first login on each device.** Sprint 100 gave her all three schools, so the gate no longer auto-selects. **Measured: it appears ONCE per device** and never again unless `localStorage` is cleared (private window, cleared site data, new browser/machine). One sentence to her so an occasional extra screen reads as normal. Full measurements in Open work #44.
+  - **How does she record a referral today, and are they frequent enough to track?** The DOH Program Report has four referral rows that print "—" because no `REFERRAL` model exists (Open work #45). Her answer decides whether that is a real sprint or a documented gap.
+- **One for the DENTAL AIDE, same visit:** on the patient list, **does she use the per-row "Queue for Charting" button or the tick-boxes + "Queue Selected"?** Both exist and both work (Open work #46). ⚠ Her answer decides emphasis and the ~390px layout only — **it cannot decide to delete the column**, because that button is also the only thing showing a pupil is already queued.
+
+**All three above are ONE conversation** — none needs code first, and none is a question the codebase can answer.
 - **Manuscript work is DEPRIORITISED "for now" (user, 2026-09-02)** — not cancelled, not a permanent boundary. Applies to Open work 14 (citation renumbering) and 15 (Ch2 additions). Keep them logged; do not put them forward as the recommended next step while this holds. Revisit if defense gets close enough that the citation offset matters.
 - **Chapter 4 figures RECAPTURED 2026-09-03 — 17 refreshed + 1 new (`fig-4.4.4b-program-report`).** See the section above. **All 21 figures are now captured by the script in one command — no hand-captured exceptions remain.**
 - **Read the rest of the classmate notes.** One item surfaced 2026-09-02 (login autofill) and turned out to be **0d, not #23** — it was filed against #23 on 2026-09-01 on the assumption the two were the same note, which was wrong. It is built (Sprint 50). **Other items in those notes have not been read yet**, so more may land.
@@ -2078,7 +2196,7 @@ Mostly confirms the build (SDF code, age brackets, RPC window, consent, auto-cou
 - **Bounding a list route is opt-in per model**: `filterable` (ObjectId), `filterableText` (unencrypted strings) and `dateField` in `crudFactory`. Never put an encrypted field in `filterableText` — random IVs mean the match silently returns nothing instead of failing loudly.
 - ⚠ **Verify scripts must NOT wait on `'nav, aside'` after login** — the split login (Sprint 61) put an `<aside>` on the LOGIN page, so that selector matches instantly and the script carries on unauthenticated, then fails somewhere confusing. Wait on `a[href="/patients"]`, which only exists once signed in. Six scripts were fixed 2026-09-02; any new one must follow.
 - **Server changes**: typecheck BOTH configs — `npx tsc --noEmit` AND `npx tsc -p tsconfig.server.json --noEmit` (regular tsc misses server-only errors; bit us in 23p).
-- **Encrypted fields** (see CLAUDE.md DATA ENCRYPTION): plaintext equality queries NEVER match (random IVs) — fetch + filter in JS; CRUD uses `findById`+`.save()`, never `findByIdAndUpdate` (broken plugin hook); NEVER change `FIELD_ENCRYPTION_SECRET`.
+- **Encrypted fields** (see CLAUDE.md DATA ENCRYPTION — **five models, re-verified 2026-09-11**): plaintext equality queries NEVER match (random IVs) — fetch + filter in JS; CRUD uses `findById`+`.save()`, never `findByIdAndUpdate`; NEVER change `FIELD_ENCRYPTION_SECRET`. ⚠ **"broken plugin hook" was the stated reason and it is WRONG — the reason has now been wrong twice** (Sprint 151 corrected "lands as plaintext", Sprint 155 corrected "calls a removed Node crypto API": `useAes256Ctr` defaults false and is never set, so the live path is `createCipheriv`, which works). **Keep the rule, cite no mechanism.** ✅ Verified exception: `crudFactory`'s archive/restore DO use `findByIdAndUpdate` and are safe — the plugin's `updateHook` only acts on encrypted fields present in the update, and those routes touch none.
 - **Backups**: `server/scripts/backupRaw.ts` — raw EJSON dump via native driver (no mongoose hooks, ciphertext preserved) into `backups/` (gitignored, real PII). Restore = EJSON.parse + insertMany.
 - **This machine's Node 24 + Atlas SRV DNS fails**: scripts must import `../dnsFix.js` (wired into local.ts, backupRaw, reencryptFieldIVs; older seeders lack it — add if one fails DNS).
 - **SW/PWA testing**: use `npm run build` + **`npx vite preview`** — the SW never runs in vite dev. (There is NO `preview` npm script; the older note here said `npm run preview` and that has always failed with "Missing script". Corrected 2026-09-02.) `verify_live_smoke.mjs` takes `BASE_URL`, so point it at the preview port to exercise the real service worker. Any SW change → re-test the offline write queue (`verify_pwa_toast.mjs` in project root).
@@ -2088,4 +2206,15 @@ Mostly confirms the build (SDF code, age brackets, RPC window, consent, auto-cou
 - Verify scripts (`verify_*.mjs` in project root) read passwords from `.env` (`SEED_DENTIST_PASSWORD` etc.) — never hardcode.
 - Login/school-resolution can take >5s on cold start — scripts wait for the sidebar selector, not fixed sleeps. `page.goto()` full-reloads and used to lose school state (now persisted in localStorage, but prefer clicking nav links).
 - exceljs/jspdf/html2canvas/tesseract/pdfjs are dynamic-imported chunks excluded from SW precache — keep it that way (a top-level import pulls them back into the bundle). **Note: jspdf/html2canvas were only actually excluded on 2026-09-02; before that this line described the intent, not the config.**
-- `mongoose-field-encryption` + `exceljs` dependency pins: uuid override in package.json keeps `npm audit` at 0 — don't "fix" by downgrading exceljs.
+- `mongoose-field-encryption` + `exceljs` dependency pins: the uuid override in package.json is still load-bearing — don't "fix" by downgrading exceljs. ⚠ **`npm audit` is NO LONGER 0 — measured at 3 moderate on 2026-09-11** (SEC-28): two `qs` advisories via `express@4.22.2` → `body-parser`. The array-limit bypass is largely blunted by the `typeof === "string"` guard on all 32 `req.query` reads (Sprint 154); the DoS is not. **Do NOT fix before the defense** — the only clean fix is `express@5.2.1`, breaking across every route and middleware signature.
+- **⚠ Students list "Hide pagination" container (`PatientList.tsx`) — this exact bug has resurfaced 3+ times, DO NOT re-derive a fix from scratch, restore this spec instead (2026-09-29):**
+  1. Header (kicker/title/count/search/filter dropdowns/column headings, `cardHeaderRef`, `sticky`) stays fixed in place — never scrolls.
+  2. The scroll container (`rowsBoxRef`, `min-h-0 flex-1 overflow-auto`) starts right at row 1, immediately below the sticky header.
+  3. **The "Show pagination controls" tab must live INSIDE that scroll container, after `</table>`, before the box's closing `</div>`** — NEVER pulled out as a sibling flex-shrink-0 footer. Outside the box it sits fixed on screen while rows scroll past it (the recurring complaint, most recently "IT SHOULD NEVER BE FIXED IN THE PAGE"); inside it, it scrolls with the rows and only appears at the true end of the list.
+  4. `measure()`'s `bottomTarget` must be `window.innerHeight` when `hidePagination` is true (not `#main-nav`'s `getBoundingClientRect().bottom`, which is 20px short at `md:` widths because the sidebar floats with `md:bottom-5`) — that's the CAP, not a forced size (next point). Keep the `-mb-4 md:-mb-8` on the card in that state to cancel `<main>`'s own `p-4 md:p-8`.
+  5. **The card uses `maxHeight: cardHeight` while hidden, NOT `height`** (2026-09-29: "when there is only two [students], the container would end in that"). A short filtered list must shrink-wrap to its real content and end right after the reveal tab, no blank interior, no stretching to the screen edge just to "reach" it. A long list still caps at the same computed value and scrolls internally, tab included. This only works because of point 3 — with the tab as a separate footer sibling, `maxHeight` was tried before and reverted for leaving a gap below the tab; don't re-split them without re-checking this interaction.
+  6. `hideAtEdge` (comparing `rowsBoxRef`'s `scrollHeight` vs `clientHeight`) still decides rounded-vs-square bottom corners.
+  One sentence version: *sticky header, rows-box scroll starts at row 1, the reveal tab is the last item INSIDE that scroll box, the box shrink-wraps a short list and caps at the true screen edge for a long one.*
+- **⚠ `npx tsc --noEmit -p .` SILENTLY CHECKS NOTHING when `node_modules` doesn't exist yet in a fresh session (2026-09-29).** `npx` falls back to a global TypeScript install (this environment: 6.0.2) when there's no local one, and that version + this repo's tsconfig.json shape (root config with `"references": [tsconfig.node.json]`, run without `--build`) silently produces ZERO diagnostics — confirmed by writing a deliberately broken file (`const x: number = 'a string'`, and a bad-package import) and getting no error either way. **`npm install` first, always**, then re-run the check — with the real local `node_modules/.bin/tsc` (project pins 5.9.3) the exact same command correctly catches both. Cost an unknown number of unverified "typecheck clean" claims in one session before this was caught. If a session ever needs to actually run/build the app (not just typecheck), the same `npm install` unblocks `vite build` too — the environment has no other blocker, `apt-get install tesseract-ocr` also works if OCR needs testing against a real image (no network egress to jsdelivr's CDN, where tesseract.js normally fetches its language data, but the system `tesseract-ocr` package's local `.traineddata` can be pointed to via tesseract.js's `langPath`/`gzip:false` options instead, confirmed working end-to-end against a real form image).
+
+- **Sex + PhilHealth Status tick boxes (2026-09-29, majorUpdates).** `utils/iptrTickBoxes.ts`: ink density (same `lum<170` cut as the Year 1-5 grid) in the interior of the box assumed ~1 label-height square immediately LEFT of the OCR'd "Male/Female" and "None/Principal/Dependent" words; ticked only if >=8% dark AND >=5 points above the runner-up, else blank. Wired in `iptrOcr.ts` (text-read value wins; confidence = dominance over runner-up), `ScanStudentForm`, `VerifyStudentForm` (its select offered "Member", which the server enum rejects -> now "Principal"). Verified on SYNTHETIC pixels only (`verify_tickboxes.mjs`, 8/8) -- **NOT yet run against the real sample scan (not in the cloud container). If the real form puts the box to the RIGHT of the label, or the box is far from ~label-height, change `boxInk` geometry.**

@@ -1,9 +1,12 @@
 import { useMemo, useState, useRef, Fragment } from 'react';
+import { usePrintOrientation } from '../hooks/usePrintOrientation';
 import { useDohReportData } from '../hooks/useDohReportData';
 import { SkeletonTable } from './Skeleton';
 import { FORM_SECTION_BAND, BLOCKED_CELL, BLOCKED_TITLE, FORM_SUBROW_LABEL } from '../utils/dohFormStyle';
-import { exportDohReportToPdf } from '../utils/exportPdf';
-import { exportToXlsx } from '../utils/exportXlsx';
+import { buildDohReportPdf } from '../utils/exportPdf';
+import { buildXlsx } from '../utils/exportXlsx';
+import { usePreviewModal } from '../hooks/usePreviewModal';
+import { PreviewModal } from './PreviewModal';
 import { Download, FileSpreadsheet } from 'lucide-react';
 
 /** What a no-source cell says in the exported workbook — the same mark the
@@ -281,11 +284,14 @@ const SERVICE_ROWS: Row[] = [
  *  The three a/b/c referral rows and the prescriptions row were missing
  *  entirely. */
 const OTHER_ROWS: Row[] = [
-  { key: 'ref_primary', label: 'No. of patients referred to other Primary Care Facilities', field: null },
-  { key: 'ref_higher', label: 'Total no. of patients referred to Higher Level of Care', field: null },
-  { key: 'ref_cancer', label: 'a. No. of patients for Oral Cancer Screening Referrals', field: null, indent: true },
-  { key: 'ref_surgical', label: 'b. No. of patients for Surgical Procedures', field: null, indent: true },
-  { key: 'ref_private', label: 'c. No. of Referrals to Private Facilities', field: null, indent: true },
+  // Sprint 127 — fed by the REFERRAL model. `ref_higher` is the total of the
+  // three indented rows plus referrals recorded as higher_level with no stated
+  // sub-kind; see useDohReportData for why that is not double-counting.
+  { key: 'ref_primary', label: 'No. of patients referred to other Primary Care Facilities', field: 'ref_primary' },
+  { key: 'ref_higher', label: 'Total no. of patients referred to Higher Level of Care', field: 'ref_higher' },
+  { key: 'ref_cancer', label: 'a. No. of patients for Oral Cancer Screening Referrals', field: 'ref_cancer', indent: true },
+  { key: 'ref_surgical', label: 'b. No. of patients for Surgical Procedures', field: 'ref_surgical', indent: true },
+  { key: 'ref_private', label: 'c. No. of Referrals to Private Facilities', field: 'ref_private', indent: true },
   { key: 'prescriptions', label: 'No. of patients given Dental Prescriptions', field: null },
 ];
 
@@ -303,6 +309,8 @@ function loadSet(key: string): Set<string> {
 }
 
 export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }: { schoolYear?: string | null; schoolName?: string | null }) => {
+  // → A wide banded grid, like the consolidated report.
+  usePrintOrientation('landscape');
   // Scoped to the SAME school the DOH tab's picker selects, not the sidebar's
   // current school — the two are different controls and this form is read
   // beside the consolidated report.
@@ -318,7 +326,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
   const [hiddenRows, setHiddenRows] = useState<Set<string>>(() => loadSet('ohprf-hidden-rows'));
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(() => loadSet('ohprf-hidden-cols'));
   const [showPicker, setShowPicker] = useState(false);
-  const [busy, setBusy] = useState<'pdf' | 'xlsx' | null>(null);
+  const { preview, building, previewPdf, previewExcel, closePreview, confirmDownload } = usePreviewModal();
   // Wraps only the table, so the PDF carries the form and not the toolbar.
   const printableRef = useRef<HTMLDivElement>(null);
 
@@ -441,14 +449,10 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
 
   const exportBaseName = `OHPRF_${(schoolName ?? 'All Schools').replace(/[^\w]+/g, '-')}_${schoolYear ?? 'all-years'}`;
 
-  const onPdf = async () => {
+  const onPdf = () => {
     if (!printableRef.current) return;
-    setBusy('pdf');
-    try {
-      await exportDohReportToPdf(printableRef.current, `${exportBaseName}.pdf`);
-    } finally {
-      setBusy(null);
-    }
+    const el = printableRef.current;
+    previewPdf('Oral Health Program Report', `${exportBaseName}.pdf`, () => buildDohReportPdf(el));
   };
 
   // One row per indicator, one column per age-band/sex cell — the shape of the
@@ -456,9 +460,8 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
   // "—" into 0 in the workbook would convert "no source" into "none found" the
   // moment the file left the app. Blocked cells stay EMPTY, since the form
   // forbids writing in them at all.
-  const onXlsx = async () => {
-    setBusy('xlsx');
-    try {
+  const onXlsx = () => {
+    previewExcel('Oral Health Program Report', `${exportBaseName}.xlsx`, async () => {
       // The workbook mirrors the form's TWO label columns, so a sub-row keeps
       // its parent's name beside it — "ART | Tooth Count" reads correctly in a
       // spreadsheet, where an indented orphan "Tooth Count" would not.
@@ -501,10 +504,8 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
         }))),
         { label: 'Grand Total', value: (r: XRow) => r.total },
       ];
-      await exportToXlsx(rows, cols, `${exportBaseName}.xlsx`, 'Program Report');
-    } finally {
-      setBusy(null);
-    }
+      return buildXlsx(rows, cols, 'Program Report');
+    });
   };
 
   return (
@@ -531,17 +532,17 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
                 of the TCL's PII weight, and its width is bounded. */}
             <button
               onClick={onPdf}
-              disabled={busy !== null}
+              disabled={building}
               className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-gray-50 disabled:opacity-50"
             >
-              <Download className="w-3.5 h-3.5" />{busy === 'pdf' ? 'Preparing…' : 'PDF'}
+              <Download className="w-3.5 h-3.5" />{building && preview.kind === 'pdf' ? 'Preparing…' : 'PDF'}
             </button>
             <button
               onClick={onXlsx}
-              disabled={busy !== null}
+              disabled={building}
               className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-gray-50 disabled:opacity-50"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5" />{busy === 'xlsx' ? 'Preparing…' : 'Excel'}
+              <FileSpreadsheet className="w-3.5 h-3.5" />{building && preview.kind === 'excel' ? 'Preparing…' : 'Excel'}
             </button>
             <button
               onClick={() => setShowPicker((v) => !v)}
@@ -628,7 +629,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
         </div>
       )}
 
-      <div ref={printableRef} className="bg-card rounded-xl border border-border overflow-x-auto">
+      <div ref={printableRef} className="form-print bg-card rounded-xl border border-border overflow-x-auto">
         <table className="border-collapse w-full">
           <thead className="bg-gray-50">
             {/* Three header levels, matching the paper form: population group
@@ -679,6 +680,27 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
           </tbody>
         </table>
       </div>
+      {/* Sprint 129 — said on the form rather than left for an inspector to
+          find. Rows a/b/c print indented under the Higher Level total, so the
+          arithmetic looks like it should cross-foot. It does not always: each
+          row counts PATIENTS, and one pupil referred for both a surgical
+          procedure and a private facility in the same school year is counted
+          once in the total and once in EACH sub-row. Adding a+b+c would
+          double-count that pupil, so the total is deliberately not their sum. */}
+      <p className="text-xs text-muted-foreground mt-2">
+        Every referral row counts <span className="font-medium text-foreground">patients, not referral slips</span>.
+        A pupil referred more than once in the school year is counted once per row, so the
+        Higher Level of Care total is <span className="font-medium text-foreground">not necessarily a + b + c</span> —
+        a pupil appearing in two sub-rows is still one patient in the total.
+      </p>
+      <PreviewModal
+        open={preview.open}
+        kind={preview.kind}
+        title={preview.title}
+        url={preview.url}
+        onClose={closePreview}
+        onDownload={confirmDownload}
+      />
     </div>
   );
 };

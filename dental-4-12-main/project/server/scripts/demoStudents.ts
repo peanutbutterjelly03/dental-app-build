@@ -55,6 +55,44 @@ export const DEMO_STUDENTS = [
   { school: "Bagong Tanyag Integrated School", full_name: "Andrea Pascual", birthday: "2012-08-25", sex: "Female", grade_level: "Grade 9", section: "Luna", risk: "High", dmf_index: "DMF" },
   { school: "Bagong Tanyag Integrated School", full_name: "Joshua Fernandez", birthday: "2011-01-16", sex: "Male", grade_level: "Grade 10", section: "Del Pilar", risk: "Low", dmf_index: "DMF" },
   { school: "Bagong Tanyag Integrated School", full_name: "Bianca Ramirez", birthday: "2011-06-04", sex: "Female", grade_level: "Grade 10", section: "Del Pilar", risk: "Medium", dmf_index: "DMF" },
+
+  // 30 more (user, 2026-09-26 — wanted a bigger roster to test the Dental
+  // Charts queue against without adding students by hand). Fills in the
+  // Kinder/Grade 2/4/6 gaps BTIS didn't have before, plus more pupils in
+  // grades all three schools already had.
+  // Bagong Tanyag Integrated School
+  { school: "Bagong Tanyag Integrated School", full_name: "Ethan Bautista", birthday: "2021-03-14", sex: "Male", grade_level: "Kinder", section: "Marigold", risk: "Low" },
+  { school: "Bagong Tanyag Integrated School", full_name: "Sophia Cruz", birthday: "2021-09-02", sex: "Female", grade_level: "Kinder", section: "Marigold", risk: null },
+  { school: "Bagong Tanyag Integrated School", full_name: "Faith Mercado", birthday: "2020-04-19", sex: "Female", grade_level: "Grade 1", section: "Sampaguita", risk: "Medium" },
+  { school: "Bagong Tanyag Integrated School", full_name: "Gabriel Torres", birthday: "2019-06-11", sex: "Male", grade_level: "Grade 2", section: "Camia", risk: "High" },
+  { school: "Bagong Tanyag Integrated School", full_name: "Nicole Ramos", birthday: "2019-10-05", sex: "Female", grade_level: "Grade 2", section: "Camia", risk: "Low" },
+  { school: "Bagong Tanyag Integrated School", full_name: "Vincent Cruz", birthday: "2018-02-27", sex: "Male", grade_level: "Grade 3", section: "Jasmine", risk: null },
+  { school: "Bagong Tanyag Integrated School", full_name: "Joaquin Mendoza", birthday: "2017-05-16", sex: "Male", grade_level: "Grade 4", section: "Ilang-Ilang", risk: "Medium" },
+  { school: "Bagong Tanyag Integrated School", full_name: "Samantha Reyes", birthday: "2017-12-01", sex: "Female", grade_level: "Grade 4", section: "Ilang-Ilang", risk: "Low" },
+  { school: "Bagong Tanyag Integrated School", full_name: "Enzo Aquino", birthday: "2015-03-09", sex: "Male", grade_level: "Grade 6", section: "Waling-Waling", risk: "High" },
+  { school: "Bagong Tanyag Integrated School", full_name: "Mikaela Santos", birthday: "2015-07-22", sex: "Female", grade_level: "Grade 6", section: "Waling-Waling", risk: null },
+  { school: "Bagong Tanyag Integrated School", full_name: "Carlo Villareal", birthday: "2014-11-03", sex: "Male", grade_level: "Grade 7", section: "Rizal", risk: "Medium", dmf_index: "DMF" },
+  { school: "Bagong Tanyag Integrated School", full_name: "Denise Torres", birthday: "2013-04-08", sex: "Female", grade_level: "Grade 8", section: "Mabini", risk: "Low", dmf_index: "DMF" },
+  { school: "Bagong Tanyag Integrated School", full_name: "Paolo Ramos", birthday: "2012-09-19", sex: "Male", grade_level: "Grade 9", section: "Luna", risk: "High", dmf_index: "DMF" },
+  { school: "Bagong Tanyag Integrated School", full_name: "Kristine Aguilar", birthday: "2011-01-30", sex: "Female", grade_level: "Grade 10", section: "Del Pilar", risk: "Medium", dmf_index: "DMF" },
+  // Bagong Tanyag Elementary School Annex A
+  { school: "Bagong Tanyag Elementary School Annex A", full_name: "Liam Fernandez", birthday: "2021-06-25", sex: "Male", grade_level: "Kinder", section: "Iris", risk: null },
+  { school: "Bagong Tanyag Elementary School Annex A", full_name: "Ella Navarro", birthday: "2021-11-14", sex: "Female", grade_level: "Kinder", section: "Iris", risk: "Low" },
+  { school: "Bagong Tanyag Elementary School Annex A", full_name: "Angela Reyes", birthday: "2020-08-08", sex: "Female", grade_level: "Grade 1", section: "Camellia", risk: "Medium" },
+  { school: "Bagong Tanyag Elementary School Annex A", full_name: "Adrian Cruz", birthday: "2019-03-17", sex: "Male", grade_level: "Grade 2", section: "Dahlia", risk: "High" },
+  { school: "Bagong Tanyag Elementary School Annex A", full_name: "Bianca Cruz", birthday: "2018-07-29", sex: "Female", grade_level: "Grade 3", section: "Emerald", risk: null },
+  { school: "Bagong Tanyag Elementary School Annex A", full_name: "Rachelle Diaz", birthday: "2017-09-06", sex: "Female", grade_level: "Grade 4", section: "Garnet", risk: "Low" },
+  { school: "Bagong Tanyag Elementary School Annex A", full_name: "Miguel Santos", birthday: "2016-02-14", sex: "Male", grade_level: "Grade 5", section: "Amethyst", risk: "Medium" },
+  { school: "Bagong Tanyag Elementary School Annex A", full_name: "Julian Torres", birthday: "2015-10-20", sex: "Male", grade_level: "Grade 6", section: "Topaz", risk: "High" },
+  // South Daang Hari Elementary School Main
+  { school: "South Daang Hari Elementary School Main", full_name: "Josh Villanueva", birthday: "2021-04-03", sex: "Male", grade_level: "Kinder", section: "Narra", risk: "Low" },
+  { school: "South Daang Hari Elementary School Main", full_name: "Mia Garcia", birthday: "2021-12-09", sex: "Female", grade_level: "Kinder", section: "Narra", risk: null },
+  { school: "South Daang Hari Elementary School Main", full_name: "Rafael Cruz", birthday: "2020-05-27", sex: "Male", grade_level: "Grade 1", section: "Acacia", risk: "Medium" },
+  { school: "South Daang Hari Elementary School Main", full_name: "Daniel Reyes", birthday: "2019-08-14", sex: "Male", grade_level: "Grade 2", section: "Yakal", risk: "High" },
+  { school: "South Daang Hari Elementary School Main", full_name: "Angel Torres", birthday: "2018-01-22", sex: "Female", grade_level: "Grade 3", section: "Mahogany", risk: "Low" },
+  { school: "South Daang Hari Elementary School Main", full_name: "Kevin Santos", birthday: "2016-06-30", sex: "Male", grade_level: "Grade 5", section: "Ruby", risk: null },
+  { school: "South Daang Hari Elementary School Main", full_name: "Trisha Bautista", birthday: "2016-10-11", sex: "Female", grade_level: "Grade 5", section: "Ruby", risk: "Medium" },
+  { school: "South Daang Hari Elementary School Main", full_name: "Faith Aquino", birthday: "2015-04-25", sex: "Female", grade_level: "Grade 6", section: "Sunflower", risk: "High" },
 ];
 
 /** Exact full names the purge matches on. Derived, never hand-maintained. */

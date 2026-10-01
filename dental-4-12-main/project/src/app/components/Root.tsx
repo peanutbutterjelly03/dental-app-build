@@ -4,17 +4,173 @@ import {
   LayoutDashboard, Users, Calendar, Brain,
   ClipboardList, LogOut, Stethoscope, Shield,
   Clipboard, FileBarChart, UserCog,
-  ChevronLeft, ChevronRight, Menu, X, School, Archive, Bell, Settings, ArrowLeftRight
+  ChevronDown, Menu, X, School, Archive, Bell, ArrowLeftRight
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { getSchoolColor, getSchoolShortName } from '../utils/schoolColors';
+import { getSchoolShortName, getSchoolAcronym } from '../utils/schoolColors';
+
+// The role label used to sit where this icon now does -- removed to save
+// the line, so the icon is what still tells a Dentist from a Dental Aide,
+// a School Administrator or a System Admin at a glance.
+const ROLE_ICONS: Record<string, typeof Stethoscope> = {
+  dentist: Stethoscope,
+  dental_aide: Shield,
+  school_admin: School,
+  bho_staff: FileBarChart,
+  system_admin: UserCog,
+};
 import { TOPBAR_H } from '../utils/layout';
 import { SyncStatus } from './SyncStatus';
+import { useOfflineQueue } from '../hooks/useOfflineQueue';
 import { useNotifications, NOTIFIED_ROLES } from '../hooks/useNotifications';
+// Sprint 163: who may open each screen. The SAME table the page guard in
+// RootLayout uses, so the menu and the guard cannot disagree.
+import { ROUTE_ROLES } from '../utils/routeRoles';
 import { apiClient, ApiError } from '../api/client';
 import { useToast } from './Toast';
 import { Modal } from './Modal';
 
+// Sidebar colour theme. 'sky' is the light-blue rail (2026-09-30); 'navy' is the
+// previous navy + gold rail, kept intact so it is a one-word revert:
+// change SIDEBAR_THEME to 'navy'. (Full-file copy: docs/snapshots/Root.sidebar-navy-gold.tsx.txt)
+const SIDEBAR_THEME: 'sky' | 'navy' = 'sky';
+const SB = {
+  navy: {
+    bg: 'radial-gradient(120% 45% at 100% 100%, rgba(66,87,196,0.34) 0%, rgba(66,87,196,0) 62%), radial-gradient(130% 70% at 0% 0%, #243579 0%, #1D2B69 38%, #17234D 68%, #101A40 100%)',
+    shadow: '0 15px 20px rgba(15,23,42,0.22), inset 0 0 0 1px rgba(255,255,255,0.04)',
+    logo: '/logo.svg',
+    divider: 'bg-[#E2E8F0]/90',
+    title: 'text-white',
+    sub: 'text-white/55',
+    chipBtn: 'bg-white/10 text-white hover:bg-white/20',
+    closeBtn: 'text-white/70 hover:text-white hover:bg-white/10',
+    idle: 'text-white/70 hover:bg-white/10 hover:text-white font-medium',
+    active: 'bg-[linear-gradient(115deg,#FBD965_0%,#F4C542_55%,#E9B52F_100%)] text-sidebar-bg font-bold',
+    activeBadge: 'bg-sidebar-bg/20 text-sidebar-bg',
+    switchBtn: 'text-sidebar-active hover:bg-white/10',
+    section: 'text-[#94a3b8]',
+    rule: 'border-white/15',
+    childActive: 'bg-card text-primary font-semibold',
+    childIdle: 'text-white/60 hover:bg-white/10 hover:text-white font-medium',
+    avatar: 'bg-primary-surface',
+    avatarColor: '#4F63D9',
+    userName: 'text-white',
+    bellIdle: 'text-white/70 hover:bg-white/10 hover:text-white',
+    logout: 'text-white/55 hover:text-white hover:bg-white/10',
+  },
+  sky: {
+    bg: 'linear-gradient(170deg, #F4FBFF 0%, #DFF1FD 100%)',
+    shadow: '0 15px 20px rgba(15,23,42,0.14), inset 0 0 0 1px rgba(3,105,161,0.10)',
+    logo: '/logo-sky.svg',
+    divider: 'bg-[#C5DFF2]',
+    title: 'text-[#0B3153]',
+    sub: 'text-[#5F89AD]',
+    chipBtn: 'bg-[#D0E8F8] text-[#0B3153] hover:bg-[#BFDDF3]',
+    closeBtn: 'text-[#2A6494] hover:text-[#0B3153] hover:bg-[#D0E8F8]',
+    idle: 'text-[#1E4E79] hover:bg-[#D0E8F8] hover:text-[#0B3153] font-medium',
+    active: 'bg-[#0369A1] text-white font-bold shadow-[0_6px_16px_rgba(3,105,161,0.30)]',
+    activeBadge: 'bg-white/25 text-white',
+    switchBtn: 'text-[#0369A1] hover:bg-[#D0E8F8]',
+    section: 'text-[#5F89AD]',
+    rule: 'border-[#C5DFF2]',
+    childActive: 'bg-white text-[#0369A1] font-semibold shadow-sm',
+    childIdle: 'text-[#1E4E79]/80 hover:bg-[#D0E8F8] hover:text-[#0B3153] font-medium',
+    avatar: 'bg-[#0369A1] text-white',
+    avatarColor: '#FFFFFF',
+    userName: 'text-[#0B3153]',
+    bellIdle: 'text-[#2A6494] hover:bg-[#D0E8F8] hover:text-[#0B3153]',
+    logout: 'text-[#2A6494] hover:text-[#0B3153] hover:bg-[#D0E8F8]',
+  },
+}[SIDEBAR_THEME];
+
+// Real working dropdown, matching RAMHIS's topbar.jsx exactly (sizes, radii,
+// the "Signed in as" panel) -- the avatar used to just open Change Password
+// directly with no menu at all.
+const UserMenu = ({ user, schoolLabel, onAccountSettings }: { user: { name: string; role: string }; schoolLabel: string; onAccountSettings: () => void }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const firstLetter = user.name.charAt(0).toUpperCase();
+  // Real connectivity, same source SyncStatus tracks -- not decorative.
+  const { isOnline } = useOfflineQueue();
+  const RoleIcon = ROLE_ICONS[user.role] ?? UserCog;
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: MouseEvent | TouchEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('touchstart', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('touchstart', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative min-w-0">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className={`flex items-center gap-3 rounded-2xl bg-card px-2 py-1.5 transition-all duration-200 ${
+          open ? 'shadow-[0_6px_18px_rgba(15,23,42,0.16)]' : 'hover:shadow-[0_4px_14px_rgba(15,23,42,0.14)]'
+        }`}
+      >
+        <span className="relative shrink-0">
+          <span
+            className="flex h-11 w-11 items-center justify-center rounded-2xl text-white text-sm font-bold shadow-[0_6px_18px_rgba(30,42,94,0.22)]"
+            style={{ background: 'linear-gradient(135deg, #4F63D9, #17234D)' }}
+          >
+            {firstLetter}
+          </span>
+          {/* Stands in for the role label removed below -- the only place
+              that still says Dentist vs Dental Aide vs Admin vs School Staff
+              at a glance. */}
+          <span
+            title={user.role.replace('_', ' ')}
+            aria-label={user.role.replace('_', ' ')}
+            className="absolute -bottom-1 -right-1 flex h-[18px] w-[18px] items-center justify-center rounded-full border-2 border-card bg-primary text-white"
+          >
+            <RoleIcon className="w-[10px] h-[10px]" />
+          </span>
+        </span>
+        <span className="flex min-w-0 flex-col items-start max-w-[120px] sm:min-w-[100px] sm:max-w-[180px] leading-tight">
+          <span className="text-[13px] font-bold text-sidebar-bg truncate max-w-full">{user.name}</span>
+          <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${isOnline ? 'text-success' : 'text-warning'}`}>
+            <span className={`w-[6px] h-[6px] rounded-full ${isOnline ? 'bg-success' : 'bg-warning'}`} aria-hidden="true" />
+            {isOnline ? 'Online' : 'Offline'}
+          </span>
+          <span className="text-[11px] font-medium text-muted-foreground truncate max-w-full">{schoolLabel}</span>
+        </span>
+        <ChevronDown className={`shrink-0 w-[11px] h-[11px] text-muted-foreground transition-transform duration-200 ${open ? 'rotate-180' : 'rotate-0'}`} />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-[calc(100%+10px)] w-[230px] overflow-hidden rounded-2xl border border-border bg-card p-2 shadow-[0_20px_50px_rgba(15,23,42,0.12)] z-10">
+          <div className="mb-2 border-b border-border px-3 py-3">
+            <span className="block text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Signed in as</span>
+            <strong className="mt-1 block truncate text-[13px] font-bold text-sidebar-bg">{user.name}</strong>
+            <span className="mt-0.5 block text-[11px] capitalize text-muted-foreground">{user.role.replace('_', ' ')}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => { setOpen(false); onAccountSettings(); }}
+            className="flex h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] font-semibold text-muted-foreground transition-all duration-200 hover:bg-primary-surface hover:text-sidebar-bg"
+          >
+            <UserCog className="w-4 h-4 text-primary" />
+            <span>Account Settings</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const Root = () => {
   const { user, logout, selectedSchool } = useAuth();
@@ -36,10 +192,37 @@ export const Root = () => {
     });
   };
 
+  // Exposes the sidebar's current width as a CSS variable on the document
+  // root, so a `position: fixed` overlay that isn't part of this component
+  // tree (PreviewModal, rendered deep inside a page) can still centre itself
+  // in the space actually left of the rail instead of the full viewport --
+  // matching `<main>`'s own `md:ml-[109px|272px]` below. 0 below `md`, where
+  // the rail is an off-canvas drawer and reserves no space.
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const update = () => {
+      document.documentElement.style.setProperty('--content-left', mq.matches ? (collapsed ? '89px' : '252px') : '0px');
+    };
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, [collapsed]);
+
   // Mobile navigation drawer (Sprint 33). Below md the sidebar used to shrink
   // to a 60px icon rail with every label hidden and no working tooltip --
   // ten unlabeled glyphs. It is now off-canvas and fully labeled.
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Students expandable submenu (Dental Charts, Treatment nested under it),
+  // matching RAMHIS's real Pharmacy > Queue/Inventory pattern. Manually
+  // toggled OR auto-open when the current route is a child, so landing on
+  // /dental-charts directly (not via the chevron) still shows it expanded.
+  const [openStudents, setOpenStudents] = useState(false);
+  // Counts consecutive clicks on the Students row toward closing it -- user,
+  // 2026-09-25: closing takes exactly two clicks in a row on Students
+  // itself, with no time limit between them, but a click on ANY other nav
+  // item resets the count to 0 (see resetStudentsClicks below).
+  const studentsClickCount = useRef(0);
+  const resetStudentsClicks = () => { studentsClickCount.current = 0; };
   const drawerRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -92,21 +275,25 @@ export const Root = () => {
       .catch(() => setHighRiskCount(0));
   }, [user?.role, selectedSchool]);
 
-  // Sidebar bell (Sprint 97). One server aggregate, same pattern as the badge
-  // above — the sidebar renders on every screen, so it must not mount the
-  // six-collection hooks these counts come from.
+  // Sidebar bell badge (Sprint 97, moved to its own /notifications page on
+  // request). One server aggregate, same pattern as the badge above — the
+  // sidebar renders on every screen, so it must not mount the six-collection
+  // hooks these counts come from. Only the total is needed here now; the
+  // per-category breakdown lives in Notifications.tsx.
   const { counts: notifCounts } = useNotifications(NOTIFIED_ROLES.includes(user?.role ?? ''), selectedSchool);
 
   // ⚠ THE BADGE COUNTS ONLY THE ROWS THIS ROLE CAN SEE. Risk validation is
   // dentist-only (nav tab 5), so for an aide or admin that row is hidden — and
   // a badge saying "3" above a list showing two items is the kind of number
   // nobody can reconcile. The hook's own `total` is deliberately not used here.
-  const canValidateRisk = user?.role === 'dentist';
   const notifTotal =
     notifCounts.overdueRpc +
     notifCounts.appointmentsToday +
-    notifCounts.remindersToday +
-    (canValidateRisk ? notifCounts.awaitingValidation : 0);
+    notifCounts.consentPending +
+    notifCounts.unmarkedAppointments.length +
+    (notifCounts.dayNoteToday ? 1 : 0) +
+    (user?.role === 'dentist' ? notifCounts.awaitingValidation : 0) +
+    (notifCounts.admin?.items.length ?? 0);
 
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -152,60 +339,68 @@ export const Root = () => {
   // includes system_admin, and reads default to all roles), so only this nav
   // was hiding them.
   //
-  // ⚠ Risk Classification is the ONE deliberate exception. Validating an AI
-  // recommendation there is recorded as clinical sign-off in the audit trail,
-  // and CLAUDE.md's premise is that the DENTIST validates every recommendation
-  // before clinical action. Adding 'system_admin' to id 5 would let a
-  // non-clinician sign off, which weakens the guarantee Chapter 3 rests on.
-  // It is a one-word change if that is wanted — make it deliberately.
+  // Risk Classification is open to System Admin for VIEWING (user, 2026-09-29).
+  // Validating an assessment stays dentist-only: AIAnalytics gates the
+  // Validate & Save panel on role === 'dentist', so admin sign-off is not possible.
   const allTabs = [
     {
       id: 1, path: '/', label: 'Dashboard', icon: LayoutDashboard,
-      roles: ['dentist','dental_aide','school_admin','bho_staff','system_admin']
+      roles: ROUTE_ROLES['/']
     },
     {
       id: 2, path: '/appointments', label: 'Appointments', icon: Calendar,
-      roles: ['dentist','dental_aide','system_admin']
+      roles: ROUTE_ROLES['/appointments']
     },
     {
       id: 3, path: '/patients', label: 'Students', icon: Users,
-      roles: ['dentist','dental_aide','system_admin']
+      roles: ROUTE_ROLES['/patients']
     },
+    // Rendered as children of Students (see StudentsGroup below), not as
+    // their own top-level rows -- requested to match RAMHIS's real
+    // Pharmacy > Queue/Inventory expandable-submenu pattern. Kept in
+    // allTabs so role filtering stays in one place; the render loop skips
+    // them here and draws them nested instead.
     {
       id: 4, path: '/dental-charts', label: 'Dental Charts', icon: Stethoscope,
-      roles: ['dentist','dental_aide','system_admin']
-    },
-    {
-      id: 5, path: '/ai-analytics', label: 'Risk Classification', icon: Brain,
-      roles: ['dentist']
+      roles: ROUTE_ROLES['/dental-charts']
     },
     {
       id: 6, path: '/treatment-records', label: 'Treatment', icon: Clipboard,
-      roles: ['dentist','dental_aide','system_admin']
+      roles: ROUTE_ROLES['/treatment-records']
     },
     {
-      id: 7, path: '/rpc', label: 'RPC Tracking', icon: Shield,
-      roles: ['dentist','dental_aide','system_admin']
+      id: 5, path: '/ai-analytics', label: 'Risk Classification', icon: Brain,
+      roles: ROUTE_ROLES['/ai-analytics']
+    },
+    {
+      id: 7, path: '/rpc', label: 'RPC Monitoring', icon: Shield,
+      roles: ROUTE_ROLES['/rpc']
     },
     {
       id: 8, path: '/reports', label: 'Reports', icon: FileBarChart,
-      roles: ['dentist','dental_aide','school_admin','bho_staff','system_admin']
+      roles: ROUTE_ROLES['/reports']
     },
     {
       id: 9, path: '/schools', label: 'Schools', icon: School,
-      roles: ['system_admin']
+      roles: ROUTE_ROLES['/schools']
     },
     {
       id: 10, path: '/accounts', label: 'User Management', icon: UserCog,
-      roles: ['system_admin']
+      roles: ROUTE_ROLES['/accounts']
     },
     {
       id: 11, path: '/archive', label: 'Archived Records', icon: Archive,
-      roles: ['system_admin']
+      roles: ROUTE_ROLES['/archive']
     },
     {
       id: 12, path: '/audit', label: 'Audit Trail', icon: ClipboardList,
-      roles: ['system_admin']
+      roles: ROUTE_ROLES['/audit']
+    },
+    {
+      // Moved into the main nav list, at the very end of the list (user, 2026-09-29); was a
+      // separate inline popover section above the user block.
+      id: 8.5, path: '/notifications', label: 'Notifications', icon: Bell,
+      roles: ROUTE_ROLES['/notifications']
     },
     // Follow Up Alerts REMOVED
   ];
@@ -220,7 +415,7 @@ export const Root = () => {
     return location.pathname.startsWith(path);
   };
 
-  // Label visibility: always shown below md (the drawer is 280px wide and
+  // Label visibility: always shown below md (the drawer is 238px wide and
   // unlabeled icons were the whole bug), then governed by `collapsed` at md+.
   const labelCls = collapsed ? 'block md:hidden' : 'block';
   const badgeCls = collapsed ? 'inline-block md:hidden' : 'inline-block';
@@ -231,93 +426,198 @@ export const Root = () => {
     return (
       <Link
         to={tab.path}
-        onClick={() => setDrawerOpen(false)}
+        onClick={() => { setDrawerOpen(false); resetStudentsClicks(); }}
         title={collapsed ? tab.label : undefined}
         aria-current={isActive ? 'page' : undefined}
-        // Collapsed, the rail is 60px and px-4 left the 20px icon centred at
-        // 26px against the rail's 30px -- 4px off, and misaligned with the
-        // footer buttons, which already re-centre themselves when collapsed.
-        // Matches what Change Password / Logout do further down.
-        className={`flex items-center gap-3 px-4 py-3 transition-colors ${
+        // Exact RAMHIS getNavStyle spec: 48px min-height, 12px horizontal
+        // padding, 16px rounded corners, 13px type (500 idle / 700 active).
+        className={`mx-7 rounded-2xl flex-1 basis-0 min-h-[1.75rem] max-h-12 flex items-center gap-3 px-3 transition-colors ${
           collapsed ? 'md:justify-center md:px-0' : ''
         } ${
           isActive
-            ? 'bg-primary text-primary-foreground'
-            : 'text-foreground hover:bg-primary-surface'
+            ? SB.active
+            : SB.idle
         }`}
       >
-        <Icon className="w-5 h-5 flex-shrink-0" />
-        <span className={`${labelCls} text-sm font-medium`}>{tab.label}</span>
+        <Icon className="w-4 h-4 flex-shrink-0" />
+        <span className={`${labelCls} text-[0.8125rem]`}>{tab.label}</span>
         {tab.path === '/ai-analytics' && highRiskCount > 0 && (
-          <span className={`${badgeCls} ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums ${
-            isActive ? 'bg-white/20 text-white' : 'bg-danger-surface text-destructive'
+          <span className={`${badgeCls} ml-auto text-[0.625rem] font-bold px-1.5 py-0.5 rounded-full tabular-nums ${
+            isActive ? SB.activeBadge : 'bg-danger-surface text-destructive'
           }`}>
             {highRiskCount}
+          </span>
+        )}
+        {tab.path === '/notifications' && notifTotal > 0 && (
+          <span className={`${badgeCls} ml-auto text-[0.625rem] font-bold px-1.5 py-0.5 rounded-full tabular-nums ${
+            isActive ? SB.activeBadge : 'bg-danger-surface text-destructive'
+          }`}>
+            {notifTotal > 99 ? '99+' : notifTotal}
           </span>
         )}
       </Link>
     );
   };
 
-  // Same school palette the kicker/GradePill use — the strip must not invent a
-  // second colour language for the same school.
-  const stripSchool = selectedSchool
-    ? getSchoolColor(selectedSchool)
-    : { solid: '#1E40AF', light: '#EFF6FF', border: '#93C5FD' };
+  // Students + its two children (Dental Charts, Treatment) as an expandable
+  // group -- real RAMHIS spec (sidebar.jsx submenuStyle/submenuLinkStyle):
+  // indented 20px, left border rule, active child = a light pill (bg-card)
+  // on the dark rail rather than the gold TabLink treatment (that's reserved
+  // for top-level items). Students itself still navigates normally on click;
+  // only the chevron toggles the group, via stopPropagation so it doesn't
+  // also trigger the Link.
+  const StudentsGroup = ({ studentsTab, children }: { studentsTab: typeof allTabs[0]; children: typeof allTabs }) => {
+    // ⚠ `/dental-chart/:id` (singular, an individual pupil's chart) and
+    // `/students/…` (e.g. update-school-year) are NOT prefixes of any tab's
+    // own path (`/patients`, `/dental-charts` plural, `/treatment-records`),
+    // so `isTabActive` alone lost the highlight and closed the group the
+    // moment a dentist opened a student from the queue (user, 2026-09-25).
+    // These extra prefixes are the family the group actually covers.
+    const familyActive = (path: string) => location.pathname.startsWith(path);
+    // `/dental-chart/:id` is shared by more than one module (Dental Charts'
+    // own queue, Treatment Records, Risk Classification, ...) -- which CHILD
+    // it belongs to depends on `?context=`, not the path alone (user,
+    // 2026-09-28: "when IPTR is access in treatment submodule, the highlight
+    // should be in treatment submodule, not in the dental chart"). Opening a
+    // chart from Treatment must light up Treatment's own row, not Dental
+    // Charts'.
+    const chartContext = new URLSearchParams(location.search).get('context');
+    const onChartPage = familyActive('/dental-chart/');
+    const inDentalChart = onChartPage && chartContext !== 'treatment';
+    const inTreatmentViaChart = onChartPage && chartContext === 'treatment';
+    const isActive = isTabActive(studentsTab.path) || familyActive('/students/');
+    const childActive = children.some((c) => isTabActive(c.path)) || inDentalChart || inTreatmentViaChart;
+    // Highlight tracks the REAL route only -- never the manual expand/collapse
+    // state. Using `isOpen` here was the bug: toggle the group open, then
+    // navigate to an unrelated page, and the gold pill stayed lit because
+    // `openStudents` was still true. Expansion (below) is allowed to stay
+    // open across navigation; the color is not.
+    const highlighted = isActive || childActive;
+    const isOpen = openStudents || childActive;
+    const Icon = studentsTab.icon;
+    // Two clicks on the row, in a row, close it -- no time limit between
+    // them, but a click on any other nav item resets the count (see
+    // studentsClickCount above). Opening (from closed) always counts as the
+    // first click of a fresh pair.
+    const onRowClick = () => {
+      setDrawerOpen(false);
+      if (!openStudents) {
+        studentsClickCount.current = 1;
+        setOpenStudents(true);
+        return;
+      }
+      studentsClickCount.current += 1;
+      if (studentsClickCount.current >= 2) {
+        studentsClickCount.current = 0;
+        setOpenStudents(false);
+      }
+    };
+    // Elastic like the other rows: open, the group claims about 2.4 rows' worth of
+    // the nav height (its own row plus the two children); closed, one row's worth.
+    return (
+      <div className={`flex flex-col min-h-0 basis-0 ${isOpen && !collapsed ? 'flex-[2.4_1_0%] max-h-[7.5rem]' : 'flex-[1_1_0%] max-h-12'}`}>
+        <Link
+          to={studentsTab.path}
+          onClick={onRowClick}
+          title={collapsed ? studentsTab.label : undefined}
+          aria-current={isActive ? 'page' : undefined}
+          className={`mx-7 rounded-full flex-1 basis-0 min-h-[1.75rem] max-h-12 flex items-center gap-3 px-4 transition-colors ${
+            collapsed ? 'md:justify-center md:px-0' : ''
+          } ${
+            highlighted
+              ? SB.active
+              : SB.idle
+          }`}
+        >
+          <Icon className="w-4 h-4 flex-shrink-0" />
+          <span className={`${labelCls} text-[0.8125rem]`}>{studentsTab.label}</span>
+          <button
+            type="button"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRowClick(); }}
+            aria-label={isOpen ? 'Collapse Students submenu' : 'Expand Students submenu'}
+            aria-expanded={isOpen}
+            className={`${labelCls} ml-auto -mr-1 p-0.5 rounded transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          >
+            <ChevronDown className="w-3.5 h-3.5" />
+          </button>
+        </Link>
+
+        {isOpen && !collapsed && (
+          <div className={`mt-1 ml-[30px] mr-7 pl-3 border-l ${SB.rule} flex flex-col gap-1 flex-[1.4_1_0%] min-h-0`}>
+            {children.map((child) => {
+              // Dental Charts and Treatment both cover `/dental-chart/:id`,
+              // an individual pupil's chart -- which one depends on
+              // `?context=`, see inDentalChart/inTreatmentViaChart above.
+              const childIsActive = isTabActive(child.path)
+                || (child.path === '/dental-charts' && inDentalChart)
+                || (child.path === '/treatment-records' && inTreatmentViaChart);
+              const ChildIcon = child.icon;
+              return (
+                <Link
+                  key={child.id}
+                  to={child.path}
+                  onClick={() => { setDrawerOpen(false); resetStudentsClicks(); }}
+                  aria-current={childIsActive ? 'page' : undefined}
+                  className={`flex items-center gap-2.5 flex-1 basis-0 min-h-[1.5rem] max-h-8 pl-2.5 pr-3 rounded-full text-[0.8125rem] transition-colors ${
+                    childIsActive ? SB.childActive : SB.childIdle
+                  }`}
+                >
+                  <ChildIcon className="w-3.5 h-3.5 flex-shrink-0" />
+                  {child.label}
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     // flex-col below md so the mobile top bar stacks ABOVE the content as a
     // normal flow item. It is `sticky` under the fixed status strip.
     <div className="min-h-screen bg-canvas flex flex-col md:flex-row" style={{ paddingTop: TOPBAR_H }}>
-      {/* STATUS STRIP -- pinned to the very top of the viewport, above the
-          sidebar in stacking order (z-[60] vs z-50) but NOT across it: it
-          starts where the rail ends, so the rail keeps its own full-height
-          top corner instead of being covered. Full width below md, where the
-          rail is off-canvas. Contents are right-aligned. Two facts staff in
-          the field must be able to glance at without scrolling: whether the
-          device is online, and which school's records they are looking at.
-          `fixed` (not sticky) because it must survive any scroll container on
-          the page; the wrapper's paddingTop above is what keeps it from
-          covering the first row of content. */}
+      {/* STATUS STRIP -- pinned to the very top of the viewport, full width
+          (left-0) even at desktop, so its white background extends behind
+          the floating rail instead of stopping at the rail's right edge --
+          otherwise the canvas gray showed through in the top-left corner,
+          above the rail's own rounded top edge, where nothing else paints.
+          The rail's z-[70] is still above this strip's z-[60], so it still
+          renders on top wherever the two overlap; only the content (the user
+          avatar block) stays right-aligned via `justify-end`, unaffected by
+          how far the div's own background reaches left. The user avatar is
+          the only permanent content, matching the reference topbar exactly
+          -- SyncStatus renders nothing at all while online/synced (see its
+          own idle-return-null note) and only appears as an actual alert
+          (offline, sync failure, conflict), per CLAUDE.md's "show offline
+          banner when disconnected". `fixed` (not sticky) because it must
+          survive any scroll container on the page; the wrapper's paddingTop
+          above is what keeps it from covering the first row of content. */}
       <div
         style={{ height: TOPBAR_H }}
-        className={`fixed top-0 right-0 left-0 ${collapsed ? 'md:left-[60px]' : 'md:left-[220px]'} z-[60] flex items-center justify-end gap-1.5 px-3 bg-card border-b border-border leading-none transition-[left] duration-200`}
+        className="fixed top-0 right-0 left-0 z-[60] flex items-center justify-end gap-3 px-4 md:px-6 bg-white border-b border-[#EEF2F7] leading-none"
       >
-        {/* Two pills, no divider — the rings already separate them. The sync
-            pill IS the affordance: clicking it opens the full panel, which is
-            why the floating cloud icon it replaced is gone entirely. */}
-        <SyncStatus />
-        <span
-          style={{
-            backgroundColor: stripSchool.light,
-            color: stripSchool.solid,
-            borderColor: stripSchool.border,
-          }}
-          className="inline-flex items-center rounded-full border px-2.5 py-[2px] text-[13px] font-semibold leading-none truncate max-w-[45vw]"
-        >
-          {selectedSchool ? getSchoolShortName(selectedSchool) : 'All Schools'}
-        </span>
+        {/* PHONE ONLY: the drawer button + wordmark share this one row with
+            the user block (was a second 56px bar under an otherwise empty
+            strip). mr-auto pushes the user block to the right edge. */}
+        <div className="md:hidden mr-auto flex min-w-0 items-center gap-3">
+          <button
+            ref={menuButtonRef}
+            onClick={() => setDrawerOpen(true)}
+            aria-label="Open navigation menu"
+            aria-expanded={drawerOpen}
+            aria-controls="main-nav"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sidebar-bg text-white hover:opacity-90 transition-opacity"
+          >
+            <Menu className="w-[18px] h-[18px]" />
+          </button>
+          {/* Hidden on the narrowest phones so the rotation reminder fits; the
+              drawer this button opens carries the FLORAL logo too. */}
+          <span className="truncate text-base font-bold text-primary max-[420px]:hidden">FLORAL</span>
+        </div>
+        <SyncStatus schoolLabel={selectedSchool ? getSchoolShortName(selectedSchool) : 'All Schools'} />
+        <UserMenu user={user} schoolLabel={selectedSchool ? getSchoolAcronym(selectedSchool) : 'All Schools'} onAccountSettings={openChangePassword} />
       </div>
-
-      {/* MOBILE TOP BAR -- below md only; the drawer's only entry point. The
-          old `pr-14` reserved the corner for the floating SyncStatus icon,
-          which no longer renders inside the shell. */}
-      <header style={{ top: TOPBAR_H }} className="md:hidden sticky h-14 z-30 flex items-center gap-3 px-4 bg-card border-b border-border">
-        <button
-          ref={menuButtonRef}
-          onClick={() => setDrawerOpen(true)}
-          aria-label="Open navigation menu"
-          aria-expanded={drawerOpen}
-          aria-controls="main-nav"
-          className="-ml-2 p-2 rounded-lg text-foreground hover:bg-primary-surface transition-colors"
-        >
-          <Menu className="w-5 h-5" />
-        </button>
-        <span className="text-base font-bold text-primary">FLORAL</span>
-        {/* The school name used to repeat here. The status strip above now
-            carries it at every width, so this was the same label twice on a
-            phone screen. */}
-      </header>
 
       {/* DRAWER BACKDROP -- below md only */}
       {drawerOpen && (
@@ -343,39 +643,73 @@ export const Root = () => {
         // this aside's own z-index makes it a stacking context, so a child can
         // never escape it. The rail has to win, and it does not overlap the
         // strip anywhere else.
-        className={`bg-card border-r border-border flex flex-col fixed left-0 top-0 h-screen z-[70]
-          w-[280px] transition-transform duration-200
+        //
+        // Floating, rounded card at md+ (RAMHIS spec: 12px inset, 28px radius,
+        // its own border+shadow) -- flush/full-height below md, where it's an
+        // off-canvas slide-in drawer instead. Width is now the exact RAMHIS
+        // figure too (76/250, was 60/220). Main content's margin and the
+        // status strip's left offset stay equal to this RAW width (never
+        // width+inset): the floating rail's extra 12px overlaps that much of
+        // the content area, hidden by z-index, same as the real RAMHIS layout
+        // does it -- its own content div's marginLeft is the sidebar's raw
+        // width, not width+inset.
+        //
+        // Shadow blur trimmed from 38px to 20px (user, 2026-09-28): the
+        // sidebar sits only ~44px left of routed content, and a 38px blur
+        // reached far enough to paint a visible gray smudge behind the
+        // Treatment Queue card's corner once that card's own bottom edge
+        // landed level with the sidebar's. 20px keeps the floating-card
+        // look without the bleed.
+        // Gradient fill (user, 2026-09-29): a soft lighter-navy glow from the top-left
+        // fading into the sidebar navy and then a deeper navy at the bottom.
+        style={{
+          background: SB.bg,
+          // Only a faint inner edge; no bright top hairline or white sheen, so it reads as colour, not glass.
+          boxShadow: SB.shadow,
+        }}
+        className={`flex flex-col fixed left-0 top-0 h-screen z-[70]
+          md:left-0 md:top-0 md:h-screen md:rounded-none
+          w-[238px] transition-transform duration-200
           ${drawerOpen ? 'translate-x-0 visible' : '-translate-x-full invisible'}
           md:visible md:translate-x-0 md:transition-[width]
-          ${collapsed ? 'md:w-[60px]' : 'md:w-[220px]'}`}
+          ${collapsed ? 'md:w-[75px]' : 'md:w-[238px]'}`}
       >
         {/* Logo */}
-        <div className="p-4 border-b border-border relative">
-          {/* Collapse toggle -- desktop only, mobile has no room to expand anyway */}
+        {/* px-8 shrinks to md:px-0 when collapsed -- at 75px collapsed width,
+            there isn't room for any side padding plus the toggle button
+            without it overflowing or losing its centering. */}
+        <div className={`pt-8 px-8 pb-3 flex items-center gap-3 ${collapsed ? 'md:justify-center md:px-0' : ''}`}>
+          {/* CSS-hidden (md:hidden), not JS-gated -- collapsed only means
+              anything at md+; mobile always ignores it and must keep showing
+              the logo regardless of whatever collapsed was left at. */}
+          <img src={SB.logo} alt="FLORAL" className={`w-8 h-8 md:w-10 md:h-10 object-contain flex-shrink-0 ${collapsed ? 'md:hidden' : ''}`} />
+          <div className={`min-w-0 ${collapsed ? 'md:hidden' : ''}`}>
+            <div className={`text-[1.1875rem] font-bold ${SB.title} tracking-[0.5px]`}>FLORAL</div>
+            <div className={`text-[0.5625rem] font-semibold tracking-wide ${SB.sub} leading-tight uppercase`}>Dental Health Record Management System</div>
+          </div>
+          {/* On mobile (below md) this row shows the logo plus an X to close the
+              drawer, matching before. At md+ it's the RAMHIS toggle instead: a
+              filled dark rounded-square three-line icon, same as the mobile
+              hamburger, replacing the old floating chevron circle. */}
+          <button
+            onClick={() => setDrawerOpen(false)}
+            aria-label="Close navigation menu"
+            className={`md:hidden ml-auto -mr-2 p-2 rounded-lg ${SB.closeBtn} transition-colors`}
+          >
+            <X className="w-5 h-5" />
+          </button>
           <button
             onClick={toggleCollapsed}
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className="hidden md:flex absolute -right-3 top-5 w-6 h-6 items-center justify-center rounded-full border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-gray-50 shadow-sm z-10"
+            className={`hidden md:flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${SB.chipBtn} transition-colors ${collapsed ? '' : 'ml-auto'}`}
           >
-            {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
+            <Menu className="w-[15px] h-[15px]" />
           </button>
-          <div className="flex items-center gap-3">
-            <img src="/logo.svg" alt="FLORAL" className="w-8 h-8 md:w-10 md:h-10 object-contain flex-shrink-0" />
-            <div className={labelCls}>
-              <div className="text-lg font-bold text-primary">FLORAL</div>
-              <div className="text-xs text-muted-foreground leading-tight">Dental Health Record Management System</div>
-            </div>
-            {/* Close -- drawer only; Escape and the backdrop also close it */}
-            <button
-              onClick={() => setDrawerOpen(false)}
-              aria-label="Close navigation menu"
-              className="md:hidden ml-auto -mr-2 p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-primary-surface transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
         </div>
+        {/* Inset divider -- a margin on both sides instead of a full-width
+            border, so the line doesn't touch the rounded card's edges. */}
+        <div className={`h-px ${SB.divider} mx-8 ${collapsed ? "md:mx-2" : ""}`} />
 
         {/* School switcher — a button to the dedicated selection screen
             (reverted 2026-09-04 at the user's explicit request from the
@@ -388,76 +722,85 @@ export const Root = () => {
             onClick={() => navigate('/select-school')}
             title="Switch School"
             aria-label="Switch School"
-            className={`group flex items-center gap-2.5 mx-3 my-2 px-3 py-2.5 rounded-xl border border-primary/15 bg-primary-surface text-primary hover:border-primary/30 hover:shadow-sm transition-all ${collapsed ? 'md:justify-center' : ''} w-[calc(100%-24px)]`}
+            // Identical shape/size/alignment to a plain main-menu row -- no
+            // fill, no border, same subtle hover as every other row -- the
+            // only difference is bold gold text/icon instead of white.
+            className={`mx-7 mt-2 mb-1 rounded-2xl min-h-12 flex items-center gap-3 px-3 ${SB.switchBtn} font-bold transition-colors ${
+              collapsed ? 'md:justify-center md:px-0' : ''
+            }`}
           >
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-card shadow-sm group-hover:scale-105 transition-transform">
-              <ArrowLeftRight className="w-3.5 h-3.5" />
-            </span>
-            <span className={`${labelCls} text-sm font-semibold`}>Switch School</span>
+            <ArrowLeftRight className="w-4 h-4 flex-shrink-0" />
+            <span className={`${labelCls} text-[0.8125rem]`}>Switch School</span>
           </button>
         )}
 
         {/* Tabs */}
-        <nav className="flex-1 overflow-y-auto py-2">
-          {visibleTabs.map((tab) => (
-            <TabLink key={tab.id} tab={tab} />
-          ))}
+        <nav className="flex-1 min-h-0 overflow-y-auto flex flex-col py-2">
+          {!collapsed && (
+            <div className={`px-8 pb-[6px] pt-1 text-[0.625rem] font-bold uppercase tracking-[1px] ${SB.section} flex-none`}>Main Menu</div>
+          )}
+          {visibleTabs.map((tab) => {
+            // Dental Charts (4) and Treatment (6) render nested inside the
+            // Students (3) group below, not as their own row here.
+            if (tab.id === 4 || tab.id === 6) return null;
+            // Notifications lives as a bell in the user row below, not in this list.
+            if (tab.path === '/notifications') return null;
+            if (tab.id === 3) {
+              const studentsChildren = visibleTabs.filter((t) => t.id === 4 || t.id === 6);
+              return <StudentsGroup key={tab.id} studentsTab={tab} children={studentsChildren} />;
+            }
+            return <TabLink key={tab.id} tab={tab} />;
+          })}
         </nav>
 
-        {/* User info + settings + notifications + logout */}
-        <div className="border-t border-border p-4">
-          <div className={`flex items-center justify-between gap-2 mb-3 ${collapsed ? 'md:justify-center' : ''}`}>
-            <div className={`min-w-0 ${labelCls}`}>
-              <div className="text-sm font-medium text-foreground truncate">{user.name}</div>
-              <div className="mt-1">
-                <span className="inline-block px-2 py-0.5 text-xs bg-primary-surface text-primary rounded capitalize">
-                  {user.role.replace('_', ' ')}
-                </span>
-              </div>
+        {/* User info + settings + notifications + logout -- exact RAMHIS spec:
+            36px avatar chip (bg-primary-50/text-primary-600), 12px name,
+            10px muted role, no role badge; logout resting state is muted
+            white, not red (red is reserved for the real app's confirm-modal
+            icon, which FLORAL doesn't have a matching dialog for). */}
+        <div className={`h-px ${SB.divider} mx-8 ${collapsed ? "md:mx-2" : ""}`} />
+        <div className="pt-2 px-8 pb-5">
+          {/* Real spec hides this WHOLE block when collapsed (avatar included,
+              not just the name/role text) -- CSS-based (md:hidden), not a JS
+              conditional, so mobile (which ignores `collapsed`) still shows it
+              regardless of whatever the flag was left at. */}
+          <div className={`flex items-center gap-2.5 pb-[5px] pt-2.5 mb-1 ${collapsed ? 'md:justify-center' : ''}`}>
+            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] ${SB.avatar} text-[0.875rem] font-bold ${collapsed ? 'md:hidden' : ''}`} style={{ color: SB.avatarColor }}>
+              {user.name.charAt(0).toUpperCase()}
+            </span>
+            <div className={`min-w-0 flex-1 flex flex-col ${collapsed ? 'md:hidden' : ''}`}>
+              <strong className={`text-[0.6875rem] font-bold ${SB.userName} truncate`}>{user.name}</strong>
+              <span className={`mt-[2.5px] text-[0.625rem] ${SB.sub} capitalize`}>{user.role.replace('_', ' ')}</span>
             </div>
-            {/* Profile settings — currently just Change Password, the one
-                self-service profile action that exists. Not a menu of
-                invented options (CLAUDE.md: nothing cosmetic). */}
-            <button
-              onClick={openChangePassword}
-              title="Profile settings"
-              aria-label="Profile settings"
-              className="flex-shrink-0 p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Notifications — ABOVE Logout, as the P2 doc asked ("notifications
-              above ng log out"). Hidden entirely for School Admin and BHO
-              staff: they view reports, never clinical records, so every count
-              would be both zero and none of their business. Links straight to
-              the full notifications page rather than an inline dropdown. */}
-          {NOTIFIED_ROLES.includes(user.role) && (
-            <Link
-              to="/notifications"
-              onClick={() => setDrawerOpen(false)}
-              title={collapsed ? `Notifications${notifTotal ? ` (${notifTotal})` : ''}` : undefined}
-              className={`w-full flex items-center gap-3 px-3 py-2 text-muted-foreground hover:bg-muted rounded-lg transition-colors mb-1 justify-start ${collapsed ? 'md:justify-center' : 'md:justify-start'}`}
-            >
-              <span className="relative flex-shrink-0">
-                <Bell className="w-5 h-5" />
+            {NOTIFIED_ROLES.includes(user.role) && (
+              <Link
+                to="/notifications"
+                onClick={() => { setDrawerOpen(false); resetStudentsClicks(); }}
+                title="Notifications"
+                aria-label={notifTotal > 0 ? `Notifications, ${notifTotal} new` : 'Notifications'}
+                className={`relative ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] transition-colors ${
+                  isTabActive('/notifications')
+                    ? SB.active
+                    : SB.bellIdle
+                }`}
+              >
+                <Bell className="w-[1.125rem] h-[1.125rem]" />
                 {notifTotal > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-1 rounded-full bg-destructive text-white text-[9px] font-bold flex items-center justify-center">
+                  <span className="absolute -right-1 -top-1 min-w-[1.0625rem] rounded-full bg-danger-surface px-1 text-center text-[0.625rem] font-bold leading-[1.0625rem] tabular-nums text-destructive">
                     {notifTotal > 99 ? '99+' : notifTotal}
                   </span>
                 )}
-              </span>
-              <span className={`${labelCls} text-sm font-medium`}>Notifications</span>
-            </Link>
-          )}
+              </Link>
+            )}
+          </div>
+
           <button
             onClick={handleLogout}
             title={collapsed ? 'Logout' : undefined}
-            className={`w-full flex items-center gap-3 px-3 py-2 text-destructive hover:bg-danger-surface rounded-lg transition-colors justify-start ${collapsed ? 'md:justify-center' : 'md:justify-start'}`}
+            className={`w-full h-11 flex items-center gap-3 px-3.5 text-[0.875rem] font-medium ${SB.logout} rounded-[9px] transition-colors justify-start ${collapsed ? 'md:justify-center' : 'md:justify-start'}`}
           >
-            <LogOut className="w-5 h-5 flex-shrink-0" />
-            <span className={`${labelCls} text-sm font-medium`}>Logout</span>
+            <LogOut className="w-4 h-4 flex-shrink-0" />
+            <span className={labelCls}>Logout</span>
           </button>
         </div>
       </aside>
@@ -472,7 +815,7 @@ export const Root = () => {
           header inside the page (the IPTR toolbar and tab strip) was pinning to
           a box that never scrolls, i.e. silently not sticking at all. `clip`
           clips the same overflow without becoming a scroll container. */}
-      <main className={`flex-1 ml-0 ${collapsed ? 'md:ml-[60px]' : 'md:ml-[220px]'} overflow-x-clip transition-[margin] duration-200`}>
+      <main className={`flex-1 ml-0 ${collapsed ? 'md:ml-[89px]' : 'md:ml-[252px]'} overflow-x-clip transition-[margin] duration-200`}>
         <div className="p-4 md:p-8">
           <Outlet />
         </div>

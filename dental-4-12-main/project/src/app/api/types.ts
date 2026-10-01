@@ -2,7 +2,8 @@ export type ApiRole = "system_admin" | "dentist" | "dental_aide" | "school_admin
 
 export interface ApiUser {
   _id: string;
-  school_id: string | null;
+  /** Empty means ALL schools (Sprint 100). */
+  school_ids: string[];
   role: ApiRole;
   full_name: string;
   email: string;
@@ -10,21 +11,29 @@ export interface ApiUser {
   last_login: string | null;
   twofa_enabled?: boolean;
   isArchived: boolean;
+  created_at?: string;
 }
 
 export interface ApiSchool {
   _id: string;
   school_name: string;
-  school_type: string;
+  school_type?: string;
+  school_nickname?: string;
+  /** First and last grade the school offers ("Kinder", "Grade 12"). */
+  grade_from?: string;
+  grade_to?: string;
+  /** Her feature, carried across with UpdateSchoolYear (Sprint 157). ⚠ NOT on
+   *  our SCHOOL model yet, so it reads undefined and the dialog's manual
+   *  override section stays hidden — the dialog's real job, rolling the year
+   *  forward, is unaffected. Wiring it needs a model field AND a toggle in
+   *  School Management; until then nothing on screen claims it works. */
+  allow_school_year_override?: boolean;
   /** All required by the School model; the admin registry form writes them.
    *  Optional here only because older callers select a subset of fields. */
   principal_name?: string;
   street_address?: string;
   barangay?: string;
   city?: string;
-  /** System Admin-only override: lets Update School Year's "Start New
-   *  School Year" run outside its normal March-August window. */
-  allow_school_year_override?: boolean;
   isArchived: boolean;
 }
 
@@ -37,19 +46,28 @@ export interface ApiStudent {
   first_name: string;
   middle_name?: string;
   birthday: string;
+  /** '' when is_not_student is true -- required otherwise. */
   sex: string;
   address: string;
   contact_number?: string;
+  /** '' when is_not_student is true -- required otherwise. */
   grade_level: string;
+  /** '' when is_not_student is true -- required otherwise. */
   section: string;
+  /** Added 2026-09-25. A person recorded through Add Student who isn't
+   *  actually enrolled (sibling/community member treated at a mission) --
+   *  sex/grade_level/section are absent for these. Optional since records
+   *  created before this field existed have no value. */
+  is_not_student?: boolean;
   place_of_birth?: string;
+  guardian_occupation?: string;
   guardian_name?: string;
   guardian_contact?: string;
-  guardian_occupation?: string;
   philhealth_number?: string;
   philhealth_status?: 'None' | 'Principal' | 'Dependent';
   is_4ps?: boolean;
   fourps_id?: string;
+  consent_status: "pending" | "complete";
   isArchived: boolean;
 }
 
@@ -68,22 +86,13 @@ export interface ApiStudentIptr {
   /** Measured for THIS school year. BMI is derived from them, never stored. */
   height_cm: number | null;
   weight_kg: number | null;
-  /** Celsius. */
-  temperature_c?: number | null;
-  /** Free text pair, e.g. "110/70". */
-  blood_pressure?: string;
-  /** Consent for THIS school year — renewed annually, not a lifetime flag.
-   *  Moved off STUDENT for the same reason grade_level did (see above): one
-   *  signature does not authorize every year that follows it. */
-  consent_status: "pending" | "complete";
-  /** Set server-side the moment consent_status becomes "complete"; null again
-   *  the moment it reverts to "pending". Never client-supplied. */
-  consent_given_at: string | null;
-  /** Day this year's record was opened — defaults to today at creation,
-   *  editable afterward via the year menu's Edit action. */
-  date_opened?: string | null;
-  created_at?: string;
   isArchived: boolean;
+  temperature_c?: number | null;
+  blood_pressure?: string | null;
+  /** Consent for THIS school year (Sprint 167). A guardian signs each year. */
+  consent_status: 'pending' | 'complete';
+  /** Server-set when consent_status becomes 'complete'; null while pending. */
+  consent_given_at?: string | null;
 }
 
 export interface ApiDentalChart {
@@ -91,15 +100,10 @@ export interface ApiDentalChart {
   iptr_id: string;
   dentist_id: string;
   date_charted: string;
-  /** Date treatment was given — a separate visit from the examination. */
-  date_treated?: string | null;
-  /** Per-VISIT services — one per head, not one per tooth. Added 2026-09-05;
-   *  optional because charts created before then have no value stored. */
-  oral_examination?: boolean;
-  fluoride_varnish?: boolean;
-  oral_prophylaxis?: boolean;
-  consultation?: boolean;
-  treatment_others?: string;
+  /** The RPC visit this charting was done at (Sprint 149), or null for a
+   *  charting with no visit attached — including every chart created before
+   *  that sprint. */
+  preventive_id?: string | null;
   isArchived: boolean;
 }
 
@@ -109,6 +113,10 @@ export interface ApiToothRecord {
   tooth_number: number;
   condition: string;
   treatment_code?: string;
+  /** Added 2026-09-25. Which RPC visit this tooth's current treatment_code
+   *  was recorded at -- null for teeth charted before this or outside the
+   *  visit flow. */
+  visit_number?: 1 | 2 | null;
 }
 
 export interface ApiPreventiveCareRecord {
@@ -121,6 +129,20 @@ export interface ApiPreventiveCareRecord {
    *  null, and those stay out of both sub-rows rather than being guessed into
    *  one. See PreventiveCareRecord.ts for why the default is null, not false. */
   facility_based: boolean | null;
+  /** The services performed AT this visit (Sprint 147). ⚠ NULL means NOT
+   *  RECORDED, never "not done" — every visit created before that sprint has
+   *  no answer, and a form must not claim a service was withheld. */
+  oral_screening?: boolean | null;
+  oral_prophylaxis?: boolean | null;
+  fluoride_varnish?: boolean | null;
+  oral_hygiene_instruction?: boolean | null;
+  /** Added 2026-09-25, same null-means-not-recorded rule as the four above.
+   *  Not a DOH Target Client List column -- tracked for the clinic's own
+   *  record only. */
+  consultation?: boolean | null;
+  /** The form's own words — it prints Moderate where RISK_STRATIFICATION says
+   *  Medium. On the form, the form wins. */
+  caries_risk?: 'Low' | 'Moderate' | 'High' | null;
 }
 
 export interface ApiRiskStratification {
@@ -149,6 +171,28 @@ export interface ApiMedicalHistory {
   blood_transfusion: boolean;
   tattoo: boolean;
   others: string;
+  // Added 2026-09-24 (ERD deviation) -- optional because records saved
+  // before then do not carry them.
+  blood_disorders?: boolean;
+  liver_disease?: boolean;
+  anemia?: boolean;
+  anesthesia_allergy?: boolean;
+  previous_extraction?: boolean;
+  extraction_bleeding?: boolean;
+  chest_tightness?: boolean;
+  asthma?: boolean;
+  menstruation?: boolean;
+  pregnant?: boolean;
+  current_medication?: boolean;
+  epilepsy?: boolean;
+  hepatitis_type?: string;
+  malignancy_details?: string;
+  blood_transfusion_date?: string;
+  last_admission?: string;
+  medication_details?: string;
+  high_blood_pressure?: boolean;
+  last_extraction_date?: string;
+  surgical_details?: string;
 }
 
 export interface ApiDietarySocialHabits {
@@ -161,14 +205,12 @@ export interface ApiDietarySocialHabits {
   body_piercing: boolean;
   nail_biting: boolean;
   thumb_sucking: boolean;
-  others?: string;
 }
 
 export interface ApiOralHealthCondition {
   _id: string;
   iptr_id: string;
   oral_hygiene: string;
-  orally_fit_child?: boolean;
   gingivitis: boolean;
   periodontal_disease: boolean;
   debris: boolean;
@@ -189,6 +231,41 @@ export interface ApiTreatment {
   isArchived: boolean;
 }
 
+// Sprint 127. `referral_type` is the DOH Program Report's own row list — see
+// server/models/Referral.ts for which enum value fills which printed row.
+export type ReferralType =
+  | 'primary_care'
+  | 'higher_level'
+  | 'oral_cancer_screening'
+  | 'surgical'
+  | 'private_facility';
+
+export interface ApiReferral {
+  _id: string;
+  iptr_id: string;
+  dentist_id: string | null;
+  referral_type: ReferralType;
+  date_issued: string;
+  facility_name: string;
+  reason: string;
+  notes: string;
+  status: 'pending' | 'completed' | 'no-show';
+  follow_up_date: string | null;
+  isArchived: boolean;
+}
+
+/** DENTIST_ROTATION, used by the School Rotation tab as one row per DAY:
+ *  week_start = week_end = that day (the model's original weekly span still
+ *  reads correctly, see rotationByDay). */
+export interface ApiDentistRotation {
+  _id: string;
+  school_id: string;
+  dentist_id: string;
+  week_start: string;
+  week_end: string;
+  notes: string;
+}
+
 export interface ApiDentist {
   _id: string;
   school_id: string;
@@ -207,17 +284,17 @@ export interface ApiAppointment {
   appointment_type: string;
   requires_followup: boolean;
   parental_supervision_required: boolean;
+  /** Added 2026-09-25. Required on new bookings; absent on records created before then. */
+  guardian_contact_number?: string;
+  /** Per-appointment remark (Sprint 109). Empty string when unset. */
+  notes?: string;
   isArchived: boolean;
 }
 
-export interface ApiDentistRotation {
-  _id: string;
-  school_id: string;
-  dentist_id: string;
-  week_start: string;
-  week_end: string;
-  notes: string;
-}
+// ApiDentistRotation was removed 2026-09-07 with the Rotation tab. The
+// DENTIST_ROTATION model and `/dentist-rotations` still exist server-side and
+// any saved rows are untouched — nothing in the UI reads them. Re-derive this
+// type from `server/models/DentistRotation.ts` if the schedule is ever built.
 
 export interface ApiAuditTrail {
   _id: string;

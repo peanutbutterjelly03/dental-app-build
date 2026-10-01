@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Plus, Edit, Power, Search, KeyRound, Mail } from 'lucide-react';
+import { Calendar, X as XIcon, Plus, Edit, Power, Search, KeyRound, Mail, UserCog, Users, UserCheck, UserX, Filter, CheckCircle, User as UserIcon, Shield } from 'lucide-react';
+import { PageHeader } from './PageHeader';
 import { useUsers, ROLE_LABELS } from '../hooks/useUsers';
 import { apiClient, ApiError } from '../api/client';
-import type { ApiRole } from '../api/types';
+import type { ApiRole, ApiSchool } from '../api/types';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Notice } from './Notice';
@@ -12,6 +13,131 @@ import { useAuth } from '../context/AuthContext';
 
 const ROLES: ApiRole[] = ['dentist', 'dental_aide', 'school_admin', 'bho_staff', 'system_admin'];
 
+// Popup styling shared by the Edit and Reset Password dialogs. The border is
+// inline because styles/index.css forces a grey border on every input.
+const POPUP_FIELD = 'w-full px-4 py-3 text-sm text-[#475569] bg-[#F8FAFC] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#16214F]/30';
+const POPUP_FIELD_STYLE = { border: '1px solid #E2E8F0' } as const;
+const POPUP_LABEL = 'block text-sm font-semibold text-foreground mb-2';
+const POPUP_SECTION = 'text-sm font-semibold uppercase tracking-[0.08em] text-[#64748B]';
+const POPUP_CANCEL = 'px-5 py-2.5 rounded-xl border border-[#E2E8F0] bg-white text-sm font-bold text-foreground hover:bg-gray-50 transition-colors';
+const POPUP_PRIMARY = 'px-5 py-2.5 rounded-xl bg-primary text-sm font-bold text-white hover:bg-primary-hover disabled:opacity-60 transition-colors';
+
+const PopupHeader = ({ title, subtitle, onClose }: { title: string; subtitle: string; onClose: () => void }) => (
+  <div className="flex items-start justify-between gap-4 px-8 py-6 border-b border-border">
+    <div>
+      <h2 className="text-xl font-bold text-foreground">{title}</h2>
+      <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>
+    </div>
+    <button type="button" aria-label="Close" onClick={onClose} className="w-11 h-11 flex-shrink-0 grid place-items-center rounded-xl border border-[#E2E8F0] bg-white text-[#475569] hover:bg-gray-50">
+      <XIcon className="w-5 h-5" />
+    </button>
+  </div>
+);
+
+const ROLE_STYLE: Record<ApiRole, { cls: string; icon: typeof UserIcon }> = {
+  dentist: { cls: 'bg-[#F4F7FF] text-[#273A78] border-[#DCE3F5]', icon: UserIcon },
+  dental_aide: { cls: 'bg-[#ECFDF5] text-[#047857] border-[#A7F3D0]', icon: Users },
+  school_admin: { cls: 'bg-[#FFFBEB] text-[#B45309] border-[#FDE68A]', icon: UserCheck },
+  bho_staff: { cls: 'bg-[#F0F9FF] text-[#0369A1] border-[#BAE6FD]', icon: Users },
+  system_admin: { cls: 'bg-[#FAF5FF] text-[#7E22CE] border-[#E9D5FF]', icon: Shield },
+};
+
+/** School assignment picker (Sprint 100). Replaces a single-select dropdown:
+ *  one dentist and one aide rotate across all three schools, and other roles
+ *  may cover several, which a lone `school_id` could not express.
+ *
+ *  An EMPTY list means all schools, so the two modes are made explicit with
+ *  radios rather than left as "unchecked means everything" — an implicit rule
+ *  the admin would have to know. Checkboxes rather than `<select multiple>`:
+ *  there are only a handful of schools, and multi-select is close to unusable
+ *  on the phone width this app is checked at. */
+const SchoolAssignment = ({
+  value,
+  onChange,
+  schools,
+  idPrefix,
+  role,
+  selfId,
+  users,
+}: {
+  value: string[];
+  onChange: (ids: string[]) => void;
+  schools: ApiSchool[];
+  idPrefix: string;
+  /** Role of the account being edited; a school takes one dentist and one dental aide. */
+  role: ApiRole;
+  /** The account being edited, so it does not count as holding its own schools. */
+  selfId?: string;
+  users: { id: string; name: string; role: ApiRole; schoolIds: string[]; status: string }[];
+}) => {
+  const all = value.length === 0;
+  // Who already holds a school in this role. Accounts covering ALL schools
+  // (empty list) name no school, so they are not counted. The server enforces
+  // the same rule; this only shows the reason before a save is refused.
+  const holderOf = (schoolId: string) =>
+    role === 'dentist' || role === 'dental_aide'
+      ? users.find((u) => u.id !== selfId && u.role === role && u.status === 'Active' && u.schoolIds.includes(schoolId))
+      : undefined;
+  const toggle = (id: string) =>
+    onChange(value.includes(id) ? value.filter((v) => v !== id) : [...value, id]);
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-foreground mb-2">Assigned Schools</label>
+      <div className="border border-border rounded-lg divide-y divide-border">
+        <label className="flex items-start gap-3 p-3 cursor-pointer">
+          <input
+            type="radio"
+            name={`${idPrefix}-scope`}
+            checked={all}
+            onChange={() => onChange([])}
+            className="mt-0.5"
+          />
+          <span className="text-sm">
+            <span className="text-foreground">All schools</span>
+            <span className="block text-xs text-muted-foreground">Barangay level — full access, and stays correct if a school is added later.</span>
+          </span>
+        </label>
+        <label className="flex items-start gap-3 p-3 cursor-pointer">
+          <input
+            type="radio"
+            name={`${idPrefix}-scope`}
+            checked={!all}
+            onChange={() => onChange(schools[0] ? [schools[0]._id] : [])}
+            className="mt-0.5"
+          />
+          <span className="text-sm">
+            <span className="text-foreground">Specific schools</span>
+            <span className="block text-xs text-muted-foreground">Pick one or more. A rotating dentist or aide needs every school they cover.</span>
+          </span>
+        </label>
+        {!all && (
+          <div className="p-3 space-y-2 max-h-48 overflow-y-auto">
+            {schools.map((school) => {
+              const holder = holderOf(school._id);
+              const blocked = !!holder && !value.includes(school._id);
+              return (
+                <label key={school._id} className={`flex items-center gap-3 ${blocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+                  <input
+                    type="checkbox"
+                    checked={value.includes(school._id)}
+                    disabled={blocked}
+                    onChange={() => toggle(school._id)}
+                  />
+                  <span className="text-sm text-foreground">
+                    {school.school_name}
+                    {blocked && <span className="block text-xs text-muted-foreground">Already has a {role === 'dentist' ? 'dentist' : 'dental aide'}: {holder!.name}</span>}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export const AccountManagement = () => {
   const { users, schools, loading, error, reload } = useUsers();
   const { user: currentUser } = useAuth();
@@ -20,12 +146,14 @@ export const AccountManagement = () => {
   const [deactivating, setDeactivating] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'Active' | 'Inactive'>('all');
+  const [roleFilter, setRoleFilter] = useState<'all' | ApiRole>('all');
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({ full_name: '', email: '', role: 'dentist' as ApiRole, school_id: '', password: '' });
+  const [form, setForm] = useState({ full_name: '', email: '', role: 'dentist' as ApiRole, school_ids: [] as string[], password: '' });
 
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ full_name: '', email: '', role: 'dentist' as ApiRole, school_id: '' });
+  const [editForm, setEditForm] = useState({ full_name: '', email: '', role: 'dentist' as ApiRole, school_ids: [] as string[] });
   const [editError, setEditError] = useState<string | null>(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
 
@@ -39,8 +167,9 @@ export const AccountManagement = () => {
   const editingUser = users.find((u) => u.id === editingUserId) ?? null;
 
   const openEdit = (user: (typeof users)[number]) => {
-    const school = schools.find((s) => s.school_name === user.school);
-    setEditForm({ full_name: user.name, email: user.email, role: user.role, school_id: school?._id ?? '' });
+    // Read the ids directly. This used to match `user.school` back to a school
+    // BY NAME, which breaks the moment that label reads "2 schools".
+    setEditForm({ full_name: user.name, email: user.email, role: user.role, school_ids: user.schoolIds });
     setEditError(null);
     setTwofaStep('idle');
     setTwofaCode('');
@@ -102,7 +231,7 @@ export const AccountManagement = () => {
     }
     setEditSubmitting(true);
     try {
-      await apiClient.put(`/users/${editingUserId}`, { ...editForm, school_id: editForm.school_id || null });
+      await apiClient.put(`/users/${editingUserId}`, editForm);
       setEditingUserId(null);
       await reload();
       toast.success('Account updated.');
@@ -114,10 +243,14 @@ export const AccountManagement = () => {
   };
 
   const filteredUsers = users.filter(user =>
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (statusFilter === 'all' || user.status === statusFilter) &&
+    (roleFilter === 'all' || user.role === roleFilter) &&
+    (user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.roleLabel.toLowerCase().includes(searchTerm.toLowerCase())
+    user.roleLabel.toLowerCase().includes(searchTerm.toLowerCase()))
   );
+  const activeCount = users.filter((u) => u.status === 'Active').length;
+  const inactiveCount = users.filter((u) => u.status === 'Inactive').length;
 
   const handleCreate = async () => {
     setFormError(null);
@@ -127,9 +260,9 @@ export const AccountManagement = () => {
     }
     setSubmitting(true);
     try {
-      await apiClient.post('/users', { ...form, school_id: form.school_id || null });
+      await apiClient.post('/users', form);
       setShowCreateForm(false);
-      setForm({ full_name: '', email: '', role: 'dentist', school_id: '', password: '' });
+      setForm({ full_name: '', email: '', role: 'dentist', school_ids: [], password: '' });
       await reload();
       toast.success('Account created.');
     } catch (err) {
@@ -238,34 +371,84 @@ export const AccountManagement = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Account Management</h1>
-          <p className="text-muted-foreground mt-1">{filteredUsers.length} user accounts</p>
-        </div>
-
-        <button
-          onClick={() => setShowCreateForm(!showCreateForm)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Create Account
-        </button>
-      </div>
+      <PageHeader
+        icon={UserCog}
+        eyebrow="Administration"
+        title="Account Management"
+        description="Manage system users, roles, school assignments and account status."
+        action={
+          <button
+            onClick={() => setShowCreateForm(!showCreateForm)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Create Account
+          </button>
+        }
+      />
 
       {error && <Notice variant="error">{error}</Notice>}
 
-      {/* Search */}
-      <div className="bg-card rounded-xl border border-border p-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search by name, email, or role..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1E40AF] focus:border-transparent"
-          />
+      {/* Stat cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {[
+          { label: 'Total Users', value: users.length, icon: Users, bg: '#E8ECF6', fg: '#273A78' },
+          { label: 'Active Accounts', value: activeCount, icon: UserCheck, bg: '#ECFDF5', fg: '#047857' },
+          { label: 'Inactive Accounts', value: inactiveCount, icon: UserX, bg: '#FFF1F2', fg: '#BE123C' },
+        ].map(({ label, value, icon: Icon, bg, fg }) => (
+          <div key={label} className="flex items-start justify-between gap-3 min-h-[8.5rem] rounded-2xl border border-border bg-card p-6 shadow-[0_4px_20px_rgba(0,0,0,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_10px_30px_rgba(15,23,42,0.08)]">
+            <div className="min-w-0 self-stretch flex flex-col justify-between">
+              <div className="text-sm font-bold uppercase tracking-wider text-foreground">{label}</div>
+              <div className="text-4xl font-bold text-foreground mt-3 leading-none">{value}</div>
+            </div>
+            <span style={{ backgroundColor: bg, color: fg }} className="w-10 h-10 flex-shrink-0 rounded-xl grid place-items-center">
+              <Icon className="w-4 h-4" />
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Search & Filters */}
+      <div className="bg-card rounded-2xl border border-border shadow-[0_4px_20px_rgba(0,0,0,0.06)]">
+        <div className="flex items-center gap-4 px-6 py-5 border-b border-border">
+          <span className="w-12 h-12 rounded-xl grid place-items-center bg-[#F1F5F9] text-[#334155] flex-shrink-0"><Filter className="w-5 h-5" /></span>
+          <div>
+            <div className="text-base font-bold text-foreground">Search &amp; Filters</div>
+            <div className="text-sm text-muted-foreground">Find and organize user accounts.</div>
+          </div>
+        </div>
+        <div className="p-6 space-y-6">
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#94A3B8]" />
+            <input
+              type="text"
+              placeholder="Search by name, email, or role..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-12 pr-4 py-3.5 text-sm bg-[#F8FAFC] rounded-2xl placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#16214F]/30"
+              style={{ border: "1px solid #E2E8F0" }}
+            />
+          </div>
+          <div className="flex flex-col lg:flex-row lg:justify-between gap-5">
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-foreground mb-3">Account Status</div>
+              <div className="flex flex-wrap gap-2">
+                {([['all', 'All', Users], ['Active', 'Active', CheckCircle], ['Inactive', 'Deactivated', UserX]] as const).map(([v, l, Icon]) => (
+                  <button key={v} type="button" onClick={() => setStatusFilter(v)}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors ${statusFilter === v ? 'bg-[#16214F] text-white border-[#16214F]' : 'bg-white text-[#16214F] border-[#E2E8F0] hover:bg-gray-50'}`}><Icon className="w-4 h-4" />{l}</button>
+                ))}
+              </div>
+            </div>
+            <div className="lg:text-right">
+              <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-foreground mb-3">User Role</div>
+              <div className="flex flex-wrap gap-2 lg:justify-end">
+                {(['all', ...ROLES] as const).map((r) => (
+                  <button key={r} type="button" onClick={() => setRoleFilter(r)}
+                    className={`px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors ${roleFilter === r ? 'bg-[#16214F] text-white border-[#16214F]' : 'bg-white text-[#16214F] border-[#E2E8F0] hover:bg-gray-50'}`}>{r === 'all' ? 'All' : ROLE_LABELS[r]}</button>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -306,19 +489,14 @@ export const AccountManagement = () => {
                 ))}
               </select>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-2">Assigned School</label>
-              <select
-                value={form.school_id}
-                onChange={(e) => setForm({ ...form, school_id: e.target.value })}
-                className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1E40AF] focus:border-transparent"
-              >
-                <option value="">All Schools (Barangay level — full access)</option>
-                {schools.map(school => (
-                  <option key={school._id} value={school._id}>{school.school_name}</option>
-                ))}
-              </select>
-            </div>
+            <SchoolAssignment
+              idPrefix="create"
+              value={form.school_ids}
+              onChange={(school_ids) => setForm({ ...form, school_ids })}
+              schools={schools}
+              role={form.role}
+              users={users}
+            />
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-foreground mb-2">Temporary Password</label>
               {/* new-password: this sets ANOTHER user's password. Without the
@@ -355,27 +533,44 @@ export const AccountManagement = () => {
       )}
 
       {/* Desktop Table */}
-      <div className="hidden md:block bg-card rounded-xl border border-border overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className={`${filteredUsers.length === 0 ? 'block' : 'hidden md:block'} bg-card rounded-2xl border border-border overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.06)]`}>
+        <div className="flex items-center justify-between gap-4 px-6 py-7">
+          <div className="flex items-center gap-4">
+            <span className="w-12 h-12 rounded-xl grid place-items-center bg-[#F4F7FF] text-[#273A78] flex-shrink-0"><Users className="w-5 h-5" /></span>
+            <div>
+              <div className="text-xl font-bold text-foreground">{statusFilter === 'Active' ? 'Active Users' : statusFilter === 'Inactive' ? 'Deactivated Users' : 'System Users'}</div>
+              <div className="text-sm text-muted-foreground">{statusFilter === 'Active' ? 'Manage currently active system accounts.' : statusFilter === 'Inactive' ? 'Review deactivated user accounts.' : 'Review and manage user accounts.'}</div>
+            </div>
+          </div>
+          <span className="px-4 py-2 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] text-xs font-bold text-[#64748B]">{filteredUsers.length} {filteredUsers.length === 1 ? 'user' : 'users'} found</span>
+        </div>
+        {filteredUsers.length === 0 ? (
+          <div className="border-t border-border flex flex-col items-center justify-center text-center px-6 py-20">
+            <span className="w-[4.5rem] h-[4.5rem] rounded-2xl grid place-items-center bg-[#F1F5F9] text-[#94A3B8]"><Users className="w-8 h-8" /></span>
+            <div className="mt-5 text-base font-bold text-foreground">No users found</div>
+            <div className="mt-2 text-xs text-muted-foreground">There are no users matching the current status, role, or search filters.</div>
+          </div>
+        ) : (
+        <div className="overflow-x-auto border-t border-border">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-border">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-[12.5px] font-bold text-[#94A3B8] uppercase tracking-wider">
                   Name
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Email
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-[12.5px] font-bold text-[#94A3B8] uppercase tracking-wider">
                   Role
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  School
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-[12.5px] font-bold text-[#94A3B8] uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-[12.5px] font-bold text-[#94A3B8] uppercase tracking-wider">
+                  Date Added
+                </th>
+                <th className="px-6 py-3 text-left text-[12.5px] font-bold text-[#94A3B8] uppercase tracking-wider">
+                  School
+                </th>
+                <th className="px-6 py-3 text-left text-[12.5px] font-bold text-[#94A3B8] uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
@@ -384,32 +579,51 @@ export const AccountManagement = () => {
               {filteredUsers.map((user) => (
                 <tr key={user.id} className={`hover:bg-gray-50 ${user.pending ? 'opacity-70' : ''}`}>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="font-medium text-foreground flex items-center">
-                      {user.name}
-                      {user.pending && (
-                        <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200">Pending sync</span>
-                      )}
+                    <div className="flex items-center gap-4">
+                      <span className="w-11 h-11 flex-shrink-0 rounded-xl grid place-items-center bg-[#F4F7FF] text-[#273A78] text-sm font-bold">{user.name.trim().charAt(0).toUpperCase()}</span>
+                      <div className="min-w-0">
+                        <div className="text-[13px] font-bold text-foreground flex items-center">
+                          {user.name}
+                          {user.pending && (
+                            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200">Pending sync</span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">{user.email}</div>
+                      </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
-                    {user.email}
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {(() => {
+                      const st = ROLE_STYLE[user.role] ?? ROLE_STYLE.dentist;
+                      const RoleIcon = st.icon;
+                      return (
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-bold ${st.cls}`}>
+                          <RoleIcon className="w-3.5 h-3.5" />
+                          {user.roleLabel}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
-                      {user.roleLabel}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-muted-foreground">
-                    {user.school}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-bold ${
                       user.status === 'Active'
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-gray-100 text-foreground'
+                        ? 'bg-[#ECFDF5] text-[#047857] border-[#A7F3D0]'
+                        : 'bg-[#F1F5F9] text-[#475569] border-[#E2E8F0]'
                     }`}>
-                      {user.status}
+                      {user.status === 'Active' ? <CheckCircle className="w-3.5 h-3.5" /> : <UserX className="w-3.5 h-3.5" />}
+                      {user.status === 'Active' ? 'Active' : 'Deactivated'}
                     </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
+                    {user.createdAt && (
+                      <span className="inline-flex items-center gap-2">
+                        <Calendar className="w-3.5 h-3.5 text-[#94A3B8]" />
+                        {new Date(user.createdAt).toLocaleDateString(undefined, { month: 'short', day: '2-digit', year: 'numeric' })}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-xs text-muted-foreground">
+                    {user.school}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {!user.pending && (
@@ -446,6 +660,7 @@ export const AccountManagement = () => {
             </tbody>
           </table>
         </div>
+        )}
       </div>
 
       {/* Mobile Cards */}
@@ -518,85 +733,78 @@ export const AccountManagement = () => {
 
       {/* Edit Account Modal */}
       {editingUserId && (
-        <Modal onClose={() => setEditingUserId(null)} maxWidth="max-w-lg" closeDisabled={editSubmitting || twofaBusy}>
-            <div className="p-6 border-b">
-              <h2 className="text-lg font-bold text-foreground">Edit Account</h2>
-            </div>
-            <div className="p-6 space-y-4">
+        <Modal onClose={() => setEditingUserId(null)} maxWidth="max-w-4xl" rounded="rounded-3xl" closeDisabled={editSubmitting || twofaBusy}>
+            <PopupHeader title="Edit Account" subtitle="View and manage this user's information." onClose={() => setEditingUserId(null)} />
+            <div className="px-8 py-6 space-y-5">
+              <div className={POPUP_SECTION}>Account Information</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Full Name</label>
+                <label className={POPUP_LABEL}>Full Name</label>
                 <input
                   type="text"
                   value={editForm.full_name}
                   onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
-                  className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1E40AF] focus:border-transparent"
+                  className={POPUP_FIELD} style={POPUP_FIELD_STYLE}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Email Address</label>
+                <label className={POPUP_LABEL}>Email Address</label>
                 <input
                   type="email"
                   value={editForm.email}
                   onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                  className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1E40AF] focus:border-transparent"
+                  className={POPUP_FIELD} style={POPUP_FIELD_STYLE}
                 />
               </div>
+              </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Role</label>
+                <label className={POPUP_LABEL}>Role</label>
                 <select
                   value={editForm.role}
                   onChange={(e) => setEditForm({ ...editForm, role: e.target.value as ApiRole })}
-                  className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1E40AF] focus:border-transparent"
+                  className={POPUP_FIELD} style={POPUP_FIELD_STYLE}
                 >
                   {ROLES.map(role => (
                     <option key={role} value={role}>{ROLE_LABELS[role]}</option>
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Assigned School</label>
-                <select
-                  value={editForm.school_id}
-                  onChange={(e) => setEditForm({ ...editForm, school_id: e.target.value })}
-                  className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1E40AF] focus:border-transparent"
-                >
-                  <option value="">All Schools (Barangay level — full access)</option>
-                  {schools.map(school => (
-                    <option key={school._id} value={school._id}>{school.school_name}</option>
-                  ))}
-                </select>
-              </div>
+              <SchoolAssignment
+                idPrefix="edit"
+                value={editForm.school_ids}
+                onChange={(school_ids) => setEditForm({ ...editForm, school_ids })}
+                schools={schools}
+                role={editForm.role}
+                selfId={editingUserId ?? undefined}
+                users={users}
+              />
               <p className="text-xs text-muted-foreground">Password isn't changed here — use the Reset Password action instead.</p>
 
               {/* Two-factor authentication */}
-              <div className="border border-border rounded-lg p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Two-Factor Authentication</p>
-                    <p className="text-xs text-muted-foreground">
-                      {editingUser?.twofaEnabled
-                        ? 'Enabled — login requires an emailed code.'
-                        : 'Off. Enabling sends a test code to the account email that must be entered here first — this proves the mailbox is real before 2FA can lock the account.'}
-                    </p>
-                  </div>
-                  {editingUser?.twofaEnabled ? (
-                    <button
-                      onClick={handleTwofaDisable}
-                      disabled={twofaBusy}
-                      className="shrink-0 px-3 py-1.5 text-sm border border-border text-foreground rounded-lg hover:bg-gray-50 disabled:opacity-60"
-                    >
-                      Disable
-                    </button>
-                  ) : twofaStep === 'idle' ? (
-                    <button
-                      onClick={handleTwofaInitiate}
-                      disabled={twofaBusy}
-                      className="shrink-0 px-3 py-1.5 text-sm border border-primary text-primary rounded-lg hover:bg-primary-surface disabled:opacity-60"
-                    >
-                      {twofaBusy ? 'Sending…' : 'Enable (send code)'}
-                    </button>
-                  ) : null}
-                </div>
+              <div className="space-y-3">
+                <div className={POPUP_SECTION}>Two-Factor Authentication</div>
+                <p className="text-sm text-muted-foreground">
+                  {editingUser?.twofaEnabled
+                    ? 'Enabled. Login requires an emailed code.'
+                    : 'Off. Enabling sends a test code to the account email that must be entered here first. This proves the mailbox is real before 2FA can lock the account.'}
+                </p>
+                {editingUser?.twofaEnabled ? (
+                  <button
+                    onClick={handleTwofaDisable}
+                    disabled={twofaBusy}
+                    className="px-5 py-2.5 rounded-xl border border-[#FECDD3] bg-[#FFF1F2] text-sm font-semibold text-[#E11D48] hover:bg-[#FFE4E6] disabled:opacity-60 transition-colors"
+                  >
+                    Disable
+                  </button>
+                ) : twofaStep === 'idle' ? (
+                  <button
+                    onClick={handleTwofaInitiate}
+                    disabled={twofaBusy}
+                    className="px-5 py-2.5 rounded-xl border border-[#DCE3F5] bg-[#F4F7FF] text-sm font-semibold text-[#273A78] hover:bg-[#E8ECF6] disabled:opacity-60 transition-colors"
+                  >
+                    {twofaBusy ? 'Sending…' : 'Enable (send code)'}
+                  </button>
+                ) : null}
                 {!editingUser?.twofaEnabled && twofaStep === 'code-sent' && (
                   <div className="flex gap-2">
                     <input
@@ -606,12 +814,13 @@ export const AccountManagement = () => {
                       value={twofaCode}
                       onChange={(e) => setTwofaCode(e.target.value.replace(/\D/g, ''))}
                       placeholder="6-digit code"
-                      className="flex-1 px-3 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1E40AF] focus:border-transparent"
+                      className="flex-1 px-4 py-2.5 text-sm text-[#475569] bg-[#F8FAFC] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#16214F]/30"
+                      style={POPUP_FIELD_STYLE}
                     />
                     <button
                       onClick={handleTwofaConfirm}
                       disabled={twofaBusy || twofaCode.length !== 6}
-                      className="px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-60"
+                      className={POPUP_PRIMARY}
                     >
                       {twofaBusy ? 'Confirming…' : 'Confirm'}
                     </button>
@@ -622,17 +831,17 @@ export const AccountManagement = () => {
 
               {editError && <p className="text-sm text-destructive">{editError}</p>}
             </div>
-            <div className="flex gap-3 p-6 border-t">
+            <div className="flex justify-end gap-3 px-8 py-5 border-t border-border">
               <button
                 onClick={() => setEditingUserId(null)}
-                className="flex-1 px-4 py-2 border border-border text-foreground rounded-lg hover:bg-gray-50 transition-colors"
+                className={POPUP_CANCEL}
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveEdit}
                 disabled={editSubmitting}
-                className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-60 transition-colors"
+                className={POPUP_PRIMARY}
               >
                 {editSubmitting ? 'Saving…' : 'Save Changes'}
               </button>
@@ -642,12 +851,9 @@ export const AccountManagement = () => {
 
       {/* Reset Password Modal */}
       {resettingUserId && (
-        <Modal onClose={() => setResettingUserId(null)} maxWidth="max-w-lg" closeDisabled={resetSubmitting || sendingReset}>
-            <div className="p-6 border-b">
-              <h2 className="text-lg font-bold text-foreground">Reset Password</h2>
-              <p className="text-sm text-muted-foreground mt-1">for {resettingUserName}</p>
-            </div>
-            <div className="p-6 space-y-4">
+        <Modal onClose={() => setResettingUserId(null)} maxWidth="max-w-lg" rounded="rounded-3xl" closeDisabled={resetSubmitting || sendingReset}>
+            <PopupHeader title="Reset Password" subtitle={`for ${resettingUserName}`} onClose={() => setResettingUserId(null)} />
+            <div className="px-8 py-6 space-y-5">
               <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
                 <p className="text-sm text-foreground">Recommended — email {resettingUserName} a secure link so they set their own password (you never see it).</p>
                 <button
@@ -665,39 +871,39 @@ export const AccountManagement = () => {
                   not text. */}
               <div className="text-center text-xs text-muted-foreground">or set a password directly (for accounts without a real mailbox)</div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">New Password</label>
+                <label className={POPUP_LABEL}>New Password</label>
                 <input
                   type="password"
                   autoComplete="new-password"
                   value={resetPassword}
                   onChange={(e) => setResetPassword(e.target.value)}
-                  className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1E40AF] focus:border-transparent"
+                  className={POPUP_FIELD} style={POPUP_FIELD_STYLE}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Confirm New Password</label>
+                <label className={POPUP_LABEL}>Confirm New Password</label>
                 <input
                   type="password"
                   autoComplete="new-password"
                   value={resetConfirm}
                   onChange={(e) => setResetConfirm(e.target.value)}
-                  className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1E40AF] focus:border-transparent"
+                  className={POPUP_FIELD} style={POPUP_FIELD_STYLE}
                 />
               </div>
               <p className="text-xs text-muted-foreground">Share the new password with {resettingUserName} directly (in person, chat, or phone) — there's no automatic email notification.</p>
               {resetError && <p className="text-sm text-destructive">{resetError}</p>}
             </div>
-            <div className="flex gap-3 p-6 border-t">
+            <div className="flex justify-end gap-3 px-8 py-5 border-t border-border">
               <button
                 onClick={() => setResettingUserId(null)}
-                className="flex-1 px-4 py-2 border border-border text-foreground rounded-lg hover:bg-gray-50 transition-colors"
+                className={POPUP_CANCEL}
               >
                 Cancel
               </button>
               <button
                 onClick={handleResetPassword}
                 disabled={resetSubmitting}
-                className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-60 transition-colors"
+                className={POPUP_PRIMARY}
               >
                 {resetSubmitting ? 'Resetting…' : 'Reset Password'}
               </button>

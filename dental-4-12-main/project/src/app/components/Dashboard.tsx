@@ -12,12 +12,14 @@ import {
   Clock,
   BarChart3,
   ArrowRight,
-  ChevronRight
+  ChevronRight,
+  LayoutDashboard
 } from 'lucide-react';
 import { SkeletonBlock } from './Skeleton';
-import { getGradeColor } from '../utils/gradeColors';
+import { PageHeader } from './PageHeader';
 import { CHART, RISK_COLORS, FUNNEL_RAMP } from '../utils/chartColors';
 import { getSchoolShortName } from '../utils/schoolColors';
+import { RotationDashboardCards } from './SchoolRotation';
 import { toLocalDateString, formatDateWithWeekday } from '../utils/localDate';
 import { 
   BarChart, 
@@ -40,7 +42,8 @@ import { useRPCTracking } from '../hooks/useRPCTracking';
 import { apiClient } from '../api/client';
 import type { ApiUser, ApiTreatment, ApiStudentIptr, ApiAuditTrail, ApiRiskStratification } from '../api/types';
 import { windowStart, AUDIT_WINDOW_DAYS } from '../hooks/useAuditTrail';
-import { treatmentCodes, treatmentLabel } from './DentalChart';
+import { treatmentCodes, treatmentLabel } from '../utils/dentalChartCodes';
+import { calculateAge, getAgeGroup, AGE_GROUPS } from '../utils/age';
 
 export const Dashboard = () => {
   const { user, selectedSchool } = useAuth();
@@ -60,7 +63,11 @@ export const Dashboard = () => {
     return { from, to };
   }, []);
   const { sessions: allSessions, loading: appointmentsLoading } = useAppointments(weekWindow);
-  const { records: rpcRecords, loading: rpcLoading } = useRPCTracking();
+  // ⚠ SCOPED, and `status: 'all'`. Without the school the funnel counted every
+  // school while every other tile on this page counted one; without status the
+  // endpoint defaults to "outstanding" and the completed pupils never arrive.
+  const { records: rpcRecords, funnel: rpcFunnel, loading: rpcLoading } =
+    useRPCTracking({ school: selectedSchool ?? '', status: 'all' });
   const [users, setUsers] = useState<ApiUser[]>([]);
   const [treatmentCount, setTreatmentCount] = useState(0);
   const [iptrsByStudent, setIptrsByStudent] = useState<Map<string, string[]>>(new Map());
@@ -76,6 +83,15 @@ export const Dashboard = () => {
   useEffect(() => {
     (async () => {
       try {
+        // Sprint 163: the School Admin and BHO dashboards read none of the six
+        // clinical collections below (and the server now refuses them). The
+        // School Admin's Treatments tile gets a count scoped to their school.
+        if (user?.role === 'school_admin' || user?.role === 'bho_staff') {
+          if (user.role === 'school_admin') {
+            setTreatmentCount((await apiClient.get<{ count: number }>('/stats/treatment-count')).count);
+          }
+          return;
+        }
         // /users and /audit-trails are both system_admin-only on the backend
         // (Sprint 15 RBAC) — the other 4 roles got a 403 here, which threw
         // uncaught inside Promise.all and left extraLoading (and the whole
@@ -143,7 +159,7 @@ export const Dashboard = () => {
   const mediumRiskCount = allStudents.filter((s) => s.riskLevel === 'Medium').length;
   const lowRiskCount = allStudents.filter((s) => s.riskLevel === 'Low').length;
   const screenedCount = allStudents.filter((s) => s.riskLevel !== null).length;
-  const rpcCompletionRate = scopedRpc.length ? Math.round((scopedRpc.filter((r) => r.status === 'complete').length / scopedRpc.length) * 100) : 0;
+  const rpcCompletionRate = rpcFunnel.enrolled ? Math.round((rpcFunnel.complete / rpcFunnel.enrolled) * 100) : 0;
   const pendingChartsCount = allStudents.filter((s) => {
     const iptrIds = iptrsByStudent.get(s.id) ?? [];
     return iptrIds.length > 0 && !iptrIds.some((id) => chartedIptrIds.has(id));
@@ -155,9 +171,10 @@ export const Dashboard = () => {
   // scopedRpc (RPC records), NOT allStudents -- a student with no RPC record is
   // absent from this denominator, so these must never be captioned as a share
   // of enrolled patients.
-  const rpcBothVisitsCount = scopedRpc.filter((r) => r.status === 'complete').length;
-  const rpcVisit1Count = scopedRpc.filter((r) => r.visit1Status === 'Completed').length;
-  const rpcVisit1Rate = scopedRpc.length ? Math.round((rpcVisit1Count / scopedRpc.length) * 100) : 0;
+  // All three read the server's population counts, not the delivered rows.
+  const rpcBothVisitsCount = rpcFunnel.complete;
+  const rpcVisit1Count = rpcFunnel.visit1;
+  const rpcVisit1Rate = rpcFunnel.enrolled ? Math.round((rpcVisit1Count / rpcFunnel.enrolled) * 100) : 0;
 
   // School lookup for records that reach a student via chart→iptr or preventive→iptr chains
   const studentSchoolById = useMemo(
@@ -342,32 +359,30 @@ export const Dashboard = () => {
     );
   };
 
-  // ===== CLINIC SUMMARY STRIP (Sprint A, design direction 3a) =====
-  // Replaces the four equal-weight StatCards, which DESIGN.md calls out by name
-  // as "the absence of hierarchy". Presented as clinical paperwork: ruled cells,
-  // uppercase field labels, tabular figures, no icon chips, no tint, no shadow.
-  // The strip is NOT clickable as a whole -- each cell is its own link.
+  // ===== CLINIC SUMMARY STAT TILES =====
+  // Matches the RAMHIS-derived statCardVariants spec exactly (real source,
+  // not eyeballed): rounded-2xl, p-6, shadow-[0_4px_20px_rgba(0,0,0,0.06)],
+  // a 48px icon chip top-right, hover -translate-y-0.5 + border-primary tint
+  // + a bigger shadow. --radius-xl is now 16px (theme.css), so `rounded-xl`
+  // already lands on the same 16px the real cards use.
   const SummaryCell = ({ icon: Icon, label, value, valueClass, context, linkTo, loading, trailing }: {
     icon: any; label: string; value: string; valueClass?: string; context: string;
     linkTo?: string; loading?: boolean; trailing?: string;
   }) => {
     const body = (
       <>
-        <div className="flex items-center justify-between gap-2 mb-1.5">
-          <span className="flex items-center gap-[7px] min-w-0">
-            <Icon className="w-3.5 h-3.5 text-muted-foreground shrink-0" strokeWidth={2} />
-            <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-muted-foreground truncate">{label}</span>
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <span className="text-[13px] font-medium text-muted-foreground min-w-0 truncate">{label}</span>
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary-surface text-primary">
+            <Icon className="w-5 h-5" strokeWidth={2} />
           </span>
-          {/* Chevron only where the cell actually navigates -- an affordance on a
-              dead cell is a lie about what a click will do. */}
-          {linkTo && <ChevronRight className="w-3 h-3 text-primary shrink-0" strokeWidth={2.5} />}
         </div>
         {loading ? (
-          <SkeletonBlock className="h-7 w-16" />
+          <SkeletonBlock className="h-9 w-20" />
         ) : (
           <div className="flex items-baseline gap-2">
             {/* Some cells legitimately carry prose or a date rather than a
-                figure ("None scheduled"). Rendering a sentence at 28px makes it
+                figure ("None scheduled"). Rendering a sentence at 36px makes it
                 shout louder than the real numbers beside it, so it steps down
                 to 15px/600 muted -- the treatment the 3a school-admin mock
                 specifies. Detected the same way StatCard does it (`:269`) so no
@@ -376,24 +391,25 @@ export const Dashboard = () => {
                 full size, since those ARE the reading. */}
             <span className={
               /^\d/.test(String(value).trim())
-                ? `text-[28px] font-bold leading-none tabular-nums ${valueClass ?? 'text-foreground'}`
+                ? `text-[36px] font-bold leading-none tracking-tight tabular-nums ${valueClass ?? 'text-foreground'}`
                 : 'text-[15px] font-semibold leading-tight py-[5px] text-muted-foreground'
             }>{value}</span>
             {trailing && <span className="text-[11px] text-muted-foreground">{trailing}</span>}
           </div>
         )}
-        <div className="text-[11px] text-muted-foreground mt-1.5">{loading ? ' ' : context}</div>
+        <div className={`mt-4 flex items-center gap-2 border-t border-border pt-3 text-xs ${valueClass ?? 'text-muted-foreground'}`}>
+          {linkTo && <ChevronRight className="w-3 h-3 shrink-0" strokeWidth={2.5} />}
+          <span className="font-normal text-muted-foreground">{loading ? ' ' : context}</span>
+        </div>
       </>
     );
 
-    // Cell tint replaces the old card lift; focus ring is explicit because these
-    // are links and the previous tiles relied on the browser default.
-    const cell = 'px-4 py-3.5 border-border';
+    const cell = 'bg-card border border-border rounded-2xl p-6 h-full shadow-[0_4px_20px_rgba(0,0,0,0.06)] transition-all duration-200';
     if (!linkTo) return <div className={cell}>{body}</div>;
     return (
       <Link
         to={linkTo}
-        className={`${cell} block transition-colors duration-150 hover:bg-primary-surface focus-visible:bg-primary-surface focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-2`}
+        className={`${cell} block hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_10px_30px_rgba(15,23,42,0.08)] focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-2`}
       >
         {body}
       </Link>
@@ -472,10 +488,12 @@ export const Dashboard = () => {
     return (
       <div className="space-y-6">
         <div className="flex flex-wrap items-end gap-4 rise">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Dentist Dashboard</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Welcome back, {user?.name}!</p>
-          </div>
+          <PageHeader
+            icon={LayoutDashboard}
+            eyebrow="Overview"
+            title="Dentist Dashboard"
+            description={`Welcome back, ${user?.name}.`}
+          />
           {/* No "New Appointment" button here on purpose — removed on request.
               Booking lives on the Appointments page; the dashboard reports. The
               date and appointment count moved into the clinic summary strip
@@ -483,10 +501,10 @@ export const Dashboard = () => {
         </div>
 
         {/* Clinic summary (Sprint A, direction 3a) — replaces the four KPI tiles */}
-        <div className="bg-card border border-border rounded-sm overflow-hidden rise rise-1">
-          <div className="flex items-baseline justify-between gap-4 px-4 py-2.5 bg-muted border-b border-border">
-            <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-foreground">Clinic summary</span>
-            <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+        <div className="space-y-3 rise rise-1">
+          <div className="flex items-baseline justify-between gap-4">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Clinic summary</span>
+            <span className="text-xs font-medium text-muted-foreground">
               {formatDateWithWeekday(new Date())}
             </span>
           </div>
@@ -494,7 +512,9 @@ export const Dashboard = () => {
           {/* 1 column stacked with horizontal rules, 4 columns with vertical
               rules from lg. No 2-column middle step: at that width the context
               lines wrap and the ledger stops reading as a single row. */}
-          <div className="grid grid-cols-1 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-border">
+          {/* School rotation: where the dentist is today and tomorrow. */}
+          <RotationDashboardCards />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <SummaryCell
               icon={Users}
               label="Patients enrolled"
@@ -530,7 +550,7 @@ export const Dashboard = () => {
               // Blue = operational state, per the v4 color rule: amber already
               // means "medium caries risk" on this same screen.
               valueClass="text-primary"
-              trailing={`${rpcBothVisitsCount} of ${scopedRpc.length}`}
+              trailing={`${rpcBothVisitsCount} of ${rpcFunnel.enrolled}`}
               context="Both visits completed"
               linkTo="/rpc"
               loading={rpcLoading}
@@ -538,7 +558,7 @@ export const Dashboard = () => {
           </div>
 
           {!rpcLoading && scopedRpc.length > 0 && (
-            <div className="px-4 py-2.5 border-t border-border text-[11px] text-muted-foreground">
+            <div className="text-[11px] text-muted-foreground">
               {/* mostOverdueDays belongs to ONE student, so it can only be
                   attached to the figure when there is exactly one. With several
                   overdue it becomes "most by N days" rather than implying they
@@ -551,7 +571,7 @@ export const Dashboard = () => {
                 </span>
               )}
               {mostOverdueDays !== null && ' · '}
-              Visit 1 done for {rpcVisit1Count} of {scopedRpc.length} ({rpcVisit1Rate}%) · target 100% by end of school year
+              Visit 1 done for {rpcVisit1Count} of {rpcFunnel.enrolled} ({rpcVisit1Rate}%) · target 100% by end of school year
             </div>
           )}
         </div>
@@ -594,9 +614,14 @@ export const Dashboard = () => {
           <div className="bg-card p-4 rounded-xl border border-border">
             <h2 className="text-sm font-bold text-foreground">Oral Health Trend</h2>
             <p className="text-[11px] text-muted-foreground mb-3">Mean DMFT index · last 6 months</p>
-            {/* No historical monthly snapshots exist yet to compute a real
-                trend from -- an honest empty state, not fabricated numbers. */}
-            <NoDataYet message="No historical trend data yet. This chart will populate once monthly snapshots begin accumulating." />
+            {/* ⚠ Sprint 105, KEPT over her version. Hers reads "will populate
+                once monthly snapshots begin accumulating" — NOTHING ACCUMULATES
+                THEM. There is no snapshot mechanism anywhere in the app or the
+                server, so that sentence promises a feature that will never
+                arrive on its own, which is worse than an empty chart: it tells
+                the reader it works and merely needs time. Building it needs a
+                scheduled job and somewhere to keep the series. */}
+            <NoDataYet message="Not built yet — nothing records the monthly DMFT snapshots this trend would be drawn from, so it will stay empty until that is added." />
           </div>
         </div>
 
@@ -608,7 +633,7 @@ export const Dashboard = () => {
                 <h2 className="text-sm font-bold text-foreground">RPC Two-Visit Funnel</h2>
                 <p className="text-[11px] text-muted-foreground">Preventive care progression</p>
               </div>
-              <Link to="/rpc" className="text-xs text-primary hover:underline">RPC Tracking →</Link>
+              <Link to="/rpc" className="text-xs text-primary hover:underline">RPC Monitoring →</Link>
             </div>
             <ChartBody ready={!rpcLoading}>
             {scopedRpc.length === 0 ? (
@@ -619,15 +644,21 @@ export const Dashboard = () => {
                     darkest = widest. Count sits inside the bar when it fits,
                     beside it in ink when the bar is too short. */}
                 {[
-                  { label: 'Enrolled', value: scopedRpc.length, ...FUNNEL_RAMP[0] },
-                  { label: 'Visit 1 completed', value: scopedRpc.filter((r) => r.visit1Status === 'Completed').length, ...FUNNEL_RAMP[1] },
-                  { label: 'Both visits completed', value: scopedRpc.filter((r) => r.visit2Status === 'Completed').length, ...FUNNEL_RAMP[2] },
+                  // ⚠ From the SERVER's population counts, not from the rows
+                  // this page received. /stats/rpc-rows defaults its status
+                  // filter to "outstanding", which excludes by definition every
+                  // pupil who finished — so counting the delivered rows made
+                  // "Both visits completed" permanently 0, and RPC Completion
+                  // permanently 0%. Two pupils had both visits the whole time.
+                  { label: 'Enrolled', value: rpcFunnel.enrolled, ...FUNNEL_RAMP[0] },
+                  { label: 'Visit 1 completed', value: rpcFunnel.visit1, ...FUNNEL_RAMP[1] },
+                  { label: 'Both visits completed', value: rpcFunnel.both, ...FUNNEL_RAMP[2] },
                 ].map((step) => (
                   <BarRow
                     key={step.label}
                     label={step.label}
                     value={step.value}
-                    pct={Math.round((step.value / scopedRpc.length) * 100)}
+                    pct={rpcFunnel.enrolled ? Math.round((step.value / rpcFunnel.enrolled) * 100) : 0}
                     color={step.color}
                   />
                 ))}
@@ -750,10 +781,12 @@ export const Dashboard = () => {
     return (
       <div className="space-y-6">
         <div className="flex flex-wrap items-end gap-4 rise">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Dental Aide Dashboard</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Welcome back, {user?.name}!</p>
-          </div>
+          <PageHeader
+            icon={LayoutDashboard}
+            eyebrow="Overview"
+            title="Dental Aide Dashboard"
+            description={`Welcome back, ${user?.name}.`}
+          />
           {/* No "New Appointment" button here on purpose — removed on request.
               Booking lives on the Appointments page; the dashboard reports. The
               date and appointment count moved into the clinic summary strip
@@ -761,15 +794,17 @@ export const Dashboard = () => {
         </div>
 
         {/* Clinic summary (Sprint D) — same strip as the dentist branch */}
-        <div className="bg-card border border-border rounded-sm overflow-hidden rise rise-1">
-          <div className="flex items-baseline justify-between gap-4 px-4 py-2.5 bg-muted border-b border-border">
-            <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-foreground">Clinic summary</span>
-            <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+        <div className="space-y-3 rise rise-1">
+          <div className="flex items-baseline justify-between gap-4">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Clinic summary</span>
+            <span className="text-xs font-medium text-muted-foreground">
               {formatDateWithWeekday(new Date())}
             </span>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-border">
+          {/* School rotation: where the dentist is today and tomorrow. */}
+          <RotationDashboardCards />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <SummaryCell
               icon={Calendar}
               label="Appointments today"
@@ -807,7 +842,7 @@ export const Dashboard = () => {
           </div>
 
           {!rpcLoading && scopedRpc.length > 0 && (
-            <div className="px-4 py-2.5 border-t border-border text-[11px] text-muted-foreground">
+            <div className="text-[11px] text-muted-foreground">
               {mostOverdueDays !== null && (
                 <span className="text-primary font-semibold">
                   {rpcOverdueCount === 1
@@ -888,7 +923,13 @@ export const Dashboard = () => {
     const oralHealthStatusData = [
       // semantic status colors (Sprint 23o): good=green, needs-care=red,
       // in-progress=brand blue, no-data-yet=neutral gray (not warning-amber)
-      { name: 'Orally Fit', value: schoolStudents.filter((s) => s.oralStatus === 'Orally Fit').length, color: CHART.success },
+      // ⚠ Label only. The VALUE is `oralStatus === 'Orally Fit'`, which
+      // `deriveOralStatus` sets purely from a Low risk stratification — it is
+      // not the DOH "Orally Fit Child" indicator, whose definition (caries-free
+      // or treated, no debris, no gum pathology) needs a judgement nothing in
+      // this system stores. Printing the DOH term here would put a clinical
+      // claim on a screen the barangay files returns from.
+      { name: 'Low caries risk', value: schoolStudents.filter((s) => s.oralStatus === 'Orally Fit').length, color: CHART.success },
       { name: 'Needs Treatment', value: schoolStudents.filter((s) => s.oralStatus === 'Needs Treatment').length, color: CHART.danger },
       { name: 'Under Treatment', value: schoolStudents.filter((s) => s.oralStatus === 'Under Treatment').length, color: CHART.brand },
       { name: 'Not Yet Screened', value: schoolStudents.filter((s) => s.oralStatus === 'Not Yet Screened').length, color: CHART.neutral },
@@ -905,10 +946,12 @@ export const Dashboard = () => {
     return (
       <div className="space-y-6">
         <div className="flex flex-wrap items-end gap-4 rise">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">School Admin Dashboard</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">{user.schools?.[0]}</p>
-          </div>
+          <PageHeader
+            icon={LayoutDashboard}
+            eyebrow="Overview"
+            title="School Admin Dashboard"
+            description={user.schools?.[0] ?? 'No school assigned yet.'}
+          />
           {/* Date + enrolled count moved into the school summary (Sprint E). */}
           <Link
             to="/reports"
@@ -920,15 +963,15 @@ export const Dashboard = () => {
         </div>
 
         {/* School summary (Sprint E, design 3a) */}
-        <div className="bg-card border border-border rounded-sm overflow-hidden rise rise-1">
-          <div className="flex items-baseline justify-between gap-4 px-4 py-2.5 bg-muted border-b border-border">
-            <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-foreground">School summary</span>
-            <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+        <div className="space-y-3 rise rise-1">
+          <div className="flex items-baseline justify-between gap-4">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">School summary</span>
+            <span className="text-xs font-medium text-muted-foreground">
               {formatDateWithWeekday(new Date())}
             </span>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-border">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <SummaryCell
               icon={Users}
               label="Students enrolled"
@@ -1088,13 +1131,16 @@ export const Dashboard = () => {
     });
 
 
-    const bracketOf = (birthdate: string) => {
-      const age = new Date().getFullYear() - new Date(birthdate).getFullYear();
-      if (age <= 5) return '0-5 years';
-      if (age <= 14) return '6-14 years';
-      return '15-19 years';
-    };
-    const ageGroupData = ['0-5 years', '6-14 years', '15-19 years'].map((bracket) => {
+    // BUG-02 (2026-09-29): the shared age rule and the DOH brackets, as every
+    // other screen and the filed forms use. This used to be `year − birth year`
+    // (a year too old for anyone whose birthday had not come yet) bucketed into
+    // 0-5 / 6-14 / 15-19 with no 20+ row, so 20-year-olds and unreadable
+    // birthdates were both counted as 15-19. An unreadable birthdate now gets
+    // its own row, shown only when it has anyone in it, so the rows still sum
+    // to the total without guessing an age.
+    const bracketOf = (birthdate: string) => getAgeGroup(calculateAge(birthdate));
+    const unknownAgeCount = allStudentsRaw.filter((s) => bracketOf(s.birthdate) === 'Unknown').length;
+    const ageGroupData = [...AGE_GROUPS, ...(unknownAgeCount ? ['Unknown'] : [])].map((bracket) => {
       const inBracket = allStudentsRaw.filter((s) => bracketOf(s.birthdate) === bracket);
       return {
         bracket,
@@ -1117,10 +1163,12 @@ export const Dashboard = () => {
     return (
       <div className="space-y-6">
         <div className="flex flex-wrap items-end gap-4 rise">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Barangay Health Office Dashboard</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Aggregated data across all schools</p>
-          </div>
+          <PageHeader
+            icon={LayoutDashboard}
+            eyebrow="Overview"
+            title="Barangay Health Office Dashboard"
+            description="Aggregated dental health data across all three schools."
+          />
           {/* Date + totals moved into the barangay summary (Sprint F). */}
           <Link
             to="/reports"
@@ -1132,15 +1180,15 @@ export const Dashboard = () => {
         </div>
 
         {/* Barangay summary (Sprint F, design 3a) */}
-        <div className="bg-card border border-border rounded-sm overflow-hidden rise rise-1">
-          <div className="flex items-baseline justify-between gap-4 px-4 py-2.5 bg-muted border-b border-border">
-            <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-foreground">Barangay summary</span>
-            <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+        <div className="space-y-3 rise rise-1">
+          <div className="flex items-baseline justify-between gap-4">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Barangay summary</span>
+            <span className="text-xs font-medium text-muted-foreground">
               {formatDateWithWeekday(new Date())}
             </span>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-border">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <SummaryCell
               icon={Users}
               label="Students served"
@@ -1167,9 +1215,19 @@ export const Dashboard = () => {
               linkTo="/reports"
               loading={studentsLoading}
             />
+            {/* ⚠ "Low caries risk", NOT "Orally fit". This figure is derived
+                from RISK_STRATIFICATION — `risk === 'Low'` — and nothing else.
+                "Orally Fit Child" is a DOH indicator with a clinical definition
+                (caries-free or treated, no debris, no gum pathology), and the
+                IPTR deliberately leaves that row blank because nothing we store
+                can decide it. Showing a risk band under the DOH term, on the
+                dashboard of the role that files City Health Office returns, is
+                how an approximation gets copied onto a form as the real thing.
+                Same reasoning, same day, same indicator — now the same answer
+                in both places. */}
             <SummaryCell
               icon={CheckCircle}
-              label="Orally fit"
+              label="Low caries risk"
               value={`${orallyFitPct}%`}
               valueClass="text-success"
               trailing={`${orallyFitCount} of ${totalStudents}`}
@@ -1235,15 +1293,15 @@ export const Dashboard = () => {
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-foreground">Age Bracket</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-foreground">Total Students</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-foreground">Orally Fit</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-foreground">Low caries risk</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-foreground">Needs Treatment</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-foreground">Fitness Rate</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-foreground">Low-risk rate</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {ageGroupData.map((group, idx) => (
                   <tr key={idx}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-foreground">{group.bracket}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-foreground">{group.bracket === 'Unknown' ? 'Birthdate not recorded' : group.bracket}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">{group.total}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-success font-medium">{group.orallyFit}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-destructive font-medium">{group.needsTreatment}</td>
@@ -1341,10 +1399,12 @@ export const Dashboard = () => {
     return (
       <div className="space-y-6">
         <div className="flex flex-wrap items-end gap-4 rise">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">System Admin Dashboard</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">System monitoring and management</p>
-          </div>
+          <PageHeader
+            icon={LayoutDashboard}
+            eyebrow="Overview"
+            title="System Admin Dashboard"
+            description="System monitoring and account management across the whole app."
+          />
           {/* Date + active-user count moved into the system summary (Sprint I). */}
           <Link
             to="/accounts"
@@ -1361,15 +1421,15 @@ export const Dashboard = () => {
             absences as if they were readings. Replaced with four figures the
             system actually holds; uptime and failed logins are still not
             measured anywhere, so they are simply gone rather than shown empty. */}
-        <div className="bg-card border border-border rounded-sm overflow-hidden rise rise-1">
-          <div className="flex items-baseline justify-between gap-4 px-4 py-2.5 bg-muted border-b border-border">
-            <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-foreground">System summary</span>
-            <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+        <div className="space-y-3 rise rise-1">
+          <div className="flex items-baseline justify-between gap-4">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">System summary</span>
+            <span className="text-xs font-medium text-muted-foreground">
               {formatDateWithWeekday(new Date())}
             </span>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-border">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <SummaryCell
               icon={Users}
               label="Active users"
@@ -1484,10 +1544,12 @@ export const Dashboard = () => {
   // Default fallback
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Welcome back, {user?.name}</p>
-      </div>
+      <PageHeader
+        icon={LayoutDashboard}
+        eyebrow="Overview"
+        title="Dashboard"
+        description={`Welcome back, ${user?.name}.`}
+      />
       <div className="bg-card p-4 rounded-xl border border-border">
         <p className="text-muted-foreground">No dashboard configured for your role.</p>
       </div>

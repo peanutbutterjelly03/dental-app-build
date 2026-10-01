@@ -4,6 +4,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { logAudit } from "../utils/auditLog.js";
 import { ALL_ROLES, ADMIN_ONLY } from "../middleware/roleGroups.js";
+import { scopeFilter, isInScope } from "../utils/schoolScope.js";
 
 const PROTECTED_FIELDS = [
   "_id", "isArchived", "archivedAt", "archivedBy", "created_at", "updated_at",
@@ -29,6 +30,17 @@ function decryptForResponse(doc: any) {
 interface CrudOptions {
   readOnly?: boolean;
   readRoles?: string[];
+  /** Blank these fields out of every response for these roles.
+   *
+   *  ⚠ Read access is not all-or-nothing. A SCHOOL ADMINISTRATOR needs the
+   *  pupil ROWS to draw their dashboard (counts by grade, sex, age bracket) but
+   *  has no business with the pupil's name, address, guardian, contact number
+   *  or PhilHealth number — CLAUDE.md gives that role "school reports +
+   *  dashboards only, no clinical records", and the manuscript has them
+   *  receiving one aggregate report. Before this (found 2026-09-06) a plain
+   *  GET /api/students handed them fully identified records for every pupil in
+   *  their school. Hiding the screens is not enough; the API is the door. */
+  redact?: { roles: string[]; fields: string[] };
   writeRoles?: string[];
   archiveRoles?: string[];
   /** Who may un-archive. Split from archiveRoles so a model can let clinical
@@ -39,11 +51,29 @@ interface CrudOptions {
    *  RISK_STRATIFICATION records whether the dentist accepted or changed the
    *  AI suggestion). Return undefined to keep the default "Created X". */
   auditCreateAction?: (body: Record<string, unknown>) => string | undefined;
+  /** Same idea for a PUT, given the SAVED document (2026-10-01: the dentist's
+   *  review of a stored risk suggestion is an update, and must read as one). */
+  auditUpdateAction?: (doc: Record<string, unknown>) => string | undefined;
   /** Reject a POST that would duplicate an existing record on these fields.
    *  Added 2026-08-11 after a double-submit on "Add Year" created two
    *  StudentIptr rows for one school year a second apart, which surfaced as a
    *  repeated year in the DMFT History table and an inflated "Years tracked".
    *  Guards every client, not just the button that caused it. */
+  /** Reject a write whose VALUES are invalid, as opposed to missing or
+   *  duplicated. Returns human messages; an empty array means fine.
+   *
+   *  Lives here rather than in a form so EVERY entry path is covered by one
+   *  rule -- and specifically the OFFLINE QUEUE, which replays POSTs straight
+   *  to the API and passes through no form at all. Sprint 120 put these checks
+   *  on the three client paths; this is the gate that cannot be walked around.
+   *
+   *  ⚠ Runs on the RAW body, before mongoose encrypts anything: contact
+   *  numbers and names are encrypted with random IVs (Sprint 26), so there is
+   *  no later point at which a value can still be read to check it.
+   *
+   *  On PUT the body is partial, so a validator must skip fields that are
+   *  absent rather than treating them as empty. */
+  validateBody?: (body: Record<string, unknown>) => string[];
   uniqueBy?: string[];
   /** Soft duplicate guard — the "doctor can choose" case (Sprint 47). Unlike
    *  `uniqueBy`, which is a hard 409 the client cannot override, this returns
@@ -115,6 +145,15 @@ export function createCrudRouter(model: Model<any>, options: CrudOptions = {}) {
   const hasSoftDelete = !!model.schema.path("isArchived");
   const readOnly = options.readOnly === true;
   const readRoles = options.readRoles ?? ALL_ROLES;
+  /** Blanks `options.redact.fields` when the caller holds one of its roles.
+   *  Blanks rather than deletes: the client types expect the keys to exist, and
+   *  a missing key reads as "not recorded yet" instead of "not yours to see". */
+  const redactFor = (role: string, doc: any) => {
+    if (!options.redact || !options.redact.roles.includes(role)) return doc;
+    const plain = doc && typeof doc.toObject === "function" ? doc.toObject() : { ...doc };
+    for (const f of options.redact.fields) if (f in plain) plain[f] = "";
+    return plain;
+  };
   const writeRoles = options.writeRoles ?? ADMIN_ONLY;
   const archiveRoles = options.archiveRoles ?? ADMIN_ONLY;
   const restoreRoles = options.restoreRoles ?? ADMIN_ONLY;
@@ -172,8 +211,20 @@ export function createCrudRouter(model: Model<any>, options: CrudOptions = {}) {
         }
         if (Object.keys(range).length > 0) filter[options.dateField] = range;
       }
-      const docs = await model.find(filter);
-      res.json(docs);
+      // School scoping (Sprint 101). Combined with $and, NOT by spreading:
+      // the scope clause keys on the very same fields as `filterable`
+      // (student_id, iptr_id, chart_id), so `{ ...filter, ...scope }` would
+      // silently DROP the caller's filter. `GET /medical-histories?iptr_id=X`
+      // would then return every in-scope medical history instead of that
+      // pupil's — one child's record rendered under another's name.
+      const scope = await scopeFilter(modelName, req);
+      const docs = await model.find(scope ? { $and: [filter, scope] } : filter);
+      // decryptForResponse first, while `d` is still a real Mongoose document
+      // (decryptFieldsSync only exists on that, not the plain object
+      // redactFor's .toObject() produces) -- otherwise any encrypted field
+      // came back as raw ciphertext on this list route. Harmless no-op for a
+      // model with no encrypted fields.
+      res.json(docs.map((d) => redactFor(req.user!.role, decryptForResponse(d))));
     }),
   );
 
@@ -197,7 +248,13 @@ export function createCrudRouter(model: Model<any>, options: CrudOptions = {}) {
         res.status(404).json({ error: "Not found" });
         return;
       }
-      res.json(doc);
+      // Out of the caller's schools: 404, not 403, for the same reason as
+      // archived records — 403 would confirm the record exists.
+      if (!(await isInScope(modelName, req, doc))) {
+        res.status(404).json({ error: "Not found" });
+        return;
+      }
+      res.json(redactFor(req.user!.role, decryptForResponse(doc)));
     }),
   );
 
@@ -213,6 +270,20 @@ export function createCrudRouter(model: Model<any>, options: CrudOptions = {}) {
       // it must never reach model.create().
       const duplicateConfirmed = body.confirm_duplicate === true;
       delete body.confirm_duplicate;
+      // Creating INTO another school is the write-side of the same hole
+      // (Sprint 101). 403 here rather than 404: the caller is not being told
+      // whether anything exists, only that this school is not theirs.
+      if (!(await isInScope(modelName, req, body))) {
+        res.status(403).json({ error: "That school is not assigned to your account" });
+        return;
+      }
+      if (options.validateBody) {
+        const problems = options.validateBody(body);
+        if (problems.length) {
+          res.status(400).json({ error: problems.join(" ") });
+          return;
+        }
+      }
       if (options.uniqueBy && options.uniqueBy.every((f) => body[f] !== undefined)) {
         const filter: Record<string, unknown> = {};
         for (const f of options.uniqueBy) filter[f] = body[f];
@@ -255,18 +326,54 @@ export function createCrudRouter(model: Model<any>, options: CrudOptions = {}) {
         res.status(400).json({ error: "Invalid id" });
         return;
       }
-      // Loads + mutates + .save() rather than findByIdAndUpdate: the latter's
-      // pre('findOneAndUpdate') hook in mongoose-field-encryption has a bug that
-      // corrupts encrypted fields and crashes on the next decrypt (calls a removed
-      // Node crypto API). save() goes through the working pre('save') hook instead.
+      // Loads + mutates + .save() rather than findByIdAndUpdate. ⚠ Treat that as
+      // a CONVENTION, not a mechanism: the reason recorded here has been wrong
+      // twice (it is neither "the write lands as plaintext" nor "the hook calls
+      // a removed Node crypto API" — `useAes256Ctr` defaults false and is never
+      // set, so the live path is `createCipheriv`, which works). save() going
+      // through the working pre('save') hook is known-good, and the rule stands
+      // on that alone. See CLAUDE.md's DATA ENCRYPTION section (ARCH-06).
       const doc = await model.findById(req.params.id);
       if (!doc) {
         res.status(404).json({ error: "Not found" });
         return;
       }
-      Object.assign(doc, sanitizeBody(req.body));
+      // An ARCHIVED record is out of circulation and must not be edited into
+      // (BUG-04, Sprint 159b). `findById` finds archived rows, and until this
+      // check existed the GET path 404'd them while PUT happily wrote to them.
+      //
+      // The offline queue is how that actually got reached: a pupil archived
+      // while an aide was offline, the aide's queued edit syncing afterwards,
+      // landing in a record no screen lists — and the encoder told it saved.
+      //
+      // 404, not 403, and admin-exempt: exactly mirroring the GET path above,
+      // so the two cannot drift. A System Admin may already READ archived
+      // records, so editing one stays their call; everyone else is not even
+      // told it exists.
+      if (hasSoftDelete && (doc as any).isArchived && !ADMIN_ONLY.includes(req.user!.role)) {
+        res.status(404).json({ error: "Not found" });
+        return;
+      }
+      if (!(await isInScope(modelName, req, doc))) {
+        res.status(404).json({ error: "Not found" });
+        return;
+      }
+      const updates = sanitizeBody(req.body);
+      if (options.validateBody) {
+        // The PUT body is PARTIAL -- only the fields being changed are present,
+        // so the validator must skip anything absent. Validating the merged
+        // document instead would block an unrelated edit on a legacy value the
+        // encoder is not even looking at.
+        const problems = options.validateBody(updates);
+        if (problems.length) {
+          res.status(400).json({ error: problems.join(" ") });
+          return;
+        }
+      }
+      Object.assign(doc, updates);
       await doc.save();
-      await logAudit(req.user!.id, `Updated ${modelName}`, (doc._id as any).toString(), modelName);
+      const updateAction = options.auditUpdateAction?.(doc.toObject() as Record<string, unknown>) ?? `Updated ${modelName}`;
+      await logAudit(req.user!.id, updateAction, (doc._id as any).toString(), modelName);
       res.json(decryptForResponse(doc));
     }),
   );
@@ -279,6 +386,11 @@ export function createCrudRouter(model: Model<any>, options: CrudOptions = {}) {
       asyncHandler(async (req, res) => {
         if (!mongoose.isValidObjectId(req.params.id)) {
           res.status(400).json({ error: "Invalid id" });
+          return;
+        }
+        const target = await model.findById(req.params.id).lean();
+        if (!target || !(await isInScope(modelName, req, target))) {
+          res.status(404).json({ error: "Not found" });
           return;
         }
         const doc = await model.findByIdAndUpdate(
@@ -327,6 +439,14 @@ export function createCrudRouter(model: Model<any>, options: CrudOptions = {}) {
               return;
             }
           }
+        }
+        // Restore is admin-only by default and a system_admin is unscoped, so
+        // this rarely fires — included so the archive/restore pair is not
+        // asymmetric, which a later reader would take for an oversight.
+        const restoring = await model.findById(req.params.id).lean();
+        if (!restoring || !(await isInScope(modelName, req, restoring))) {
+          res.status(404).json({ error: "Not found" });
+          return;
         }
         const doc = await model.findByIdAndUpdate(
           req.params.id,

@@ -57,3 +57,6 @@ docs/*.docx
 # "." and drops PNGs into the repo when run from project/. Test output, not
 # source (Sprint 90).
 dental-4-12-main/project/sprint*.png
+
+# Vitest run artifacts (Sprint 158). Local output, regenerated every run.
+dental-4-12-main/project/.vitest/

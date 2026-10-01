@@ -168,13 +168,16 @@ Passwords come from `.env` and are never printed or committed.
 ## 7. Declared but unused dependencies
 
 **Finding: of 73 runtime dependencies in `package.json`, only 22 are imported
-anywhere in the codebase. 51 are never imported.**
+anywhere in the codebase. 51 are never imported.** (`react-day-picker` was
+imported 2026-09-24 for the School year "Edit date" window and became unused
+again 2026-09-25 when that window was removed: the date stamp now follows
+Oral Conditions "Date examined".)
 
 These are residue from the original Figma Make prototype, which shipped a full
 component library that the rebuilt application does not use. The unused set
 includes all 26 `@radix-ui/*` packages, `@mui/material` and `@mui/icons-material`
 with their `@emotion` peers, and `sonner`, `motion`, `vaul`, `cmdk`,
-`react-hook-form`, `next-themes`, `react-day-picker`, `react-dnd`,
+`react-hook-form`, `next-themes`, `react-dnd`,
 `canvas-confetti`, `embla-carousel-react`, `react-slick`, `input-otp`,
 `clsx`, `tailwind-merge`, `class-variance-authority`, and others.
 

@@ -1,26 +1,32 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { FileSpreadsheet, FileText, Printer, Download, AlertTriangle, AlertCircle, CheckCircle, Users, Calendar, X } from 'lucide-react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { FileSpreadsheet, FileText, Printer, Download, AlertTriangle, AlertCircle, CheckCircle, Users, Calendar, X, FileBarChart } from 'lucide-react';
+import { PageHeader } from './PageHeader';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ChartTooltip } from './ChartTooltip';
+import { LiveUpdatedStamp } from './LiveUpdatedStamp';
 import { useAuth } from '../context/AuthContext';
 import { getSchoolShortName } from '../utils/schoolColors';
 import { CHART } from '../utils/chartColors';
 import { GradePill } from './GradePill';
 import { useDohReportData } from '../hooks/useDohReportData';
-import { exportDohReportToPdf } from '../utils/exportPdf';
-import { exportDohReportToXlsx } from '../utils/exportDohXlsx';
+import { buildDohReportPdf } from '../utils/exportPdf';
+import { buildDohReportXlsx } from '../utils/exportDohXlsx';
+import { usePreviewModal } from '../hooks/usePreviewModal';
+import { PreviewModal } from './PreviewModal';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
 import { activatable } from '../utils/a11y';
 import { apiClient } from '../api/client';
-import type { ApiTreatment, ApiToothRecord, ApiDentalChart, ApiStudentIptr } from '../api/types';
+import type { ReferralType } from '../api/types';
+import type { ReportsPanelsOutput } from '../../../shared/reportsPanels';
 import { useStudents } from '../hooks/useStudents';
 import { TargetClientList } from './TargetClientList';
 import { OralHealthProgramReport } from './OralHealthProgramReport';
 import { SchoolSummaryReport } from './SchoolSummaryReport';
 import { FhsisReport } from './FhsisReport';
 import { ConsentForm } from './ConsentForm';
-import { treatmentCodes } from './DentalChart';
+import { treatmentCodes } from '../utils/dentalChartCodes';
 import { schoolYearLabel } from '../utils/schoolYear';
+import { formatDate } from '../utils/localDate';
 import { useSchools } from '../hooks/useSchools';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -140,11 +146,32 @@ const DOH_ROWS: RowDef[] = [
   { type:'data', label:'OFC Upon Complete Oral Rehabilitation', field:'ofc_rehab',  indent:true },
 ];
 
-// No real Referral or bulk-Session-tracking model exists anywhere in the
-// ERD -- these lists are genuinely empty until such a model is built, never
-// fabricated placeholder rows.
-const mockReferrals: { student:string; school:string; grade:string; date:string; facility:string; reason:string; followUp:string; status:string }[] = [];
-const mockSessions: { date:string; school:string; grade:string; section:string; students:number; procedures:string[]; treated:number }[] = [];
+// Sprint 127: REFERRAL now exists, so `referralRows` is computed from the
+// database below and this note applies to `sessionRows` alone — no bulk-Session
+// model exists anywhere in the ERD, so that list stays permanently empty rather
+// than carrying fabricated placeholder rows.
+//
+// ⚠ Sprint 105: they used to be called `referralRows`/`sessionRows` and their
+// panels reported "0 referrals issued" / "No referrals recorded yet", which
+// reads as A WORKING FEATURE WITH NO DATA rather than a feature that does not
+// exist. That is the failure CLAUDE.md calls worse than a missing feature: the
+// output looks authoritative. The tables are KEPT because their column sets
+// document what such a model would have to hold, and because the DOH Oral
+// Health Program Report already asks for referral counts (four rows, all
+// printing "—" for the same missing model). The captions now say so plainly.
+const NOT_TRACKED = 'Not tracked yet — no model exists';
+type ReferralRow = { student:string; school:string; grade:string; date:string; sortKey:string; facility:string; reason:string; followUp:string; status:string };
+
+// The same labels the student record's Referrals tab uses. Kept in words the
+// DOH form uses, because this table is read next to that form.
+const REFERRAL_TYPE_LABELS: Record<ReferralType, string> = {
+  primary_care: 'Other Primary Care Facility',
+  higher_level: 'Higher Level of Care',
+  oral_cancer_screening: 'Oral Cancer Screening',
+  surgical: 'Surgical Procedure',
+  private_facility: 'Private Facility',
+};
+const sessionRows: { date:string; school:string; grade:string; section:string; students:number; procedures:string[]; treated:number }[] = [];
 
 
 const ALL_GRADES_INT = ['Kinder','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10'];
@@ -178,17 +205,52 @@ const getCount = (matrix: Record<string,GX>, key: string, grade: string, gender:
 };
 
 export const Reports = () => {
-  const { selectedSchool } = useAuth();
+  const { selectedSchool, user } = useAuth();
   // The DOH report covers a school year — this year's report is not next
   // year's (Sprint 57b). It used to count every record ever created, so it
   // could not answer "what did we do this year?" at all.
   // Declared here, above the hook call that consumes it — it used to sit
   // further down, which is fine until something above needs it.
-  const [reportSchool, setReportSchool] = useState<string|null>(null);
+  // ⚠ A user pinned to ONE school starts on that school, not on "All
+  //   Schools". A school_admin holds exactly one, and the server scopes their
+  //   data to it — so the old `null` default printed the caption
+  //   "SCHOOL: All Schools" above figures that were only ever their own school's.
+  //   A wrong school name on a DOH return is a different document.
+  const [reportSchool, setReportSchool] = useState<string|null>(
+    () => (user && user.schools.length === 1 ? user.schools[0] : null),
+  );
   // School list comes from the DB now, not a hardcoded array (Sprint 60).
-  const { schoolNames } = useSchools();
+  const { schoolNames: allSchoolNames } = useSchools();
+  // ⚠ ...but only the ones this user actually holds. Offering the other two
+  //   to a school_admin was a control that did nothing: the server scopes every
+  //   query by assignment, so picking another school changed the caption and
+  //   left the numbers alone.
+  const schoolNames = useMemo(
+    () => (user && user.schools.length ? allSchoolNames.filter((n) => user.schools.includes(n)) : allSchoolNames),
+    [allSchoolNames, user],
+  );
+  const isPinnedToOneSchool = !!user && user.schools.length === 1;
   const [dohSchoolYear, setDohSchoolYear] = useState<string | null>(() => schoolYearLabel());
-  const { getRealCount, years: dohYears, unplacedCount, loading: dohLoading } = useDohReportData(dohSchoolYear, reportSchool);
+  const { getRealCount, years: dohYears, unplacedCount, loading: dohLoading, lastUpdated: dohLastUpdated } = useDohReportData(dohSchoolYear, reportSchool);
+
+  // Sprint 128 — the calendar's school year is not necessarily a year the
+  // database HAS. Opening Reports in September 2026 defaulted every DOH report
+  // to 2026-2027 while every record sat under 2025-2026, so all three tabs
+  // reported zeros and dashes on a database with 26 fully-charted pupils.
+  //
+  // Once the real year list arrives, a selection that names a year with no
+  // records is replaced by the NEWEST year that has them. Only that case is
+  // touched: `null` is the deliberate "All years to date" choice, and a year
+  // that IS in the list is the user's own pick — neither is overridden, and
+  // the align runs once rather than fighting the dropdown on every load.
+  const didAlignYear = useRef(false);
+  useEffect(() => {
+    if (didAlignYear.current || dohYears.length === 0) return;
+    if (dohSchoolYear !== null && !dohYears.includes(dohSchoolYear)) {
+      setDohSchoolYear(dohYears[0]); // years arrive newest-first
+    }
+    didAlignYear.current = true;
+  }, [dohYears, dohSchoolYear]);
   // Fields with no real backing data source yet show 0, never a fabricated
   // fallback number -- see useDohReportData.ts for exactly which fields are
   // real vs. not yet wireable.
@@ -243,12 +305,21 @@ export const Reports = () => {
       return s;
     }, 0);
   const [activeReportTab, setActiveReportTab] = useState<'doh'|'internal'|'tcl'|'ohprf'|'fhsis'|'summary'|'consent'>('doh');
+  // ⚠ NAMED LINE LISTS ARE NOT FOR THE SCHOOL ADMINISTRATOR.
+  //   The Target Client List and the Consent Form print one row per identified
+  //   child — name, complete address, contact number, date of birth,
+  //   PhilHealth number, and caries experience beside it. CLAUDE.md defines
+  //   school_admin as "view school reports + dashboards only, NO CLINICAL
+  //   RECORDS", and the manuscript is narrower still: the School Administrator
+  //   is an external entity who "receives the School Dental Health Status and
+  //   Service Report" (Ch. 3), an aggregate. The other four tabs are aggregates
+  //   and stay. Found 2026-09-06 while auditing the role.
+  const canSeeNamedClientLists = user?.role !== 'school_admin';
   const [reportMonth, setReportMonth] = useState(new Date().getMonth() + 1);
   const [reportYear,  setReportYear]  = useState(new Date().getFullYear());
   // Local school override — defaults to All Schools regardless of global context
   const dohReportRef = useRef<HTMLDivElement>(null);
-  const [downloadingPdf, setDownloadingPdf] = useState(false);
-  const [downloadingExcel, setDownloadingExcel] = useState(false);
+  const { preview, building, previewPdf, previewExcel, closePreview, confirmDownload } = usePreviewModal();
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const { students: realStudents } = useStudents();
 
@@ -268,71 +339,59 @@ export const Reports = () => {
   // Raw collections for the Treatment Summary's real per-procedure counts:
   // tooth records carry the procedure codes, their chart carries the date,
   // the IPTR links back to the student (school / grade / gender).
-  const [treatments, setTreatments] = useState<ApiTreatment[]>([]);
-  const [toothRecords, setToothRecords] = useState<ApiToothRecord[]>([]);
-  const [dentalCharts, setDentalCharts] = useState<ApiDentalChart[]>([]);
-  const [iptrs, setIptrs] = useState<ApiStudentIptr[]>([]);
+  // ⚠ Sprint 143 replaced FIVE whole-collection reads (treatments, tooth
+  // records, dental charts, IPTRs, referrals) with one `/stats/reports-panels`
+  // request. The joins live in `shared/reportsPanels.ts` — see #24.
+  const [panels, setPanels] = useState<ReportsPanelsOutput>({
+    treatmentMatrix: {},
+    periodTreatmentCount: 0,
+    allTimeTreatmentCount: 0,
+    referralRows: [],
+  });
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const [t, tr, dc, ip] = await Promise.all([
-          apiClient.get<ApiTreatment[]>('/treatments'),
-          apiClient.get<ApiToothRecord[]>('/tooth-records'),
-          apiClient.get<ApiDentalChart[]>('/dental-charts'),
-          apiClient.get<ApiStudentIptr[]>('/student-iptrs'),
-        ]);
-        setTreatments(t);
-        setToothRecords(tr);
-        setDentalCharts(dc);
-        setIptrs(ip);
-      } catch (err) {
-        console.error('Reports extra data fetch failed:', err);
-      }
-    })();
-  }, []);
-
-  const handleDownloadPdf = async () => {
+  const handleDownloadPdf = () => {
     if (!dohReportRef.current) return;
-    setDownloadingPdf(true);
     setDownloadError(null);
-    try {
-      const schoolPart = reportSchool ? getSchoolShortName(reportSchool).replace(/\s+/g, '_') : 'AllSchools';
-      const filename = `DOH_Report_${schoolPart}_${bandSlug}_${MONTHS[reportMonth - 1]}${reportYear}.pdf`;
-      await exportDohReportToPdf(dohReportRef.current, filename);
-    } catch (err) {
-      setDownloadError(err instanceof Error ? err.message : 'Failed to generate PDF');
-    } finally {
-      setDownloadingPdf(false);
-    }
+    const el = dohReportRef.current;
+    const schoolPart = reportSchool ? getSchoolShortName(reportSchool).replace(/\s+/g, '_') : 'AllSchools';
+    const filename = `DOH_Report_${schoolPart}_${bandSlug}_${MONTHS[reportMonth - 1]}${reportYear}.pdf`;
+    previewPdf('DOH Consolidated Report', filename, async () => {
+      try {
+        return await buildDohReportPdf(el);
+      } catch (err) {
+        setDownloadError(err instanceof Error ? err.message : 'Failed to generate PDF');
+        return null;
+      }
+    });
   };
 
-  const handleDownloadExcel = async () => {
-    setDownloadingExcel(true);
+  const handleDownloadExcel = () => {
     setDownloadError(null);
-    try {
-      const schoolPart = reportSchool ? getSchoolShortName(reportSchool).replace(/\s+/g, '_') : 'AllSchools';
-      await exportDohReportToXlsx({
-        grades: visibleGrades,
-        gradeBrackets: GRADE_BRACKETS,
-        summaryBrackets: SUMMARY_BRACKETS,
-        rows: visibleDohRows,
-        getCell: (g, a, s, f) => V(g, a, s, f),
-        school: reportSchool ? getSchoolShortName(reportSchool) : 'All Schools',
-        // The spreadsheet has to say it is shortened: unlike the printout,
-        // a file gets forwarded without the screen it came from.
-        monthYear: `${MONTHS[reportMonth - 1]} ${reportYear} · ${bandLabel}${dohHiddenCount ? ` · SHORTENED — ${hiddenDohRows.size} row(s), ${hiddenGrades.size} grade(s) hidden` : ''}`,
-        filename: `DOH_Consolidated_${schoolPart}_${bandSlug}_${MONTHS[reportMonth - 1]}${reportYear}.xlsx`,
-      });
-    } catch (err) {
-      setDownloadError(err instanceof Error ? err.message : 'Failed to generate Excel');
-    } finally {
-      setDownloadingExcel(false);
-    }
+    const schoolPart = reportSchool ? getSchoolShortName(reportSchool).replace(/\s+/g, '_') : 'AllSchools';
+    const filename = `DOH_Consolidated_${schoolPart}_${bandSlug}_${MONTHS[reportMonth - 1]}${reportYear}.xlsx`;
+    previewExcel('DOH Consolidated Report', filename, async () => {
+      try {
+        return await buildDohReportXlsx({
+          grades: visibleGrades,
+          gradeBrackets: GRADE_BRACKETS,
+          summaryBrackets: SUMMARY_BRACKETS,
+          rows: visibleDohRows,
+          getCell: (g, a, s, f) => V(g, a, s, f),
+          school: reportSchool ? getSchoolShortName(reportSchool) : 'All Schools',
+          // The spreadsheet has to say it is shortened: unlike the printout,
+          // a file gets forwarded without the screen it came from.
+          monthYear: `${MONTHS[reportMonth - 1]} ${reportYear} · ${bandLabel}${dohHiddenCount ? ` · SHORTENED — ${hiddenDohRows.size} row(s), ${hiddenGrades.size} grade(s) hidden` : ''}`,
+        });
+      } catch (err) {
+        setDownloadError(err instanceof Error ? err.message : 'Failed to generate Excel');
+        return null;
+      }
+    });
   };
   const [internalSection, setInternalSection] = useState<'treatment'|'conditions'|'admin'>('treatment');
   const [periodType, setPeriodType] = useState<'monthly'|'quarterly'|'biannual'|'annual'>('monthly');
-  const [intSchoolFilter, setIntSchoolFilter] = useState('all');
+  // Same rule as the DOH tab above: pinned to their own school when they hold one.
+  const [intSchoolFilter, setIntSchoolFilter] = useState(() => (user && user.schools.length === 1 ? user.schools[0] : 'all'));
   const [intGradeFilter, setIntGradeFilter] = useState('all');
   const [intGenderFilter, setIntGenderFilter] = useState('all');
   const [intAgeFilter, setIntAgeFilter] = useState('all');
@@ -349,6 +408,29 @@ export const Reports = () => {
     if (periodType === 'biannual')  { const h = m < 6 ? 0 : 6; return { start: new Date(y, h, 1), end: new Date(y, h + 6, 1) }; }
     return { start: new Date(y, 0, 1), end: new Date(y + 1, 0, 1) };
   }, [periodType, reportMonth, reportYear]);
+
+  // The period and school are applied SERVER-side; filtering afterwards would
+  // put the whole population back on the wire, which is the thing #24 is about.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const params = new URLSearchParams({
+          from: periodRange.start.toISOString(),
+          to: periodRange.end.toISOString(),
+        });
+        if (intSchoolFilter !== 'all') params.set('school', intSchoolFilter);
+        const data = await apiClient.get<ReportsPanelsOutput>(`/stats/reports-panels?${params.toString()}`);
+        if (!cancelled) setPanels(data);
+      } catch (err) {
+        console.error('Reports panels fetch failed:', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [periodRange, intSchoolFilter]);
+
+  const referralRows = panels.referralRows;
+
   const periodLabel = periodType === 'monthly'
     ? `${MONTHS[reportMonth - 1]} ${reportYear}`
     : `${periodRange.start.toLocaleDateString('en-US', { month: 'short' })}–${new Date(periodRange.end.getFullYear(), periodRange.end.getMonth() - 1, 1).toLocaleDateString('en-US', { month: 'short' })} ${reportYear}`;
@@ -356,47 +438,23 @@ export const Reports = () => {
   // Real per-procedure counts from tooth-level treatment records. Tooth
   // records carry no date of their own, so each is dated by its chart's
   // date_charted (the closest real date the ERD provides — noted in the UI).
-  const TREATMENT_ROWS = useMemo(() => treatmentCodes.map((t) => t.label), []);
-  const realTreatmentMatrix = useMemo(() => {
-    const inPeriod = (d: string) => { const t = new Date(d); return t >= periodRange.start && t < periodRange.end; };
-    const chartById = new Map(dentalCharts.map((c) => [c._id, c]));
-    const iptrById = new Map(iptrs.map((i) => [i._id, i]));
-    const studentById = new Map(realStudents.map((s) => [s.id, s]));
-    const matrix: Record<string, GX> = {};
-    for (const tr of toothRecords) {
-      if (!tr.treatment_code) continue;
-      const chart = chartById.get(tr.chart_id);
-      if (!chart || !inPeriod(chart.date_charted)) continue;
-      const iptr = iptrById.get(chart.iptr_id);
-      const student = iptr ? studentById.get(iptr.student_id) : undefined;
-      if (!student) continue;
-      if (intSchoolFilter !== 'all' && student.school !== intSchoolFilter) continue;
-      const label = treatmentCodes.find((c) => c.code === tr.treatment_code)?.label ?? tr.treatment_code;
-      const sex: 'M' | 'F' = student.gender === 'Male' ? 'M' : 'F';
-      const row = (matrix[label] ??= {});
-      for (const g of [student.grade, 'all']) {
-        const cell = (row[g] ??= { M: 0, F: 0 });
-        cell[sex] += 1;
-      }
-    }
-    return matrix;
-  }, [toothRecords, dentalCharts, iptrs, realStudents, intSchoolFilter, periodRange]);
-
-  // Treatment entries (the Treatment model has real per-entry dates) within
-  // the same period + school filter, for the "Students Treated" card.
-  const periodTreatmentCount = useMemo(() => {
-    const inPeriod = (d: string) => { const t = new Date(d); return t >= periodRange.start && t < periodRange.end; };
-    const iptrById = new Map(iptrs.map((i) => [i._id, i]));
-    const studentById = new Map(realStudents.map((s) => [s.id, s]));
-    return treatments.filter((t) => {
-      if (!inPeriod(t.date)) return false;
-      if (intSchoolFilter === 'all') return true;
-      const iptr = iptrById.get(t.iptr_id);
-      const student = iptr ? studentById.get(iptr.student_id) : undefined;
-      return student?.school === intSchoolFilter;
-    }).length;
-  }, [treatments, iptrs, realStudents, intSchoolFilter, periodRange]);
-  const realTreatmentCount = treatments.length; // all-time, for the admin Overview tab
+  // ⚠ ROWS ARE CODES NOW, rendered with their label. The server keys the
+  // matrix by treatment CODE (Sprint 143) because labels carry the clinic's
+  // local terms and belong to the UI — keeping the rows on labels here would
+  // have looked up `matrix['Extraction']` against a map keyed `X` and printed
+  // a table of zeros, with a clean typecheck (Record<string, …> accepts any
+  // key). Caught by reading, not by tsc.
+  const TREATMENT_ROWS = useMemo(() => treatmentCodes.map((t) => t.code), []);
+  const labelForCode = useMemo(
+    () => new Map(treatmentCodes.map((t) => [t.code, t.label])),
+    [],
+  );
+  // ⚠ KEYED BY TREATMENT CODE now, not by label: labels carry the clinic's
+  // local terms ("Bunot", "Pasta") and belong to the UI, so the server never
+  // sends them. The rows below map code -> label at render time.
+  const realTreatmentMatrix = panels.treatmentMatrix;
+  const periodTreatmentCount = panels.periodTreatmentCount;
+  const realTreatmentCount = panels.allTimeTreatmentCount; // all-time, for the admin Overview tab
   const [expandedReferral, setExpandedReferral] = useState<number|null>(null);
 
   const AGE_TO_GRADES: Record<string,string[]> = {
@@ -438,6 +496,36 @@ export const Reports = () => {
   const thBase = "text-center px-1 py-1 text-[9px] font-semibold border-r border-border";
   const tdBase = "text-center px-1 py-1 font-mono border-r border-gray-100 text-[10px]";
 
+  // Two-tier report categories: a primary card per category, plus an
+  // ordered pill row of that category's own reports underneath. Order and
+  // grouping requested explicitly -- Internal Reports category first, its
+  // reports led by School Summary; DOH Consolidated category ordered
+  // Target Client List, DOH Consolidated, FHSIS, Program Report.
+  const reportCategories = [
+    {
+      id: 'internal' as const,
+      label: 'School Internal Reports',
+      subtitle: 'Clinic-facing summaries',
+      tabs: [
+        { id: 'internal' as const, label: 'Internal Reports', icon: FileText, visible: true },
+        { id: 'summary' as const, label: 'School Summary', icon: FileSpreadsheet, visible: true },
+        { id: 'consent' as const, label: 'Consent Form', icon: FileText, visible: canSeeNamedClientLists },
+      ],
+    },
+    {
+      id: 'doh' as const,
+      label: 'DOH Consolidated Reports',
+      subtitle: 'City Health Office report',
+      tabs: [
+        { id: 'tcl' as const, label: 'Target Client List', icon: Users, visible: canSeeNamedClientLists },
+        { id: 'doh' as const, label: 'DOH Consolidated', icon: FileSpreadsheet, visible: true },
+        { id: 'fhsis' as const, label: 'FHSIS', icon: FileSpreadsheet, visible: true },
+        { id: 'ohprf' as const, label: 'Program Report', icon: FileSpreadsheet, visible: true },
+      ],
+    },
+  ];
+  const activeCategory = reportCategories.find(cat => cat.tabs.some(t => t.id === activeReportTab)) ?? reportCategories[0];
+
   if (dohLoading) {
     return (
       <div className="space-y-4">
@@ -450,74 +538,90 @@ export const Reports = () => {
   return (
     <div className="space-y-4">
       {/* Header — title left, controls right */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Reports</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">DOH Consolidated Report &amp; Internal Reports</p>
-        </div>
-        <div className="doh-report-controls flex items-center gap-2 flex-shrink-0">
-          <select value={reportMonth} onChange={e => setReportMonth(Number(e.target.value))}
-            className="text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring">
-            {MONTHS.map((m,i) => <option key={m} value={i+1}>{m}</option>)}
-          </select>
-          <select value={reportYear} onChange={e => setReportYear(Number(e.target.value))}
-            className="text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring">
-            {[2023,2024,2025,2026].map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
-          <button onClick={() => window.print()}
-            className="flex items-center gap-2 px-4 py-2 bg-card border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium whitespace-nowrap">
-            <Printer className="w-4 h-4" /> Print
-          </button>
-          {activeReportTab === 'doh' && (
-            <button onClick={handleDownloadPdf} disabled={downloadingPdf}
-              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-60 text-sm font-medium whitespace-nowrap">
-              <Download className="w-4 h-4" /> {downloadingPdf ? 'Generating…' : 'Download PDF'}
+      <PageHeader
+        icon={FileBarChart}
+        eyebrow="Reporting"
+        title="Reports"
+        description="DOH Consolidated Report and internal reports for every school year on file."
+        action={
+          <div className="doh-report-controls flex items-center gap-2 flex-shrink-0 flex-wrap">
+            <select value={reportMonth} onChange={e => setReportMonth(Number(e.target.value))}
+              className="text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring">
+              {MONTHS.map((m,i) => <option key={m} value={i+1}>{m}</option>)}
+            </select>
+            <select value={reportYear} onChange={e => setReportYear(Number(e.target.value))}
+              className="text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring">
+              {[2023,2024,2025,2026].map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+            <button onClick={() => window.print()}
+              className="flex items-center gap-2 px-4 py-2 bg-card border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium whitespace-nowrap">
+              <Printer className="w-4 h-4" /> Print
             </button>
-          )}
-          {activeReportTab === 'doh' && (
-            <button onClick={handleDownloadExcel} disabled={downloadingExcel}
-              className="flex items-center gap-2 px-4 py-2 bg-green-700 text-white rounded-lg hover:bg-green-800 disabled:opacity-60 text-sm font-medium whitespace-nowrap">
-              <FileSpreadsheet className="w-4 h-4" /> {downloadingExcel ? 'Generating…' : 'Download Excel'}
-            </button>
-          )}
-        </div>
-      </div>
+            {activeReportTab === 'doh' && (
+              <button onClick={handleDownloadPdf} disabled={building}
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-60 text-sm font-medium whitespace-nowrap">
+                <Download className="w-4 h-4" /> {building && preview.kind === 'pdf' ? 'Generating…' : 'Download PDF'}
+              </button>
+            )}
+            {activeReportTab === 'doh' && (
+              <button onClick={handleDownloadExcel} disabled={building}
+                className="flex items-center gap-2 px-4 py-2 bg-green-700 text-white rounded-lg hover:bg-green-800 disabled:opacity-60 text-sm font-medium whitespace-nowrap">
+                <FileSpreadsheet className="w-4 h-4" /> {building && preview.kind === 'excel' ? 'Generating…' : 'Download Excel'}
+              </button>
+            )}
+          </div>
+        }
+      />
       {downloadError && (
         <div className="text-sm text-destructive bg-red-50 border border-red-200 rounded-lg px-4 py-2">{downloadError}</div>
       )}
 
-      {/* Tabs — scroll inside their own container: six tabs no longer fit a
-          390px phone, and the three-device-classes rule forbids letting a
-          control row push the page sideways. `w-fit` alone would overflow. */}
-      <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 w-fit max-w-full overflow-x-auto">
-        <button onClick={() => setActiveReportTab('doh')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeReportTab==='doh' ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
-          <FileSpreadsheet className="w-4 h-4" /> DOH Consolidated
-        </button>
-        <button onClick={() => setActiveReportTab('internal')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeReportTab==='internal' ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
-          <FileText className="w-4 h-4" /> Internal Reports
-        </button>
-        <button onClick={() => setActiveReportTab('tcl')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeReportTab==='tcl' ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
-          <Users className="w-4 h-4" /> Target Client List
-        </button>
-        <button onClick={() => setActiveReportTab('ohprf')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeReportTab==='ohprf' ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
-          <FileSpreadsheet className="w-4 h-4" /> Program Report
-        </button>
-        <button onClick={() => setActiveReportTab('fhsis')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeReportTab==='fhsis' ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
-          <FileSpreadsheet className="w-4 h-4" /> FHSIS
-        </button>
-        <button onClick={() => setActiveReportTab('summary')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${activeReportTab==='summary' ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
-          <FileSpreadsheet className="w-4 h-4" /> School Summary
-        </button>
-        <button onClick={() => setActiveReportTab('consent')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${activeReportTab==='consent' ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
-          <FileText className="w-4 h-4" /> Consent Form
-        </button>
+      {/* Two-tier report navigation: a primary card per category (Internal
+          Reports, DOH Consolidated), then an ordered pill row of the
+          selected category's own reports underneath. Replaces the flat
+          7-tab strip, which no longer fit a 390px phone and read as
+          scattered rather than grouped. */}
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
+          {reportCategories.map(cat => {
+            const isActiveCat = activeCategory.id === cat.id;
+            return (
+              <button
+                key={cat.id}
+                onClick={() => setActiveReportTab(cat.tabs.find(t => t.visible)?.id ?? cat.id)}
+                className={`w-full sm:w-72 flex items-center gap-3 px-5 py-4 rounded-2xl border text-left transition-colors ${
+                  isActiveCat
+                    ? 'bg-primary border-primary text-white shadow-[0_6px_16px_rgba(39,58,120,0.25)]'
+                    : 'bg-card border-border text-foreground hover:bg-gray-50'
+                }`}
+              >
+                <span className={`w-9 h-9 rounded-[10px] flex items-center justify-center flex-shrink-0 ${isActiveCat ? 'bg-white/15' : 'bg-primary-surface'}`}>
+                  <FileSpreadsheet className={`w-4 h-4 ${isActiveCat ? 'text-white' : 'text-primary'}`} />
+                </span>
+                <span>
+                  <span className="block text-sm font-bold">{cat.label}</span>
+                  <span className={`block text-xs mt-0.5 ${isActiveCat ? 'text-white/65' : 'text-muted-foreground'}`}>{cat.subtitle}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground mb-2 pl-0.5">Other reports</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            {activeCategory.tabs.filter(t => t.visible).map(tab => (
+              <button key={tab.id} onClick={() => setActiveReportTab(tab.id)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-colors whitespace-nowrap border ${
+                  activeReportTab === tab.id
+                    ? 'bg-card text-primary border-primary/30 shadow-sm'
+                    : 'bg-card text-muted-foreground border-border hover:text-foreground'
+                }`}>
+                <tab.icon className="w-3.5 h-3.5" /> {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* ── DOH CONSOLIDATED ── */}
@@ -528,7 +632,7 @@ export const Reports = () => {
             <label className="text-sm text-muted-foreground whitespace-nowrap" htmlFor="doh-school">School:</label>
             <select id="doh-school" aria-label="School" value={reportSchool ?? ''} onChange={e => setReportSchool(e.target.value || null)}
               className="text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring">
-              <option value="">All Schools</option>
+              {!isPinnedToOneSchool && <option value="">All Schools</option>}
               {schoolNames.map(s => <option key={s} value={s}>{getSchoolShortName(s)}</option>)}
             </select>
 
@@ -541,8 +645,23 @@ export const Reports = () => {
                   it could be scoped, and it is still the right answer for a
                   cumulative count. */}
               <option value="">All years to date</option>
+              {/* ⚠ The selected year is listed even when the database holds no
+                  records for it (an empty database, or the moment before the
+                  year list loads). Without this the <select> falls back to
+                  displaying its FIRST option — so the control read "All years
+                  to date" while the report was actually filtering to a year
+                  with nothing in it. A control that appears to work must work:
+                  it now always shows the year it is really using, and says
+                  when that year has no records. */}
+              {dohSchoolYear && !dohYears.includes(dohSchoolYear) && (
+                <option value={dohSchoolYear}>{dohSchoolYear} (no records)</option>
+              )}
               {dohYears.map(y => <option key={y} value={y}>{y}</option>)}
             </select>
+
+            {/* Sprint 110. Appears only after a real self-refresh — see
+                LiveUpdatedStamp for why it must never show a page-load time. */}
+            <LiveUpdatedStamp at={dohLastUpdated} />
 
             <button
               onClick={() => setShowDohPicker((v) => !v)}
@@ -574,6 +693,10 @@ export const Reports = () => {
               used to be computed against TODAY, which silently rewrote past
               reports every time a pupil was promoted or had a birthday. */}
           <p className="text-xs text-muted-foreground">
+            {dohSchoolYear && !dohLoading && dohYears.length > 0 && !dohYears.includes(dohSchoolYear) && (
+              <> <span className="font-medium text-amber-700">No records exist for {dohSchoolYear}</span>, so every figure below is zero.
+              Records exist for {dohYears.join(', ')}. </>
+            )}
             {dohSchoolYear
               ? <>Covering school year <span className="font-medium text-foreground">{dohSchoolYear}</span>. Grade is the grade recorded for that year, and age is the pupil&apos;s age at that year&apos;s first recorded visit (or the start of the school year where no visit is recorded) — not their grade or age today.</>
               : <>Covering <span className="font-medium text-foreground">all years to date</span>, so a pupil with several school years is counted once per year. Pick a school year above to report on one.</>}
@@ -628,7 +751,7 @@ export const Reports = () => {
           )}
 
           {/* Table */}
-          <div id="doh-report-printable" className="bg-card rounded-xl border border-border overflow-hidden">
+          <div id="doh-report-printable" className="form-print bg-card rounded-xl border border-border overflow-hidden">
             {/* ref goes on the scrollable inner div, not the overflow-hidden outer
                 one — html2canvas clips to the ref'd element's own rendered box,
                 so ref'ing the outer div only captured the already-clipped width. */}
@@ -823,7 +946,7 @@ export const Reports = () => {
                 </div>
                 <select value={intSchoolFilter} onChange={e => setIntSchoolFilter(e.target.value)}
                   className="text-sm border border-border rounded-lg px-3 py-1.5 bg-card focus:outline-none focus:ring-2 focus:ring-ring">
-                  <option value="all">All Schools</option>
+                  {!isPinnedToOneSchool && <option value="all">All Schools</option>}
                   {schoolNames.map(s => <option key={s} value={s}>{getSchoolShortName(s)}</option>)}
                 </select>
                 <select value={intAgeFilter} onChange={e => { setIntAgeFilter(e.target.value); setIntGradeFilter('all'); }}
@@ -864,13 +987,17 @@ export const Reports = () => {
                 // indexOf(max) would misleadingly point at PROCEDURES[0] as
                 // if it were genuinely "most common". Only claim a most-
                 // common procedure when there's real data behind it.
-                const mostCommon = grandTotal > 0 ? TREATMENT_ROWS[topIdx] : 'N/A';
+                const mostCommon = grandTotal > 0 ? (labelForCode.get(TREATMENT_ROWS[topIdx]) ?? TREATMENT_ROWS[topIdx]) : 'N/A';
                 return (
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     {[
                       { label:'Total Procedures', value: grandTotal, color:'text-blue-700 bg-blue-50 border-blue-200' },
                       { label:'Most Common', value: mostCommon, color:'text-green-700 bg-green-50 border-green-200', small: true },
-                      { label:'Sessions', value: mockSessions.length, color:'text-cyan-700 bg-cyan-50 border-cyan-200' },
+                      // ⚠ "—", not 0. This tile sits between three REAL computed
+                      // numbers, so a zero here reads as "we measured, and it is
+                      // none" — the same convention the DOH tables use for a cell
+                      // with no source (Sprints 89/90).
+                      { label:'Sessions (not tracked)', value: '—', color:'text-cyan-700 bg-cyan-50 border-cyan-200' },
                       { label:'Students Treated', value: periodTreatmentCount, color:'text-purple-700 bg-purple-50 border-purple-200' },
                     ].map((c,i) => (
                       <div key={i} className={`rounded-xl border p-4 ${c.color}`}>
@@ -886,7 +1013,7 @@ export const Reports = () => {
               <div className="bg-card rounded-xl border border-border p-4">
                 <h3 className="text-sm font-bold text-foreground mb-3">Procedures Performed</h3>
                 <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={TREATMENT_ROWS.map(p => ({ name: p, count: cnt(realTreatmentMatrix, p, intGenderFilter) }))}
+                  <BarChart data={TREATMENT_ROWS.map(p => ({ name: labelForCode.get(p) ?? p, count: cnt(realTreatmentMatrix, p, intGenderFilter) }))}
                     margin={{top:4,right:8,bottom:40,left:0}}>
                     <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
                     <XAxis dataKey="name" tick={{fontSize:10}} angle={-25} textAnchor="end" interval={0} />
@@ -922,7 +1049,7 @@ export const Reports = () => {
                       const t = m + f;
                       return (
                         <tr key={p} className="hover:bg-gray-50">
-                          <td className="px-4 py-2.5 font-medium text-foreground">{p}</td>
+                          <td className="px-4 py-2.5 font-medium text-foreground">{labelForCode.get(p) ?? p}</td>
                           <td className="px-4 py-2.5 text-center text-blue-700">{m}</td>
                           <td className="px-4 py-2.5 text-center text-pink-700">{f}</td>
                           <td className="px-4 py-2.5 text-center font-bold text-foreground">{t}</td>
@@ -1116,7 +1243,7 @@ export const Reports = () => {
               <div className="bg-card rounded-xl border border-border overflow-hidden">
                 <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
                   <h3 className="text-sm font-bold text-foreground">Treatment Sessions</h3>
-                  <span className="text-xs text-muted-foreground">{mockSessions.length} sessions recorded</span>
+                  <span className="text-xs text-amber-700">{NOT_TRACKED}</span>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
@@ -1126,9 +1253,13 @@ export const Reports = () => {
                       ))}</tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {mockSessions.length === 0 ? (
-                        <tr><td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">No treatment sessions recorded yet.</td></tr>
-                      ) : mockSessions.map((s, i) => {
+                      {sessionRows.length === 0 ? (
+                        <tr><td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
+                          There is no bulk-session model in the system, so nothing can be recorded here yet —
+                          this is not an empty period. Individual treatments ARE recorded, and are counted
+                          in Total Procedures above.
+                        </td></tr>
+                      ) : sessionRows.map((s, i) => {
                         const pct = Math.round((s.treated / s.students) * 100);
                         return (
                           <tr key={i} className="hover:bg-gray-50">
@@ -1158,11 +1289,14 @@ export const Reports = () => {
                 </div>
               </div>
 
-              {/* Referral Tracking */}
+              {/* Referral Tracking. Not for the School Admin (Sprint 163, SEC-33):
+                  who was referred where, and why, is a clinical record; the
+                  server also sends them no referral rows. */}
+              {user?.role !== 'school_admin' && (
               <div className="bg-card rounded-xl border border-border overflow-hidden">
                 <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
                   <h3 className="text-sm font-bold text-foreground">Referral Tracking</h3>
-                  <span className="text-xs text-muted-foreground">{mockReferrals.length} referrals issued</span>
+                  <span className="text-xs text-muted-foreground">{referralRows.length} recorded</span>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
@@ -1172,11 +1306,16 @@ export const Reports = () => {
                       ))}</tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {mockReferrals.length === 0 ? (
-                        <tr><td colSpan={8} className="px-4 py-6 text-center text-muted-foreground">No referrals recorded yet.</td></tr>
-                      ) : mockReferrals.map((r, i) => (
-                        <>
-                        <tr key={i} {...activatable(() => setExpandedReferral(expandedReferral === i ? null : i))}
+                      {referralRows.length === 0 ? (
+                        <tr><td colSpan={8} className="px-4 py-6 text-center text-muted-foreground">
+                          No referrals recorded. Referrals are written on a pupil&apos;s record, under Referrals,
+                          and are counted on the DOH Program Report from there.
+                        </td></tr>
+                      ) : referralRows.map((r, i) => (
+                        // key on the FRAGMENT: with it on the inner <tr>, React
+                        // warns on every render now that this list is non-empty.
+                        <Fragment key={i}>
+                        <tr {...activatable(() => setExpandedReferral(expandedReferral === i ? null : i))}
                           className="hover:bg-orange-50/40 cursor-pointer select-none">
                           <td className="px-4 py-2.5 font-medium text-foreground whitespace-nowrap">{r.student}</td>
                           <td className="px-4 py-2.5 text-muted-foreground max-w-[120px] truncate">{getSchoolShortName(r.school)}</td>
@@ -1207,19 +1346,20 @@ export const Reports = () => {
                             </td>
                           </tr>
                         )}
-                        </>
+                        </Fragment>
                       ))}
                     </tbody>
                   </table>
                 </div>
               </div>
+              )}
             </div>
           )}
         </div>
       )}
 
       {/* ── TARGET CLIENT LIST (Appendix E) ── */}
-      {activeReportTab === 'tcl' && <TargetClientList />}
+      {activeReportTab === 'tcl' && canSeeNamedClientLists && <TargetClientList />}
 
       {/* ── ORAL HEALTH PROGRAM REPORTING FORM (Appendix F) ── */}
       {activeReportTab === 'ohprf' && <OralHealthProgramReport schoolYear={dohSchoolYear} schoolName={reportSchool} />}
@@ -1228,7 +1368,16 @@ export const Reports = () => {
           like the Program Report (Sprint 57b). */}
       {activeReportTab === 'summary' && <SchoolSummaryReport schoolYear={dohSchoolYear} schoolName={reportSchool} />}
       {/* No school/year props: the consent form is blank by design. */}
-      {activeReportTab === 'consent' && <ConsentForm />}
+      {activeReportTab === 'consent' && canSeeNamedClientLists && <ConsentForm />}
+
+      <PreviewModal
+        open={preview.open}
+        kind={preview.kind}
+        title={preview.title}
+        url={preview.url}
+        onClose={closePreview}
+        onDownload={confirmDownload}
+      />
     </div>
   );
 };
