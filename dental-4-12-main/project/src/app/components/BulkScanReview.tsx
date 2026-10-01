@@ -1,4 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { LayoutGrid, Table2 } from 'lucide-react';
 import type { CSSProperties, ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { REQUIRED_STUDENT_FIELDS } from './PatientList';
@@ -171,7 +172,7 @@ export const BulkScanReview = () => {
   // thin gridlines on every cell, softly banded rows.
   const head: CSSProperties = {
     position: 'sticky', top: 0, zIndex: 3, background: NAVY, color: '#fff', textAlign: 'left', whiteSpace: 'nowrap',
-    padding: '0.5625rem 0.75rem', fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+    padding: '0.5625rem 0.75rem', fontSize: '0.71875rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
     borderRight: '0.0625rem solid rgba(255,255,255,0.18)', borderBottom: `0.0625rem solid ${NAVY}`,
   };
   const cell: CSSProperties = {
@@ -219,9 +220,11 @@ export const BulkScanReview = () => {
               type="button"
               onClick={() => chooseView(v)}
               aria-pressed={view === v}
-              style={{ cursor: 'pointer', border: 'none', padding: '0.5rem 1rem', fontSize: '0.8125rem', fontWeight: 600, background: view === v ? NAVY : '#fff', color: view === v ? '#fff' : '#141413' }}
+              aria-label={v === 'grid' ? 'Grid view' : 'Cards view'}
+              title={v === 'grid' ? 'Grid view' : 'Cards view'}
+              style={{ cursor: 'pointer', border: 'none', padding: '0.5rem 0.875rem', display: 'inline-flex', alignItems: 'center', background: view === v ? NAVY : '#fff', color: view === v ? '#fff' : '#141413' }}
             >
-              {v === 'grid' ? 'Grid' : 'Cards'}
+              {v === 'grid' ? <Table2 size={18} /> : <LayoutGrid size={18} />}
             </button>
           ))}
         </div>
