@@ -1223,7 +1223,7 @@ export const PatientList = () => {
                     ref={listMenuBtnRef}
                     onClick={toggleListMenu}
                     disabled={bulkQueueMode}
-                    className={`p-2 rounded-full ${bulkQueueMode ? 'text-muted-foreground/40 cursor-not-allowed' : 'text-muted-foreground hover:bg-canvas hover:text-foreground'}`}
+                    className={`grid h-9 w-9 place-items-center rounded-xl border border-border bg-card ${bulkQueueMode ? 'text-muted-foreground/40 cursor-not-allowed' : 'text-muted-foreground hover:bg-canvas hover:text-foreground'}`}
                     title="More options"
                   >
                     <MoreVertical className="w-4 h-4" />
@@ -1271,7 +1271,7 @@ export const PatientList = () => {
                           onClick={() => { setBulkQueueMode(true); setShowListMenu(false); }}
                           className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-canvas flex items-center gap-2"
                         >
-                          <ListPlus className="w-3.5 h-3.5" /> Queue
+                          <ListPlus className="w-3.5 h-3.5" /> Bulk Queue
                         </button>
                       </div>
                     </>
