@@ -342,16 +342,19 @@ export const AIAnalytics = () => {
               <table className="w-full min-w-[1100px] text-sm">
                 <thead>
                   <tr className="bg-gray-100 text-left align-bottom text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    <th className="px-4 py-3">#</th>
-                    <th className="px-4 py-3">Student</th>
-                    <th className="px-4 py-3">Risk</th>
-                    <th className="px-3 py-3 text-center">With caries experience</th>
-                    <th className="px-3 py-3 text-center">In temporary teeth</th>
-                    <th className="px-3 py-3 text-center">In permanent dentition</th>
-                    <th className="px-3 py-3 text-center">With active caries</th>
-                    <th className="px-3 py-3 text-center">Caries-free teeth</th>
-                    <th className="px-3 py-3 text-center">Treatments</th>
-                    <th className="px-4 py-3 text-right">Actions</th>
+                    <th rowSpan={2} className="px-4 py-3">#</th>
+                    <th rowSpan={2} className="px-4 py-3">Student</th>
+                    <th rowSpan={2} className="px-4 py-3">Risk</th>
+                    <th colSpan={5} className="border-b border-border px-3 py-2 text-center font-bold text-foreground">Caries Experience</th>
+                    <th rowSpan={2} className="px-3 py-3 text-center">Treatments</th>
+                    <th rowSpan={2} className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                  <tr className="bg-gray-100 text-left align-bottom text-[11px] font-normal uppercase tracking-wider text-muted-foreground">
+                    <th className="px-3 py-2 text-center font-normal">With Caries Experience</th>
+                    <th className="px-3 py-2 text-center font-normal">With Caries Experience in Temporary Teeth</th>
+                    <th className="px-3 py-2 text-center font-normal">With Caries Experience in Permanent Dentition</th>
+                    <th className="px-3 py-2 text-center font-normal">With Active Dental Caries</th>
+                    <th className="px-3 py-2 text-center font-normal">Number of Caries Free Teeth</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
