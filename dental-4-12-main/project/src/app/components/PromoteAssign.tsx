@@ -656,7 +656,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
           {error && <Notice variant="error">{error}</Notice>}
 
           {!grade && (
-            <div className="grid min-h-64 flex-1 content-start justify-items-center rounded-xl border-2 border-dashed border-slate-300 bg-white px-8 pb-8 pt-16 text-center">
+            <div className="grid min-h-64 flex-1 content-start justify-items-center rounded-xl border-2 border-dashed border-slate-300 bg-white px-8 pb-8 pt-28 text-center">
               <div>
                 <Users className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
                 <p className="text-sm font-semibold text-foreground">No students to show yet</p>
