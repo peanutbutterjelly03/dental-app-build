@@ -9,6 +9,13 @@
 
 import { schoolYearEnd } from './schoolYear.js';
 
+/**
+ * TESTING SWITCH (user, 2026-10-01): false turns OFF the date rules below (the
+ * January 1 start lock and the planned-date window) so the page can be tested
+ * at any time of year. Set back to true when the user says so.
+ */
+export const SCHOOL_YEAR_DATE_RULES = false;
+
 export type RolloverStatus = 'not_started' | 'requested' | 'declined' | 'started';
 
 /** First year of a "2027-2028" label, or NaN. */
@@ -33,6 +40,7 @@ export function plannedStartProblem(ymd: unknown, now: Date = new Date()): strin
   const [y, m, d] = ymd.split('-').map(Number);
   const date = new Date(y, m - 1, d);
   if (date.getFullYear() !== y || date.getMonth() !== m - 1 || date.getDate() !== d) return 'Choose a valid date.';
+  if (!SCHOOL_YEAR_DATE_RULES) return null;
   const earliest = new Date(schoolYearEnd(now).getTime() + 1);
   earliest.setHours(0, 0, 0, 0);
   const lastDay = new Date(earliest.getFullYear(), 11, 31);
@@ -61,6 +69,7 @@ export const canRequestEarlyStart = (status: RolloverStatus): boolean => status 
  * Returns why it cannot be started yet, or null when it can.
  */
 export function startLockedReason(sy: string, now: Date = new Date()): string | null {
+  if (!SCHOOL_YEAR_DATE_RULES) return null;
   const y = startYearOf(sy);
   if (!Number.isFinite(y) || now >= new Date(y, 0, 1)) return null;
   return `${sy} can only be started from January 1, ${y}.`;
