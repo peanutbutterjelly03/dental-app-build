@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import {
   ArrowLeft, ArrowRight, Bell, BellRing, CalendarDays, ChevronDown, CircleCheck, CircleX, Clock, Eye, EyeOff, GraduationCap,
-  Hourglass, Info, Lock, Repeat, Archive as ArchiveIcon, School as SchoolIcon, TriangleAlert,
+  Hourglass, Info, Lock, Repeat, Archive as ArchiveIcon, School as SchoolIcon, TriangleAlert, X as XIcon,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useStudents } from '../hooks/useStudents';
@@ -44,6 +44,7 @@ type Tab = 'promote' | 'transfer';
 
 type Dialog =
   | { kind: 'startAll' }
+  | { kind: 'startSure' }
   | { kind: 'plan' }
   | { kind: 'ask' }
   | { kind: 'approve'; school: SchoolYearSchool }
@@ -56,14 +57,27 @@ const pad = (n: number) => String(n).padStart(2, '0');
 const toYmd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const plural = (n: number, one: string, many = `${one}s`) => (n === 1 ? one : many);
 
+/** One early-start request, read from the school's rollover row. A school has at
+ *  most one per year, so the schools list IS the request history. */
+type RequestState = 'waiting' | 'approved' | 'declined' | 'withAll';
+interface RequestItem { school: SchoolYearSchool; state: RequestState; }
+const requestStateOf = (s: SchoolYearSchool): RequestState | null => {
+  if (!s.requestedAt) return null;
+  if (s.status === 'requested') return 'waiting';
+  if (s.status === 'declined') return 'declined';
+  if (s.status === 'started') return s.startKind === 'early' ? 'approved' : 'withAll';
+  return null;
+};
+
 const Chip = ({ tone, children }: { tone: 'green' | 'amber' | 'blue' | 'gray'; children: React.ReactNode }) => {
   const cls = { green: 'bg-green-100 text-green-800', amber: 'bg-amber-100 text-amber-800', blue: 'bg-indigo-100 text-indigo-800', gray: 'bg-slate-100 text-slate-600' }[tone];
   return <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${cls}`}>{children}</span>;
 };
 
-const Strip = ({ tone, icon, children, actions }: { tone: 'amber' | 'blue' | 'green'; icon: React.ReactNode; children: React.ReactNode; actions?: React.ReactNode }) => {
+const Strip = ({ tone, icon, children, actions }: { tone: 'amber' | 'blue' | 'green' | 'red'; icon: React.ReactNode; children: React.ReactNode; actions?: React.ReactNode }) => {
   const cls = {
     amber: 'bg-amber-50 border-amber-300 text-amber-900',
+    red: 'bg-red-50 border-red-300 text-red-900',
     blue: 'bg-blue-50 border-blue-200 text-blue-900',
     green: 'bg-green-50 border-green-200 text-green-900',
   }[tone];
@@ -119,6 +133,32 @@ const DialogShell = ({ icon, iconBg, title, children, onClose, busy }: { icon: R
   </Modal>
 );
 
+const RequestCard = ({ item, toYear, compact, onApprove, onDecline }: { item: RequestItem; toYear: string; compact?: boolean; onApprove: () => void; onDecline: () => void }) => {
+  const { school: s, state } = item;
+  const tone = { waiting: 'border-amber-300 bg-amber-50', approved: 'border-green-200 bg-green-50', declined: 'border-border bg-slate-50', withAll: 'border-border bg-slate-50' }[state];
+  const icon = state === 'waiting' ? <BellRing className="h-5 w-5 text-amber-700" />
+    : state === 'declined' ? <CircleX className="h-5 w-5 text-red-700" />
+    : <CircleCheck className="h-5 w-5 text-green-700" />;
+  const note = state === 'approved' ? ` · Approved${s.decidedAt ? ` ${fmtStamp(s.decidedAt)}` : ''}`
+    : state === 'declined' ? ` · Declined${s.decidedAt ? ` ${fmtStamp(s.decidedAt)}` : ''}`
+    : state === 'withAll' ? ' · Started with all schools' : '';
+  return (
+    <div className={`flex gap-3 rounded-xl border p-3 ${tone}`}>
+      <span className="mt-0.5 flex-shrink-0">{icon}</span>
+      <div className="min-w-0 flex-1 text-[13px]">
+        <div><b>{s.requestedBy ?? 'A staff member'}</b> asked to start {toYear} early for <b>{s.name}</b>.</div>
+        <div className="mt-0.5 text-xs text-muted-foreground">{s.requestedAt ? fmtStamp(s.requestedAt) : ''}{note}</div>
+        {state === 'waiting' && (
+          <div className={`mt-2.5 flex gap-2 ${compact ? '' : ''}`}>
+            <button onClick={onDecline} className="rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-bold text-foreground hover:bg-gray-50">Decline</button>
+            <button onClick={onApprove} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white hover:bg-primary-hover">Approve for this school</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export const UpdateSchoolYear = () => {
   const { user, selectedSchool } = useAuth();
   const toast = useToast();
@@ -145,10 +185,24 @@ export const UpdateSchoolYear = () => {
   const waiting = allSchools.filter((s) => s.status === 'requested');
   const toClear = allSchools.filter((s) => s.status !== 'started');
   const toClearStudents = toClear.reduce((n, s) => n + s.assigned, 0);
+  const requestItems: RequestItem[] = allSchools
+    .map((s) => ({ school: s, state: requestStateOf(s) }))
+    .filter((r): r is RequestItem => r.state !== null)
+    .sort((a, b) => (a.state === 'waiting' ? 0 : 1) - (b.state === 'waiting' ? 0 : 1)
+      || new Date(b.school.requestedAt!).getTime() - new Date(a.school.requestedAt!).getTime());
   const plannedStart = sy.status?.plannedStart ?? null;
 
   const [tab, setTab] = useState<Tab>('promote');
   const [schoolsOpen, setSchoolsOpen] = useState(true);
+  const [bellOpen, setBellOpen] = useState(false);
+  const [panelOpen, setPanelOpen] = useState<'waiting' | 'answered' | 'all' | null>(null);
+  const [planEditing, setPlanEditing] = useState(false);
+  useEffect(() => {
+    if (!panelOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setPanelOpen(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [panelOpen]);
 
   // Active, non-pending roster for the school in view. Pending (offline,
   // not-yet-synced) rows have no real _id yet — every action below needs one.
@@ -167,11 +221,15 @@ export const UpdateSchoolYear = () => {
   const [planSure, setPlanSure] = useState(false);
 
   const openDialog = (d: Dialog) => {
+    setBellOpen(false);
+    setPanelOpen(null);
     setDialog(d);
     setDialogError(null);
     setPassword('');
     setPlanSure(false);
     setPlanDate(plannedStart ?? '');
+    // A date that is already set is shown first; editing is a deliberate second step.
+    setPlanEditing(d.kind === 'plan' ? !plannedStart : false);
   };
   const closeDialog = () => { if (!busy) setDialog(null); };
 
@@ -180,6 +238,20 @@ export const UpdateSchoolYear = () => {
     first.setHours(0, 0, 0, 0);
     return { min: toYmd(first), max: toYmd(new Date(first.getFullYear(), 11, 31)) };
   }, []);
+
+  /** First step of "Start for all schools": check the password, then ask once more. */
+  const checkPasswordThenAskAgain = async () => {
+    setBusy(true);
+    setDialogError(null);
+    try {
+      await apiClient.post('/auth/verify-password', { password });
+      setDialog({ kind: 'startSure' });
+    } catch (err) {
+      setDialogError(err instanceof ApiError ? err.message : 'Could not check the password. Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   /** Runs one action, refreshes everything it can have changed, and reports. */
   const act = async (fn: () => Promise<unknown>, ok: string | ((r: any) => string)) => {
@@ -381,6 +453,46 @@ export const UpdateSchoolYear = () => {
         <div className="flex items-center gap-2">
           {backLink}
           <h1 className="text-2xl font-bold leading-none text-primary">Update School Year</h1>
+          {isAdmin && (
+            <div className="relative ml-auto">
+              <button
+                type="button"
+                onClick={() => setBellOpen((o) => !o)}
+                aria-label={`Early start requests${waiting.length ? `, ${waiting.length} waiting` : ''}`}
+                aria-expanded={bellOpen}
+                className={`grid h-10 w-10 place-items-center rounded-xl border text-primary ${bellOpen ? 'border-primary bg-indigo-50' : 'border-border bg-card hover:bg-gray-50'}`}
+              >
+                <Bell className="h-5 w-5" />
+              </button>
+              {waiting.length > 0 && (
+                <span className="pointer-events-none absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full border-2 border-white bg-red-600 px-1 text-[11px] font-bold leading-none text-white">{waiting.length}</span>
+              )}
+              {bellOpen && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setBellOpen(false)} />
+                  <div className="absolute right-0 top-12 z-40 w-[min(390px,calc(100vw-2rem))] space-y-2.5 rounded-2xl border border-border bg-card p-3.5 shadow-xl">
+                    <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+                      Early start requests
+                      {waiting.length > 0 && <Chip tone="amber">{waiting.length} waiting</Chip>}
+                    </div>
+                    {requestItems.length === 0 && <p className="py-3 text-center text-sm text-muted-foreground">No requests yet.</p>}
+                    {requestItems.slice(0, 3).map((r) => (
+                      <RequestCard key={r.school.id} item={r} toYear={toYear} compact
+                        onApprove={() => openDialog({ kind: 'approve', school: r.school })}
+                        onDecline={() => openDialog({ kind: 'decline', school: r.school })} />
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => { setBellOpen(false); setPanelOpen(waiting.length ? 'waiting' : 'all'); }}
+                      className="flex w-full items-center justify-center gap-1.5 pt-1 text-sm font-bold text-primary hover:underline"
+                    >
+                      See all requests <ArrowRight className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
         <p className="mt-1.5 flex items-center gap-1.5 pl-11 text-sm text-muted-foreground">
           {isAdmin ? 'All schools' : selectedSchool} · {fromYear} <ArrowRight className="h-3.5 w-3.5" /> {toYear}
@@ -388,21 +500,6 @@ export const UpdateSchoolYear = () => {
       </div>
 
       {sy.error && <Notice variant="error">{sy.error}</Notice>}
-
-      {/* System Admin: every early request waiting for an answer */}
-      {isAdmin && waiting.map((s) => (
-        <Strip
-          key={s.id}
-          tone="amber"
-          icon={<BellRing className="h-5 w-5 text-amber-700" />}
-          actions={<>
-            <button onClick={() => openDialog({ kind: 'decline', school: s })} className="rounded-xl border border-border bg-white px-4 py-2 text-sm font-bold text-foreground hover:bg-gray-50">Decline</button>
-            <button onClick={() => openDialog({ kind: 'approve', school: s })} className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white hover:bg-primary-hover">Approve for this school</button>
-          </>}
-        >
-          <b>{s.requestedBy ?? 'A staff member'}</b> asked to start {toYear} early for <b>{s.name}</b>{s.requestedAt ? <> on {fmtStamp(s.requestedAt)}</> : ''}.
-        </Strip>
-      ))}
 
       {/* Everyone else: where their one request stands */}
       {!isAdmin && staffStatus === 'requested' && (
@@ -537,7 +634,7 @@ export const UpdateSchoolYear = () => {
 
           {tab === 'promote' && (
             <div className="rounded-xl border border-border bg-card">
-              <PromoteAssign onClose={() => void reloadStudents()} schoolId={schoolId} schoolName={selectedSchool} nextYearStarted={nextYearStarted} />
+              <PromoteAssign onClose={() => void reloadStudents()} schoolId={schoolId} schoolName={selectedSchool} nextYearStarted={nextYearStarted} unassignedCount={unassignedCount} onShowUnassigned={nextYearStarted ? () => { setTab('transfer'); setFromGrade(UNASSIGNED); setFromSection(''); } : undefined} />
             </div>
           )}
 
@@ -706,62 +803,135 @@ export const UpdateSchoolYear = () => {
         </>
       )}
 
+      {/* ── Every early-start request (opened from the bell) ───────────── */}
+      {isAdmin && panelOpen && (
+        <div className="fixed inset-0 z-[80] flex justify-end bg-black/40" onClick={() => setPanelOpen(null)}>
+          <aside
+            role="dialog"
+            aria-label="Early start requests"
+            onClick={(e) => e.stopPropagation()}
+            className="flex h-full w-full max-w-[430px] flex-col gap-3 overflow-y-auto bg-card p-5 shadow-2xl"
+          >
+            <div className="flex items-center">
+              <h2 className="text-base font-bold text-foreground">Early start requests</h2>
+              <button type="button" onClick={() => setPanelOpen(null)} aria-label="Close" className="ml-auto grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-gray-100"><XIcon className="h-5 w-5" /></button>
+            </div>
+            <div className="flex gap-2">
+              {([['waiting', `Waiting · ${requestItems.filter((r) => r.state === 'waiting').length}`], ['answered', `Answered · ${requestItems.filter((r) => r.state !== 'waiting').length}`], ['all', `All · ${requestItems.length}`]] as const).map(([k, t]) => (
+                <button key={k} type="button" onClick={() => setPanelOpen(k)} aria-pressed={panelOpen === k}
+                  className={`rounded-full px-3 py-1 text-xs font-bold ${panelOpen === k ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-100 text-muted-foreground hover:bg-gray-200'}`}>{t}</button>
+              ))}
+            </div>
+            {requestItems.filter((r) => panelOpen === 'all' || (panelOpen === 'waiting' ? r.state === 'waiting' : r.state !== 'waiting')).map((r) => (
+              <RequestCard key={r.school.id} item={r} toYear={toYear}
+                onApprove={() => openDialog({ kind: 'approve', school: r.school })}
+                onDecline={() => openDialog({ kind: 'decline', school: r.school })} />
+            ))}
+            {requestItems.filter((r) => panelOpen === 'all' || (panelOpen === 'waiting' ? r.state === 'waiting' : r.state !== 'waiting')).length === 0 && (
+              <p className="py-8 text-center text-sm text-muted-foreground">{panelOpen === 'waiting' ? 'No requests are waiting.' : 'Nothing here yet.'}</p>
+            )}
+          </aside>
+        </div>
+      )}
+
       {/* ── Dialogs ─────────────────────────────────────────────────────── */}
       {dialog?.kind === 'startAll' && (
         <DialogShell title={`Start ${toYear} for all schools?`} icon={<GraduationCap className="h-5 w-5 text-rose-700" />} iconBg="bg-rose-100" onClose={closeDialog} busy={busy}>
           <p className="mt-3 text-sm text-muted-foreground">Grade and section will be cleared for every student below. Each one's {fromYear} grade and section are saved to their IPTR first. This cannot be undone from this screen.</p>
+          {/* Only the school list scrolls (from the 11th school on); the total stays in view. */}
           <div className="mt-4 overflow-hidden rounded-xl border border-border text-sm">
-            {toClear.map((s, i) => (
-              <div key={s.id} className={`flex justify-between gap-3 px-3.5 py-2 ${i ? 'border-t border-border/60' : ''}`}><span className="min-w-0 truncate">{s.name}</span><b>{s.assigned}</b></div>
-            ))}
-            <div className="flex justify-between bg-slate-50 px-3.5 py-2.5 font-extrabold"><span>All schools</span><span>{toClearStudents} {plural(toClearStudents, 'student')}</span></div>
+            <div className="max-h-[370px] overflow-y-auto">
+              {toClear.map((s, i) => (
+                <div key={s.id} className={`flex justify-between gap-3 px-3.5 py-2 ${i ? 'border-t border-border/60' : ''}`}><span className="min-w-0 truncate">{s.name}</span><b>{s.assigned}</b></div>
+              ))}
+            </div>
+            <div className="flex justify-between border-t border-border bg-slate-50 px-3.5 py-2.5 font-extrabold"><span>All schools</span><span>{toClearStudents} {plural(toClearStudents, 'student')}</span></div>
           </div>
           <PasswordField id="sy-startall-pw" value={password} onChange={setPassword} />
           {dialogError && <div className="mt-3"><Notice variant="error">{dialogError}</Notice></div>}
           <div className="mt-5 flex gap-2">
             <button onClick={closeDialog} disabled={busy} className="flex-1 rounded-xl border border-border px-4 py-2.5 text-sm font-bold hover:bg-gray-50 disabled:opacity-60">Cancel</button>
             <button
-              onClick={() => void act(() => sy.startAll(password), (r) => `${toYear} started for ${r.schoolsStarted} ${plural(r.schoolsStarted, 'school')}. ${r.studentsCleared} ${plural(r.studentsCleared, 'student')} cleared.`)}
+              onClick={() => void checkPasswordThenAskAgain()}
               disabled={busy || !password}
               className="flex-[1.4] rounded-xl bg-rose-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-rose-800 disabled:opacity-50"
             >
-              {busy ? 'Starting…' : 'Start for all schools'}
+              {busy ? 'Checking…' : 'Start for all schools'}
+            </button>
+          </div>
+        </DialogShell>
+      )}
+
+      {dialog?.kind === 'startSure' && (
+        <DialogShell title="Are you really sure?" icon={<TriangleAlert className="h-5 w-5 text-red-700" />} iconBg="bg-red-100" onClose={closeDialog} busy={busy}>
+          <div className="mt-4"><Strip tone="red" icon={<TriangleAlert className="h-5 w-5 text-red-700" />}>
+            You are about to start <b>{toYear}</b> for <b>all {toClear.length} {plural(toClear.length, 'school')}</b>. Grade and section will be cleared for <b>{toClearStudents} {plural(toClearStudents, 'student')}</b> right now.
+          </Strip></div>
+          <p className="mt-3 text-sm text-muted-foreground">Each student's {fromYear} grade and section stay saved in their IPTR, but nobody can undo the clearing from this screen.</p>
+          {dialogError && <div className="mt-3"><Notice variant="error">{dialogError}</Notice></div>}
+          <div className="mt-5 flex gap-2">
+            <button onClick={() => { setDialogError(null); setDialog({ kind: 'startAll' }); }} disabled={busy} className="flex-1 rounded-xl border border-border px-4 py-2.5 text-sm font-bold hover:bg-gray-50 disabled:opacity-60">No, go back</button>
+            <button
+              onClick={() => void act(() => sy.startAll(password), (r) => `${toYear} started for ${r.schoolsStarted} ${plural(r.schoolsStarted, 'school')}. ${r.studentsCleared} ${plural(r.studentsCleared, 'student')} cleared.`)}
+              disabled={busy}
+              className="flex-[1.4] rounded-xl bg-rose-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-rose-800 disabled:opacity-50"
+            >
+              {busy ? 'Starting…' : 'Yes, start all schools'}
             </button>
           </div>
         </DialogShell>
       )}
 
       {dialog?.kind === 'plan' && (
-        <DialogShell title="Change the start date" icon={<CalendarDays className="h-5 w-5 text-amber-700" />} iconBg="bg-amber-100" onClose={closeDialog} busy={busy}>
-          <div className="mt-4"><Strip tone="amber" icon={<TriangleAlert className="h-5 w-5 text-amber-700" />}>This is a big decision. It sets the start date for {toYear} at every school. It can only be set for the next school year.</Strip></div>
-          <div className="mt-4">
-            <label htmlFor="sy-plan-date" className="mb-1.5 block text-sm font-semibold text-foreground">New start date</label>
-            <input id="sy-plan-date" type="date" min={planBounds.min} max={planBounds.max} value={planDate} onChange={(e) => setPlanDate(e.target.value)} className="w-full rounded-xl border border-border bg-card px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-            {planDate && plannedStartProblem(planDate) && <p className="mt-1.5 text-xs text-destructive">{plannedStartProblem(planDate)}</p>}
-          </div>
-          <label className="mt-4 flex items-start gap-2.5 text-sm">
-            <input type="checkbox" checked={planSure} onChange={(e) => setPlanSure(e.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
-            <span>I understand {toYear} will begin on this date.</span>
-          </label>
-          <PasswordField id="sy-plan-pw" value={password} onChange={setPassword} />
-          {dialogError && <div className="mt-3"><Notice variant="error">{dialogError}</Notice></div>}
-          <div className="mt-5 flex gap-2">
-            <button onClick={closeDialog} disabled={busy} className="flex-1 rounded-xl border border-border px-4 py-2.5 text-sm font-bold hover:bg-gray-50 disabled:opacity-60">Cancel</button>
-            <button
-              onClick={() => void act(() => sy.setPlan(planDate, password), `${toYear} will begin on ${planDate ? fmtLong(planDate) : ''}.`)}
-              disabled={busy || !planSure || !password || !planDate || !!plannedStartProblem(planDate)}
-              className="inline-flex flex-[1.4] items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white hover:bg-primary-hover disabled:opacity-50"
-            >
-              <Lock className="h-4 w-4" /> {busy ? 'Saving…' : 'Confirm'}
-            </button>
-          </div>
+        <DialogShell title={planEditing ? 'Change the start date' : 'Start date'} icon={<CalendarDays className="h-5 w-5 text-red-700" />} iconBg="bg-red-100" onClose={closeDialog} busy={busy}>
+          <div className="mt-4"><Strip tone="red" icon={<TriangleAlert className="h-5 w-5 text-red-700" />}>This is a big decision. It sets the start date for {toYear} at every school. It can only be set for the next school year.</Strip></div>
+          {!planEditing ? (
+            <>
+              {/* A date that is already set is shown first; changing it is a second, deliberate step. */}
+              <div className="mt-4 rounded-xl border border-border bg-slate-50 px-4 py-3.5">
+                <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Current start date</div>
+                <div className="mt-1 text-lg font-extrabold text-foreground">{plannedStart ? fmtLong(plannedStart) : 'Not set yet'}</div>
+                <div className="mt-0.5 text-xs text-muted-foreground">For {toYear}, at every school.</div>
+              </div>
+              <div className="mt-5 flex gap-2">
+                <button onClick={closeDialog} className="flex-1 rounded-xl border border-border px-4 py-2.5 text-sm font-bold hover:bg-gray-50">Close</button>
+                <button onClick={() => setPlanEditing(true)} className="inline-flex flex-[1.4] items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white hover:bg-primary-hover">
+                  <Lock className="h-4 w-4" /> Edit date
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="mt-4">
+                <label htmlFor="sy-plan-date" className="mb-1.5 block text-sm font-semibold text-foreground">New start date</label>
+                <input id="sy-plan-date" type="date" min={planBounds.min} max={planBounds.max} value={planDate} onChange={(e) => setPlanDate(e.target.value)} className="w-full rounded-xl border border-border bg-card px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                {planDate && plannedStartProblem(planDate) && <p className="mt-1.5 text-xs text-destructive">{plannedStartProblem(planDate)}</p>}
+              </div>
+              <label className="mt-4 flex items-start gap-2.5 text-sm">
+                <input type="checkbox" checked={planSure} onChange={(e) => setPlanSure(e.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
+                <span>I understand {toYear} will begin on this date.</span>
+              </label>
+              <PasswordField id="sy-plan-pw" value={password} onChange={setPassword} />
+              {dialogError && <div className="mt-3"><Notice variant="error">{dialogError}</Notice></div>}
+              <div className="mt-5 flex gap-2">
+                <button onClick={plannedStart ? () => { setPlanEditing(false); setDialogError(null); } : closeDialog} disabled={busy} className="flex-1 rounded-xl border border-border px-4 py-2.5 text-sm font-bold hover:bg-gray-50 disabled:opacity-60">{plannedStart ? 'Back' : 'Cancel'}</button>
+                <button
+                  onClick={() => void act(() => sy.setPlan(planDate, password), `${toYear} will begin on ${planDate ? fmtLong(planDate) : ''}.`)}
+                  disabled={busy || !planSure || !password || !planDate || !!plannedStartProblem(planDate)}
+                  className="inline-flex flex-[1.4] items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white hover:bg-primary-hover disabled:opacity-50"
+                >
+                  <Lock className="h-4 w-4" /> {busy ? 'Saving…' : 'Confirm'}
+                </button>
+              </div>
+            </>
+          )}
         </DialogShell>
       )}
 
       {dialog?.kind === 'ask' && mySchool && (
         <DialogShell title={`Ask to start ${toYear} early?`} icon={<Bell className="h-5 w-5 text-primary" />} iconBg="bg-indigo-100" onClose={closeDialog} busy={busy}>
           <p className="mt-3 text-sm text-muted-foreground">The System Admin will be notified. If they approve, grade and section are cleared for <b className="text-foreground">{mySchool.name}</b> only.</p>
-          <div className="mt-4"><Strip tone="amber" icon={<TriangleAlert className="h-5 w-5 text-amber-700" />}>You can ask <b>once a year</b>. You will not be able to send another request for {toYear}.</Strip></div>
+          <div className="mt-4"><Strip tone="red" icon={<TriangleAlert className="h-5 w-5 text-red-700" />}>You can ask <b>once a year</b>. You will not be able to send another request for {toYear}.</Strip></div>
           {dialogError && <div className="mt-3"><Notice variant="error">{dialogError}</Notice></div>}
           <div className="mt-5 flex gap-2">
             <button onClick={closeDialog} disabled={busy} className="flex-1 rounded-xl border border-border px-4 py-2.5 text-sm font-bold hover:bg-gray-50 disabled:opacity-60">Cancel</button>
