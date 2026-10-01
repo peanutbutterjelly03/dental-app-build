@@ -121,7 +121,7 @@ export function RiskReviewDialog({
 
   const canNext: Record<Step, boolean> = {
     1: true,
-    2: level !== null && notes.trim().length > 0,
+    2: level !== null,
     3: decided === treatments.length,
     4: true,
   };
@@ -332,7 +332,7 @@ export function RiskReviewDialog({
               ))}
             </div>
             <div>
-              <label htmlFor="risk-notes" className="text-sm font-bold text-foreground">Your notes (required)</label>
+              <label htmlFor="risk-notes" className="text-sm font-bold text-foreground">Your notes (optional)</label>
               <textarea id="risk-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3}
                 placeholder={suggestion ? 'Why do you agree, or why did you change it?' : 'Why this level?'}
                 className="mt-2 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
@@ -388,9 +388,11 @@ export function RiskReviewDialog({
                     </div>
                   );
                 })}
-                <button type="button" onClick={acceptAll} className="rounded-lg border border-border px-4 py-1.5 text-sm font-medium text-foreground hover:bg-muted">
-                  Accept all
-                </button>
+                {treatments.length >= 2 && (
+                  <button type="button" onClick={acceptAll} className="rounded-lg border border-border px-4 py-1.5 text-sm font-medium text-foreground hover:bg-muted">
+                    Accept all
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -410,7 +412,7 @@ export function RiskReviewDialog({
                     </span>
                   </span>
                 )],
-                ['Your notes', <span key="n" className="break-words">{notes.trim()}</span>],
+                ['Your notes', notes.trim() ? <span key="n" className="break-words">{notes.trim()}</span> : <span key="n" className="text-muted-foreground">None</span>],
                 ['Treatments accepted', <span key="a" className="font-semibold">{acceptedCount}</span>],
                 ['Treatments skipped', <span key="k" className="font-semibold">{skippedCount}</span>],
                 ['Still to decide', <span key="d" className="font-semibold">{treatments.length - decided}</span>],
