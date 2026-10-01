@@ -720,19 +720,19 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
               {/* overflow-x-auto: wide tables scroll inside their own container,
                   never the page (CLAUDE.md, phone width). */}
               {visibleRows.length > 0 && (
-                <div className="max-h-[28rem] overflow-auto">
+                <div className="max-h-[75vh] overflow-auto">
                   <table className="w-full border-collapse text-[14.5px]">
-                    <thead className="sticky top-0 bg-gray-50">
+                    <thead>
                       <tr>
-                        <th className="w-9 px-3 py-2">
+                        <th className="sticky top-0 z-10 bg-gray-50 w-9 px-3 py-2">
                           <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label={allSelected ? 'Deselect all students' : 'Select all students'} className="h-4 w-4 cursor-pointer align-middle accent-primary" />
                         </th>
-                        <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-foreground">Student</th>
-                        <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-foreground">Current</th>
-                        {mode === 'transfer' && <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-green-700">Will update to <span className="ml-1 rounded-full bg-green-200 px-2 py-px text-[10px] font-semibold text-green-800">{fromYear}</span></th>}
-                        {mode === 'promote' && <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-red-700">Promote to <span className="ml-1 rounded-full bg-red-200 px-2 py-px text-[10px] font-semibold text-red-800">{toYear}</span></th>}
-                        {mode === 'promote' && <th className="px-3 py-2 text-left text-[14.5px] font-bold text-foreground">Action</th>}
-                        <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-foreground" title={`Section in ${mode === 'promote' ? toYear : fromYear}`}>Section</th>
+                        <th className="sticky top-0 z-10 bg-gray-50 whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-foreground">Student</th>
+                        <th className="sticky top-0 z-10 bg-gray-50 whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-foreground">Current</th>
+                        {mode === 'transfer' && <th className="sticky top-0 z-10 bg-gray-50 whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-green-700">Will update to <span className="ml-1 rounded-full bg-green-200 px-2 py-px text-[10px] font-semibold text-green-800">{fromYear}</span></th>}
+                        {mode === 'promote' && <th className="sticky top-0 z-10 bg-gray-50 whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-red-700">Promote to <span className="ml-1 rounded-full bg-red-200 px-2 py-px text-[10px] font-semibold text-red-800">{toYear}</span></th>}
+                        {mode === 'promote' && <th className="sticky top-0 z-10 bg-gray-50 px-3 py-2 text-left text-[14.5px] font-bold text-foreground">Action</th>}
+                        <th className="sticky top-0 z-10 bg-gray-50 whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-foreground" title={`Section in ${mode === 'promote' ? toYear : fromYear}`}>Section</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
