@@ -96,7 +96,18 @@ const nextSchoolYear = (sy: string): string => {
   return Number.isFinite(a) && Number.isFinite(b) ? `${a + 1}-${b + 1}` : sy;
 };
 
-type Action = 'promote' | 'retain' | 'skip' | 'update';
+/** promote = next grade; retain = repeat grade and section; skipgrade = two grades up. */
+type Action = 'promote' | 'retain' | 'skipgrade';
+
+/** The grade `steps` above `g`, or null when there is none. */
+const gradeAbove = (g: string, steps: number): string | null => {
+  const i = GRADES.indexOf(g);
+  return i >= 0 && i + steps < GRADES.length ? GRADES[i + steps] : null;
+};
+/** The grade a student lands in for an action; null when the action is not possible for them. */
+const gradeFor = (current: string, a: Action): string | null =>
+  a === 'retain' ? (current || null) : gradeAbove(current, a === 'promote' ? 1 : 2);
+const ACTION_LABEL: Record<Action, string> = { promote: 'Promote', retain: 'Retain', skipgrade: 'Skip a grade' };
 
 interface RowState {
   student: ApiStudent;
@@ -202,24 +213,16 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
         .map((s) => {
           const existingIptr = targetByStudent.get(s._id);
           const existing = chosen.get(s._id);
-          if (existingIptr) {
-            // ⚠ DEFAULTS TO SKIP, NOT UPDATE, AND THAT IS THE POINT (Sprint 102).
-            // Someone may have hand-corrected this student's year record (Sprint
-            // 70). Defaulting to update would silently stamp over that on the
-            // next run — trading a visible failure for an invisible one. The
-            // operator opts in per student, having seen what it would change.
-            return {
-              student: s,
-              // Keep a choice already made this session; otherwise skip.
-              action: existing?.alreadyHasYear ? existing.action : ('skip' as Action),
-              section: existing?.alreadyHasYear ? existing.section : (existingIptr.section ?? s.section ?? ''),
-              alreadyHasYear: true,
-              existingIptr,
-            };
-          }
-          return existing
-            ? { ...existing, student: s, alreadyHasYear: false, existingIptr: undefined }
-            : { student: s, action: 'promote' as Action, section: mode === 'transfer' ? '' : (s.section ?? ''), alreadyHasYear: false };
+          // Default is Promote (Retain where there is no grade above). A student who
+          // already has a record for the new year is simply updated by whatever is chosen.
+          const defaultAction: Action = gradeFor(s.grade_level ?? '', 'promote') ? 'promote' : 'retain';
+          return {
+            student: s,
+            action: existing?.action ?? defaultAction,
+            section: existing ? existing.section : (mode === 'transfer' ? '' : (s.section ?? '')),
+            alreadyHasYear: !!existingIptr,
+            existingIptr,
+          };
         });
     });
     setResult(null);
@@ -299,11 +302,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
   // record can only be corrected or skipped -- promoting them would POST a
   // duplicate and 409 on uniqueBy (Sprint 102). The bulk bar must respect this
   // or it would appear to act on rows it silently cannot change.
-  const canTake = (r: RowState, a: Action) =>
-    a === 'skip' ? true
-      : r.alreadyHasYear ? a === 'update'
-      : a === 'promote' ? !graduating
-      : a === 'retain';
+  const canTake = (r: RowState, a: Action) => !!gradeFor(r.student.grade_level ?? '', a);
 
   const applyBulkAction = (action: Action) => {
     // selected AND visible. Acting on a student the search has hidden is exactly
@@ -320,16 +319,16 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
     const skipped = picked.length - eligible.size;
     toast.success(
       `Applied to ${eligible.size} student${eligible.size === 1 ? '' : 's'}` +
-      (skipped > 0 ? ` — ${skipped} left unchanged (already has a ${toYear} record).` : '.'),
+      (skipped > 0 ? ` — ${skipped} left unchanged (no grade ${action === 'skipgrade' ? 'two above' : 'above'} them).` : '.'),
     );
   };
 
   const applyBulkSection = () => {
     const value = bulkSection.trim();
     if (!value) return;
-    const picked = visibleRows.filter((r) => selected.has(r.student._id) && r.action !== 'skip');
+    const picked = visibleRows.filter((r) => selected.has(r.student._id));
     if (picked.length === 0) {
-      toast.error('No selected student has an action set — a skipped student gets no section.');
+      toast.error('Tick the students first.');
       return;
     }
     const ids = new Set(picked.map((r) => r.student._id));
@@ -340,9 +339,9 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
   // SELECTION. Keeping them on different inputs means neither can silently
   // inherit the other's intent when the mode is switched.
   const transferPicked = rows.filter((r) => selected.has(r.student._id));
-  const toApply = rows.filter((r) => r.action !== 'skip');
-  const toCreate = toApply.filter((r) => r.action !== 'update');
-  const toCorrect = toApply.filter((r) => r.action === 'update');
+  const toApply = rows.filter((r) => !!gradeFor(r.student.grade_level ?? '', r.action));
+  const toCreate = toApply.filter((r) => !r.alreadyHasYear);
+  const toCorrect = toApply.filter((r) => r.alreadyHasYear);
 
   const runTransfer = async () => {
     setRunning(true);
@@ -400,13 +399,9 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
       // `update` keeps the student in whatever grade the existing record says —
       // it is a correction of THIS year's placement, not a second promotion.
       // Re-deriving it from `target` would quietly bump anyone corrected twice.
-      const newGrade = r.action === 'update'
-        ? (r.existingIptr?.grade_level ?? r.student.grade_level ?? '')
-        : r.action === 'retain'
-          ? (r.student.grade_level ?? '')
-          : (target ?? r.student.grade_level ?? '');
+      const newGrade = gradeFor(r.student.grade_level ?? '', r.action) ?? (r.student.grade_level ?? '');
       try {
-        if (r.action === 'update' && r.existingIptr) {
+        if (r.existingIptr) {
           // Sprint 102: correct the year record in place. POSTing again would
           // 409 on uniqueBy (student_id + school_year) — which is exactly why
           // this screen used to be unable to fix its own mistakes.
@@ -527,7 +522,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                 <div>
                   <label className={label} htmlFor="pa-to">Grade</label>
                   {mode === 'promote' ? (
-                    <div id="pa-to" className="rounded-lg border border-slate-400 bg-slate-50 px-3 py-2.5 text-sm font-medium text-primary">{grade ? (target ?? `Stays in ${grade}`) : '—'}</div>
+                    <div id="pa-to" className="rounded-lg border border-slate-400 bg-slate-50 px-3 py-2.5 text-sm font-medium text-primary">{grade ? (target ?? `Stays in ${grade}`) : '—'} <span className="text-xs font-normal text-muted-foreground">(automatic)</span></div>
                   ) : (
                     <select id="pa-to" value={transferGrade} onChange={(e) => setTransferGrade(e.target.value)} className={`w-full ${field} font-medium text-primary`} aria-label="Move to grade">
                       <option value="">Stay in their current grade</option>
@@ -586,12 +581,9 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
               )}
               {mode === 'promote' && (
                 <div className="flex flex-wrap gap-1.5">
-                  {!graduating && (
-                    <button type="button" onClick={() => applyBulkAction('promote')} className="rounded-md border border-border bg-card px-2.5 py-1 text-xs hover:bg-gray-50">Promote to {target}</button>
-                  )}
+                  <button type="button" onClick={() => applyBulkAction('promote')} className="rounded-md border border-border bg-card px-2.5 py-1 text-xs hover:bg-gray-50">Promote</button>
                   <button type="button" onClick={() => applyBulkAction('retain')} className="rounded-md border border-border bg-card px-2.5 py-1 text-xs hover:bg-gray-50">Retain</button>
-                  <button type="button" onClick={() => applyBulkAction('update')} className="rounded-md border border-border bg-card px-2.5 py-1 text-xs hover:bg-gray-50">Correct {toYear}</button>
-                  <button type="button" onClick={() => applyBulkAction('skip')} className="rounded-md border border-border bg-card px-2.5 py-1 text-xs hover:bg-gray-50">Skip</button>
+                  <button type="button" onClick={() => applyBulkAction('skipgrade')} className="rounded-md border border-border bg-card px-2.5 py-1 text-xs hover:bg-gray-50">Skip a grade</button>
                 </div>
               )}
               </div>
@@ -608,9 +600,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
               {running ? 'Working…'
                 : mode === 'transfer'
                   ? `Move ${transferPicked.length} selected student${transferPicked.length === 1 ? '' : 's'}`
-                  : toCorrect.length && !toCreate.length
-                    ? `Correct ${toCorrect.length} ${toYear} record${toCorrect.length === 1 ? '' : 's'}`
-                    : `Open ${toYear} for ${toApply.length}`}
+                  : `Update ${toApply.length} student${toApply.length === 1 ? '' : 's'} for ${toYear}`}
             </button>
             <button onClick={onClose} disabled={running} className="w-full rounded-lg border border-slate-400 bg-white px-4 py-2 text-sm font-medium text-foreground hover:bg-gray-50 disabled:opacity-50">
               {result ? 'Close' : 'Cancel'}
@@ -619,7 +609,6 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
               <p className="text-xs text-muted-foreground">
                 <b className="text-foreground">{toCreate.length}</b> of {rows.length} will get a new {toYear} record
                 {toCorrect.length > 0 && <>, and <b className="text-amber-700">{toCorrect.length}</b> existing {toYear} record{toCorrect.length === 1 ? '' : 's'} will be OVERWRITTEN</>}.
-                {movedCount - toCorrect.length > 0 && <> {movedCount - toCorrect.length} already in {toYear} {movedCount - toCorrect.length === 1 ? 'is' : 'are'} skipped.</>}
               </p>
             )}
             {rows.length > 0 && mode === 'transfer' && (
@@ -733,7 +722,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                         <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-foreground">Student</th>
                         <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-foreground">{mode === 'transfer' ? 'Current' : `Now (${fromYear})`}</th>
                         {mode === 'transfer' && <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-green-700">Updated ({fromYear})</th>}
-                        {mode === 'promote' && <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-foreground">In {toYear}</th>}
+                        {mode === 'promote' && <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-green-700">In {toYear}</th>}
                         {mode === 'promote' && <th className="px-3 py-2 text-left text-[14.5px] font-bold text-foreground">Action</th>}
                         <th className="whitespace-nowrap px-3 py-2 text-left text-[14.5px] font-bold text-foreground" title={`Section in ${mode === 'promote' ? toYear : fromYear}`}>Section</th>
                       </tr>
@@ -742,7 +731,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                       {visibleRows.map((r) => (
                         <tr
                           key={r.student._id}
-                          className={`${(mode === 'promote' ? r.action === 'skip' : !selected.has(r.student._id)) ? 'opacity-60' : ''} ${mode === 'promote' && r.alreadyHasYear ? 'bg-green-50/50' : ''}`}
+                          className={mode === 'transfer' && !selected.has(r.student._id) ? 'opacity-60' : ''}
                         >
                           <td className="px-3 py-2">
                             <input type="checkbox" checked={selected.has(r.student._id)} onChange={() => toggleOne(r.student._id)} aria-label={`Select ${surnameFirst(r.student)}`} className="h-4 w-4 cursor-pointer align-middle accent-primary" />
@@ -762,33 +751,31 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                           )}
                           {mode === 'promote' && (
                             <td className="whitespace-nowrap px-3 py-2">
-                              {r.alreadyHasYear ? (
-                                <span className="inline-flex rounded-full bg-green-100 px-2.5 py-0.5 text-[11.5px] font-normal text-green-800">
-                                  {r.existingIptr?.grade_level || 'grade not recorded'}{r.existingIptr?.section ? ` · ${r.existingIptr.section}` : ''}
-                                </span>
-                              ) : (
-                                <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-[11.5px] font-normal text-slate-600">Not yet</span>
-                              )}
-                              {r.alreadyHasYear && r.action === 'update' && <span className="ml-1.5 text-[11.5px] text-amber-700">→ {r.section || 'no section'}</span>}
+                              {(() => {
+                                const g = gradeFor(r.student.grade_level ?? '', r.action);
+                                return g
+                                  ? <span className="inline-flex rounded-full border border-green-600 bg-green-50 px-2.5 py-0.5 text-[12.5px] font-normal text-green-700">{g}{r.section ? ` · ${r.section}` : ''}</span>
+                                  : <span className="text-[12.5px] text-muted-foreground">No grade above</span>;
+                              })()}
                             </td>
                           )}
                           {mode === 'promote' && (
                             <td className="px-3 py-2">
                               <select
                                 value={r.action}
-                                onChange={(e) => setRow(r.student._id, { action: e.target.value as Action })}
+                                onChange={(e) => {
+                                  const action = e.target.value as Action;
+                                  // Retain copies the previous section too.
+                                  setRow(r.student._id, action === 'retain' ? { action, section: r.student.section ?? '' } : { action });
+                                }}
                                 className="rounded-md border border-border bg-card px-2 py-1 text-[12.5px]"
                                 aria-label={`Action for ${surnameFirst(r.student)}`}
                               >
-                                {r.alreadyHasYear ? (
-                                  <option value="update">Correct {toYear} record</option>
-                                ) : (
-                                  <>
-                                    {!graduating && <option value="promote">Promote to {target}</option>}
-                                    <option value="retain">Retain in {r.student.grade_level}</option>
-                                  </>
-                                )}
-                                <option value="skip">Skip</option>
+                                {(['promote', 'retain', 'skipgrade'] as const).map((a) => (
+                                  <option key={a} value={a} disabled={!canTake(r, a)}>
+                                    {ACTION_LABEL[a]}{gradeFor(r.student.grade_level ?? '', a) ? ` → ${gradeFor(r.student.grade_level ?? '', a)}` : ''}
+                                  </option>
+                                ))}
                               </select>
                             </td>
                           )}
@@ -797,7 +784,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
                               value={r.section}
                               onChange={(v) => setRow(r.student._id, { section: v })}
                               options={sections}
-                              disabled={mode === 'promote' ? r.action === 'skip' : !selected.has(r.student._id)}
+                              disabled={mode === 'promote' ? false : !selected.has(r.student._id)}
                               ariaLabel={`Section for ${surnameFirst(r.student)}`}
                               className="w-28 rounded-md border border-border px-2 py-1 text-[12.5px] disabled:opacity-50"
                             />
@@ -815,7 +802,7 @@ export const PromoteAssign = ({ onClose, schoolId, schoolName, nextYearStarted =
             <Notice variant={result.failed.length ? 'error' : 'success'}>
               {mode === 'transfer'
                 ? <>{result.created} moved within {fromYear}{result.corrected > 0 && `, ${result.corrected} had no ${fromYear} record so only enrolment changed`}, {result.skipped} not ticked.</>
-                : <>{result.created} moved into {toYear}{result.corrected > 0 && `, ${result.corrected} corrected`}, {result.skipped} skipped.</>}
+                : <>{result.created + result.corrected} updated for {toYear}{result.skipped > 0 && `, ${result.skipped} could not be placed (no grade above)`}.</>}
               {result.failed.length > 0 && (
                 <ul className="mt-1 list-inside list-disc">{result.failed.map((f) => <li key={f}>{f}</li>)}</ul>
               )}
