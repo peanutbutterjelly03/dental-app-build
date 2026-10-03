@@ -22,6 +22,7 @@ import { useStudents } from '../hooks/useStudents';
 import { useRPCTracking } from '../hooks/useRPCTracking';
 import { usePagination, PAGE_SIZE_OPTIONS } from './Pagination';
 import { apiClient, ApiError, isQueuedResponse } from '../api/client';
+import { OfflineDataStatus } from './OfflineDataStatus';
 import type { ApiSchool } from '../api/types';
 import { schoolYearLabel } from '../utils/schoolYear';
 import { calculateAge, getAgeGroup } from '../utils/age';
@@ -1171,6 +1172,7 @@ export const PatientList = () => {
                   {schoolStudents.length} {schoolStudents.length === 1 ? 'STUDENT' : 'STUDENTS'}{selectedSchool ? '' : ' ACROSS 3 SCHOOLS'}
                 </span>
               </div>
+              <OfflineDataStatus />
             </div>
             <div className="flex flex-shrink-0 items-center gap-2">
               {selectMode && tickedIds.size > 0 && (

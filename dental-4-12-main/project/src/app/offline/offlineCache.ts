@@ -1,17 +1,18 @@
-// Warming and clearing the per-user read cache (readCache.ts).
+// Warming and clearing what this device holds for offline use.
 //
-// The cache fills as pages are opened online. What it cannot hold is a page
-// nobody opened yet — and the field workflow is exactly "open the day's queued
-// children at a school with no signal". So while online we read the charts of the
-// students in the Charting Queue and the Treatment Queue (a handful, picked by
-// staff) through the same requests the chart page makes, which saves them.
+// Two layers (see readCache.ts and records.ts). EVERY student's chart data is
+// downloaded in the background by bulkSync.ts, so any chart opens offline even if
+// nobody opened it here. This file also pre-reads the charts of the students in
+// the Charting and Treatment queues straight away (a handful, picked by staff), so
+// the day's children are ready within seconds while the full download is still
+// running.
 //
-// Deliberately NOT done: pre-reading the whole roster. /stats/student-rows
-// decrypts every student on every request (see utils/apiCache.ts); doing that at
-// startup for a list staff may never open is the wrong trade. The roster is saved
-// the first time Student Records is opened online.
+// The cost of the full download is real: the server decrypts every student on the
+// way (see utils/apiCache.ts). bulkSync therefore runs only when the server says
+// something changed since the last complete run.
 import { apiClient } from '../api/client';
-import { clearReadCache } from './db';
+import { clearReadCache, clearOfflineRecords } from './db';
+import { startBulkSync, resetOfflineDataStatus } from './bulkSync';
 import { getQueuedStudentIds } from '../utils/queueStorage';
 import { getTreatmentQueueStudentIds } from '../utils/treatmentQueueStorage';
 
@@ -56,6 +57,9 @@ async function warmStudentChart(studentId: string): Promise<void> {
 export async function warmOfflineCache(): Promise<void> {
   try {
     if (!navigator.onLine) return;
+    // EVERY student's chart, in the background (bulkSync.ts). It decides for itself
+    // whether anything has changed, so it is not held back by the throttle below.
+    void startBulkSync();
     const last = Number(localStorage.getItem(WARM_STAMP_KEY) ?? 0);
     if (Date.now() - last < WARM_EVERY_MS) return;
     localStorage.setItem(WARM_STAMP_KEY, String(Date.now()));
@@ -79,6 +83,8 @@ export async function warmOfflineCache(): Promise<void> {
 export async function clearOfflineReadCaches(): Promise<void> {
   try {
     await clearReadCache();
+    await clearOfflineRecords();
+    resetOfflineDataStatus();
     localStorage.removeItem(WARM_STAMP_KEY);
   } catch {
     // Nothing was saved to clear.

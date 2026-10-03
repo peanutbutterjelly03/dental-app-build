@@ -1,5 +1,6 @@
 import { enqueueWrite, getQueue } from '../offline/db';
 import { saveRead, loadRead, findCachedRecord, isCacheablePath, referencesPendingRecord } from '../offline/readCache';
+import { deriveFromRecords } from '../offline/records';
 import { applyPendingWrites, parsePath, OVERLAY_RESOURCES } from '../offline/overlay';
 import { notifyQueueChange } from '../offline/queueEvents';
 import { loadUserCache } from '../offline/authCache';
@@ -167,12 +168,15 @@ async function withPendingWrites(path: string, data: unknown): Promise<unknown> 
 
 async function readFromCache<T>(path: string, networkError?: unknown): Promise<T> {
   const cached = await loadRead(path);
-  if (!cached) {
+  // Never opened on this device, but every student's chart was downloaded by the
+  // background sync (offline/bulkSync.ts): answer from those records.
+  const data = cached ? cached.data : await deriveFromRecords(path);
+  if (data === undefined) {
     // A plain Error, not an ApiError: AuthContext reads "not an ApiError" as
     // "could not ask the server", which is what this is.
-    throw networkError instanceof Error ? networkError : new Error("You're offline and this has not been opened on this device yet.");
+    throw networkError instanceof Error ? networkError : new Error("You're offline and this has not been downloaded to this device yet.");
   }
-  return (await withPendingWrites(path, cached.data)) as T;
+  return (await withPendingWrites(path, data)) as T;
 }
 
 // Reads of the offline modules: network first, saved per user on success, and
