@@ -13,8 +13,8 @@ snapshot), [`../DESIGN.md`](../DESIGN.md) (visual system).
 
 ```
 dental-app-build/
-├── client/                       ← FRONTEND (React + Vite) — own package.json
-│   ├── src/
+├── dental-4-12-main/project/     ← the app (frontend + backend together)
+│   ├── src/                      ← FRONTEND (React + Vite)
 │   │   ├── app/
 │   │   │   ├── components/       screens and UI components
 │   │   │   ├── api/              fetch wrappers calling /api/*
@@ -26,22 +26,16 @@ dental-app-build/
 │   │   │   └── routes.tsx        client-side route table
 │   │   ├── styles/               theme.css (design tokens)
 │   │   └── sw.ts                 service worker (PWA/offline)
-│   ├── public/                   static assets (logo, icons)
-│   ├── index.html · vite.config.ts · tsconfig*.json · postcss.config.mjs
-├── server/                       ← BACKEND (Express, MVC) — own package.json, .env
-│   ├── app.ts · local.ts         Express app / local entry point
-│   ├── routes/                   URL → handler wiring
-│   ├── controllers/              request handlers with real logic
-│   ├── models/                   Mongoose schemas (the 16 ERD models)
-│   ├── middleware/               auth.ts, roleGroups.ts
-│   ├── utils/                    jwt, mailer, password, auditLog, asyncHandler
-│   ├── config/                   db connection
-│   ├── scripts/                  seeders (seed:admin, seed:students, …)
-│   └── .env.example              backend env template (copy to server/.env)
-├── api/index.ts                  ← Vercel serverless entry (re-exports server/app)
-├── vercel.json                   Vercel build + rewrites (builds client/, serves client/dist)
-├── e2e/                          Playwright verification + figure-capture scripts
-├── package.json                  npm workspaces root (client + server), forwards scripts
+│   ├── server/                   ← BACKEND (Express, MVC)
+│   │   ├── routes/               URL → handler wiring
+│   │   ├── controllers/          request handlers with real logic
+│   │   ├── models/               Mongoose schemas (the 16 ERD models)
+│   │   ├── middleware/           auth.ts, roleGroups.ts
+│   │   ├── utils/                jwt, mailer, password, auditLog, asyncHandler
+│   │   ├── config/               db connection
+│   │   └── scripts/              seeders (seed:admin, seed:students, …)
+│   ├── api/index.ts              ← Vercel serverless entry (re-exports server/app)
+│   └── public/                   static assets (logo, icons, manifest)
 ├── ml-service/                   ← ML (Python, FastAPI on Render)
 │   ├── main.py                   FastAPI app
 │   ├── predictor.py              the ONLY thing Express calls
@@ -83,8 +77,8 @@ JSON response  (encrypted fields decrypted on the way out)
 ```
 
 In development the frontend runs on `:5173` and proxies `/api` to Express on `:4000`
-(`client/vite.config.ts`). In production both are served by Vercel, with Express running as a
-serverless function via the root `api/index.ts`.
+(`vite.config.ts`). In production both are served by Vercel, with Express running as a
+serverless function via `api/index.ts`.
 
 ---
 

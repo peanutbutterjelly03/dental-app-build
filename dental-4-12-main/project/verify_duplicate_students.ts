@@ -5,11 +5,11 @@
 // Case 9 is the useful one to re-run later: it reports duplicate students that
 // are ALREADY in the database. This sprint only warns at entry, so anything it
 // lists there predates the guard and has to be dealt with by hand.
-import "../server/dnsFix.js";
+import "./server/dnsFix.js";
 import "dotenv/config";
-import { connectDB } from "../server/config/db.js";
-import Student from "../server/models/Student.js";
-import { findDuplicateStudents } from "../server/utils/studentDuplicates.js";
+import { connectDB } from "./server/config/db.js";
+import Student from "./server/models/Student.js";
+import { findDuplicateStudents } from "./server/utils/studentDuplicates.js";
 import mongoose from "mongoose";
 
 const count = async (body: Record<string, unknown>) => (await findDuplicateStudents(body)).length;

@@ -152,9 +152,9 @@ and Chapter 4 §4.3 is marked `[PENDING]` for the same reason.
 | **Vite 6.4** + `@vitejs/plugin-react` | Dev server and production bundler |
 | **TypeScript 5.5** | Type checking across both frontend and server (`tsc --noEmit`, two configs) |
 | **tsx** | Runs the TypeScript server and seed scripts directly, no build step |
-| **Playwright 1.61** | Automated UI verification and Chapter 4 figure capture. Installed once at the repo root (`node_modules/`, workspace root devDependency); scripts live in `e2e/` and run with `server/` as the working directory so they find `server/.env` — e.g. `cd server && node ../e2e/verify_sprint66.mjs`. |
+| **Playwright 1.61** | Automated UI verification and Chapter 4 figure capture. Installed in `dental-4-12-main/project/node_modules`, **not** repo root — scripts must live and run there. |
 
-Reusable verification scripts, all in `e2e/`:
+Reusable verification scripts, all in `dental-4-12-main/project/`:
 `verify_sprint33.mjs` (25 responsive assertions), `verify_live_smoke.mjs`
 (11 end-to-end checks against production), `capture_figures.mjs`,
 `capture_ml_figures.mjs`, `capture_export.mjs`. Each accepts `BASE_URL` to run

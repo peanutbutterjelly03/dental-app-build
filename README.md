@@ -8,13 +8,13 @@ Capstone thesis build (Group 404, AY 2025-2026). A web application for managing 
 
 | Piece | Tech | Where |
 |---|---|---|
-| Frontend | React + Vite, Tailwind, PWA (offline queue + update prompt) | `client/src/` |
-| Backend | Node.js + Express (MVC), JWT auth in httpOnly cookies, RBAC (5 roles), field-level encryption, audit trail | `server/` |
+| Frontend | React + Vite, Tailwind, PWA (offline queue + update prompt) | `dental-4-12-main/project/src/` |
+| Backend | Node.js + Express (MVC), JWT auth in httpOnly cookies, RBAC (5 roles), field-level encryption, audit trail | `dental-4-12-main/project/server/` |
 | Database | MongoDB Atlas (16 models per the Chapter 3 ERD; soft delete everywhere — never hard delete) | — |
 | ML service | Python FastAPI + scikit-learn (Strategy Pattern, `predictor.py` sole entry point) | `ml-service/` |
-| OCR | Tesseract.js, client-side, scans paper DOH IPTR forms into the Add Student form | `client/src/app/utils/iptrOcr.ts` |
+| OCR | Tesseract.js, client-side, scans paper DOH IPTR forms into the Add Student form | `src/app/utils/iptrOcr.ts` |
 
-Deployment: frontend + backend on **Vercel** (Express runs as a serverless function via the root `api/index.ts`; `vercel.json` builds `client/` and serves `client/dist`), ML service on **Render**. Express is the only caller of the ML service (`POST /api/predictions/*` proxies with an API key).
+Deployment: frontend + backend on **Vercel** (Express runs as a serverless function via `api/index.ts`), ML service on **Render**. Express is the only caller of the ML service (`POST /api/predictions/*` proxies with an API key).
 
 ## Prerequisites
 
@@ -24,12 +24,12 @@ Deployment: frontend + backend on **Vercel** (Express runs as a serverless funct
 
 ## Environment variables
 
-All backend env lives in `server/.env` (**gitignored — never commit it**).
+All backend env lives in `dental-4-12-main/project/.env` (**gitignored — never commit it**).
 
 ### Creating your `.env`
 
 ```bash
-cd server
+cd dental-4-12-main/project
 cp .env.example .env      # PowerShell: Copy-Item .env.example .env
 ```
 
@@ -66,18 +66,18 @@ Full reference:
 
 ```bash
 git clone <repo-url>
-cd dental-app-build
+cd dental-app-build/dental-4-12-main/project
 npm install
 ```
 
-The repo is an npm-workspaces monorepo: `client/` (React + Vite) and `server/` (Express) each have their own `package.json`, and one `npm install` at the repo root installs both. Root scripts (`npm run dev`, `npm run dev:server`, `npm run seed:*`) forward to the right workspace.
+Everything (frontend, Express backend, seed and verification scripts) lives in that **one** `package.json` — there is no separate install for the server.
 
 Optional, depending on what you are doing:
 
 ```bash
 npx playwright install chromium              # only for the verification scripts below;
                                              # without it they fail with "browser not found"
-cd ml-service && pip install -r requirements.txt   # only for Risk Classification
+cd ../../ml-service && pip install -r requirements.txt   # only for Risk Classification
 ```
 
 Then create your `.env` as described above — the app will not start without `MONGODB_URI`.
@@ -94,7 +94,7 @@ With your own empty cluster you need no secrets from anyone: generate all of the
 
 ## Run locally
 
-Three processes, all from the repo root (ML service from `ml-service/`):
+Three processes, all from `dental-4-12-main/project/` (ML service from `ml-service/`):
 
 ```bash
 # 1. Backend (Express on :4000)
@@ -104,7 +104,7 @@ npm run dev:server
 npm run dev
 
 # 3. ML service (optional — only needed for Risk Classification)
-cd ml-service && uvicorn main:app --port 8000
+cd ../../ml-service && uvicorn main:app --port 8000
 ```
 
 Notes:
@@ -179,7 +179,7 @@ git push          # that is the deploy
 
 > ⚠ This corrects an earlier instruction in this file that said pushing does *not* deploy and that `npx vercel --prod` was required. That was true early in the build and has been wrong since the 23h–27b sprints. Re-confirmed 2026-09-03: Sprints 94–97 reached production from pushes alone — the live CSS carried the new `#67687A` token and the live JS the notification bell, with no CLI deploy.
 
-The manual command still exists (`npx vercel --prod` (from the repo root)) but is only for forcing a redeploy without a commit.
+The manual command still exists (`cd dental-4-12-main/project && npx vercel --prod`) but is only for forcing a redeploy without a commit.
 
 **Verify a deploy actually landed** rather than assuming — a long-open tab can keep running the previous build (the app shows a "new version available" prompt, but only if the tab is looking):
 

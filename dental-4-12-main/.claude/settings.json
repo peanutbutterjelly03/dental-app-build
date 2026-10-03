@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npx vite *)",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Bash(cmd /c \"node_modules\\\\\\\\.bin\\\\\\\\vite build\")",
+      "Bash(cmd /c \"node_modules\\\\\\\\.bin\\\\\\\\vite.cmd build 2>&1\")",
+      "Bash(./node_modules/.bin/vite build *)",
+      "Bash(node node_modules/vite/bin/vite.js build)",
+      "Bash(node node_modules/typescript/bin/tsc --noEmit --target es2020 --moduleResolution bundler --jsx react-jsx --strict false)"
+    ]
+  }
+}

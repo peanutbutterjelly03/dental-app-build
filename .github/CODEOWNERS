@@ -29,9 +29,9 @@
 # Data model, encryption and auth. A careless change here can make existing
 # records permanently undecryptable (FIELD_ENCRYPTION_SECRET), break the
 # soft-delete guarantee, or widen access. See CLAUDE.md.
-/server/models/          @jirachi13
-/server/middleware/      @jirachi13
-/server/scripts/         @jirachi13
+/dental-4-12-main/project/server/models/          @jirachi13
+/dental-4-12-main/project/server/middleware/      @jirachi13
+/dental-4-12-main/project/server/scripts/         @jirachi13
 
 # CI and repo automation — the checks that gate merges.
 /.github/               @jirachi13

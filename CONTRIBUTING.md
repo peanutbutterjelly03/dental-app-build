@@ -15,11 +15,15 @@ in the browser.
    nothing works until you accept.
 2. Open the repo → **Code** (green button) → **Codespaces** tab → **Create codespace on
    main**. First build takes ~2–3 minutes while it pulls the image and runs `npm install`.
-3. In the Codespace terminal (it opens at the repo root), start the app:
+3. In the Codespace terminal, move into the app folder and start it:
 
    ```bash
+   cd dental-4-12-main/project
    npm run dev:host
    ```
+
+   The `cd` is required — the terminal opens at the repo root, where there is no
+   `package.json`. Without it you get `npm error code ENOENT`.
 
 4. Click **Open in Browser** on the port-5173 toast. (Missed it? **Ports** tab at the
    bottom → 🌐 next to 5173.)

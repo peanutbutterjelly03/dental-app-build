@@ -9,13 +9,13 @@ import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const REPO = resolve(HERE, '..');
+const REPO = resolve(HERE, '..', '..');
 const BASE = 'https://dental-app-build.vercel.app';
 const OUT = join(REPO, 'docs', 'figures');
 if (!existsSync(OUT)) mkdirSync(OUT, { recursive: true });
 
 const env = {};
-for (const line of readFileSync(join(HERE, '..', 'server', '.env'), 'utf8').split('\n')) {
+for (const line of readFileSync(join(HERE, '.env'), 'utf8').split('\n')) {
   const m = line.match(/^([A-Z_]+)=(.*)$/);
   if (m) env[m[1]] = m[2].trim();
 }

@@ -8,8 +8,10 @@
   // lines. Check the registry before changing this.
   "image": "mcr.microsoft.com/devcontainers/typescript-node:24-bookworm",
 
-  // The repo root holds the npm workspaces (client/ + server/), so `npm
-  // install` and `npm run dev` work from the default workspace folder.
+  // The app is nested two levels down. Opening the container straight into
+  // it means terminals land where package.json is, instead of at the repo
+  // root where `npm install` would fail.
+  "workspaceFolder": "/workspaces/dental-app-build/dental-4-12-main/project",
 
   "postCreateCommand": "npm install",
 

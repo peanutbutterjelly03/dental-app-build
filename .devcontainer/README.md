@@ -6,11 +6,15 @@ For a collaborator doing UI work with **no local setup** — no Node, no MongoDB
 
 1. On the repo page: **Code → Codespaces → Create codespace on main**.
 2. Wait for `npm install` to finish (first build ~2–3 min).
-3. Run it from the repo root (where the terminal opens):
+3. Move into the app folder and run it:
 
    ```bash
+   cd dental-4-12-main/project
    npm run dev:host
    ```
+
+   The `cd` is required — the terminal opens at the repo root despite the
+   `workspaceFolder` setting, and there is no `package.json` there.
 
 4. Click the forwarded **5173** link when it pops up.
 
@@ -23,7 +27,7 @@ the browser tab would hang with nothing served.
 **Works:** every screen, all components, styling, layout, routing, Tailwind, hot reload.
 The frontend reads no `import.meta.env` variables, so there is nothing to configure.
 
-**Doesn't work:** anything hitting the API. `client/vite.config.ts` proxies `/api` to
+**Doesn't work:** anything hitting the API. `vite.config.ts` proxies `/api` to
 `localhost:4000`, and no server runs there by default — those calls fail. Expect login
 and any data-loading screen to error out.
 
@@ -37,8 +41,9 @@ secrets. `.env` is gitignored on purpose and is **not** in this container.
 
 ## Scope note
 
-The container opens at the repo root, so `client/`, `server/`, `docs/`, `HANDOFF.md` and
-`ml-service/` are all in the default view.
+The container opens at `dental-4-12-main/project`, so the file explorer shows the app
+only — `docs/`, `HANDOFF.md`, and `ml-service/` are still on disk, one level up at
+`/workspaces/dental-app-build`, just not in the default view.
 
 ## Contributing back
 

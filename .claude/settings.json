@@ -1,13 +1,14 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx tsc -p client/tsconfig.json --noEmit)",
-      "Bash(npx tsc -p server/tsconfig.json --noEmit)",
-      "Bash(npm run typecheck)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(npx tsc -p tsconfig.server.json --noEmit)",
+      "Bash(./node_modules/.bin/tsc --noEmit)",
       "Bash(npx vercel ls)",
       "Bash(npx vercel ls *)",
       "Bash(npx vercel inspect *)",
-      "PowerShell(npm run typecheck)",
+      "PowerShell(npx tsc --noEmit)",
+      "PowerShell(npx tsc -p tsconfig.server.json --noEmit)",
       "PowerShell(npx vercel ls *)",
       "PowerShell(npx vercel inspect *)",
       "PowerShell(Get-Content *)",
@@ -15,9 +16,7 @@
       "PowerShell(Get-Process *)",
       "PowerShell(Get-CimInstance *)",
       "PowerShell(Select-String *)",
-      "PowerShell(Test-Path *)",
-      "Bash(npm run *)",
-      "Bash(npx vite *)"
+      "PowerShell(Test-Path *)"
     ]
   },
   "hooks": {
