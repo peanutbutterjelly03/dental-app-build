@@ -113,14 +113,6 @@ export function useDentalChartData(studentId: string | undefined) {
       endLoad();
       return;
     }
-    // Added on this device while offline and not synced yet: there is no server
-    // record to read, and `pending-<n>` is not an id the API understands. Say
-    // so plainly rather than let the request fail with an unreadable error.
-    if (studentId.startsWith('pending-')) {
-      setError("This student was added on this device and hasn't synced yet. Their chart opens once you're back online.");
-      endLoad();
-      return;
-    }
     beginLoad();
     try {
       // Every list below is fetched FILTERED to this student (Sprint 48).

@@ -6,7 +6,7 @@
 import { clientsClaim } from 'workbox-core';
 import { precacheAndRoute, cleanupOutdatedCaches, createHandlerBoundToURL } from 'workbox-precaching';
 import { registerRoute, NavigationRoute } from 'workbox-routing';
-import { NetworkFirst, CacheFirst } from 'workbox-strategies';
+import { CacheFirst } from 'workbox-strategies';
 import { processQueue } from './app/offline/queueProcessor';
 
 declare const self: ServiceWorkerGlobalScope;
@@ -29,59 +29,14 @@ registerRoute(
   new CacheFirst({ cacheName: 'google-fonts-cache' }),
 );
 
-// /stats/* is COMPUTED, frequently-changing data (queue membership, RPC due
-// dates, pipeline status) with its own careful React-level cache +
-// invalidation (src/app/utils/apiCache.ts) already sitting on top of it.
-// Registered BEFORE the general NetworkFirst route below (Workbox matches
-// registration order, first wins) so it never touches Cache Storage at all
-// -- NetworkFirst's 4s timeout was silently handing back a STALE cached
-// response on nothing worse than a slow response (the encrypted-field
-// decryption these routes do is real backend work, per apiCache.ts's own
-// comment), and no amount of invalidating the React-level cache could ever
-// reach into the SW's separate Cache Storage to clear that copy. A reload
-// "fixed" it only because it happened to retry inside the 4s window (user,
-// 2026-09-28: needed a tab switch + reload before a real change showed up
-// in the Treatment Queue). Better to fail loudly offline (the app already
-// shows an offline banner) than silently show numbers that were true four
-// seconds — or four requests — ago.
-//
-// OFFLINE (this route used to be NetworkOnly): the Student Records list, the
-// Charting Queue and the Treatment Queue are all built from /stats/*, so with
-// NetworkOnly they were blank the moment the device lost its connection — the
-// write queue worked, but there was nothing to look at while writing to it.
-// The rule that keeps the original stale-data fix intact: the network ALWAYS
-// wins while it answers, however slowly (no timeout, unlike the NetworkFirst
-// route below), and the cached copy is returned ONLY when the fetch itself
-// fails — i.e. the device is actually offline. A slow server can therefore
-// never be mistaken for an offline one.
-const STATS_CACHE = 'stats-cache';
-registerRoute(
-  ({ url, request }) => request.method === 'GET' && url.pathname.startsWith('/api/stats/'),
-  async ({ request, event }) => {
-    try {
-      const response = await fetch(request);
-      if (response.ok) {
-        const copy = response.clone();
-        event.waitUntil(caches.open(STATS_CACHE).then((cache) => cache.put(request, copy)));
-      }
-      return response;
-    } catch (err) {
-      const cached = await caches.match(request, { cacheName: STATS_CACHE });
-      if (cached) return cached;
-      throw err;
-    }
-  },
-);
-
-// NetworkFirst for every OTHER API read: always prefer live data when
-// there's any connection, only fall back to the last-cached response when
-// the network genuinely fails. GET only — writes are handled entirely by
-// the app's own offline queue (src/app/api/client.ts), never cached/
-// replayed by the SW.
-registerRoute(
-  ({ url, request }) => request.method === 'GET' && url.pathname.startsWith('/api/'),
-  new NetworkFirst({ cacheName: 'api-cache', networkTimeoutSeconds: 4 }),
-);
+// API reads are NOT cached here any more. The service worker's URL-keyed Cache
+// Storage could only replay a response it had happened to see, was shared by
+// every user of the browser, and (NetworkFirst's 4s timeout) could hand back a
+// stale copy on nothing worse than a slow server. Reads of the offline modules
+// are now saved per signed-in user in IndexedDB by the app itself
+// (src/app/offline/readCache.ts), answered from there when the network fails,
+// with unsynced changes laid over them (overlay.ts). The worker's job is the app
+// shell (precache above) and Background Sync (below).
 
 // Drains the same IndexedDB write queue Sprint 19 built, triggered by the
 // Background Sync API — this is what lets queued writes sync even if the

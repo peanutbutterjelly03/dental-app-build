@@ -1,29 +1,33 @@
-// Offline READS. The write queue (db.ts / queueProcessor.ts) lets staff save
-// while offline; this is what lets them open a record to save against.
+// Warming and clearing the per-user read cache (readCache.ts).
 //
-// The service worker caches every API read it sees, so any page already opened
-// while online works offline. What it cannot do is cache a page nobody opened
-// yet — and the field workflow is exactly "open the day's queued children at a
-// school with no signal". So while online we pre-read the charts of the
+// The cache fills as pages are opened online. What it cannot hold is a page
+// nobody opened yet — and the field workflow is exactly "open the day's queued
+// children at a school with no signal". So while online we read the charts of the
 // students in the Charting Queue and the Treatment Queue (a handful, picked by
-// staff), through the same URLs useDentalChartData asks for, so the service
-// worker has them before the connection goes.
+// staff) through the same requests the chart page makes, which saves them.
 //
 // Deliberately NOT done: pre-reading the whole roster. /stats/student-rows
-// decrypts every student on every request (see utils/apiCache.ts); doing that
-// at startup for a list staff may never open is the wrong trade. The roster
-// is cached the first time Student Records is opened online.
+// decrypts every student on every request (see utils/apiCache.ts); doing that at
+// startup for a list staff may never open is the wrong trade. The roster is saved
+// the first time Student Records is opened online.
+import { apiClient } from '../api/client';
+import { clearReadCache } from './db';
 import { getQueuedStudentIds } from '../utils/queueStorage';
 import { getTreatmentQueueStudentIds } from '../utils/treatmentQueueStorage';
 
-const API_CACHES = ['api-cache', 'stats-cache'];
+// Cache Storage copies left by earlier service workers (they cached API reads).
+const LEGACY_CACHES = ['api-cache', 'stats-cache'];
 const WARM_STAMP_KEY = 'floral_offline_warm_at';
 const WARM_EVERY_MS = 10 * 60 * 1000;
 const MAX_STUDENTS = 25;
 
+/** Goes through apiClient.get on purpose: that is what saves the response. */
 async function readJson(path: string): Promise<unknown> {
-  const res = await fetch(`/api${path}`, { credentials: 'include' });
-  return res.ok ? res.json() : null;
+  try {
+    return await apiClient.get(path);
+  } catch {
+    return null;
+  }
 }
 
 /** The same requests, in the same shape, as hooks/useDentalChartData.ts. If
@@ -69,15 +73,19 @@ export async function warmOfflineCache(): Promise<void> {
   }
 }
 
-/** Sign-out on a shared clinic PC: the cached reads hold decrypted student
+/** Sign-out on a shared clinic PC: the saved reads hold decrypted student
  *  records, so they go with the session. Unsynced WRITES are untouched — they
  *  stay queued under their owner (SEC-27) and sync when that person signs in. */
 export async function clearOfflineReadCaches(): Promise<void> {
   try {
-    if (!('caches' in globalThis)) return;
-    await Promise.all(API_CACHES.map((name) => caches.delete(name)));
+    await clearReadCache();
     localStorage.removeItem(WARM_STAMP_KEY);
   } catch {
-    // Cache API unavailable — nothing was cached to clear.
+    // Nothing was saved to clear.
+  }
+  try {
+    if ('caches' in globalThis) await Promise.all(LEGACY_CACHES.map((name) => caches.delete(name)));
+  } catch {
+    // Cache API unavailable.
   }
 }

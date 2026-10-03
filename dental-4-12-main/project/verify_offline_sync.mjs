@@ -1,28 +1,33 @@
 // Offline sync, end to end, in real Chromium against a MOCK API (no database).
 //
-// Phase 1 (vite dev server)  — the write queue: an offline-created student, its
-//   year record, a dental chart and tooth records are queued with `pending-<n>`
-//   placeholders; on reconnect they must reach the server in FIFO order WITH
-//   THEIR REAL IDS, the queue must empty, and the "back online" dialog must list
-//   what synced. A write whose parent was discarded must be flagged, not sent.
-// Phase 2 (vite preview, real service worker) — offline READS: a /api/stats/*
-//   response seen online is served from cache when the network is gone, and an
-//   unseen one still fails.
+// Phase 1 — the write queue: an offline-created student, its year record, a dental
+//   chart and tooth records are queued with `pending-<n>` placeholders; on reconnect
+//   they must reach the server in FIFO order WITH THEIR REAL IDS, the queue must
+//   empty, and the "back online" dialog must list what synced. A write whose parent
+//   was discarded must be flagged, not sent.
+// Phase 1b — reading what only exists on this device: while offline, those same
+//   pending records must read back (student, year record, chart, teeth with the
+//   offline edit applied) and NO request naming a `pending-` id may reach the server.
+// Phase 2 — the per-user IndexedDB read cache: a read seen online is answered when the
+//   network is gone, an unseen one fails, one user can never read another's cache,
+//   sign-out clears it, and when online the live server wins.
+// All of it runs on the vite DEV server (no service worker involved).
 //
-// Usage: npm run build && node verify_offline_sync.mjs
+// Usage: node verify_offline_sync.mjs
 import http from 'node:http';
 import { spawn } from 'node:child_process';
 import { chromium } from 'playwright';
 
 const DEV = 'http://localhost:5173';
-const PREVIEW = 'http://localhost:4173';
 let pass = 0, fail = 0;
 const check = (name, ok, extra = '') => { ok ? pass++ : fail++; console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok ? '' : `  ${extra}`}`); };
 
 // ── mock API ────────────────────────────────────────────────────────────────
 const log = [];
+const gets = [];
 const id24 = (tag, n = 0) => (tag + String(n)).padEnd(24, '0').slice(0, 24);
 let toothN = 0;
+let liveName = 'Cruz, Juan';
 const api = http.createServer((req, res) => {
   let raw = '';
   req.on('data', (c) => (raw += c));
@@ -30,9 +35,10 @@ const api = http.createServer((req, res) => {
     const body = raw ? JSON.parse(raw) : undefined;
     const path = req.url.split('?')[0];
     if (req.method !== 'GET') log.push({ method: req.method, path, body });
+    else gets.push(req.url);
     const send = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); };
     if (path.startsWith('/api/auth/')) return send(401, { error: 'no session' });
-    if (path === '/api/stats/student-rows') return send(200, [{ id: id24('s'), name: 'Cruz, Juan' }]);
+    if (path === '/api/stats/student-rows') return send(200, [{ id: id24('s'), name: liveName }]);
     if (req.method === 'POST' && path === '/api/students') return send(201, { _id: id24('s'), ...body });
     if (req.method === 'POST' && path === '/api/student-iptrs') return send(201, { _id: id24('i'), ...body });
     if (req.method === 'POST' && path === '/api/dental-charts') return send(201, { _id: id24('c'), ...body });
@@ -89,6 +95,24 @@ try {
   check('all 7 writes are queued locally', queued.count === 7, `got ${queued.count}`);
   check('nothing reached the server while offline', log.length === 0, JSON.stringify(log));
 
+  // ── Phase 1b: read the records that only exist on this device ──────────
+  const reads = await page.evaluate(async () => {
+    const { apiClient } = window.__m;
+    const queue = await window.__m.getQueue();
+    const idOf = (endpoint) => `pending-${queue.find((w) => w.endpoint === endpoint && w.method === 'POST')?.id}`;
+    const sid = idOf('/students');
+    const student = await apiClient.get(`/students/${sid}`);
+    const iptrs = await apiClient.get(`/student-iptrs?student_id=${sid}`);
+    const charts = await apiClient.get(`/dental-charts?iptr_id=${iptrs[0]._id}`);
+    const teeth = await apiClient.get(`/tooth-records?chart_id=${charts[0]._id}`);
+    const none = await apiClient.get(`/tooth-records?chart_id=pending-424242`);
+    return { student, iptrs: iptrs.length, charts: charts.length, teeth: teeth.map((t) => `${t.tooth_number}:${t.condition}`).sort() };
+  });
+  check('a student that exists only on this device reads back', reads.student.last_name === 'Cruz' && reads.student._pending === true, JSON.stringify(reads.student));
+  check('its year record and chart read back', reads.iptrs === 1 && reads.charts === 1, JSON.stringify(reads));
+  check('its teeth read back, with the offline edit applied', JSON.stringify(reads.teeth) === JSON.stringify(['11:Filled', '12:Caries']), JSON.stringify(reads.teeth));
+  check('no request naming a pending- id reached the server', !gets.some((u) => u.includes('pending-')), gets.filter((u) => u.includes('pending-')).join(' '));
+
   await ctx.setOffline(false);
   await page.evaluate(() => window.__m.processQueue());
   await page.waitForTimeout(500);
@@ -118,36 +142,42 @@ try {
   check('dialog groups tooth records with a count', /Tooth record added\s*×2/.test(text), text);
   check('dialog shows the dental chart and year record', /Dental chart added/.test(text) && /School year record added/.test(text), text);
   check('dialog reports the change that could not sync', /Not saved/.test(text) && /discarded/.test(text), text);
-  await page.screenshot({ path: process.env.SHOTS_DIR ? `${process.env.SHOTS_DIR}/offline-sync-dialog.png` : 'offline-sync-dialog.png' });
+  if (process.env.SHOTS_DIR) await page.screenshot({ path: `${process.env.SHOTS_DIR}/offline-sync-dialog.png` });
   await ctx.close();
   servers.pop().kill();
 
-  // ── Phase 2: offline reads through the real service worker ─────────────
-  start(['preview', '--port', '4173', '--strictPort']);
-  await waitFor(PREVIEW);
+  // ── Phase 2: the per-user read cache ───────────────────────────────────
   const ctx2 = await browser.newContext();
-  const page2 = await ctx2.newPage();
-  await page2.goto(PREVIEW + '/');
-  await page2.evaluate(() => navigator.serviceWorker.ready);
-  await page2.reload(); // let the worker take control of the page
-  await page2.waitForFunction(() => !!navigator.serviceWorker.controller);
-
-  const online = await page2.evaluate(() => fetch('/api/stats/student-rows').then((r) => r.json()));
-  check('stats read works online', online[0]?.name === 'Cruz, Juan');
-  await page2.waitForTimeout(500); // let the worker finish writing the cache copy
+  const p2 = await ctx2.newPage();
+  await p2.goto(DEV + '/');
+  await p2.waitForTimeout(1500);
+  await p2.evaluate(async () => {
+    sessionStorage.setItem('floral_cached_user', JSON.stringify({ id: 'u1', name: 'One', email: 'one@x.test', role: 'dentist', schools: [] }));
+    window.__m = { ...(await import('/src/app/api/client.ts')), ...(await import('/src/app/offline/offlineCache.ts')) };
+  });
+  const seen = await p2.evaluate(() => window.__m.apiClient.get('/stats/student-rows'));
+  check('a read works online', seen[0]?.name === 'Cruz, Juan');
+  await p2.waitForTimeout(400); // let the background save finish
 
   await ctx2.setOffline(true);
-  const offline = await page2.evaluate(() => fetch('/api/stats/student-rows').then((r) => r.json()).catch((e) => `ERR ${e.message}`));
-  check('stats read is served from cache when offline', Array.isArray(offline) && offline[0]?.name === 'Cruz, Juan', JSON.stringify(offline));
-  const unseen = await page2.evaluate(() => fetch('/api/stats/never-seen').then((r) => r.status).catch(() => 'network-error'));
-  check('a stats read never seen online still fails offline', unseen === 'network-error', String(unseen));
-  await ctx2.setOffline(false);
+  const off = await p2.evaluate(() => window.__m.apiClient.get('/stats/student-rows').catch((e) => `ERR ${e.message}`));
+  check('the same read is answered from the cache when offline', Array.isArray(off) && off[0]?.name === 'Cruz, Juan', JSON.stringify(off));
+  const unseen = await p2.evaluate(() => window.__m.apiClient.get('/students/' + 'f'.repeat(24)).then(() => 'answered', (e) => e.constructor.name));
+  check('a read never seen online fails offline (and is not mistaken for a server answer)', unseen === 'Error', unseen);
+  const other = await p2.evaluate(() => {
+    sessionStorage.setItem('floral_cached_user', JSON.stringify({ id: 'u2', name: 'Two', email: 'two@x.test', role: 'dentist', schools: [] }));
+    return window.__m.apiClient.get('/stats/student-rows').then(() => 'LEAKED', () => 'blocked');
+  });
+  check("another user on this device cannot read the first user's cache", other === 'blocked', other);
+  await p2.evaluate(() => sessionStorage.setItem('floral_cached_user', JSON.stringify({ id: 'u1', name: 'One', email: 'one@x.test', role: 'dentist', schools: [] })));
+  await p2.evaluate(() => window.__m.clearOfflineReadCaches());
+  const cleared = await p2.evaluate(() => window.__m.apiClient.get('/stats/student-rows').then(() => 'still there', () => 'gone'));
+  check('sign-out clears the cache', cleared === 'gone', cleared);
 
-  // Online again: the network must win over the cache (no stale numbers).
-  api.removeAllListeners('request');
-  api.on('request', (req, res) => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify([{ id: 'x', name: 'Fresh' }])); });
-  const fresh = await page2.evaluate(() => fetch('/api/stats/student-rows').then((r) => r.json()));
-  check('when online the live server wins over the cached copy', fresh[0]?.name === 'Fresh', JSON.stringify(fresh));
+  await ctx2.setOffline(false);
+  liveName = 'Fresh, Maria';
+  const fresh = await p2.evaluate(() => window.__m.apiClient.get('/stats/student-rows'));
+  check('when online the live server answers', fresh[0]?.name === 'Fresh, Maria', JSON.stringify(fresh));
   await ctx2.close();
 } finally {
   await browser.close();

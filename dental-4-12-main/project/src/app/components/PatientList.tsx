@@ -702,17 +702,11 @@ export const PatientList = () => {
       await reloadStudents();
       setDuplicateWarning(null);
       // No connection: the student and their year record are queued on this
-      // device. Nothing to open yet — the chart needs the real record — so say
-      // so and stay on the list, where the new student already shows.
-      if (isQueuedResponse(created)) {
-        toast.success(`Student saved on this device: ${newPatient.lastName}, ${newPatient.firstName}. It will sync when you're back online.`);
-        setShowAddForm(false);
-        setNewPatient(BLANK_NEW_PATIENT);
-        setOcrConfidences({}); setOcrFindings([]); setOcrFindingsNote(null); setOcrSourceLabel(null);
-        return;
-      }
+      // device. The chart opens anyway: it is built from the queued records.
       toast.success(
-        yearOpened
+        isQueuedResponse(created)
+          ? `Student saved on this device: ${newPatient.lastName}, ${newPatient.firstName}. It will sync when you're back online.`
+          : yearOpened
           ? `Student added: ${newPatient.lastName}, ${newPatient.firstName} · ${schoolYearLabel()} record opened`
           : `Student added: ${newPatient.lastName}, ${newPatient.firstName} — but the ${schoolYearLabel()} record could not be opened. Add it from the chart.`,
       );

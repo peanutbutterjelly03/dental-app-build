@@ -12,8 +12,10 @@ import { isClaimable } from './queueRules';
 import { pendingRowIdsIn, replacePendingId } from './idRemap';
 
 const DB_NAME = 'floral-offline';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE = 'writeQueue';
+// v2: the per-user read cache (readCache.ts). The write queue is untouched.
+const READ_STORE = 'readCache';
 
 export interface QueuedWrite {
   id?: number;
@@ -55,8 +57,18 @@ function openDb(): Promise<IDBDatabase> {
         const store = db.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true });
         store.createIndex('timestamp', 'timestamp');
       }
+      if (!db.objectStoreNames.contains(READ_STORE)) {
+        const cache = db.createObjectStore(READ_STORE, { keyPath: 'key' });
+        cache.createIndex('ownerKey', 'ownerKey');
+      }
     };
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => {
+      const db = req.result;
+      // A newer version of the app in another tab wants to upgrade this
+      // database: step aside rather than block it forever.
+      db.onversionchange = () => db.close();
+      resolve(db);
+    };
     req.onerror = () => reject(req.error);
   });
 }
@@ -211,6 +223,59 @@ export async function completeWrite(rowId: number, realId: string | undefined): 
         cursor.continue();
       };
     }
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
+}
+
+// ── Per-user read cache (offline/readCache.ts) ─────────────────────────────
+export interface ReadCacheEntry {
+  /** `<ownerKey>|<path>` */
+  key: string;
+  ownerKey: string;
+  path: string;
+  data: unknown;
+  cachedAt: number;
+}
+
+export async function putReadCacheEntry(entry: ReadCacheEntry): Promise<void> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(READ_STORE, 'readwrite');
+    tx.objectStore(READ_STORE).put(entry);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
+}
+
+export async function getReadCacheEntry(key: string): Promise<ReadCacheEntry | undefined> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(READ_STORE, 'readonly').objectStore(READ_STORE).get(key);
+    req.onsuccess = () => resolve(req.result as ReadCacheEntry | undefined);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/** Every cached read belonging to one user. */
+export async function getReadCacheForOwner(ownerKey: string): Promise<ReadCacheEntry[]> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(READ_STORE, 'readonly').objectStore(READ_STORE).index('ownerKey').getAll(ownerKey);
+    req.onsuccess = () => resolve(req.result as ReadCacheEntry[]);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/** Sign-out on a shared PC: drop every user's cached reads. The write QUEUE is
+ *  deliberately left alone — unsynced work stays with its owner. */
+export async function clearReadCache(): Promise<void> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(READ_STORE, 'readwrite');
+    tx.objectStore(READ_STORE).clear();
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
     tx.onabort = () => reject(tx.error);
