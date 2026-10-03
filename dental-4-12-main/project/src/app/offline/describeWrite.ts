@@ -32,6 +32,18 @@ const NOUN: Record<string, string> = {
   referrals: 'Referral',
 };
 
+/** "appointment_datetime" -> "Appointment Datetime" */
+export function humanizeField(field: string): string {
+  return field.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** A value as a person would read it; empty ones say so instead of showing nothing. */
+export function formatValue(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '(empty)';
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  return String(value);
+}
+
 function humanize(segment: string): string {
   return segment.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }

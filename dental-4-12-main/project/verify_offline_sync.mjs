@@ -11,6 +11,9 @@
 // Phase 2 — the per-user IndexedDB read cache: a read seen online is answered when the
 //   network is gone, an unseen one fails, one user can never read another's cache,
 //   sign-out clears it, and when online the live server wins.
+// Phase 3 — conflicts: two offline edits collide with changes made elsewhere; the review
+//   pop-up shows both versions side by side, flags what the server changed, and each
+//   choice (use mine / use the server's) does what it says.
 // All of it runs on the vite DEV server (no service worker involved).
 //
 // Usage: node verify_offline_sync.mjs
@@ -28,6 +31,7 @@ const gets = [];
 const id24 = (tag, n = 0) => (tag + String(n)).padEnd(24, '0').slice(0, 24);
 let toothN = 0;
 let liveName = 'Cruz, Juan';
+const studentSection = {}; // what the mock server currently holds, per student id
 const api = http.createServer((req, res) => {
   let raw = '';
   req.on('data', (c) => (raw += c));
@@ -43,6 +47,8 @@ const api = http.createServer((req, res) => {
     if (req.method === 'POST' && path === '/api/student-iptrs') return send(201, { _id: id24('i'), ...body });
     if (req.method === 'POST' && path === '/api/dental-charts') return send(201, { _id: id24('c'), ...body });
     if (req.method === 'POST' && path === '/api/tooth-records') return send(201, { _id: id24('t', ++toothN), ...body });
+    const one = path.match(/^\/api\/students\/([0-9a-f]{24})$/);
+    if (req.method === 'GET' && one) return send(200, { _id: one[1], section: studentSection[one[1]] ?? 'A', grade_level: 'Grade 3' });
     if (req.method === 'PUT') return send(200, { _id: path.split('/').pop(), ...body });
     send(200, []);
   });
@@ -144,7 +150,6 @@ try {
   check('dialog reports the change that could not sync', /Not saved/.test(text) && /discarded/.test(text), text);
   if (process.env.SHOTS_DIR) await page.screenshot({ path: `${process.env.SHOTS_DIR}/offline-sync-dialog.png` });
   await ctx.close();
-  servers.pop().kill();
 
   // ── Phase 2: the per-user read cache ───────────────────────────────────
   const ctx2 = await browser.newContext();
@@ -179,6 +184,52 @@ try {
   const fresh = await p2.evaluate(() => window.__m.apiClient.get('/stats/student-rows'));
   check('when online the live server answers', fresh[0]?.name === 'Fresh, Maria', JSON.stringify(fresh));
   await ctx2.close();
+  // ── Phase 3: conflicts and the review pop-up ───────────────────────────
+  const A = id24('1'), B = id24('2');
+  const ctx3 = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const p3 = await ctx3.newPage();
+  await p3.goto(DEV + '/');
+  await p3.waitForTimeout(1500);
+  await p3.evaluate(async () => {
+    sessionStorage.setItem('floral_cached_user', JSON.stringify({ id: 'u1', name: 'One', email: 'one@x.test', role: 'dentist', schools: [] }));
+    window.__m = { ...(await import('/src/app/api/client.ts')), ...(await import('/src/app/offline/queueProcessor.ts')), ...(await import('/src/app/offline/db.ts')) };
+  });
+  await p3.evaluate(async ([a, b]) => { await window.__m.apiClient.get(`/students/${a}`); await window.__m.apiClient.get(`/students/${b}`); }, [A, B]);
+  await p3.waitForTimeout(500); // the saved copy is what each edit is later compared with
+  await ctx3.setOffline(true);
+  await p3.evaluate(async ([a, b]) => { await window.__m.apiClient.put(`/students/${a}`, { section: 'B' }); await window.__m.apiClient.put(`/students/${b}`, { section: 'B' }); }, [A, B]);
+  studentSection[A] = 'C'; studentSection[B] = 'C'; // someone else edited both in the meantime
+  log.length = 0;
+  await ctx3.setOffline(false);
+  await p3.evaluate(() => window.__m.processQueue());
+  await p3.waitForTimeout(600);
+  check('a clash is held, not sent', !log.some((l) => l.method === 'PUT' && l.path.startsWith('/api/students/')), JSON.stringify(log));
+  let summary = (await p3.locator('dialog[open]').innerText().catch(() => '')) || '';
+  check('the summary offers to review the clashes', /Review changes/.test(summary) && /Needs review/.test(summary), summary);
+  await p3.getByRole('button', { name: 'Review changes' }).click();
+  await p3.waitForTimeout(500);
+  const review = (await p3.locator('dialog[open]').innerText().catch(() => '')) || '';
+  check('the review pop-up lists both clashes', (review.match(/Student record updated/g) ?? []).length === 2, review);
+  check('it shows your version beside the server version', /Your version/.test(review) && /Server version/.test(review) && /\bB\b/.test(review) && /\bC\b/.test(review), review);
+  check('it flags what the server changed and what you started from', /Changed on the server/.test(review) && /You started from: A/.test(review), review);
+  if (process.env.SHOTS_DIR) await p3.screenshot({ path: `${process.env.SHOTS_DIR}/offline-conflict-review.png` });
+
+  // Use my version on the first card: asks to confirm, then sends it.
+  await p3.getByRole('button', { name: 'Use my version' }).first().click();
+  check('each choice asks to be confirmed', await p3.getByText('will replace what the server has').count() === 1);
+  await p3.getByRole('button', { name: 'Yes, use my version' }).click();
+  await p3.waitForTimeout(800);
+  const sent = log.filter((l) => l.method === 'PUT' && l.path.startsWith('/api/students/'));
+  check('"Use my version" sends that change', sent.length === 1 && sent[0].body.section === 'B', JSON.stringify(sent));
+
+  // Use the server version on the other: nothing is sent, the change is dropped.
+  await p3.getByRole('button', { name: 'Use the server version' }).first().click();
+  await p3.getByRole('button', { name: 'Yes, use the server version' }).click();
+  await p3.waitForTimeout(800);
+  const after3 = await p3.evaluate(async () => (await window.__m.getQueue()).length);
+  check('"Use the server version" sends nothing and leaves the queue empty', log.filter((l) => l.method === 'PUT').length === 1 && after3 === 0, `${log.length} ${after3}`);
+  check('the pop-up closes itself when nothing is left to review', await p3.locator('dialog[open]').count() === 0);
+  await ctx3.close();
 } finally {
   await browser.close();
   servers.forEach((p) => p.kill());

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Modal } from './Modal';
 import { subscribeSyncReport, groupSyncReport, type SyncReportItem } from '../offline/syncReport';
+import { requestConflictReview, isConflictReviewOpen } from '../offline/queueEvents';
 
 // "Back online" summary. Opens when the offline queue finishes a drain and lists
 // what happened to each change that was saved on this device — what reached the
@@ -14,7 +15,12 @@ export const SyncReportDialog = () => {
   const [items, setItems] = useState<SyncReportItem[] | null>(null);
 
   useEffect(
-    () => subscribeSyncReport((report) => setItems((prev) => [...(prev ?? []), ...report.items])),
+    () => subscribeSyncReport((report) => {
+      // While the conflict review is open, a change that synced is already shown
+      // by its card disappearing; only something that did NOT sync may interrupt.
+      const shown = isConflictReviewOpen() ? report.items.filter((i) => i.status !== 'synced') : report.items;
+      if (shown.length > 0) setItems((prev) => [...(prev ?? []), ...shown]);
+    }),
     [],
   );
 
@@ -77,13 +83,24 @@ export const SyncReportDialog = () => {
         <p className="text-xs text-muted-foreground">
           {problems > 0 ? 'Changes that did not sync are kept — open the Online/Offline pill at the top to retry or review them.' : 'Nothing else to do.'}
         </p>
-        <button
-          type="button"
-          onClick={close}
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
-        >
-          Close
-        </button>
+        <div className="flex flex-shrink-0 gap-2">
+          {items.some((i) => i.status === 'conflict') && (
+            <button
+              type="button"
+              onClick={() => { close(); requestConflictReview(); }}
+              className="rounded-lg border border-border bg-card px-4 py-2 text-sm font-semibold text-foreground hover:bg-muted"
+            >
+              Review changes
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={close}
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
+          >
+            Close
+          </button>
+        </div>
       </div>
     </Modal>
   );
