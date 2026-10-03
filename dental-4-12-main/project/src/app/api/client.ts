@@ -175,3 +175,13 @@ export const apiClient = {
   put: <T>(path: string, body?: unknown) => writeRequest<T>(path, "PUT", body),
   patch: <T>(path: string, body?: unknown) => writeRequest<T>(path, "PATCH", body),
 };
+
+/** True when the write was queued on this device rather than saved on the
+ *  server — queueWrite's synthetic response carries `_pending`. Callers use it
+ *  to say "saved on this device" instead of "saved", and to skip a reload that
+ *  would only read the stale cached copy. */
+export function isQueuedResponse(response: unknown): boolean {
+  return !!response && typeof response === 'object' && (response as { _pending?: boolean })._pending === true;
+}
+
+export const QUEUED_SAVE_MESSAGE = "Saved on this device. It will sync automatically when you're back online.";

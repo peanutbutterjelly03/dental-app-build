@@ -6,7 +6,7 @@
 import { clientsClaim } from 'workbox-core';
 import { precacheAndRoute, cleanupOutdatedCaches, createHandlerBoundToURL } from 'workbox-precaching';
 import { registerRoute, NavigationRoute } from 'workbox-routing';
-import { NetworkFirst, NetworkOnly, CacheFirst } from 'workbox-strategies';
+import { NetworkFirst, CacheFirst } from 'workbox-strategies';
 import { processQueue } from './app/offline/queueProcessor';
 
 declare const self: ServiceWorkerGlobalScope;
@@ -44,9 +44,33 @@ registerRoute(
 // in the Treatment Queue). Better to fail loudly offline (the app already
 // shows an offline banner) than silently show numbers that were true four
 // seconds — or four requests — ago.
+//
+// OFFLINE (this route used to be NetworkOnly): the Student Records list, the
+// Charting Queue and the Treatment Queue are all built from /stats/*, so with
+// NetworkOnly they were blank the moment the device lost its connection — the
+// write queue worked, but there was nothing to look at while writing to it.
+// The rule that keeps the original stale-data fix intact: the network ALWAYS
+// wins while it answers, however slowly (no timeout, unlike the NetworkFirst
+// route below), and the cached copy is returned ONLY when the fetch itself
+// fails — i.e. the device is actually offline. A slow server can therefore
+// never be mistaken for an offline one.
+const STATS_CACHE = 'stats-cache';
 registerRoute(
   ({ url, request }) => request.method === 'GET' && url.pathname.startsWith('/api/stats/'),
-  new NetworkOnly(),
+  async ({ request, event }) => {
+    try {
+      const response = await fetch(request);
+      if (response.ok) {
+        const copy = response.clone();
+        event.waitUntil(caches.open(STATS_CACHE).then((cache) => cache.put(request, copy)));
+      }
+      return response;
+    } catch (err) {
+      const cached = await caches.match(request, { cacheName: STATS_CACHE });
+      if (cached) return cached;
+      throw err;
+    }
+  },
 );
 
 // NetworkFirst for every OTHER API read: always prefer live data when

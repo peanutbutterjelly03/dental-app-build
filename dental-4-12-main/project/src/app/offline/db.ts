@@ -9,6 +9,7 @@
 // database is. Anything that must be true across contexts therefore has to live
 // on the ROW — see claimWrite.
 import { isClaimable } from './queueRules';
+import { pendingRowIdsIn, replacePendingId } from './idRemap';
 
 const DB_NAME = 'floral-offline';
 const DB_VERSION = 1;
@@ -67,6 +68,15 @@ export async function enqueueWrite(write: Omit<QueuedWrite, 'id' | 'timestamp' |
     const tx = db.transaction(STORE, 'readwrite');
     const req = tx.objectStore(STORE).add(record);
     req.onsuccess = () => resolve({ ...record, id: req.result as number });
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function getWrite(id: number): Promise<QueuedWrite | undefined> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(STORE, 'readonly').objectStore(STORE).get(id);
+    req.onsuccess = () => resolve(req.result as QueuedWrite | undefined);
     req.onerror = () => reject(req.error);
   });
 }
@@ -166,4 +176,43 @@ export function releaseClaim(id: number): Promise<void> {
 // baseline and re-flag the exact same conflict again.
 export function resolveConflictKeepMine(id: number): Promise<void> {
   return updateRecord(id, { status: 'pending', conflictServerRecord: undefined, baselineSnapshot: undefined });
+}
+
+/**
+ * A queued POST just succeeded and the server gave the record its real id.
+ * Deletes the row AND rewrites every later row that points at its
+ * `pending-<id>` placeholder, in ONE transaction.
+ *
+ * ⚠ ONE TRANSACTION, because the two halves are unsafe apart. Delete first and
+ * a crash before the rewrite leaves dependants pointing at an id that no longer
+ * resolves; rewrite first and a crash before the delete re-sends the parent,
+ * creating the student or chart twice.
+ */
+export async function completeWrite(rowId: number, realId: string | undefined): Promise<void> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    const store = tx.objectStore(STORE);
+    store.delete(rowId);
+    if (realId) {
+      const cursorReq = store.openCursor();
+      cursorReq.onsuccess = () => {
+        const cursor = cursorReq.result;
+        if (!cursor) return;
+        const row = cursor.value as QueuedWrite;
+        const refs = [...pendingRowIdsIn(row.endpoint), ...pendingRowIdsIn(row.body)];
+        if (refs.includes(rowId)) {
+          cursor.update({
+            ...row,
+            endpoint: replacePendingId(row.endpoint, rowId, realId),
+            body: replacePendingId(row.body, rowId, realId),
+          });
+        }
+        cursor.continue();
+      };
+    }
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
 }

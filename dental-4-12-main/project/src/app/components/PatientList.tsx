@@ -21,7 +21,7 @@ import { addQueuedStudentId, getQueuedStudentIds, removeQueuedStudentId, setQueu
 import { useStudents } from '../hooks/useStudents';
 import { useRPCTracking } from '../hooks/useRPCTracking';
 import { usePagination, PAGE_SIZE_OPTIONS } from './Pagination';
-import { apiClient, ApiError } from '../api/client';
+import { apiClient, ApiError, isQueuedResponse } from '../api/client';
 import type { ApiSchool } from '../api/types';
 import { schoolYearLabel } from '../utils/schoolYear';
 import { calculateAge, getAgeGroup } from '../utils/age';
@@ -701,6 +701,16 @@ export const PatientList = () => {
       }
       await reloadStudents();
       setDuplicateWarning(null);
+      // No connection: the student and their year record are queued on this
+      // device. Nothing to open yet — the chart needs the real record — so say
+      // so and stay on the list, where the new student already shows.
+      if (isQueuedResponse(created)) {
+        toast.success(`Student saved on this device: ${newPatient.lastName}, ${newPatient.firstName}. It will sync when you're back online.`);
+        setShowAddForm(false);
+        setNewPatient(BLANK_NEW_PATIENT);
+        setOcrConfidences({}); setOcrFindings([]); setOcrFindingsNote(null); setOcrSourceLabel(null);
+        return;
+      }
       toast.success(
         yearOpened
           ? `Student added: ${newPatient.lastName}, ${newPatient.firstName} · ${schoolYearLabel()} record opened`

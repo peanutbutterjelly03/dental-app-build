@@ -11,7 +11,11 @@ import { useToast } from './Toast';
 import { useStudentNav } from '../hooks/useStudentNav';
 import { validateStudentValues } from '../../../shared/studentValidation';
 import { useDentalChartData } from '../hooks/useDentalChartData';
-import { apiClient, ApiError } from '../api/client';
+import { apiClient, ApiError, isQueuedResponse, QUEUED_SAVE_MESSAGE } from '../api/client';
+import { useOfflineQueue, usePendingWritesFor } from '../hooks/useOfflineQueue';
+import { subscribeSyncReport } from '../offline/syncReport';
+import { unsyncedWritesFor, CHART_RESOURCES } from '../offline/pendingFor';
+import { Notice } from './Notice';
 import { toLocalDateString, formatDate } from '../utils/localDate';
 import { ageOn } from '../utils/age';
 import { schoolYearLabel } from '../utils/schoolYear';
@@ -34,7 +38,7 @@ import { ReferralsTab } from './ReferralsTab';
 import { HistoryTab } from './HistoryTab';
 import { DentalChartTab } from './DentalChartTab';
 import { emptyMed, medDraftFrom, emptyDiet, emptyOral, oralConditionChips, serviceChips, type MedicalHistoryDraft, type DietDraft, type OralDraft, type ServiceField } from './iptrDrafts';
-import type { ReferralType, ApiAppointment } from '../api/types';
+import type { ReferralType, ApiAppointment, ApiTreatment } from '../api/types';
 import {
   sectionBRows,
   teethByTreatment as teethByTreatmentCode,
@@ -143,6 +147,10 @@ export const DentalChart = () => {
   // School list comes from the DB now, not a hardcoded array (Sprint 60).
   const { schoolNames } = useSchools();
   const { student, schoolName, years, dentists, loading, error, reload } = useDentalChartData(id);
+
+  // The queue just drained (back online): re-read, so the real server records
+  // replace whatever this page was showing while changes were still pending.
+  useEffect(() => subscribeSyncReport(() => { void reload(); }), [reload]);
   const currentDentist = dentists.find((d) => d.user_id === user?.id);
 
   // ⚠ 'appointments' (the Consent tab) is gone as of Sprint 171 — six tabs,
@@ -399,6 +407,20 @@ export const DentalChart = () => {
         }
       : currentYearDataRaw),
     [currentYearDataRaw, selectedChartId],
+  );
+  // Offline: charting changes saved on this device and not yet synced for the
+  // year on screen. While any exist the chart cannot be saved again — the page
+  // is still showing the last SERVER copy (a reload would only re-read the
+  // stale cache), so a second save would write the same teeth a second time and
+  // open a second chart. It unlocks by itself once the queue drains.
+  const { queue: offlineQueue } = useOfflineQueue();
+  const chartUnsynced = useMemo(
+    () => unsyncedWritesFor(
+      offlineQueue,
+      currentYearData ? [currentYearData.iptr._id, ...currentYearData.charts.map((c) => c._id)] : [],
+      CHART_RESOURCES,
+    ),
+    [offlineQueue, currentYearData],
   );
   // Visit 1 / Visit 2 on Treatments Given (2026-09-25, reworked same day):
   // both visits share ONE dental chart now instead of each getting its own —
@@ -1099,6 +1121,12 @@ export const DentalChart = () => {
   // Persists the current year's chart + medical/diet/oral history for real.
   const handleSave = async () => {
     if (!currentYearData || !id) return;
+    if (chartUnsynced.length > 0) {
+      const message = "This chart has changes waiting to sync. You can save again once you're back online.";
+      setSaveError(message);
+      toast.error(message);
+      return;
+    }
     setSaving(true);
     setSaveError(null);
     setChartError(null);
@@ -1294,7 +1322,12 @@ export const DentalChart = () => {
         extraWrites.push(apiClient.put(`/dental-charts/${savedChartId}`, { date_charted: draftChartDate }));
       }
 
-      await Promise.all([...toothWrites, medWrite, dietWrite, oralWrite, ...extraWrites]);
+      const writeResults = await Promise.all([...toothWrites, medWrite, dietWrite, oralWrite, ...extraWrites]);
+      // Any write queued on this device (no connection) means the page must NOT
+      // reload: it would read the stale cached chart and look like the save
+      // vanished. The draft stays as entered, and the chart reloads itself when
+      // the queue syncs (subscribeSyncReport below).
+      const savedOffline = writeResults.some(isQueuedResponse);
       // Student Records' Status column and the Charting Queue's own status
       // both read /stats/student-rows -- without this, either would keep
       // showing this student's PRE-save pipeline stage until something else
@@ -1302,7 +1335,7 @@ export const DentalChart = () => {
       // be real time... without refreshing the page").
       invalidateCached('/stats/student-rows');
       invalidateCached('/stats/student-nav');
-      await reload();
+      if (!savedOffline) await reload();
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
       // The "Saved!" button label is an in-place echo for whoever is still
@@ -1310,7 +1343,7 @@ export const DentalChart = () => {
       // form, so someone who edited teeth further down never sees it. The
       // toast is what actually confirms the save. One message, not four:
       // the writes above are a single user action, not four separate ones.
-      toast.success('Chart saved.');
+      toast.success(savedOffline ? QUEUED_SAVE_MESSAGE : 'Chart saved.');
       // A charted student no longer belongs in the Dental Charts queue --
       // user, 2026-09-26: "when dental chart is marked or updated, the
       // queue should be gone" for that student. Harmless if they were never
@@ -1485,9 +1518,17 @@ export const DentalChart = () => {
 
 
   // Treatment History tab -- combined across all school years, most recent first.
+  // Treatment entries saved offline show up straight away (marked by the sync
+  // pill in the status strip) instead of vanishing until the queue syncs.
+  const pendingTreatmentWrites = usePendingWritesFor('/treatments');
   const allTreatments = useMemo(
-    () => years.flatMap((y) => y.treatments).sort((a, b) => b.date.localeCompare(a.date)),
-    [years],
+    () => [
+      ...years.flatMap((y) => y.treatments),
+      ...pendingTreatmentWrites
+        .filter((w) => years.some((y) => y.iptr._id === (w.body as { iptr_id?: string }).iptr_id))
+        .map((w) => ({ ...(w.body as object), _id: `pending-${w.id}`, isArchived: false }) as ApiTreatment),
+    ].sort((a, b) => b.date.localeCompare(a.date)),
+    [years, pendingTreatmentWrites],
   );
   const dentistNameById = useMemo(() => new Map(dentists.map((d) => [d._id, `Dr. ${d.first_name} ${d.last_name}`])), [dentists]);
 
@@ -1508,7 +1549,7 @@ export const DentalChart = () => {
     setTreatmentSaving(true);
     setTreatmentError(null);
     try {
-      await apiClient.post('/treatments', {
+      const savedTreatment = await apiClient.post('/treatments', {
         iptr_id: currentYearData.iptr._id,
         dentist_id: currentDentist._id,
         diagnosis: treatmentForm.diagnosis,
@@ -1516,8 +1557,8 @@ export const DentalChart = () => {
         remarks: treatmentForm.remarks,
         date: treatmentForm.date,
       });
-      await reload();
-      toast.success('Treatment entry saved.');
+      if (!isQueuedResponse(savedTreatment)) await reload();
+      toast.success(isQueuedResponse(savedTreatment) ? QUEUED_SAVE_MESSAGE : 'Treatment entry saved.');
       setTreatmentForm({ date: toLocalDateString(new Date()), diagnosis: '', treatmentDone: '', remarks: '' });
       setShowAddTreatment(false);
     } catch (err) {
@@ -1562,7 +1603,7 @@ export const DentalChart = () => {
     setReferralSaving(true);
     setReferralError(null);
     try {
-      await apiClient.post('/referrals', {
+      const savedReferral = await apiClient.post('/referrals', {
         iptr_id: currentYearData.iptr._id,
         // Nullable on the model: an aide can record a referral, and no dentist
         // record is linked to an aide's account.
@@ -1577,8 +1618,8 @@ export const DentalChart = () => {
         // dentist confirms that closing one out is a real part of her workflow.
         ...(referralForm.followUp ? { follow_up_date: referralForm.followUp } : {}),
       });
-      await reload();
-      toast.success('Referral recorded.');
+      if (!isQueuedResponse(savedReferral)) await reload();
+      toast.success(isQueuedResponse(savedReferral) ? QUEUED_SAVE_MESSAGE : 'Referral recorded.');
       setReferralForm({
         date: toLocalDateString(new Date()),
         referralType: 'higher_level',
@@ -1987,6 +2028,13 @@ export const DentalChart = () => {
                 </div>
               )}
             </div>
+            {chartUnsynced.length > 0 && (
+              <div className="px-4 pb-2">
+                <Notice variant="warning">
+                  This chart has changes saved on this device that haven&apos;t synced yet. They&apos;ll upload automatically when you&apos;re back online; saving again is paused until then.
+                </Notice>
+              </div>
+            )}
             {saveError && <p className="px-4 pb-2 text-xs text-destructive">{saveError}</p>}
           </div>
           {showStickyYearBar && years.length > 0 && (

@@ -1,5 +1,8 @@
-import { getQueue, removeFromQueue, markFailed, markAuthRequired, markConflict, resetToPending, resolveConflictKeepMine, claimWrite, releaseClaim, type QueuedWrite } from './db';
+import { getQueue, getWrite, completeWrite, removeFromQueue, markFailed, markAuthRequired, markConflict, resetToPending, resolveConflictKeepMine, claimWrite, releaseClaim, type QueuedWrite } from './db';
 import { notifyQueueChange } from './queueEvents';
+import { notifySyncReport, type SyncReportItem } from './syncReport';
+import { describeWrite } from './describeWrite';
+import { hasUnresolvedPending, pendingRowIdsIn } from './idRemap';
 import { isOwnedBy } from './queueRules';
 import { loadUserCache } from './authCache';
 
@@ -29,7 +32,7 @@ async function rejectionMessage(res: Response): Promise<string | undefined> {
   return error;
 }
 
-async function sendDirect(write: QueuedWrite): Promise<{ ok: boolean; status: number; message?: string }> {
+async function sendDirect(write: QueuedWrite): Promise<{ ok: boolean; status: number; message?: string; data?: { _id?: string } | null }> {
   const res = await fetch(`/api${write.endpoint}`, {
     method: write.method,
     credentials: 'include',
@@ -46,11 +49,11 @@ async function sendDirect(write: QueuedWrite): Promise<{ ok: boolean; status: nu
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(write.body),
       });
-      return { ok: retry.ok, status: retry.status, message: retry.ok ? undefined : await rejectionMessage(retry) };
+      return { ok: retry.ok, status: retry.status, message: retry.ok ? undefined : await rejectionMessage(retry), data: retry.ok ? await retry.json().catch(() => null) : undefined };
     }
   }
 
-  return { ok: res.ok, status: res.status, message: res.ok ? undefined : await rejectionMessage(res) };
+  return { ok: res.ok, status: res.status, message: res.ok ? undefined : await rejectionMessage(res), data: res.ok ? await res.json().catch(() => null) : undefined };
 }
 
 // Detects whether the server's current value for any field this write is
@@ -83,13 +86,20 @@ async function checkForConflict(write: QueuedWrite): Promise<Record<string, unkn
 export async function processQueue(): Promise<void> {
   if (processing || !navigator.onLine) return;
   processing = true;
+  // What this drain did, for the "back online" dialog (syncReport.ts).
+  const report: SyncReportItem[] = [];
   try {
     // SEC-27. Read once per drain rather than per row: the signed-in user
     // cannot change mid-drain without a page load, and a load starts a fresh
     // drain anyway.
     const currentUserId = loadUserCache()?.id ?? null;
     const queue = await getQueue();
-    for (const write of queue) {
+    for (const snapshot of queue) {
+      // Re-read the row: an earlier row in this same drain may have just
+      // rewritten its `pending-<id>` placeholders to real ids (completeWrite),
+      // and the snapshot above would still hold the old body.
+      const write = await getWrite(snapshot.id!);
+      if (!write) continue; // discarded while this drain was running
       if (write.status === 'failed' || write.status === 'auth') break;
       if (write.status === 'conflict') continue; // already flagged, waiting on manual resolution — doesn't block others
 
@@ -98,6 +108,22 @@ export async function processQueue(): Promise<void> {
       // conflict does: a row waiting for its owner to sign in must not wedge
       // the writes of the person actually sitting here.
       if (!isOwnedBy(write, currentUserId)) continue;
+
+      // Depends on a record that was created offline and has not synced yet.
+      // FIFO normally guarantees the parent went first, so reaching here means
+      // it is still waiting (held for its owner) or was discarded. Waiting: hold
+      // this row too. Discarded: this write can never succeed, so say so rather
+      // than leave it pending forever.
+      if (hasUnresolvedPending(write)) {
+        const parents = [...pendingRowIdsIn(write.endpoint), ...pendingRowIdsIn(write.body)];
+        if (parents.some((id) => !queue.some((q) => q.id === id))) {
+          await markFailed(write.id!, 'This change belongs to a record that was discarded before it synced, so it can no longer be saved. Discard this change too.');
+          report.push({ ...describeWrite(write), status: 'failed', reason: 'Belongs to a record that was discarded.' });
+          notifyQueueChange();
+          break;
+        }
+        continue;
+      }
 
       // BUG-03: claim the row before sending it. If another context (the
       // service worker, or another tab) already holds it, leave it alone — it
@@ -108,6 +134,7 @@ export async function processQueue(): Promise<void> {
       if (conflictRecord) {
         await markConflict(write.id!, conflictRecord);
         await releaseClaim(write.id!);
+        report.push({ ...describeWrite(write), status: 'conflict', reason: 'Someone else changed this record while you were offline.' });
         notifyQueueChange();
         continue;
       }
@@ -115,7 +142,11 @@ export async function processQueue(): Promise<void> {
       try {
         const result = await sendDirect(write);
         if (result.ok) {
-          await removeFromQueue(write.id!);
+          // A POST gave the record its real id: rewrite whatever was queued
+          // against its placeholder, atomically with removing this row.
+          if (write.method === 'POST') await completeWrite(write.id!, result.data?._id);
+          else await removeFromQueue(write.id!);
+          report.push({ ...describeWrite(write), status: 'synced' });
           notifyQueueChange();
         } else if (result.status === 401 || result.status === 403) {
           // The session expired while this device was offline and the refresh
@@ -124,6 +155,7 @@ export async function processQueue(): Promise<void> {
           // stop. Signing back in and hitting Retry will push it through.
           await markAuthRequired(write.id!, 'Your session expired — sign in again to sync this change.');
           await releaseClaim(write.id!);
+          report.push({ ...describeWrite(write), status: 'auth', reason: 'Your session expired — sign in again to sync this change.' });
           notifyQueueChange();
           break;
         } else {
@@ -146,6 +178,7 @@ export async function processQueue(): Promise<void> {
               : result.message ?? `The server rejected this change (error ${result.status}).`,
           );
           await releaseClaim(write.id!);
+          report.push({ ...describeWrite(write), status: 'failed', reason: result.status === 404 ? 'The record was archived or removed while you were offline.' : result.message ?? `The server rejected this change (error ${result.status}).` });
           notifyQueueChange();
           break;
         }
@@ -162,6 +195,7 @@ export async function processQueue(): Promise<void> {
     }
   } finally {
     processing = false;
+    if (report.length > 0) notifySyncReport({ items: report, finishedAt: Date.now() });
   }
 }
 
