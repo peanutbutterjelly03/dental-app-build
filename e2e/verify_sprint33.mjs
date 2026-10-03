@@ -8,7 +8,7 @@ import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const REPO = resolve(HERE, '..', '..');
+const REPO = resolve(HERE, '..');
 // Defaults to the local dev stack; set BASE_URL to check the deployed site:
 //   BASE_URL=https://dental-app-build.vercel.app node verify_sprint33.mjs
 const BASE = process.env.BASE_URL || 'http://localhost:5173';
@@ -21,7 +21,7 @@ const env = {};
 // `(.*)$` below never matched and this parser silently produced an EMPTY env.
 // It surfaced as `page.fill: expected string, got undefined`, which reads like
 // a selector problem rather than a parsing one.
-for (const line of readFileSync(join(HERE, '.env'), 'utf8').split(/\r?\n/)) {
+for (const line of readFileSync(join(HERE, '..', 'server', '.env'), 'utf8').split(/\r?\n/)) {
   const m = line.match(/^([A-Z_]+)=(.*)$/);
   if (m) env[m[1]] = m[2].trim();
 }

@@ -12,10 +12,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: dental-4-12-main/project
-
     steps:
       - uses: actions/checkout@v4
 
@@ -23,16 +19,16 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: dental-4-12-main/project/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Typecheck app
-        run: npx tsc -p tsconfig.json --noEmit
+      - name: Typecheck client
+        run: npm run typecheck -w client
 
       - name: Typecheck server
-        run: npx tsc -p tsconfig.server.json --noEmit
+        run: npm run typecheck -w server
 
       - name: Build
         run: npm run build
