@@ -35,6 +35,8 @@ Capstone Thesis — Build Phase — Group 404 — AY 2025-2026
 - ~8,000 student records; 1 dentist, 1 dental aide, 3 clinic staff
 - Three schools: (1) Bagong Tanyag Integrated School (primary, K-G10), (2) Bagong Tanyag Elementary School Annex A (K-G6), (3) South Daang Hari Elementary School Main (K-G6)
 
+- **Repo layout (restructured 2026-10-03):** npm-workspaces monorepo — `client/` (React+Vite), `server/` (Express; its `.env` lives at `server/.env`), `ml-service/`, `e2e/` (Playwright scripts), root `api/` + `vercel.json` (Vercel glue). Install once at the repo root. Old `dental-4-12-main/project/` paths in HANDOFF history are historical.
+
 ## SCOPE LIMITATIONS (do not build)
 - No mobile app, no national DOH database integration, no computer-vision caries detection, no biometric auth, no tele-dentistry
 - Predictive module assists dentist only, never replaces clinical judgment; standalone platform only

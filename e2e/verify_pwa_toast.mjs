@@ -12,7 +12,7 @@ import { readFileSync, writeFileSync } from 'fs';
 import { execSync } from 'child_process';
 
 const env = Object.fromEntries(readFileSync('./.env','utf8').split(/\r?\n/).filter(l=>l.includes('=')&&!l.startsWith('#')).map(l=>[l.slice(0,l.indexOf('=')),l.slice(l.indexOf('=')+1)]));
-const ROOT_TSX = './src/app/components/Root.tsx';
+const ROOT_TSX = '../client/src/app/components/Root.tsx';
 const TAG = 'Dental Health Record Management System';
 const MARKER = TAG + ' · v2-test';
 const rootOriginal = readFileSync(ROOT_TSX, 'utf8');

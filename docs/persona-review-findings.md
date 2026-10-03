@@ -118,4 +118,4 @@ Two seats (dentist, thesis professor) re-toured production independently without
 - All code citations checked in source this session; D1/D2/D3 also live-verified or live-reproduced.
 - Mobile table overflow on /patients could NOT be measured — the deep link bounced to school-select (that redirect is finding N1). Other mobile pages measured clean.
 - Probes were read-only: one wrong-password attempt (rate limit 10/15min untouched otherwise), no saves, no writes to production data.
-- Probe script kept at `dental-4-12-main/project/probe_strict.mjs` (reads `SEED_DENTIST_PASSWORD` from `.env`, no secrets inside). Fresh probe screenshots in session scratchpad `panel2/` (session-scoped, regenerate by rerunning the script).
+- Probe script kept at `e2e/probe_strict.mjs` (reads `SEED_DENTIST_PASSWORD` from `.env`, no secrets inside). Fresh probe screenshots in session scratchpad `panel2/` (session-scoped, regenerate by rerunning the script).

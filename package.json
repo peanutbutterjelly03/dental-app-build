@@ -1,0 +1,39 @@
+{
+  "name": "floral",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w client",
+    "dev:host": "npm run dev:host -w client",
+    "build": "npm run build -w client",
+    "dev:server": "npm run dev -w server",
+    "typecheck": "npm run typecheck -w client && npm run typecheck -w server",
+    "seed:admin": "npm run seed:admin -w server",
+    "restore:admin": "npm run restore:admin -w server",
+    "seed:demo": "npm run seed:demo -w server",
+    "seed:students": "npm run seed:students -w server",
+    "seed:rpc-visit2": "npm run seed:rpc-visit2 -w server",
+    "seed:iptr-details": "npm run seed:iptr-details -w server",
+    "backfill:soft-delete": "npm run backfill:soft-delete -w server",
+    "fix:duplicate-iptr": "npm run fix:duplicate-iptr -w server",
+    "migrate:iptr-grades": "npm run migrate:iptr-grades -w server",
+    "apply:seed-passwords": "npm run apply:seed-passwords -w server",
+    "purge:demo": "npm run purge:demo -w server",
+    "backup:raw": "npm run backup:raw -w server",
+    "verify:indexes": "npm run verify:indexes -w server",
+    "seed:treatments": "npm run seed:treatments -w server"
+  },
+  "overrides": {
+    "exceljs": {
+      "uuid": "^11.1.1"
+    }
+  },
+  "devDependencies": {
+    "playwright": "^1.61.1"
+  }
+}

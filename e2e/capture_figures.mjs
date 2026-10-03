@@ -10,8 +10,8 @@ import { readFileSync, mkdirSync, existsSync } from 'fs';
 import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
-const HERE = dirname(fileURLToPath(import.meta.url));       // .../dental-4-12-main/project
-const REPO = resolve(HERE, '..', '..');                      // repo root
+const HERE = dirname(fileURLToPath(import.meta.url));       // .../e2e
+const REPO = resolve(HERE, '..');                      // repo root
 // Defaults to the DEPLOYED site — the figures should show what a panelist
 // would see. Override for a local capture:
 //   BASE_URL=http://localhost:5173 node capture_figures.mjs
@@ -25,7 +25,7 @@ const env = {};
 // below never matches and this silently yields an EMPTY env, surfacing much
 // later as `page.fill: expected string, got undefined`. Identical bug to the
 // one repaired in verify_sprint33.mjs on 2026-09-03.
-for (const line of readFileSync(join(HERE, '.env'), 'utf8').split(/\r?\n/)) {
+for (const line of readFileSync(join(HERE, '..', 'server', '.env'), 'utf8').split(/\r?\n/)) {
   const m = line.match(/^([A-Z_]+)=(.*)$/);
   if (m) env[m[1]] = m[2].trim();
 }

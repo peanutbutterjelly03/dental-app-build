@@ -980,7 +980,7 @@ established in this study.
 
 18 figures captured from the live deployment at 1440×900, 2× scale, into
 `docs/figures/`. Reproduce with `node capture_figures.mjs` from
-`dental-4-12-main/project/` (plus `capture_ml_figures.mjs` and
+`e2e/` (plus `capture_ml_figures.mjs` and
 `capture_export.mjs`). Credentials are read from `.env`; nothing is printed.
 
 **Three things the capture run corrected in this draft:**
