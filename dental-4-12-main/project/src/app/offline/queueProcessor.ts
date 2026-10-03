@@ -3,6 +3,7 @@ import { notifyQueueChange } from './queueEvents';
 import { notifySyncReport, type SyncReportItem } from './syncReport';
 import { describeWrite } from './describeWrite';
 import { hasUnresolvedPending, pendingRowIdsIn } from './idRemap';
+import { bodyWithSync } from './syncEnvelope';
 import { isOwnedBy } from './queueRules';
 import { loadUserCache } from './authCache';
 
@@ -23,60 +24,44 @@ const CONTEXT_ID = `${typeof window === 'undefined' ? 'sw' : 'page'}-${Math.rand
 // A raw request, deliberately NOT going through apiClient — apiClient queues
 // failed writes, and reusing it here would risk re-queueing a sync attempt
 // that just failed, defeating "stop queue if sync fails, never skip."
-/** Reads the server's own `error` string off a rejection so the queue can show
- *  what actually went wrong instead of a bare status code. Returns undefined
- *  for responses with no JSON body. */
-async function rejectionMessage(res: Response): Promise<string | undefined> {
+/** What the server said about a refusal: its own `error` string (so the queue can
+ *  show what actually went wrong, not a bare status code) and the whole body (a
+ *  conflict answer carries data the queue acts on). Both undefined for a response
+ *  with no JSON body. */
+async function readFailure(res: Response): Promise<{ message?: string; body?: Record<string, unknown> }> {
   const body = await res.json().catch(() => null);
-  const error = body && typeof body.error === 'string' ? body.error : undefined;
-  return error;
+  if (!body || typeof body !== 'object') return {};
+  return { message: typeof body.error === 'string' ? body.error : undefined, body };
 }
 
-async function sendDirect(write: QueuedWrite): Promise<{ ok: boolean; status: number; message?: string; data?: { _id?: string } | null }> {
-  const res = await fetch(`/api${write.endpoint}`, {
+interface SendResult {
+  ok: boolean;
+  status: number;
+  message?: string;
+  data?: { _id?: string } | null;
+  errorBody?: Record<string, unknown>;
+}
+
+/** One request with this device's session, renewed once if it had expired. */
+async function fetchWithRefresh(url: string, init: RequestInit): Promise<Response> {
+  const withCreds = { ...init, credentials: 'include' as const, headers: { 'Content-Type': 'application/json' } };
+  const res = await fetch(url, withCreds);
+  if (res.status !== 401) return res;
+  const refreshed = await fetch('/api/auth/refresh', { method: 'POST', credentials: 'include' }).then((r) => r.ok).catch(() => false);
+  return refreshed ? fetch(url, withCreds) : res;
+}
+
+async function sendDirect(write: QueuedWrite): Promise<SendResult> {
+  // The envelope (bodyWithSync) is what lets the server catch a clash and
+  // answer a retried create with the record that already exists.
+  const body = bodyWithSync(write);
+  const res = await fetchWithRefresh(`/api${write.endpoint}`, {
     method: write.method,
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(write.body),
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
-
-  if (res.status === 401) {
-    const refreshed = await fetch('/api/auth/refresh', { method: 'POST', credentials: 'include' }).then((r) => r.ok).catch(() => false);
-    if (refreshed) {
-      const retry = await fetch(`/api${write.endpoint}`, {
-        method: write.method,
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(write.body),
-      });
-      return { ok: retry.ok, status: retry.status, message: retry.ok ? undefined : await rejectionMessage(retry), data: retry.ok ? await retry.json().catch(() => null) : undefined };
-    }
-  }
-
-  return { ok: res.ok, status: res.status, message: res.ok ? undefined : await rejectionMessage(res), data: res.ok ? await res.json().catch(() => null) : undefined };
-}
-
-// Detects whether the server's current value for any field this write is
-// trying to change has drifted from what this device last saw (baseline) —
-// meaning someone else edited the same field while this device was offline.
-// Only checks fields this write actually touches; unrelated fields changing
-// elsewhere isn't a conflict for this write.
-function detectConflict(baseline: Record<string, unknown>, current: Record<string, unknown>, changedFields: string[]): boolean {
-  return changedFields.some((field) => JSON.stringify(baseline[field]) !== JSON.stringify(current[field]));
-}
-
-async function checkForConflict(write: QueuedWrite): Promise<Record<string, unknown> | null> {
-  if (write.method === 'POST' || !write.baselineSnapshot) return null;
-  try {
-    const res = await fetch(`/api${write.endpoint}`, { credentials: 'include' });
-    if (!res.ok) return null; // can't verify — don't block the write over an unrelated read failure
-    const current = await res.json();
-    const changedFields = typeof write.body === 'object' && write.body ? Object.keys(write.body as object) : [];
-    if (detectConflict(write.baselineSnapshot, current, changedFields)) return current;
-    return null;
-  } catch {
-    return null; // network hiccup checking — not itself a conflict, fall through to the normal send attempt
-  }
+  if (res.ok) return { ok: true, status: res.status, data: await res.json().catch(() => null) };
+  const failure = await readFailure(res);
+  return { ok: false, status: res.status, message: failure.message, errorBody: failure.body };
 }
 
 // FIFO, strictly sequential. A network failure or real server rejection
@@ -130,15 +115,6 @@ export async function processQueue(): Promise<void> {
       // is mid-flight there, and sending it here is the duplicate.
       if (!(await claimWrite(write.id!, CONTEXT_ID))) continue;
 
-      const conflictRecord = await checkForConflict(write);
-      if (conflictRecord) {
-        await markConflict(write.id!, conflictRecord);
-        await releaseClaim(write.id!);
-        report.push({ ...describeWrite(write), status: 'conflict', reason: 'Someone else changed this record while you were offline.' });
-        notifyQueueChange();
-        continue;
-      }
-
       try {
         const result = await sendDirect(write);
         if (result.ok) {
@@ -148,6 +124,20 @@ export async function processQueue(): Promise<void> {
           else await removeFromQueue(write.id!);
           report.push({ ...describeWrite(write), status: 'synced' });
           notifyQueueChange();
+        } else if (result.status === 409 && result.errorBody?.conflict === true) {
+          // The SERVER held this edit back: someone else changed a field it would
+          // overwrite after this device started. Decided in the same request that
+          // would have written it, so nothing can slip between a check and a
+          // write. Isolated to this record: it does not block the writes behind it.
+          await markConflict(
+            write.id!,
+            (result.errorBody.current ?? {}) as Record<string, unknown>,
+            typeof result.errorBody.conflictId === 'string' ? result.errorBody.conflictId : undefined,
+          );
+          await releaseClaim(write.id!);
+          report.push({ ...describeWrite(write), status: 'conflict', reason: 'Someone else changed this record while you were offline.' });
+          notifyQueueChange();
+          continue;
         } else if (result.status === 401 || result.status === 403) {
           // The session expired while this device was offline and the refresh
           // token couldn't renew it. The write itself is perfectly valid, so
@@ -229,14 +219,52 @@ export async function discardFailedWrite(id: number): Promise<void> {
   await processQueue();
 }
 
-// Conflict resolution (offline banner's conflict review UI).
+// ── Conflict resolution (components/ConflictReviewDialog.tsx) ───────────────
+// An edit the server held back lives on the server as a SyncConflict row; the
+// choice is made THERE (so the audit trail and every other person's waiting
+// edits stay consistent), and only then does this device drop its queued copy.
+
+/** Tells the server what was decided. "Already resolved" (409) counts as done: the
+ *  server no longer holds anything for this device to act on. */
+async function resolveOnServer(conflictId: string, action: 'apply' | 'discard'): Promise<void> {
+  const res = await fetchWithRefresh(`/api/sync-conflicts/${conflictId}/resolve`, { method: 'POST', body: JSON.stringify({ action }) });
+  if (res.ok || res.status === 409) return;
+  const failure = await readFailure(res);
+  throw new Error(failure.message ?? `The server could not record that choice (error ${res.status}).`);
+}
+
+// "Use my version": the server writes this device's edit onto the record.
 export async function keepMyChange(id: number): Promise<void> {
-  await resolveConflictKeepMine(id);
+  const row = await getWrite(id);
+  if (row?.serverConflictId) {
+    await resolveOnServer(row.serverConflictId, 'apply');
+    await removeFromQueue(id);
+  } else {
+    // Held before the server took over (client-side detection): force it through.
+    await resolveConflictKeepMine(id);
+  }
   notifyQueueChange();
   await processQueue();
 }
 
+// "Use the server version": this device's edit is dropped, the record stays as it is.
 export async function discardMyChange(id: number): Promise<void> {
+  const row = await getWrite(id);
+  if (row?.serverConflictId) await resolveOnServer(row.serverConflictId, 'discard');
+  await removeFromQueue(id);
+  notifyQueueChange();
+}
+
+// "Use <someone else's> version": the server applies THEIR waiting edit, which
+// supersedes this device's, so this device's copy is dropped.
+export async function useOtherVersion(id: number, otherConflictId: string): Promise<void> {
+  await resolveOnServer(otherConflictId, 'apply');
+  await removeFromQueue(id);
+  notifyQueueChange();
+}
+
+// The server already settled this (another person chose): nothing left to decide here.
+export async function dismissResolvedConflict(id: number): Promise<void> {
   await removeFromQueue(id);
   notifyQueueChange();
 }

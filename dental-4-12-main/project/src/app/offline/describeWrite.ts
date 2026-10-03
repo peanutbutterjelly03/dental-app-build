@@ -70,7 +70,7 @@ export function describeWrite(write: Describable): { module: string; kind: strin
   } else if (resource === 'student-iptrs') {
     detail = str(body.school_year);
   } else if (resource === 'tooth-records' && body.tooth_number !== undefined) {
-    detail = `#${body.tooth_number}${str(body.condition) ? ` — ${str(body.condition)}` : ''}`;
+    detail = `#${body.tooth_number}${str(body.condition) ? `: ${str(body.condition)}` : ''}`;
   } else if (resource === 'treatments') {
     detail = str(body.treatment_done) ?? str(body.diagnosis);
   } else if (resource === 'preventive-care-records' && body.visit_number !== undefined) {

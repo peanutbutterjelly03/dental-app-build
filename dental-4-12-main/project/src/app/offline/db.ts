@@ -10,6 +10,7 @@
 // on the ROW — see claimWrite.
 import { isClaimable } from './queueRules';
 import { pendingRowIdsIn, replacePendingId } from './idRemap';
+import { mintOperationId } from './syncEnvelope';
 
 const DB_NAME = 'floral-offline';
 const DB_VERSION = 2;
@@ -46,6 +47,13 @@ export interface QueuedWrite {
   // someone else changed the same fields while this device was offline.
   baselineSnapshot?: Record<string, unknown>;
   conflictServerRecord?: Record<string, unknown>;
+  // Minted when the change was queued; sent with every attempt so the SERVER can
+  // recognise a retry (a create applies once, a held edit has one row).
+  operationId?: string;
+  // The server's own record of a held edit (SyncConflict), set when it answered
+  // 409 conflict. Resolving goes through it; absent on edits held before the
+  // server took this over.
+  serverConflictId?: string;
 }
 
 function openDb(): Promise<IDBDatabase> {
@@ -75,7 +83,7 @@ function openDb(): Promise<IDBDatabase> {
 
 export async function enqueueWrite(write: Omit<QueuedWrite, 'id' | 'timestamp' | 'status'>): Promise<QueuedWrite> {
   const db = await openDb();
-  const record: QueuedWrite = { ...write, timestamp: Date.now(), status: 'pending' };
+  const record: QueuedWrite = { operationId: mintOperationId(), ...write, timestamp: Date.now(), status: 'pending' };
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, 'readwrite');
     const req = tx.objectStore(STORE).add(record);
@@ -143,8 +151,8 @@ export function resetToPending(id: number): Promise<void> {
   return updateRecord(id, { status: 'pending', errorMessage: undefined, conflictServerRecord: undefined });
 }
 
-export function markConflict(id: number, serverRecord: Record<string, unknown>): Promise<void> {
-  return updateRecord(id, { status: 'conflict', conflictServerRecord: serverRecord });
+export function markConflict(id: number, serverRecord: Record<string, unknown>, serverConflictId?: string): Promise<void> {
+  return updateRecord(id, { status: 'conflict', conflictServerRecord: serverRecord, serverConflictId });
 }
 
 /**

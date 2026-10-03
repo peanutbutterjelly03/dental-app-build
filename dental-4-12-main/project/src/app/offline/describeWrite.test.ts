@@ -8,7 +8,7 @@ describe('describeWrite', () => {
   });
   it('puts charting writes under Dental chart and shows the tooth', () => {
     expect(describeWrite({ endpoint: '/tooth-records', method: 'POST', body: { tooth_number: 11, condition: 'Caries' } }))
-      .toEqual({ module: 'Dental chart', kind: 'Tooth record added', detail: '#11 — Caries' });
+      .toEqual({ module: 'Dental chart', kind: 'Tooth record added', detail: '#11: Caries' });
     expect(describeWrite({ endpoint: '/tooth-records/64b5f0c2a1b2c3d4e5f60718', method: 'PUT', body: { tooth_number: 12 } }).kind)
       .toBe('Tooth record updated');
   });

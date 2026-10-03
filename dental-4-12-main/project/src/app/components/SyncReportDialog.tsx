@@ -39,7 +39,7 @@ export const SyncReportDialog = () => {
           : <AlertTriangle className="h-6 w-6 flex-shrink-0 text-amber-600" aria-hidden="true" />}
         <div className="min-w-0">
           <h2 className="text-lg font-semibold text-foreground">
-            {problems === 0 ? "You're back online" : 'Back online — some changes need attention'}
+            {problems === 0 ? "You're back online" : 'Back online: some changes need attention'}
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             {synced > 0 && `${synced} change${synced === 1 ? '' : 's'} saved on this device ${synced === 1 ? 'was' : 'were'} synced.`}
@@ -63,7 +63,7 @@ export const SyncReportDialog = () => {
                   <span className="min-w-0">
                     <span className="text-foreground">
                       {line.kind}{line.count > 1 ? ` ×${line.count}` : ''}
-                      {line.count === 1 && line.details[0] ? ` — ${line.details[0]}` : ''}
+                      {line.count === 1 && line.details[0] ? `: ${line.details[0]}` : ''}
                     </span>
                     {line.status !== 'synced' && (
                       <span className="block text-xs text-amber-800">
@@ -81,7 +81,7 @@ export const SyncReportDialog = () => {
 
       <div className="px-6 py-4 flex items-center justify-between gap-3">
         <p className="text-xs text-muted-foreground">
-          {problems > 0 ? 'Changes that did not sync are kept — open the Online/Offline pill at the top to retry or review them.' : 'Nothing else to do.'}
+          {problems > 0 ? 'Changes that did not sync are kept. Open the Online/Offline pill at the top to retry or review them.' : 'Nothing else to do.'}
         </p>
         <div className="flex flex-shrink-0 gap-2">
           {items.some((i) => i.status === 'conflict') && (

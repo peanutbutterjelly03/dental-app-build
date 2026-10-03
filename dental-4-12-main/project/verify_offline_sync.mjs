@@ -28,6 +28,7 @@ const check = (name, ok, extra = '') => { ok ? pass++ : fail++; console.log(`${o
 // ── mock API ────────────────────────────────────────────────────────────────
 const log = [];
 const gets = [];
+const resolves = [];
 const id24 = (tag, n = 0) => (tag + String(n)).padEnd(24, '0').slice(0, 24);
 let toothN = 0;
 let liveName = 'Cruz, Juan';
@@ -38,7 +39,7 @@ const api = http.createServer((req, res) => {
   req.on('end', () => {
     const body = raw ? JSON.parse(raw) : undefined;
     const path = req.url.split('?')[0];
-    if (req.method !== 'GET') log.push({ method: req.method, path, body });
+    if (req.method !== 'GET' && !path.startsWith('/api/sync-conflicts/')) log.push({ method: req.method, path, body });
     else gets.push(req.url);
     const send = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); };
     if (path.startsWith('/api/auth/')) return send(401, { error: 'no session' });
@@ -49,6 +50,24 @@ const api = http.createServer((req, res) => {
     if (req.method === 'POST' && path === '/api/tooth-records') return send(201, { _id: id24('t', ++toothN), ...body });
     const one = path.match(/^\/api\/students\/([0-9a-f]{24})$/);
     if (req.method === 'GET' && one) return send(200, { _id: one[1], section: studentSection[one[1]] ?? 'A', grade_level: 'Grade 3' });
+    // Server-held conflicts (crudFactory + syncConflictRoutes), as the real API answers them.
+    const cid = (sid) => id24('c0', Number(sid[0]));
+    if (req.method === 'PUT' && one && body?._sync) {
+      const cur = studentSection[one[1]] ?? 'A';
+      const base = body._sync.base?.section;
+      if (base !== undefined && base !== cur && body.section !== cur) {
+        return send(409, { error: 'changed by someone else', conflict: true, conflictId: cid(one[1]), fields: ['section'], current: { _id: one[1], section: cur, grade_level: 'Grade 3' } });
+      }
+    }
+    const group = path.match(/^\/api\/sync-conflicts\/record\/Student\/([0-9a-f]{24})$/);
+    if (req.method === 'GET' && group) {
+      const cur = studentSection[group[1]] ?? 'A';
+      const mine = { _id: cid(group[1]), owner: { name: 'Dr Reyes' }, created_at: new Date().toISOString(), base: { section: 'A' }, changes: { section: 'B' } };
+      const theirs = { _id: id24('d0', Number(group[1][0])), owner: { name: 'Aide Santos' }, created_at: new Date().toISOString(), base: { section: 'A' }, changes: { section: 'D' } };
+      return send(200, { current: { _id: group[1], section: cur, grade_level: 'Grade 3' }, candidates: group[1][0] === '3' ? [mine, theirs] : [mine] });
+    }
+    const resolveCall = path.match(/^\/api\/sync-conflicts\/([0-9a-f]{24})\/resolve$/);
+    if (req.method === 'POST' && resolveCall) { resolves.push({ id: resolveCall[1], action: body.action }); return send(200, { status: body.action === 'apply' ? 'applied' : 'discarded' }); }
     if (req.method === 'PUT') return send(200, { _id: path.split('/').pop(), ...body });
     send(200, []);
   });
@@ -185,8 +204,8 @@ try {
   check('when online the live server answers', fresh[0]?.name === 'Fresh, Maria', JSON.stringify(fresh));
   await ctx2.close();
   // ── Phase 3: conflicts and the review pop-up ───────────────────────────
-  const A = id24('1'), B = id24('2');
-  const ctx3 = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const A = id24('1'), B = id24('2'), C = id24('3');
+  const ctx3 = await browser.newContext({ viewport: { width: 1280, height: 1000 } });
   const p3 = await ctx3.newPage();
   await p3.goto(DEV + '/');
   await p3.waitForTimeout(1500);
@@ -194,41 +213,54 @@ try {
     sessionStorage.setItem('floral_cached_user', JSON.stringify({ id: 'u1', name: 'One', email: 'one@x.test', role: 'dentist', schools: [] }));
     window.__m = { ...(await import('/src/app/api/client.ts')), ...(await import('/src/app/offline/queueProcessor.ts')), ...(await import('/src/app/offline/db.ts')) };
   });
-  await p3.evaluate(async ([a, b]) => { await window.__m.apiClient.get(`/students/${a}`); await window.__m.apiClient.get(`/students/${b}`); }, [A, B]);
+  await p3.evaluate(async (ids) => { for (const id of ids) await window.__m.apiClient.get(`/students/${id}`); }, [A, B, C]);
   await p3.waitForTimeout(500); // the saved copy is what each edit is later compared with
   await ctx3.setOffline(true);
-  await p3.evaluate(async ([a, b]) => { await window.__m.apiClient.put(`/students/${a}`, { section: 'B' }); await window.__m.apiClient.put(`/students/${b}`, { section: 'B' }); }, [A, B]);
-  studentSection[A] = 'C'; studentSection[B] = 'C'; // someone else edited both in the meantime
+  await p3.evaluate(async (ids) => { for (const id of ids) await window.__m.apiClient.put(`/students/${id}`, { section: 'B' }); }, [A, B, C]);
+  for (const id of [A, B, C]) studentSection[id] = 'C'; // someone else edited all three in the meantime
   log.length = 0;
   await ctx3.setOffline(false);
   await p3.evaluate(() => window.__m.processQueue());
   await p3.waitForTimeout(600);
-  check('a clash is held, not sent', !log.some((l) => l.method === 'PUT' && l.path.startsWith('/api/students/')), JSON.stringify(log));
+  const sentEnvelope = log.filter((l) => l.method === 'PUT' && l.path.startsWith('/api/students/'));
+  check('each edit was sent with its id and the values it started from', sentEnvelope.length === 3 && sentEnvelope.every((l) => /^[A-Za-z0-9-]{8,64}$/.test(l.body._sync?.operationId ?? '') && l.body._sync.base.section === 'A'), JSON.stringify(sentEnvelope.map((l) => l.body)));
+  const held = await p3.evaluate(async () => (await window.__m.getQueue()).map((w) => ({ s: w.status, c: w.serverConflictId })));
+  check("the server's 409 held all three edits, each remembering the server's conflict id", held.length === 3 && held.every((h) => h.s === 'conflict' && /^c0/.test(h.c ?? '')), JSON.stringify(held));
   let summary = (await p3.locator('dialog[open]').innerText().catch(() => '')) || '';
   check('the summary offers to review the clashes', /Review changes/.test(summary) && /Needs review/.test(summary), summary);
   await p3.getByRole('button', { name: 'Review changes' }).click();
-  await p3.waitForTimeout(500);
+  await p3.waitForTimeout(800);
   const review = (await p3.locator('dialog[open]').innerText().catch(() => '')) || '';
-  check('the review pop-up lists both clashes', (review.match(/Student record updated/g) ?? []).length === 2, review);
-  check('it shows your version beside the server version', /Your version/.test(review) && /Server version/.test(review) && /\bB\b/.test(review) && /\bC\b/.test(review), review);
-  check('it flags what the server changed and what you started from', /Changed on the server/.test(review) && /You started from: A/.test(review), review);
-  if (process.env.SHOTS_DIR) await p3.screenshot({ path: `${process.env.SHOTS_DIR}/offline-conflict-review.png` });
+  check('the review pop-up lists all three clashes', (review.match(/Student record updated/g) ?? []).length === 3, review);
+  check('it shows your version beside the server version', /Your version/.test(review) && /Server version/.test(review), review);
+  check('it flags what the server changed and what you started from', /Changed on the server/.test(review) && /Started from: A/.test(review), review);
+  check("it lists another person's waiting version of the same record", /Also waiting on this record: Aide Santos/.test(review), review);
+  if (process.env.SHOTS_DIR) await p3.screenshot({ path: `${process.env.SHOTS_DIR}/offline-conflict-review.png`, fullPage: false });
 
-  // Use my version on the first card: asks to confirm, then sends it.
+  const cards = p3.locator('dialog[open] section').filter({ hasText: 'Student record updated' });
+  // 1. Use my version on the first card: asks to confirm, then the SERVER is told to apply it.
   await p3.getByRole('button', { name: 'Use my version' }).first().click();
   check('each choice asks to be confirmed', await p3.getByText('will replace what the server has').count() === 1);
   await p3.getByRole('button', { name: 'Yes, use my version' }).click();
   await p3.waitForTimeout(800);
-  const sent = log.filter((l) => l.method === 'PUT' && l.path.startsWith('/api/students/'));
-  check('"Use my version" sends that change', sent.length === 1 && sent[0].body.section === 'B', JSON.stringify(sent));
+  check('"Use my version" tells the server to apply that edit', resolves.length === 1 && resolves[0].action === 'apply' && resolves[0].id === id24('c0', 1), JSON.stringify(resolves));
+  check('and that device drops its queued copy', (await p3.evaluate(async () => (await window.__m.getQueue()).length)) === 2);
 
-  // Use the server version on the other: nothing is sent, the change is dropped.
+  // 2. Use the server version on the next one: the server is told to discard it.
   await p3.getByRole('button', { name: 'Use the server version' }).first().click();
   await p3.getByRole('button', { name: 'Yes, use the server version' }).click();
   await p3.waitForTimeout(800);
+  check('"Use the server version" tells the server to discard that edit', resolves.length === 2 && resolves[1].action === 'discard' && resolves[1].id === id24('c0', 2), JSON.stringify(resolves));
+
+  // 3. Use someone else's waiting version on the last one.
+  await p3.getByRole('button', { name: "Use Aide Santos's version" }).click();
+  check("choosing someone else's version says whose it is and what happens to yours", await p3.getByText("Aide Santos's version will be saved onto the record, and your version will be discarded.").count() === 1);
+  await p3.getByRole('button', { name: "Yes, use Aide Santos's version" }).click();
+  await p3.waitForTimeout(800);
+  check("the server is told to apply THEIR edit", resolves.length === 3 && resolves[2].action === 'apply' && resolves[2].id === id24('d0', 3), JSON.stringify(resolves));
+  check('nothing was sent as a plain edit while resolving', log.filter((l) => l.method === 'PUT' && l.path.startsWith('/api/students/')).length === 3);
   const after3 = await p3.evaluate(async () => (await window.__m.getQueue()).length);
-  check('"Use the server version" sends nothing and leaves the queue empty', log.filter((l) => l.method === 'PUT').length === 1 && after3 === 0, `${log.length} ${after3}`);
-  check('the pop-up closes itself when nothing is left to review', await p3.locator('dialog[open]').count() === 0);
+  check('the queue is empty and the pop-up closes itself', after3 === 0 && (await p3.locator('dialog[open]').count()) === 0, `${after3}`);
   await ctx3.close();
 } finally {
   await browser.close();
