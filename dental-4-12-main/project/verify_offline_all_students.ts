@@ -160,7 +160,7 @@ try {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 1000 } });
   const page = await ctx.newPage();
   const bundleRequests: string[] = [];
-  page.on("request", (r) => { if (r.url().includes("/api/offline/bundle")) bundleRequests.push(r.url()); });
+  page.on("request", (r) => { if (r.url().includes("/api/offline/bundle")) { bundleRequests.push(r.url()); if (process.env.DEBUG_TEXT) console.log("BUNDLE REQ", Date.now() % 100000, r.url().replace(DEV, "").slice(0, 120)); } if (process.env.DEBUG_TEXT && r.url().includes("/api/offline/version")) console.log("VERSION REQ", Date.now() % 100000); });
 
   await page.goto(`${DEV}/login`);
   await page.fill('input[type="email"]', dentistA.email);
@@ -215,6 +215,7 @@ try {
 
   // Signing in again does not download again; changed data does.
   bundleRequests.length = 0;
+  if (process.env.DEBUG_TEXT) console.log("--- RELOAD (nothing changed)", Date.now() % 100000);
   await page.reload();
   await page.waitForSelector(`text=/Offline data ready: ${COUNT} students/`, { timeout: 30000 });
   await page.waitForTimeout(2500);
