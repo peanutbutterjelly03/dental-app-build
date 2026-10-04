@@ -114,8 +114,8 @@ ages match its Age column. Not yet clicked through her bulk page in a browser. S
 hand-encoded REAL dataset for Phase 3? Ask before using it for anything else.
 **DASHBOARD AUDIT DONE 2026-10-04 (in chat; the user approves items ONE AT A TIME).** Plan, in order:
 ✅1 RPC tiles/footers/follow-ups use whole-school counts, not the 25-row page (dev: old 1 overdue, true 2,
-new 2). ✅2 "both visits" = Visit 1 AND Visit 2, same as the completion tile (test fails on old code). 3 "Archived
-accounts" always 0 (/users without includeArchived). 4 remove 5 empty placeholders + BHO `treated: 0`.
+new 2). ✅2 "both visits" = Visit 1 AND Visit 2, same as the completion tile (test fails on old code). ✅3 "Archived
+accounts" real count (`/users?includeArchived=true`; prod has 5 archived, the tile showed 0). 4 remove 5 empty placeholders + BHO `treated: 0`.
 5 risk = LATEST validated result (student-rows :1325 takes the first IPTR). 6 relabel "Oral Health Status"
 (it is risk). 7 demo-data policy, NEEDS A DECISION (55/57 prod pupils are demo). 8 denominators = this
 school year's enrolled. 9 counts only when n<10. 10 aide Pending charts (current SY, real content).

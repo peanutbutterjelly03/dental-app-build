@@ -104,7 +104,11 @@ export const Dashboard = () => {
         // that actually needs them (System Admin dashboard only) and has
         // permission.
         const [apiUsers, treatments, iptrs, charts, audits, teeth, risks, preventives] = await Promise.all([
-          user?.role === 'system_admin' ? apiClient.get<ApiUser[]>('/users') : Promise.resolve([]),
+          // includeArchived: the list route returns ACTIVE accounts only
+          // unless asked, so "Archived accounts" always read 0 (dashboard
+          // audit item 3, 2026-10-04). Every other admin figure below filters
+          // to active accounts itself.
+          user?.role === 'system_admin' ? apiClient.get<ApiUser[]>('/users?includeArchived=true') : Promise.resolve([]),
           apiClient.get<ApiTreatment[]>('/treatments'),
           apiClient.get<ApiStudentIptr[]>('/student-iptrs'),
           apiClient.get<{ _id: string; iptr_id: string }[]>('/dental-charts'),
@@ -1319,7 +1323,7 @@ export const Dashboard = () => {
     // one who signed in yesterday and is still active counts zero. Same
     // caveat the login-activity chart below already carries.
     const signedInTodayCount = users.filter(
-      (u) => u.last_login && toLocalDateString(new Date(u.last_login)) === todayKey,
+      (u) => !u.isArchived && u.last_login && toLocalDateString(new Date(u.last_login)) === todayKey,
     ).length;
     const auditEventsToday = auditEntries.filter(
       (a) => toLocalDateString(new Date(a.timestamp)) === todayKey,
@@ -1356,7 +1360,7 @@ export const Dashboard = () => {
       }
       return days.map(({ key, label }) => ({
         day: label,
-        logins: users.filter((u) => u.last_login && toLocalDateString(new Date(u.last_login)) === key).length,
+        logins: users.filter((u) => !u.isArchived && u.last_login && toLocalDateString(new Date(u.last_login)) === key).length,
       }));
     })();
 
