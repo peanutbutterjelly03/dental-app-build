@@ -68,8 +68,16 @@ What it asks of the build (paraphrased; source is the user's pasted transcript, 
 
 ## ▶ RESUME HERE — PARKED 2026-10-04 (13th session). ✅ **ALL PUSHED, LIVE**
 
-**Nothing is in progress.** On `main`, level with origin (last `6e9798a4`). `npm test` **258 passed + 2
-skipped on purpose**, `tsc` both configs clean. Dev processes stopped.
+**Nothing is in progress. PARKED 2026-10-04 ~17:10 (user's tokens reset 19:30).** On `main`, level with
+origin (last `ce43659a`). `npm test` **259 passed + 2 skipped on purpose**, `tsc` both configs clean,
+`npm run build` clean, Vercel live = latest deploy (verified), Render ML = risk-only build. Dev processes stopped.
+**Later on 2026-10-04 (after the dashboard audit):** model gives RISK ONLY (recommendations rule-based);
+bulk Excel import fixed (multi-row file always opens bulk review; tested end to end with a fake workbook);
+model DMF input = one charting, not all summed (live: 11/28 pupils were inflated); ML pipeline reads the
+clinic's encoding template (her 18 real rows: all labelled, only 8 with tooth counts); DOH workbooks now in
+`data/` and compared: the health-center Program Reporting Form is already built. A ready-to-forward message
+for Luan (encoders: fill D/M/F + sugary drinks, dd/mm birthdays, ~50 rows; officer: 4 Form 2/target
+questions; dashboards: what is wrong?) was given in chat. Everything left WAITS on Luan/officer/user.
 
 **2026-10-04 in one line:** merged the classmate's `v2`, fixed her Excel bulk import, and finished the
 **dashboard audit (items 1-18 done, 8 deferred)**; per-item detail in the "DASHBOARD AUDIT" paragraph below.
