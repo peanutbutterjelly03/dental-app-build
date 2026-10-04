@@ -81,6 +81,15 @@ review" tile. System Admin: 7 **"System modules"** cards (Reports = link only, n
 generation). ⚠ **School Admin sees pupil NAMES again** (user decision; contacts/IDs still hidden; switch back =
 re-add `"school_admin"` to `NAME_BLIND_ROLES` in `server/middleware/roleGroups.ts`).
 
+**BULK UPLOAD TESTED END TO END 2026-10-04 (dev, Chrome):** a FAKE workbook with the classmate's exact
+154-column layout (her two header rows, 5 made-up "Zztest" pupils; file in the scratchpad, never in git) →
+5/5 parsed correctly → **BUG FOUND AND FIXED** (`ScanStudentForm.tsx` `extract`): without `?bulk=1` (i.e. not
+via her top OCR button) a spreadsheet went through `readOne`, which kept `records[0]` only, so a 5-pupil file
+opened the single Verify screen and silently dropped 4. Now any multi-row spreadsheet, or any batch containing
+one, goes to "Review Imported Students"; a one-row file still verifies singly. Then Review one by one → Save
+& Next x5 → all 5 in the dev DB with correct names/MI/birthdays/sex/grade/section/school and a 2026-2027
+IPTR → archived again (soft). ⚠ Chrome must be the FRONT window: a hidden tab stalls the page completely.
+
 **SCOPE DECISION 2026-10-04 (classmate, user OK): the model gives RISK ONLY; treatment recommendations are
 RULE-BASED** (`shared/riskTreatments.ts`, dentist accepts/skips each). `ml-service/predictor.py` no longer
 returns the fixed per-level `recommendation` sentence; the two "check risk" paths store `recommendation: ''`
