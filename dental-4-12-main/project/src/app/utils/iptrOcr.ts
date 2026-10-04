@@ -608,7 +608,17 @@ export async function extractIptrFields(
 
   let pageIndex = 0;
 
+  // The engine is served by the app itself (SEC-36, 2026-10-04): left at its
+  // defaults, Tesseract.js downloaded its worker, WebAssembly core and English
+  // data from jsDelivr on every scan, unpinned. scripts/copy-ocr-assets.mjs
+  // copies these from pinned packages into public/ocr/ before dev and build.
+  // Absolute URLs, because the worker starts from a blob URL and cannot
+  // resolve a relative path.
+  const ocrBase = `${window.location.origin}/ocr`;
   const worker = await Tesseract.createWorker('eng', undefined, {
+    workerPath: `${ocrBase}/worker.min.js`,
+    corePath: `${ocrBase}/core`,
+    langPath: `${ocrBase}/lang`,
     logger: (m) => {
       if (m.status === 'recognizing text' && onProgress) {
         // Split progress evenly across pages so multi-page PDFs still show smooth 0-100%.

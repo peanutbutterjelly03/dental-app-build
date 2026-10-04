@@ -24,8 +24,8 @@ finding re-checked against the code on 2026-10-04**, because several ledger head
 | A04 | Insecure Design | **Partial** | fail-open pattern (SEC-04, SEC-13); SEC-24 unbounded reads |
 | A05 | Security Misconfiguration | **Partial** | no CSP on the app page (SEC-11), error detail (SEC-09, SEC-32), ARCH-04 |
 | A06 | Vulnerable and Outdated Components | **Open** | `npm audit`: 6 advisories, 1 high (SEC-28) |
-| A07 | Identification and Authentication Failures | **Partial** | SEC-10, SEC-14, SEC-15, SEC-16, SEC-17 |
-| A08 | Software and Data Integrity Failures | **Partial** | OCR engine loaded from a CDN unpinned (MED, new); SEC-01 (LOW) |
+| A07 | Identification and Authentication Failures | **Partial** | SEC-14, SEC-15, SEC-16, SEC-17 (SEC-10 fixed 2026-10-04) |
+| A08 | Software and Data Integrity Failures | **Addressed** | SEC-36 fixed 2026-10-04; SEC-01 owner bypass (LOW) |
 | A09 | Security Logging and Monitoring Failures | **Partial** | ARCH-05 audit write is best-effort; no alerting |
 | A10 | Server-Side Request Forgery | **Addressed** | none |
 
@@ -185,8 +185,8 @@ approved sprint, a full test and build, and a re-run of the import audit behind
   401 "invalid API key" on 2026-10-04, which closes SEC-30.
 
 **Open**
-- **SEC-10 (MED):** changing your password checks the current one but is **not rate-limited**
-  (`server/routes/authRoutes.ts:32`, the only password check without the limiter). One-line fix.
+- ✅ **SEC-10 fixed 2026-10-04:** change-password now has the same rate limit as every other
+  password check (verified on dev: the eleventh wrong attempt gets 429).
 - **SEC-15 (MED):** limits are per IP only, with no per-account lockout. Staff behind one clinic
   network share a limit, and a wrong one-time code does not count against the code itself.
 - **SEC-14 (MED):** login takes measurably longer for an existing account (bcrypt runs only then),
@@ -195,7 +195,7 @@ approved sprint, a full test and build, and a re-run of the import audit behind
 - **SEC-17 (LOW):** the refresh token is not rotated on use.
 - **SEC-13 (MED, latent):** see A04.
 
-## A08 Software and Data Integrity Failures — Partial
+## A08 Software and Data Integrity Failures — Addressed (SEC-36 fixed 2026-10-04, see below)
 
 - **Deploys come only from the protected `main` branch** (GitHub ruleset: pull request review, a
   required `build` check, no force-push or deletion). **SEC-01 (LOW):** the repository owner can bypass
@@ -206,9 +206,10 @@ approved sprint, a full test and build, and a re-run of the import audit behind
   `workerPath`, `corePath` or `langPath` (`src/app/utils/iptrOcr.ts:611`), so on each scan Tesseract.js
   downloads its worker script and WebAssembly engine from the jsDelivr CDN, and the English language
   data from a public tessdata host, **with no integrity pinning**. A compromised or changed file there
-  would run inside the app with access to the page. Fix: serve those three files from the app itself
-  (copy them into `public/` and pass the three paths), which also lets OCR work without reaching a
-  third party.
+  would run inside the app with access to the page.
+  ✅ **Fixed the same day:** the engine files are copied from pinned packages into `public/ocr/` at
+  build time and served by the app (`scripts/copy-ocr-assets.mjs`); proven on dev by hiding the local
+  files, which makes OCR fail instead of falling back to a CDN.
 - **The offline queue's integrity rules:** first-in-first-out, stop on failure and never skip; a
   repeated create is applied once (SYNC_OPERATION); edits that would overwrite someone else's change
   are held for review.
@@ -248,10 +249,9 @@ service (`ML_SERVICE_URL`) and the email provider. No route fetches a URL suppli
 2. **Turn testing mode OFF** and set `SCHOOL_YEAR_DATE_RULES = true` (A01, A05).
 3. **Apply the dependency fixes** (A06) in an approved sprint, with tests, build and the technology
    documentation import audit.
-4. **Rate-limit `change-password`** (SEC-10): one line.
+4. ~~Rate-limit `change-password` (SEC-10)~~ ✅ done 2026-10-04.
 5. **Decide SEC-04:** require at least one school for a School Administrator.
 6. **Run the ZAP scan** and add its results here.
-7. **Self-host the OCR engine files** (A08, new): three files into `public/`, three paths in
-   `iptrOcr.ts`.
+7. ~~Self-host the OCR engine files (SEC-36)~~ ✅ done 2026-10-04.
 8. Optional, small: CSP headers (SEC-11), dummy-hash login timing (SEC-14), code out of the email
    subject (SEC-16).

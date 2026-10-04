@@ -47,6 +47,10 @@ export default defineConfig({
         // offline, because the SW will not have it and there is no network to
         // fall back to.
         globIgnores: [
+          // The self-hosted OCR engine (SEC-36, scripts/copy-ocr-assets.mjs):
+          // ~14 MB, fetched only when someone scans, and only online (the scan
+          // pages need a connection anyway).
+          'ocr/**',
           '**/iptrOcr-*.js',
           '**/exceljs*.js',
           '**/jspdf*.js',

@@ -29,7 +29,9 @@ router.post("/reset-password", makeAuthLimiter(), asyncHandler(resetPassword));
 router.post("/refresh", asyncHandler(refresh));
 router.post("/logout", asyncHandler(logout));
 router.get("/me", requireAuth, asyncHandler(me));
-router.patch("/change-password", requireAuth, asyncHandler(changePassword));
+// Rate-limited (SEC-10, 2026-10-04): it checks the current password, so
+// unlimited it was the same yes/no oracle /verify-password is limited against.
+router.patch("/change-password", makeAuthLimiter(), requireAuth, asyncHandler(changePassword));
 // Step-up for bulk/structural actions. Rate-limited like every other
 // password path — an unlimited yes/no on a password is an oracle.
 router.post("/verify-password", makeAuthLimiter(), requireAuth, asyncHandler(verifyPassword));

@@ -1159,3 +1159,13 @@ Impact:   A changed or compromised file on those hosts would run inside the app 
           availability dependency: OCR fails if those hosts are unreachable.
 Fix:      Copy the three files into `public/` and pass the three paths to `createWorker`. Small; its
           own approved change (it touches the OCR module the classmate actively tests).
+✅ **FIXED 2026-10-04:** `scripts/copy-ocr-assets.mjs` (predev/prebuild) copies `worker.min.js`, the
+          three LSTM `.wasm.js` cores and `eng.traineddata.gz` from pinned packages (new devDependency
+          `@tesseract.js-data/eng@1.0.0`) into git-ignored `public/ocr/`; `iptrOcr.ts` passes
+          `workerPath`/`corePath`/`langPath` on the app's own origin; `ocr/**` excluded from the PWA
+          precache (still 16 entries). **Proven on dev:** OCR reads a test image; with the local worker
+          and core hidden it FAILS (no CDN fallback); restored, it reads again.
+
+### SEC-10 → ✅ FIXED 2026-10-04
+`authRoutes.ts`: `/change-password` now has `makeAuthLimiter()`. Verified on dev: 11 wrong current
+passwords → 401 ×10 then **429**.
