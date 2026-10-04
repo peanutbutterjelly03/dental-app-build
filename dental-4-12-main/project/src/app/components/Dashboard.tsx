@@ -37,6 +37,7 @@ import { ChartTooltip } from './ChartTooltip';
 import { Link } from 'react-router';
 import { canOpen } from '../utils/routeRoles';
 import { FOLLOW_UP_WINDOW_DAYS } from '../../../shared/rpcTracking';
+import type { DmftSummary, Spread } from '../../../shared/dmft';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useStudents } from '../hooks/useStudents';
 import { useSchools } from '../hooks/useSchools';
@@ -96,6 +97,7 @@ export const Dashboard = () => {
   const [users, setUsers] = useState<ApiUser[]>([]);
   const [treatmentCount, setTreatmentCount] = useState(0);
   const [treatmentLoading, setTreatmentLoading] = useState(true);
+  const [dmft, setDmft] = useState<(DmftSummary & { enrolled: number }) | null>(null);
   const [currentYearStudentIds, setCurrentYearStudentIds] = useState<Set<string>>(new Set());
   const [auditEntries, setAuditEntries] = useState<ApiAuditTrail[]>([]);
   const [toothRecords, setToothRecords] = useState<{ chart_id: string; treatment_code?: string }[]>([]);
@@ -165,10 +167,16 @@ export const Dashboard = () => {
     let cancelled = false;
     setTreatmentLoading(true);
     const q = selectedSchool ? `?school=${encodeURIComponent(selectedSchool)}` : '';
+    setDmft(null);
     apiClient.get<{ count: number }>(`/stats/treatment-count${q}`)
       .then((r) => { if (!cancelled) setTreatmentCount(r.count); })
       .catch((err) => console.error('Treatment count fetch failed:', err))
       .finally(() => { if (!cancelled) setTreatmentLoading(false); });
+    // Item 15: DMFT/dmft summary, a server aggregate (no tooth rows reach
+    // the browser, so it works for the School Admin and BHO too).
+    apiClient.get<DmftSummary & { enrolled: number }>(`/stats/dmft-summary${q}`)
+      .then((r) => { if (!cancelled) setDmft(r); })
+      .catch((err) => console.error('DMFT summary fetch failed:', err));
     return () => { cancelled = true; };
   }, [selectedSchool]);
 
@@ -516,6 +524,53 @@ export const Dashboard = () => {
   const ovHigh = allStudents.filter((s) => s.riskLevel === 'High').length;
   // A tile only links where this role may go (the page guard would bounce it).
   const linkIfAllowed = (path: string) => (canOpen(path, user?.role) ? path : undefined);
+  // Caries burden (dashboard audit item 15): DMFT is the paper's primary
+  // dental-health measure. Median and quartiles, not a mean, because a few
+  // heavily decayed mouths drag a mean far from the typical pupil. Under
+  // SMALL_N charted pupils the quartiles are left out; a median of 3 is
+  // still worth showing, an "IQR" of 3 values is not.
+  const num = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
+  const spreadText = (s: Spread | null, n: number) => {
+    if (!s) return 'Not charted';
+    return n < SMALL_N
+      ? `median ${num(s.median)} · max ${s.max}`
+      : `median ${num(s.median)} · IQR ${num(s.q1)} to ${num(s.q3)} · max ${s.max}`;
+  };
+  const dmftCard = (
+    <div className="bg-card p-4 rounded-xl border border-border">
+      <h2 className="text-sm font-bold text-foreground mb-0.5">Caries Burden</h2>
+      <p className="text-[11px] text-muted-foreground mb-3">
+        From each pupil's latest charting
+        {dmft ? ` · ${dmft.charted} of ${dmft.enrolled} pupils charted` : ''}
+      </p>
+      <ChartBody ready={dmft !== null}>
+      {!dmft || dmft.charted === 0 ? (
+        <p className="text-sm text-muted-foreground py-4">No pupils charted yet.</p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <p className="text-xs text-muted-foreground">Caries experience (DMFT + dmft above 0)</p>
+            <p className="text-lg font-bold text-foreground tabular-nums">
+              {share(dmft.withCariesExperience, dmft.charted)}
+              {dmft.charted >= SMALL_N && (
+                <span className="text-xs font-medium text-muted-foreground"> · {dmft.withCariesExperience} of {dmft.charted}</span>
+              )}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">DMFT (permanent teeth)</p>
+            <p className="text-sm font-semibold text-foreground tabular-nums">{spreadText(dmft.permanent, dmft.charted)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">dmft (primary teeth)</p>
+            <p className="text-sm font-semibold text-foreground tabular-nums">{spreadText(dmft.primary, dmft.charted)}</p>
+          </div>
+        </div>
+      )}
+      </ChartBody>
+    </div>
+  );
+
   const programOverview = (
     <div className="space-y-3 rise">
       <span className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dental program overview</span>
@@ -559,6 +614,7 @@ export const Dashboard = () => {
           loading={rpcLoading}
         />
       </div>
+      {dmftCard}
     </div>
   );
 

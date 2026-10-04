@@ -14,17 +14,18 @@
 // ⚠ NOTHING HERE CHANGED IN THE MOVE. Comments are carried verbatim because
 // several of them record decisions that cost a sprint to make.
 
-// visitNumber added 2026-09-25 -- which RPC visit this tooth's current
-// treatment was recorded at, for the "(V1)"/"(V2)" indicator. Undefined/null
-// for teeth charted outside the visit flow.
-export type ChartEntry = { condition: string; treatment: string; visitNumber?: 1 | 2 | null };
+// ChartEntry (visitNumber added 2026-09-25 -- which RPC visit this tooth's
+// current treatment was recorded at, for the "(V1)"/"(V2)" indicator;
+// undefined/null for teeth charted outside the visit flow), the primary-tooth
+// layout and computeDMFT now live in shared/dmft.ts (2026-10-04, dashboard
+// audit item 15) so the server's dashboard summary uses the same count.
+// Re-exported unchanged; every importer keeps its import path.
+export type { ChartEntry } from '../../../shared/dmft';
+export { upperTemporary, lowerTemporary, temporaryTeeth, computeDMFT } from '../../../shared/dmft';
 
 // ─── FDI tooth layout ─────────────────────────────────────────────────────────
 export const upperPermanent = [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28];
 export const lowerPermanent = [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38];
-export const upperTemporary = [55, 54, 53, 52, 51, 61, 62, 63, 64, 65];
-export const lowerTemporary = [85, 84, 83, 82, 81, 71, 72, 73, 74, 75];
-export const temporaryTeeth = new Set([...upperTemporary, ...lowerTemporary]);
 
 export const conditionColors: Record<string, string> = {
   '✓': 'bg-green-50 border-green-400',
@@ -48,27 +49,6 @@ export const conditionColors: Record<string, string> = {
   'jc': 'bg-pink-50 border-pink-300',
   'P': 'bg-indigo-50 border-indigo-400',
   'p': 'bg-indigo-50 border-indigo-300',
-};
-
-// ─── DMFT calculation ─────────────────────────────────────────────────────────
-export const computeDMFT = (chart: Record<number, ChartEntry>) => {
-  let d = 0, m = 0, f = 0, x = 0, D = 0, M = 0, F = 0, X = 0;
-  Object.entries(chart).forEach(([tooth, data]) => {
-    const n = parseInt(tooth);
-    const c = data.condition;
-    if (temporaryTeeth.has(n)) {
-      if (c === 'd') d++;
-      else if (c === 'm') m++;
-      else if (c === 'f') f++;
-      else if (c === 'x' || c === 'dx') x++;
-    } else {
-      if (c === 'D') D++;
-      else if (c === 'M') M++;
-      else if (c === 'F') F++;
-      else if (c === 'X' || c === 'DX') X++;
-    }
-  });
-  return { d, m, f, x, t: d + m + f + x, D, M, F, X, T: D + M + F + X };
 };
 
 /**

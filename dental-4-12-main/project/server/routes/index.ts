@@ -21,6 +21,7 @@ import { ADMIN_ONLY, CLINICAL_WRITE_ROLES, CLINICAL_READ_ROLES, CLINICAL_READ_RO
 import { aggregateDohReport } from "../../shared/dohAggregate.js";
 import { buildRiskCandidates, filterRiskCandidates, reviewSummary } from "../../shared/riskCandidates.js";
 import { latestRisk } from "../../shared/latestRisk.js";
+import { computeDMFT, summarizeDmft } from "../../shared/dmft.js";
 import { buildRpcRows, filterRpcRows } from "../../shared/rpcTracking.js";
 import { buildSchoolSummary } from "../../shared/schoolSummary.js";
 import { buildFhsisCounts } from "../../shared/fhsis.js";
@@ -1197,6 +1198,54 @@ router.get("/stats/treatment-count", requireAuth, asyncHandler(async (req, res) 
   const iptrs = await StudentIptr.find({ isArchived: false, student_id: { $in: students.map((s: any) => s._id) } }).select("_id").lean();
   const count = await Treatment.countDocuments({ isArchived: false, iptr_id: { $in: iptrs.map((i: any) => i._id) } });
   res.json({ count });
+}));
+
+// Dashboard audit item 15 (2026-10-04): DMFT/dmft median and quartiles and
+// caries experience, for every role's dashboard. Counts only, no rows, so the
+// School Admin and BHO get it without reading tooth records themselves.
+// Each pupil is counted from ONE charting: their latest one that recorded a
+// tooth (latest school year, then latest date), the same "latest charting with
+// records" rule as dmftRecordsForYear on the chart screens. A pupil with no
+// such charting is "not charted" and left out, never counted as 0.
+router.get("/stats/dmft-summary", requireAuth, asyncHandler(async (req, res) => {
+  const schoolName = typeof req.query.school === "string" && req.query.school ? req.query.school : null;
+  let studentFilter: Record<string, unknown> = { isArchived: false };
+  if (schoolName) {
+    const school = await School.findOne({ school_name: schoolName, isArchived: false }).select("_id").lean<{ _id: unknown } | null>();
+    if (!school) { res.json({ ...summarizeDmft([]), enrolled: 0 }); return; }
+    studentFilter = { ...studentFilter, school_id: school._id };
+  }
+  const scope = await scopeFilter("Student", req);
+  if (scope) studentFilter = { $and: [studentFilter, scope] };
+  const students = await Student.find(studentFilter).select("_id").lean();
+  const iptrs = await StudentIptr.find({ isArchived: false, student_id: { $in: students.map((s: any) => s._id) } })
+    .select("_id student_id school_year").lean();
+  const charts = await DentalChart.find({ isArchived: false, iptr_id: { $in: iptrs.map((i: any) => i._id) } })
+    .select("_id iptr_id date_charted").lean();
+  const teeth = await ToothRecord.find({ isArchived: false, chart_id: { $in: charts.map((c: any) => c._id) } })
+    .select("chart_id tooth_number condition").lean();
+
+  const teethByChart = new Map<string, Record<number, { condition: string }>>();
+  for (const t of teeth as any[]) {
+    const k = String(t.chart_id);
+    const mouth = teethByChart.get(k) ?? {};
+    mouth[t.tooth_number] = { condition: String(t.condition) };
+    teethByChart.set(k, mouth);
+  }
+  const iptrById = new Map((iptrs as any[]).map((i) => [String(i._id), i]));
+  // Latest charting WITH tooth records per pupil: school year first, then date.
+  const best = new Map<string, { year: string; at: number; chartId: string }>();
+  for (const c of charts as any[]) {
+    if (!teethByChart.has(String(c._id))) continue;
+    const iptr = iptrById.get(String(c.iptr_id));
+    if (!iptr) continue;
+    const sid = String(iptr.student_id);
+    const cand = { year: String(iptr.school_year), at: new Date(c.date_charted).getTime(), chartId: String(c._id) };
+    const cur = best.get(sid);
+    if (!cur || cand.year > cur.year || (cand.year === cur.year && cand.at >= cur.at)) best.set(sid, cand);
+  }
+  const perPupil = [...best.values()].map((b) => computeDMFT(teethByChart.get(b.chartId)!));
+  res.json({ ...summarizeDmft(perPupil), enrolled: students.length });
 }));
 
 router.get("/stats/student-rows", requireAuth, asyncHandler(async (req, res) => {
