@@ -136,8 +136,10 @@ next 30 days · RPC overdue + `funnel.dueSoon`); duplicate role tiles removed; f
 School Admin + BHO; BHO dashboard ignores Switch School (barangay-wide). ⚠ USER DECISION 2026-10-04: School
 Admin SEES NAMES again (`NAME_BLIND_ROLES` emptied, `/students` stops redacting the 4 name fields; contacts,
 address, IDs still redacted; LEDGER-sec SEC-03 annotated). NEW (was): 14 Objective 4 core block for every role (coverage, treatments,
-appointments, follow-ups), ✅15 "Caries Burden" card inside the overview (all roles): `/stats/dmft-summary?school=`, DMFT/dmft median ·
-IQR · max + caries experience, from each pupil's latest charting with tooth records; not-charted pupils left
+appointments, follow-ups), ✅15 "Dental Caries and DMF/dmf Index" card inside the overview (all roles; renamed from my "Caries Burden"
+to the manuscript's terms, user OK 2026-10-04): `/stats/dmft-summary?school=`, DMFT/dmft AVERAGE + highest
+(DOH/WHO convention, user decision; median/IQR still computed) + caries experience; a failed request shows
+"Could not load" instead of an endless skeleton, from each pupil's latest charting with tooth records; not-charted pupils left
 out; computeDMFT moved to `shared/dmft.ts` (re-exported, unchanged). Dev: 23 of 26 charted, 14 with caries
 experience, matches an independent count and a pupil's own chart (Diaz, Jomar dmft 3). (was: 15 DMFT median/IQR + caries prevalence), 16 risk review status, 17 admin
 per-module cards (classmate's ask), 18 quick search. Exclusions agreed: no trends, no unvalidated risk in
