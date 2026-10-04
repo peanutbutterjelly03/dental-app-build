@@ -167,6 +167,15 @@ export const Dashboard = () => {
     const sessions = selectedSchool ? allSessions.filter((s) => s.school === selectedSchool) : allSessions;
     return sessions.filter((s) => s.date === today);
   }, [allSessions, selectedSchool]);
+  // Dashboard audit item 13 (2026-10-04): a SESSION is one booked slot for a
+  // group of pupils (useAppointments groups appointments by date, time,
+  // section, type and dentist), and its status is kept per session. The tile
+  // and chart count sessions, so they say "sessions" and give the pupil count
+  // alongside; they used to say "appointments", which a 30-pupil session is not.
+  const todayPupils = todaySessions.reduce((n, s) => n + s.studentCount, 0);
+  const todaySessionsContext = todaySessions[0]
+    ? `${todayPupils} pupil${todayPupils !== 1 ? 's' : ''} · next at ${todaySessions[0].time}`
+    : 'None scheduled';
   const highRiskCount = allStudents.filter((s) => s.riskLevel === 'High').length;
   const mediumRiskCount = allStudents.filter((s) => s.riskLevel === 'Medium').length;
   const lowRiskCount = allStudents.filter((s) => s.riskLevel === 'Low').length;
@@ -528,9 +537,9 @@ export const Dashboard = () => {
             />
             <SummaryCell
               icon={Calendar}
-              label="Appointments today"
+              label="Sessions today"
               value={String(todaySessions.length)}
-              context={todaySessions[0] ? `Next at ${todaySessions[0].time}` : 'None scheduled'}
+              context={todaySessionsContext}
               linkTo="/appointments"
               loading={appointmentsLoading}
             />
@@ -801,9 +810,9 @@ export const Dashboard = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <SummaryCell
               icon={Calendar}
-              label="Appointments today"
+              label="Sessions today"
               value={String(todaySessions.length)}
-              context={todaySessions[0] ? `Next at ${todaySessions[0].time}` : 'None scheduled'}
+              context={todaySessionsContext}
               linkTo="/appointments"
               loading={appointmentsLoading}
             />
@@ -858,8 +867,8 @@ export const Dashboard = () => {
         <div className="grid grid-cols-1 gap-4 rise rise-2">
           {/* Appointments by Status - Stacked Bar Chart (real, current week) */}
           <div className="bg-card p-4 rounded-xl border border-border">
-            <h2 className="text-sm font-bold text-foreground mb-0.5">Appointments by Status (This Week)</h2>
-            <p className="text-[11px] text-muted-foreground mb-3">Completed · scheduled · missed, per day</p>
+            <h2 className="text-sm font-bold text-foreground mb-0.5">Sessions by Status (This Week)</h2>
+            <p className="text-[11px] text-muted-foreground mb-3">Booked sessions per day: completed · scheduled · missed</p>
             <ChartBody ready={!appointmentsLoading}>
             <ResponsiveContainer width="100%" height={220} key="appt-status-container">
               <BarChart data={appointmentsByStatusData} id="appointments-status-chart">
