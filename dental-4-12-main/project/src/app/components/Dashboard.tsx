@@ -79,8 +79,11 @@ export const Dashboard = () => {
   // rebuilding the instants on every render would refetch in a loop.
   const weekWindow = useMemo(() => {
     const now = new Date();
-    const from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
-    const weekEnd = new Date(from.getFullYear(), from.getMonth(), from.getDate() + 6, 23, 59, 59, 999);
+    const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+    // Back UPCOMING_DAYS too, for the admin's "missed in the last 30 days" (item 17).
+    const back30 = new Date(now.getFullYear(), now.getMonth(), now.getDate() - UPCOMING_DAYS);
+    const from = back30 < weekStart ? back30 : weekStart;
+    const weekEnd = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 6, 23, 59, 59, 999);
     const in30 = new Date(now.getFullYear(), now.getMonth(), now.getDate() + UPCOMING_DAYS, 23, 59, 59, 999);
     return { from, to: in30 > weekEnd ? in30 : weekEnd };
   }, []);
@@ -1412,6 +1415,40 @@ export const Dashboard = () => {
     const auditEventsToday = auditEntries.filter(
       (a) => toLocalDateString(new Date(a.timestamp)) === todayKey,
     ).length;
+
+    // Per-module cards (dashboard audit item 17, the classmate's "sa admin
+    // dapat per module"): the seven modules of Chapter 3, each with figures
+    // this page already loads. ⚠ Reports has NO figure on purpose: nothing
+    // records when a report is generated or printed, so any number there
+    // would be invented. It is a link only.
+    const monthAgo = new Date();
+    monthAgo.setDate(monthAgo.getDate() - UPCOMING_DAYS);
+    const monthAgoKey = toLocalDateString(monthAgo);
+    const studentsAdded30 = auditEntries.filter(
+      (a) => a.affected_model === 'Student' && a.action.startsWith('Created') && new Date(a.timestamp) >= monthAgo,
+    ).length;
+    const scopedAll = selectedSchool ? allSessions.filter((s) => s.school === selectedSchool) : allSessions;
+    const missed30 = scopedAll.filter((s) => s.status === 'Missed' && s.date >= monthAgoKey && s.date <= todayKey).length;
+    const moduleCards: { n: number; name: string; to: string; lines: string[]; loading: boolean }[] = [
+      { n: 1, name: 'User Authentication & Access', to: '/accounts', loading: extraLoading,
+        lines: [`${activeUsersCount} active account${activeUsersCount !== 1 ? 's' : ''}`, `${signedInTodayCount} signed in today`] },
+      { n: 2, name: 'Student Records (IPTR)', to: '/patients', loading: studentsLoading || extraLoading,
+        lines: [`${allStudents.length} student${allStudents.length !== 1 ? 's' : ''} on record`, `${studentsAdded30} added in the last ${UPCOMING_DAYS} days`] },
+      { n: 3, name: 'Dental Charting', to: '/dental-charts', loading: dmft === null && !dmftFailed,
+        lines: dmft
+          ? [`${dmft.charted} of ${dmft.enrolled} charted`, dmft.primary || dmft.permanent
+            ? `average DMFT ${num(dmft.permanent?.mean ?? 0)} · dmft ${num(dmft.primary?.mean ?? 0)}`
+            : 'No DMF/dmf yet']
+          : ['Could not load'] },
+      { n: 4, name: 'Appointments', to: '/appointments', loading: appointmentsLoading,
+        lines: [`${ovSessions.length} session${ovSessions.length !== 1 ? 's' : ''} in the next ${UPCOMING_DAYS} days`, `${missed30} missed in the last ${UPCOMING_DAYS} days`] },
+      { n: 5, name: 'RPC Monitoring', to: '/rpc', loading: rpcLoading,
+        lines: [`Visit 1 done: ${rpcFunnel.visit1} of ${rpcFunnel.enrolled}`, `Both visits: ${rpcFunnel.both} of ${rpcFunnel.enrolled}`] },
+      { n: 6, name: 'Risk Classification', to: '/ai-analytics', loading: studentsLoading,
+        lines: [`${reviewsWaiting} waiting for review`, `${reviewsDone} reviewed`] },
+      { n: 7, name: 'Dashboard & Reports', to: '/reports', loading: false,
+        lines: ['Open DOH and school reports'] },
+    ];
     // Role mix, shortened -- "1 dentist · 1 aide · 3 staff" says more about the
     // account list than the bare total does.
     const ROLE_SHORT: Record<string, string> = {
@@ -1537,6 +1574,30 @@ export const Dashboard = () => {
               linkTo="/accounts"
               loading={extraLoading}
             />
+          </div>
+        </div>
+
+        {/* System modules (item 17): one card per Chapter 3 module. */}
+        <div className="space-y-3 rise rise-2">
+          <span className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">System modules</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {moduleCards.map((m) => (
+              <Link
+                key={m.n}
+                to={m.to}
+                className="bg-card p-4 rounded-xl border border-border hover:border-primary transition-colors"
+              >
+                <p className="text-[11px] font-semibold text-muted-foreground">Module {m.n}</p>
+                <p className="text-sm font-bold text-foreground mb-2">{m.name}</p>
+                {m.loading ? (
+                  <SkeletonBlock className="h-8 w-32" />
+                ) : (
+                  m.lines.map((line) => (
+                    <p key={line} className="text-xs text-muted-foreground tabular-nums">{line}</p>
+                  ))
+                )}
+              </Link>
+            ))}
           </div>
         </div>
 

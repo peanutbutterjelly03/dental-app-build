@@ -163,8 +163,10 @@ to the manuscript's terms, user OK 2026-10-04): `/stats/dmft-summary?school=`, D
 "Could not load" instead of an endless skeleton, from each pupil's latest charting with tooth records; not-charted pupils left
 out; computeDMFT moved to `shared/dmft.ts` (re-exported, unchanged). Dev: 23 of 26 charted, 14 with caries
 experience, matches an independent count and a pupil's own chart (Diaz, Jomar dmft 3). (was: 15 DMFT median/IQR + caries prevalence), ✅16 dentist tile "Risk results to review" (riskReview status, same rule
-as Risk Classification's tabs; dev 9 / 2 reviewed / 1 not checked, matches the screen; links to ?tab=needs_review), 17 admin
-per-module cards (classmate's ask), 18 quick search. Exclusions agreed: no trends, no unvalidated risk in
+as Risk Classification's tabs; dev 9 / 2 reviewed / 1 not checked, matches the screen; links to ?tab=needs_review), ✅17 admin "System modules": 7 cards, one per
+Chapter 3 module, figures from data already loaded (+ students added in 30 days from the audit trail, missed
+sessions in 30 days; appointment fetch widened back 30 days); Reports card is a link only (nothing records
+report generation, so no number). (was: 17 admin per-module cards (classmate's ask)), 18 quick search. Exclusions agreed: no trends, no unvalidated risk in
 totals, no model accuracy, no % for n<10, no school ranking, no grouping by encrypted fields.
 
 **▶ NEXT, in order:** (0) **Rotate the exposed secrets** (above). (1) Browser check signed in as the
