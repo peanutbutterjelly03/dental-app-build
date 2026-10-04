@@ -565,8 +565,11 @@ export const Dashboard = () => {
           )}
         </div>
 
-        {/* Charts Row: Risk Distribution (LEFT) + Oral Health Trend (RIGHT, illustrative — see note above) */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 rise rise-2">
+        {/* Risk Distribution. The "Oral Health Trend" card that sat beside it
+            was REMOVED (dashboard audit item 4, 2026-10-04): it was always
+            empty, because nothing records monthly DMFT snapshots, and one
+            school year of data cannot support a trend anyway. */}
+        <div className="grid grid-cols-1 gap-4 rise rise-2">
           <div className="bg-card p-4 rounded-xl border border-border">
             <h2 className="text-sm font-bold text-foreground">Risk Distribution</h2>
             {/* "Recorded", not "Validated": this card reads
@@ -600,18 +603,6 @@ export const Dashboard = () => {
             </ChartBody>
           </div>
 
-          <div className="bg-card p-4 rounded-xl border border-border">
-            <h2 className="text-sm font-bold text-foreground">Oral Health Trend</h2>
-            <p className="text-[11px] text-muted-foreground mb-3">Mean DMFT index · last 6 months</p>
-            {/* ⚠ Sprint 105, KEPT over her version. Hers reads "will populate
-                once monthly snapshots begin accumulating" — NOTHING ACCUMULATES
-                THEM. There is no snapshot mechanism anywhere in the app or the
-                server, so that sentence promises a feature that will never
-                arrive on its own, which is worse than an empty chart: it tells
-                the reader it works and merely needs time. Building it needs a
-                scheduled job and somewhere to keep the series. */}
-            <NoDataYet message="Not built yet — nothing records the monthly DMFT snapshots this trend would be drawn from, so it will stay empty until that is added." />
-          </div>
         </div>
 
         {/* Charts Row 2: RPC funnel + procedures — both computed from real records */}
@@ -845,8 +836,10 @@ export const Dashboard = () => {
           )}
         </div>
 
-        {/* Charts Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 rise rise-2">
+        {/* Appointments by Status. The two "Pending Tasks" cards that sat here
+            were REMOVED (dashboard audit item 4, 2026-10-04): no Task entity
+            exists, so they could only ever say "not built". */}
+        <div className="grid grid-cols-1 gap-4 rise rise-2">
           {/* Appointments by Status - Stacked Bar Chart (real, current week) */}
           <div className="bg-card p-4 rounded-xl border border-border">
             <h2 className="text-sm font-bold text-foreground mb-0.5">Appointments by Status (This Week)</h2>
@@ -866,19 +859,6 @@ export const Dashboard = () => {
             </ResponsiveContainer>
             </ChartBody>
           </div>
-
-          {/* Pending Tasks by Priority - no Task entity exists in the ERD,
-              so there's no real data to chart -- honest empty state. */}
-          <div className="bg-card p-4 rounded-xl border border-border">
-            <h2 className="text-sm font-bold text-foreground mb-3">Pending Tasks by Priority</h2>
-            <NoDataYet message="No task-tracking system exists yet -- there's no Task entity in the data model to report on." />
-          </div>
-        </div>
-
-        {/* Task List -- same reason as above, no backing model */}
-        <div className="bg-card p-4 rounded-xl border border-border rise rise-3">
-          <h2 className="text-sm font-bold text-foreground mb-3">Pending Tasks</h2>
-          <p className="text-sm text-muted-foreground text-center py-12">No task-tracking system exists yet.</p>
         </div>
       </div>
     );
@@ -1114,7 +1094,8 @@ export const Dashboard = () => {
       return {
         school: short,
         screened: students.filter((s) => s.riskLevel !== null).length,
-        treated: 0, // no real Treatment records exist yet — see HANDOFF
+        // No "treated" series (dashboard audit item 4, 2026-10-04): it was a
+        // hard-coded 0 drawn as if it were data.
         highRisk: students.filter((s) => s.riskLevel === 'High').length,
       };
     });
@@ -1239,12 +1220,15 @@ export const Dashboard = () => {
           </div>
         </div>
 
-        {/* Charts Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 rise rise-2">
+        {/* School Comparison. The "Monthly Program Coverage Trend" card beside
+            it was REMOVED (dashboard audit item 4, 2026-10-04): it promised
+            monthly snapshots that nothing records, and one school year cannot
+            support a trend. */}
+        <div className="grid grid-cols-1 gap-4 rise rise-2">
           {/* School Comparison - Grouped Bar Chart */}
           <div className="bg-card p-4 rounded-xl border border-border">
             <h2 className="text-sm font-bold text-foreground mb-0.5">School Comparison</h2>
-            <p className="text-[11px] text-muted-foreground mb-3">Screened · treated · high-risk counts per school</p>
+            <p className="text-[11px] text-muted-foreground mb-3">Screened · high-risk counts per school</p>
             <ChartBody ready={!studentsLoading}>
             <ResponsiveContainer width="100%" height={220} key="school-comparison-container">
               <BarChart data={schoolComparisonData} id="school-comparison-chart">
@@ -1254,18 +1238,10 @@ export const Dashboard = () => {
                 <Tooltip key="school-tooltip" content={<ChartTooltip />} />
                 <Legend wrapperStyle={{ fontSize: 12 }} key="school-legend" />
                 <Bar dataKey="screened" fill={CHART.brand} name="Screened" key="school-bar-screened" maxBarSize={40} />
-                <Bar dataKey="treated" fill={CHART.success} name="Treated" key="school-bar-treated" maxBarSize={40} />
                 <Bar dataKey="highRisk" fill={CHART.danger} name="High Risk" key="school-bar-risk" maxBarSize={40} />
               </BarChart>
             </ResponsiveContainer>
             </ChartBody>
-          </div>
-
-          {/* Monthly Coverage Trend - Area Chart */}
-          <div className="bg-card p-4 rounded-xl border border-border">
-            <h2 className="text-sm font-bold text-foreground mb-3">Monthly Program Coverage Trend</h2>
-            {/* No historical monthly snapshots exist yet -- honest empty state. */}
-            <NoDataYet message="No historical coverage data yet. This chart will populate once monthly snapshots begin accumulating." />
           </div>
         </div>
 
