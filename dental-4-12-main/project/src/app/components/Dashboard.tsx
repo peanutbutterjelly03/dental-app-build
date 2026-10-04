@@ -50,6 +50,8 @@ import { schoolYearLabel } from '../utils/schoolYear';
 // overstates what it measures ("1 of 2" reads as a confident "50%"), so every
 // rate on this screen shows the plain count instead until the group reaches 10.
 const SMALL_N = 10;
+// School Admin "Upcoming visits" horizon (dashboard audit item 11).
+const UPCOMING_DAYS = 30;
 const share = (count: number, total: number) =>
   total < SMALL_N ? `${count} of ${total}` : `${Math.round((count / total) * 100)}%`;
 
@@ -60,15 +62,18 @@ export const Dashboard = () => {
   // screen's charts speak the same semantic color language.
 
   const { students: allStudentsRaw, loading: studentsLoading } = useStudents();
-  // The dashboard reads exactly two things from appointments — today's list and
-  // the current calendar week's bar chart — so it loads that week and nothing
-  // else (Sprint 56). Computed once per mount: rebuilding the instants on every
-  // render would change the hook's dependencies and refetch in a loop.
+  // The dashboard reads today's list, the current calendar week's bar chart and
+  // (School Admin) the next 30 days' visits, so it loads from the start of this
+  // week to whichever ends later, and nothing else (Sprint 56; widened for
+  // dashboard audit item 11). Every consumer filters by exact date, so the
+  // wider window changes none of the weekly figures. Computed once per mount:
+  // rebuilding the instants on every render would refetch in a loop.
   const weekWindow = useMemo(() => {
     const now = new Date();
     const from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
-    const to = new Date(from.getFullYear(), from.getMonth(), from.getDate() + 6, 23, 59, 59, 999);
-    return { from, to };
+    const weekEnd = new Date(from.getFullYear(), from.getMonth(), from.getDate() + 6, 23, 59, 59, 999);
+    const in30 = new Date(now.getFullYear(), now.getMonth(), now.getDate() + UPCOMING_DAYS, 23, 59, 59, 999);
+    return { from, to: in30 > weekEnd ? in30 : weekEnd };
   }, []);
   const { sessions: allSessions, loading: appointmentsLoading } = useAppointments(weekWindow);
   // ⚠ SCOPED, and `status: 'all'`. Without the school the funnel counted every
@@ -875,8 +880,15 @@ export const Dashboard = () => {
 
   // ===== SCHOOL ADMIN DASHBOARD =====
   if (user?.role === 'school_admin') {
-    const schoolName = user.schools?.[0];
-    const schoolStudents = schoolName ? allStudentsRaw.filter((s) => s.school === schoolName) : [];
+    // Dashboard audit item 11 (2026-10-04): was `user.schools[0]`, so an admin
+    // assigned two schools saw one, and an all-schools admin (empty
+    // school_ids) saw "No school assigned". The server already scopes
+    // /stats/student-rows to the admin's schools; Switch School narrows it to
+    // one, exactly as on every other dashboard.
+    const schoolName = selectedSchool;
+    const scopeLabel = selectedSchool
+      ?? (user.schools?.length ? user.schools.map(getSchoolShortName).join(', ') : 'All schools');
+    const schoolStudents = allStudents;
     const schoolScreenedCount = schoolStudents.filter((s) => s.riskLevel !== null).length;
     const coveragePct = schoolStudents.length ? Math.round((schoolScreenedCount / schoolStudents.length) * 100) : 0;
 
@@ -917,13 +929,17 @@ export const Dashboard = () => {
       { name: 'No validated risk yet', value: schoolStudents.filter((s) => s.oralStatus === 'Not Yet Screened').length, color: CHART.neutral },
     ];
 
-    const schoolSessions = schoolName ? allSessions.filter((s) => s.school === schoolName) : [];
+    const schoolSessions = schoolName ? allSessions.filter((s) => s.school === schoolName) : allSessions;
     const today = toLocalDateString(new Date());
+    const now = new Date();
+    const horizon = toLocalDateString(new Date(now.getFullYear(), now.getMonth(), now.getDate() + UPCOMING_DAYS));
+    const visitsNext30 = schoolSessions
+      .filter((s) => s.date >= today && s.date <= horizon)
+      .sort((a, b) => a.date.localeCompare(b.date));
     const upcomingEvents = schoolSessions
       .filter((s) => s.type === 'Bayanihan Mission' && s.date >= today)
       .sort((a, b) => a.date.localeCompare(b.date))
       .map((s) => ({ name: s.type, date: s.date, school: s.school, students: s.studentCount }));
-    const nextUpcomingSession = [...schoolSessions].filter((s) => s.date >= today).sort((a, b) => a.date.localeCompare(b.date))[0];
 
     return (
       <div className="space-y-6">
@@ -932,7 +948,7 @@ export const Dashboard = () => {
             icon={LayoutDashboard}
             eyebrow="Overview"
             title="School Admin Dashboard"
-            description={user.schools?.[0] ?? 'No school assigned yet.'}
+            description={scopeLabel}
           />
           {/* Date + enrolled count moved into the school summary (Sprint E). */}
           <Link
@@ -958,7 +974,7 @@ export const Dashboard = () => {
               icon={Users}
               label="Students enrolled"
               value={String(schoolStudents.length)}
-              context={schoolName ? getSchoolShortName(schoolName) : 'No school assigned'}
+              context={schoolName ? getSchoolShortName(schoolName) : scopeLabel}
               linkTo="/reports"
               loading={studentsLoading}
             />
@@ -977,20 +993,22 @@ export const Dashboard = () => {
             />
             <SummaryCell
               icon={Activity}
-              label="Treatments completed"
+              // Item 11: /stats/treatment-count counts TREATMENT rows (the
+              // treatment log) across every school year, not dental chart
+              // records. It is school-scoped on the server, not by Switch School.
+              label="Treatments recorded"
               value={String(treatmentCount)}
-              context={treatmentCount > 0 ? 'From dental chart records' : 'None recorded yet'}
+              context={treatmentCount > 0 ? 'Treatment log, all school years' : 'None recorded yet'}
               linkTo="/reports"
               loading={extraLoading}
             />
-            {/* Value is a DATE or the words "None scheduled" -- SummaryCell's
-                prose detection steps the sentence down so it does not outshout
-                the three figures beside it. */}
+            {/* A count since item 11 (was the next date, which said nothing about
+                how busy the coming month is); the next date is the caption. */}
             <SummaryCell
               icon={Calendar}
-              label="Upcoming visits"
-              value={nextUpcomingSession ? nextUpcomingSession.date : 'None scheduled'}
-              context={upcomingEvents.length > 0 ? `${upcomingEvents.length} Bayanihan event${upcomingEvents.length !== 1 ? 's' : ''} booked` : 'No Bayanihan events booked'}
+              label={`Visits, next ${UPCOMING_DAYS} days`}
+              value={String(visitsNext30.length)}
+              context={visitsNext30[0] ? `Next on ${formatDateWithWeekday(new Date(`${visitsNext30[0].date}T00:00:00`))}` : 'None scheduled'}
               linkTo="/appointments"
               loading={appointmentsLoading}
             />

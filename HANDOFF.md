@@ -126,7 +126,9 @@ Breakdown"; BHO "Needs Treatment" column/caption → "High caries risk" (it is r
 WHOLE dashboard per school year (numerators too), a redesign that would blank dev for the alpha test.
 ✅9 under 10 in a group, rates show "x of n" not "%" (`SMALL_N`/`share` in Dashboard.tsx). ✅10 aide "Pending charts" = this school year's pupils with no real chart
 (pipelineStatus 'For Oral Exam'); dev shows "No records for this school year yet" (0 current IPTRs).
-11 School Admin: all schools, Treatments caption, 30-day visits. 12 BHO: schools from DB, low-risk % over
+✅11 School Admin: every assigned school (Switch School
+narrows), "Treatments recorded / Treatment log, all school years", "Visits, next 30 days" count (dev: 0, no
+appointments after 2026-09-15). 12 BHO: schools from DB, low-risk % over
 screened. 13 appointments vs sessions. NEW: 14 Objective 4 core block for every role (coverage, treatments,
 appointments, follow-ups), 15 DMFT median/IQR + caries prevalence, 16 risk review status, 17 admin
 per-module cards (classmate's ask), 18 quick search. Exclusions agreed: no trends, no unvalidated risk in
