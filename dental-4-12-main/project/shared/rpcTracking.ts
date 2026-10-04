@@ -433,7 +433,7 @@ export interface RpcListPage {
    *  `pending` and `mostOverdueDays` added 2026-10-04: the dashboard used to
    *  count them from the delivered page (25 rows), so a school of more than 25
    *  students showed figures for its first 25 alphabetically. */
-  funnel: { enrolled: number; visit1: number; both: number; overdue: number; complete: number; pending: number; mostOverdueDays: number | null };
+  funnel: { enrolled: number; visit1: number; both: number; overdue: number; complete: number; pending: number; dueSoon: number; mostOverdueDays: number | null };
   /** The dashboard's "RPC follow-ups due" worklist over the WHOLE school
    *  context: overdue, or due within 60 days, most overdue first, at most 6. */
   followUps: RPCRow[];
@@ -523,6 +523,9 @@ export function filterRpcRows(all: RPCRow[], query: RpcListQuery): RpcListPage {
       overdue: inSchool.filter((r) => r.status === 'overdue').length,
       complete: inSchool.filter((r) => r.status === 'complete').length,
       pending: inSchool.filter((r) => r.status === 'pending').length,
+      // Not yet overdue but due within the follow-up window: the population
+      // count behind `followUps`, which is only the first few rows.
+      dueSoon: inSchool.filter((r) => r.status === 'pending' && r.daysUntilDue <= FOLLOW_UP_WINDOW_DAYS).length,
       mostOverdueDays: (() => {
         const overdue = inSchool.filter((r) => r.status === 'overdue');
         return overdue.length ? Math.max(...overdue.map((r) => -r.daysUntilDue)) : null;

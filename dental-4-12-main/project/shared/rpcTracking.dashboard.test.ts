@@ -47,6 +47,13 @@ describe('dashboard RPC figures cover the whole school, not the page', () => {
     expect(f.both).toBeLessThanOrEqual(f.visit1);
   });
 
+  it('dueSoon counts pending students due within 60 days, beyond the 6-row list (item 14)', () => {
+    const soon = Array.from({ length: 8 }, (_, i) => row(40 + i, 'pending', 5 + i));
+    const f = filterRpcRows([...all, ...soon], { status: 'all' });
+    expect(f.funnel.dueSoon).toBe(8); // the 3 at 90 days are outside the window
+    expect(f.followUps).toHaveLength(6);
+  });
+
   it('nothing overdue gives null, not 0 days', () => {
     expect(filterRpcRows(all.slice(0, 22), { status: 'all' }).funnel.mostOverdueDays).toBeNull();
   });

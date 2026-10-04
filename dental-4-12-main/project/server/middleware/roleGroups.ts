@@ -9,4 +9,8 @@ export const CLINICAL_READ_ROLES = ["system_admin", "dentist", "dental_aide"];
 // and Consent Form, which read these three collections; the School Admin does not.
 export const CLINICAL_READ_ROLES_AND_BHO = [...CLINICAL_READ_ROLES, "bho_staff"];
 // Sprint 163 (SEC-03): roles that see counts, never a student's name.
-export const NAME_BLIND_ROLES = ["school_admin"];
+// EMPTIED 2026-10-04 (user decision, dashboard audit item 14): the School
+// Admin sees names again, like the BHO. The School Admin still reads no
+// clinical collection (CLINICAL_READ_ROLES above). Put "school_admin" back to
+// restore Sprint 163's counts-only behaviour.
+export const NAME_BLIND_ROLES: string[] = [];

@@ -130,7 +130,12 @@ WHOLE dashboard per school year (numerators too), a redesign that would blank de
 narrows), "Treatments recorded / Treatment log, all school years", "Visits, next 30 days" count (dev: 0, no
 appointments after 2026-09-15). ✅12 BHO: schools from DB (`useSchools`; "Schools
 participating" x of N), low-risk rate over SCREENED pupils (summary cell + age table). ✅13 dentist/aide tile "Sessions today" (+ pupil count),
-chart "Sessions by Status" (they count sessions, a booked slot for a group, not appointments). NEW: 14 Objective 4 core block for every role (coverage, treatments,
+chart "Sessions by Status" (they count sessions, a booked slot for a group, not appointments). ✅14 "Dental program overview" block on all 5 dashboards (Students
+screened X of N + high risk · Treatments recorded = TREATMENT log via /stats/treatment-count?school= · Sessions
+next 30 days · RPC overdue + `funnel.dueSoon`); duplicate role tiles removed; follow-up list (names) added to
+School Admin + BHO; BHO dashboard ignores Switch School (barangay-wide). ⚠ USER DECISION 2026-10-04: School
+Admin SEES NAMES again (`NAME_BLIND_ROLES` emptied, `/students` stops redacting the 4 name fields; contacts,
+address, IDs still redacted; LEDGER-sec SEC-03 annotated). NEW (was): 14 Objective 4 core block for every role (coverage, treatments,
 appointments, follow-ups), 15 DMFT median/IQR + caries prevalence, 16 risk review status, 17 admin
 per-module cards (classmate's ask), 18 quick search. Exclusions agreed: no trends, no unvalidated risk in
 totals, no model accuracy, no % for n<10, no school ranking, no grouping by encrypted fields.

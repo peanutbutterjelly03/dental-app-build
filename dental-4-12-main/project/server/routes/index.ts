@@ -53,7 +53,9 @@ import {
 const router = Router();
 
 // Sprint 163 (SEC-03): the School Admin's /stats rows keep everything the
-// counts need (sex, grade, birthday, school) and lose every name. Same rule
+// counts need (sex, grade, birthday, school) and lose every name. ⚠ OFF since
+// 2026-10-04: NAME_BLIND_ROLES is empty by user decision (School Admin sees
+// names); the mechanism stays so it can be switched back in roleGroups.ts. Same rule
 // `/students` applies through its `redact` option; these routes build their
 // rows by hand, so each one blanks the names here.
 const isNameBlind = (req: { user?: { role?: string } }) => NAME_BLIND_ROLES.includes(req.user?.role ?? "");
@@ -1178,8 +1180,20 @@ router.get("/stats/treatment-categories", requireAuth, asyncHandler(async (req, 
 // the caller's school(s), so the tile no longer needs the treatment records
 // themselves (now clinical-read only), and no longer counts every school's.
 router.get("/stats/treatment-count", requireAuth, asyncHandler(async (req, res) => {
+  // ?school narrows to one school (Switch School), $and-ed with the user's
+  // own scope the same way /stats/high-risk-count does (Sprint 101), so it can
+  // never widen what the user may see. Every role's dashboard reads its
+  // Treatments tile from here (dashboard audit item 14).
+  const schoolName = typeof req.query.school === "string" && req.query.school ? req.query.school : null;
+  let studentFilter: Record<string, unknown> = { isArchived: false };
+  if (schoolName) {
+    const school = await School.findOne({ school_name: schoolName, isArchived: false }).select("_id").lean<{ _id: unknown } | null>();
+    if (!school) { res.json({ count: 0 }); return; }
+    studentFilter = { ...studentFilter, school_id: school._id };
+  }
   const scope = await scopeFilter("Student", req);
-  const students = await Student.find(scope ? { isArchived: false, ...scope } : { isArchived: false }).select("_id").lean();
+  if (scope) studentFilter = { $and: [studentFilter, scope] };
+  const students = await Student.find(studentFilter).select("_id").lean();
   const iptrs = await StudentIptr.find({ isArchived: false, student_id: { $in: students.map((s: any) => s._id) } }).select("_id").lean();
   const count = await Treatment.countDocuments({ isArchived: false, iptr_id: { $in: iptrs.map((i: any) => i._id) } });
   res.json({ count });
@@ -1444,13 +1458,13 @@ router.use("/students", createCrudRouter(Student, {
   },
   filterable: ["_id", "school_id"],
   filterableText: ["grade_level", "section"],
-  // A school_admin's two screens need the ROWS (counts by grade, sex and age
-  // bracket) and none of the identity on them. See CrudOptions.redact.
-  // `birthday` stays: the DOH age brackets are computed from it.
+  // A school_admin's screens need the ROWS (counts by grade, sex and age
+  // bracket) and their names (user decision 2026-10-04, dashboard audit item
+  // 14, same day NAME_BLIND_ROLES was emptied), but no contact or ID details.
+  // See CrudOptions.redact. `birthday` stays: the DOH age brackets need it.
   redact: {
     roles: ["school_admin"],
     fields: [
-      "full_name", "first_name", "last_name", "middle_name",
       "address", "contact_number", "guardian_name", "guardian_contact",
       "philhealth_number", "fourps_id", "place_of_birth", "guardian_occupation",
     ],

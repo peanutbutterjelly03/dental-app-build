@@ -1108,6 +1108,10 @@ excludes them), so the fix is to return `[]` for roles outside `NOTIFIED_ROLES`,
   `/stats/reports-panels` (`isNameBlind` + `studentNames` in index.ts, `NAME_BLIND_ROLES`);
   `/stats/risk-candidates`, `/stats/risk-history`, `/stats/student-nav` gated to clinical roles;
   `unmarkedAppointments` only for clinical roles.
+  ⚠ **Names part REVERSED 2026-10-04 by user decision** (dashboard audit item 14: "school admin and
+  bho also see names"): `NAME_BLIND_ROLES` is now empty and `/students` no longer redacts the four
+  name fields for the School Admin (address, contacts, PhilHealth/4Ps IDs, place of birth and guardian
+  occupation stay redacted). The route gates above are unchanged. Re-add `"school_admin"` to restore.
 - **SEC-33:** no referral rows for the School Admin (server) and the Referral Tracking card hidden.
 - **SEC-34:** `utils/routeRoles.ts` is now the ONE role table; the sidebar (`Root.tsx`) and a page
   guard in `RootLayout.tsx` both read it (+3 tests).

@@ -35,13 +35,15 @@ import {
 } from 'recharts';
 import { ChartTooltip } from './ChartTooltip';
 import { Link } from 'react-router';
+import { canOpen } from '../utils/routeRoles';
+import { FOLLOW_UP_WINDOW_DAYS } from '../../../shared/rpcTracking';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useStudents } from '../hooks/useStudents';
 import { useSchools } from '../hooks/useSchools';
 import { useAppointments } from '../hooks/useAppointments';
 import { useRPCTracking } from '../hooks/useRPCTracking';
 import { apiClient } from '../api/client';
-import type { ApiUser, ApiTreatment, ApiStudentIptr, ApiAuditTrail, ApiRiskStratification } from '../api/types';
+import type { ApiUser, ApiStudentIptr, ApiAuditTrail, ApiRiskStratification } from '../api/types';
 import { windowStart, AUDIT_WINDOW_DAYS } from '../hooks/useAuditTrail';
 import { treatmentCodes, treatmentLabel } from '../utils/dentalChartCodes';
 import { calculateAge, getAgeGroup, AGE_GROUPS } from '../utils/age';
@@ -57,7 +59,11 @@ const share = (count: number, total: number) =>
   total < SMALL_N ? `${count} of ${total}` : `${Math.round((count / total) * 100)}%`;
 
 export const Dashboard = () => {
-  const { user, selectedSchool } = useAuth();
+  const { user, selectedSchool: chosenSchool } = useAuth();
+  // The BHO dashboard is barangay-wide by design (consolidated, every school),
+  // so the header's school choice does not narrow it. Every other role's
+  // dashboard follows Switch School (dashboard audit item 14).
+  const selectedSchool = user?.role === 'bho_staff' ? null : chosenSchool;
 
   // Chart colors live in one shared module (Sprint 32 / audit U3) so every
   // screen's charts speak the same semantic color language.
@@ -89,6 +95,7 @@ export const Dashboard = () => {
     useRPCTracking({ school: selectedSchool ?? '', status: 'all' });
   const [users, setUsers] = useState<ApiUser[]>([]);
   const [treatmentCount, setTreatmentCount] = useState(0);
+  const [treatmentLoading, setTreatmentLoading] = useState(true);
   const [currentYearStudentIds, setCurrentYearStudentIds] = useState<Set<string>>(new Set());
   const [auditEntries, setAuditEntries] = useState<ApiAuditTrail[]>([]);
   const [toothRecords, setToothRecords] = useState<{ chart_id: string; treatment_code?: string }[]>([]);
@@ -103,13 +110,9 @@ export const Dashboard = () => {
       try {
         // Sprint 163: the School Admin and BHO dashboards read none of the six
         // clinical collections below (and the server now refuses them). The
-        // School Admin's Treatments tile gets a count scoped to their school.
-        if (user?.role === 'school_admin' || user?.role === 'bho_staff') {
-          if (user.role === 'school_admin') {
-            setTreatmentCount((await apiClient.get<{ count: number }>('/stats/treatment-count')).count);
-          }
-          return;
-        }
+        // Treatments tile reads /stats/treatment-count for every role (effect
+        // below), so no role pulls the whole Treatment collection any more.
+        if (user?.role === 'school_admin' || user?.role === 'bho_staff') return;
         // /users and /audit-trails are both system_admin-only on the backend
         // (Sprint 15 RBAC) — the other 4 roles got a 403 here, which threw
         // uncaught inside Promise.all and left extraLoading (and the whole
@@ -117,13 +120,12 @@ export const Dashboard = () => {
         // setExtraLoading(false) never ran. Only fetch them for the role
         // that actually needs them (System Admin dashboard only) and has
         // permission.
-        const [apiUsers, treatments, iptrs, charts, audits, teeth, risks, preventives] = await Promise.all([
+        const [apiUsers, iptrs, charts, audits, teeth, risks, preventives] = await Promise.all([
           // includeArchived: the list route returns ACTIVE accounts only
           // unless asked, so "Archived accounts" always read 0 (dashboard
           // audit item 3, 2026-10-04). Every other admin figure below filters
           // to active accounts itself.
           user?.role === 'system_admin' ? apiClient.get<ApiUser[]>('/users?includeArchived=true') : Promise.resolve([]),
-          apiClient.get<ApiTreatment[]>('/treatments'),
           apiClient.get<ApiStudentIptr[]>('/student-iptrs'),
           apiClient.get<{ _id: string; iptr_id: string }[]>('/dental-charts'),
           // Sprint 92: bounded to the same window the Audit Trail screen uses.
@@ -139,7 +141,6 @@ export const Dashboard = () => {
           apiClient.get<{ _id: string; iptr_id: string }[]>('/preventive-care-records'),
         ]);
         setUsers(apiUsers);
-        setTreatmentCount(treatments.length);
         const thisYear = schoolYearLabel();
         setCurrentYearStudentIds(new Set(iptrs.filter((i) => i.school_year === thisYear).map((i) => i.student_id)));
         setAuditEntries(audits);
@@ -157,6 +158,19 @@ export const Dashboard = () => {
       }
     })();
   }, []);
+
+  // Treatments tile (dashboard audit item 14): a server count, narrowed by
+  // Switch School like everything else on the page.
+  useEffect(() => {
+    let cancelled = false;
+    setTreatmentLoading(true);
+    const q = selectedSchool ? `?school=${encodeURIComponent(selectedSchool)}` : '';
+    apiClient.get<{ count: number }>(`/stats/treatment-count${q}`)
+      .then((r) => { if (!cancelled) setTreatmentCount(r.count); })
+      .catch((err) => console.error('Treatment count fetch failed:', err))
+      .finally(() => { if (!cancelled) setTreatmentLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedSchool]);
 
   const allStudents = useMemo(
     () => (selectedSchool ? allStudentsRaw.filter((s) => s.school === selectedSchool) : allStudentsRaw),
@@ -484,6 +498,122 @@ export const Dashboard = () => {
   // put the switcher in the mobile drawer (Root.tsx), so it is removed rather
   // than wired up; the drawer covers every screen, not just the dashboard.
 
+  // ===== DENTAL PROGRAM OVERVIEW (dashboard audit item 14, 2026-10-04) =====
+  // Specific Objective 4 asks for dashboards that give "an overview of student
+  // dental health" plus "treatment history and appointment data" so staff can
+  // "monitor progress and manage follow-ups". Every role gets these same four
+  // figures with the same definitions, at the top of its dashboard; each
+  // role's own extras follow. The server scopes every figure to the user's
+  // schools, and Switch School narrows it to one.
+  const ovNow = new Date();
+  const ovToday = toLocalDateString(ovNow);
+  const ovHorizon = toLocalDateString(new Date(ovNow.getFullYear(), ovNow.getMonth(), ovNow.getDate() + UPCOMING_DAYS));
+  const ovSessions = (selectedSchool ? allSessions.filter((s) => s.school === selectedSchool) : allSessions)
+    .filter((s) => s.date >= ovToday && s.date <= ovHorizon)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+  const ovPupils = ovSessions.reduce((n, s) => n + s.studentCount, 0);
+  const ovScreened = allStudents.filter((s) => s.riskLevel !== null).length;
+  const ovHigh = allStudents.filter((s) => s.riskLevel === 'High').length;
+  // A tile only links where this role may go (the page guard would bounce it).
+  const linkIfAllowed = (path: string) => (canOpen(path, user?.role) ? path : undefined);
+  const programOverview = (
+    <div className="space-y-3 rise">
+      <span className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dental program overview</span>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <SummaryCell
+          icon={CheckCircle}
+          label="Students screened"
+          value={String(ovScreened)}
+          trailing={`of ${allStudents.length}`}
+          context={ovHigh ? `${ovHigh} at high caries risk` : 'None at high caries risk'}
+          linkTo={linkIfAllowed('/patients')}
+          loading={studentsLoading}
+        />
+        <SummaryCell
+          icon={FileText}
+          label="Treatments recorded"
+          value={String(treatmentCount)}
+          context={treatmentCount > 0 ? 'Treatment log, all school years' : 'None recorded yet'}
+          linkTo={linkIfAllowed('/treatment-records')}
+          loading={treatmentLoading}
+        />
+        <SummaryCell
+          icon={Calendar}
+          label={`Sessions, next ${UPCOMING_DAYS} days`}
+          value={String(ovSessions.length)}
+          context={ovSessions[0]
+            ? `${ovPupils} pupil${ovPupils !== 1 ? 's' : ''} · next on ${formatDateWithWeekday(new Date(`${ovSessions[0].date}T00:00:00`))}`
+            : 'None scheduled'}
+          linkTo={linkIfAllowed('/appointments')}
+          loading={appointmentsLoading}
+        />
+        <SummaryCell
+          icon={AlertCircle}
+          label="RPC follow-ups overdue"
+          value={String(rpcFunnel.overdue)}
+          valueClass={rpcFunnel.overdue > 0 ? 'text-destructive' : undefined}
+          context={rpcFunnel.dueSoon
+            ? `${rpcFunnel.dueSoon} more due within ${FOLLOW_UP_WINDOW_DAYS} days`
+            : `No others due within ${FOLLOW_UP_WINDOW_DAYS} days`}
+          linkTo={linkIfAllowed('/rpc')}
+          loading={rpcLoading}
+        />
+      </div>
+    </div>
+  );
+
+  // The follow-up list, shared so the School Admin and BHO see it too (user
+  // decision 2026-10-04: both roles see pupil names).
+  const followUpsCard = (
+          <div className="bg-card p-4 rounded-xl border border-border">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <h2 className="text-sm font-bold text-foreground">RPC Follow-ups Due</h2>
+                <p className="text-[11px] text-muted-foreground">Overdue and due within {FOLLOW_UP_WINDOW_DAYS} days</p>
+              </div>
+              {linkIfAllowed('/rpc') && <Link to="/rpc" className="text-xs text-primary hover:underline">View all →</Link>}
+            </div>
+            <ChartBody ready={!rpcLoading}>
+            {upcomingFollowUps.length === 0 ? (
+              <NoDataYet message={`No follow-ups overdue or due within ${FOLLOW_UP_WINDOW_DAYS} days.`} />
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {upcomingFollowUps.map((r) => {
+                  // urgency reads as form, not just number: overdue red, due
+                  // within a week amber, further out calm gray
+                  const pill = r.status === 'overdue'
+                    ? 'bg-danger-surface text-destructive'
+                    : r.daysUntilDue <= 7
+                      ? 'bg-warning-surface text-warning'
+                      : 'bg-muted text-muted-foreground';
+                  const initials = r.studentName
+                    .split(/[\s,]+/)
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .map((w: string) => w[0])
+                    .join('')
+                    .toUpperCase();
+                  return (
+                    <div key={r.id} className="flex items-center gap-3 py-2 px-1 rounded-lg hover:bg-primary-surface transition-colors">
+                      <span className="w-8 h-8 rounded-lg bg-primary-surface text-primary grid place-items-center text-[11px] font-bold shrink-0">
+                        {initials}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{r.studentName}</p>
+                        <p className="text-xs text-muted-foreground">{r.grade} · {r.section}</p>
+                      </div>
+                      <span className={`ml-auto text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 tabular-nums ${pill}`}>
+                        {r.status === 'overdue' ? `${Math.abs(r.daysUntilDue)}d overdue` : r.daysUntilDue === 0 ? 'due today' : `due in ${r.daysUntilDue}d`}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            </ChartBody>
+          </div>
+  );
+
   // ===== DENTIST DASHBOARD =====
   if (user?.role === 'dentist') {
     // High first — the tier that needs attention reads first (audit U3:
@@ -510,7 +640,10 @@ export const Dashboard = () => {
               (Sprints A/D) for the same reason. */}
         </div>
 
-        {/* Clinic summary (Sprint A, direction 3a) — replaces the four KPI tiles */}
+        {programOverview}
+
+        {/* Clinic summary (Sprint A, direction 3a). "Patients enrolled" and
+            "High-risk patients" moved into the program overview above (item 14). */}
         <div className="space-y-3 rise rise-1">
           <div className="flex items-baseline justify-between gap-4">
             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Clinic summary</span>
@@ -519,22 +652,9 @@ export const Dashboard = () => {
             </span>
           </div>
 
-          {/* 1 column stacked with horizontal rules, 4 columns with vertical
-              rules from lg. No 2-column middle step: at that width the context
-              lines wrap and the ledger stops reading as a single row. */}
           {/* School rotation: where the dentist is today and tomorrow. */}
           <RotationDashboardCards />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            <SummaryCell
-              icon={Users}
-              label="Patients enrolled"
-              value={String(allStudents.length)}
-              // "screened", not "validated" -- nothing filters on validated_at,
-              // so claiming validation here would be false (see HANDOFF item 13).
-              context={`${screenedCount} screened`}
-              linkTo="/patients"
-              loading={studentsLoading}
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <SummaryCell
               icon={Calendar}
               label="Sessions today"
@@ -542,16 +662,6 @@ export const Dashboard = () => {
               context={todaySessionsContext}
               linkTo="/appointments"
               loading={appointmentsLoading}
-            />
-            <SummaryCell
-              icon={AlertCircle}
-              label="High-risk patients"
-              value={String(highRiskCount)}
-              // Same conditional as the old tile: foreground at 0, red above it.
-              valueClass={highRiskCount > 0 ? 'text-destructive' : undefined}
-              context={`${mediumRiskCount} medium · ${lowRiskCount} low`}
-              linkTo="/patients?risk=high"
-              loading={studentsLoading}
             />
             <SummaryCell
               icon={Shield}
@@ -725,53 +835,7 @@ export const Dashboard = () => {
             </ChartBody>
           </div>
 
-          <div className="bg-card p-4 rounded-xl border border-border">
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <h2 className="text-sm font-bold text-foreground">RPC Follow-ups Due</h2>
-                <p className="text-[11px] text-muted-foreground">Overdue and due within 60 days</p>
-              </div>
-              <Link to="/rpc" className="text-xs text-primary hover:underline">View all →</Link>
-            </div>
-            <ChartBody ready={!rpcLoading}>
-            {upcomingFollowUps.length === 0 ? (
-              <NoDataYet message="No follow-ups overdue or due within 60 days." />
-            ) : (
-              <div className="divide-y divide-gray-100">
-                {upcomingFollowUps.map((r) => {
-                  // urgency reads as form, not just number: overdue red, due
-                  // within a week amber, further out calm gray
-                  const pill = r.status === 'overdue'
-                    ? 'bg-danger-surface text-destructive'
-                    : r.daysUntilDue <= 7
-                      ? 'bg-warning-surface text-warning'
-                      : 'bg-muted text-muted-foreground';
-                  const initials = r.studentName
-                    .split(/[\s,]+/)
-                    .filter(Boolean)
-                    .slice(0, 2)
-                    .map((w: string) => w[0])
-                    .join('')
-                    .toUpperCase();
-                  return (
-                    <div key={r.id} className="flex items-center gap-3 py-2 px-1 rounded-lg hover:bg-primary-surface transition-colors">
-                      <span className="w-8 h-8 rounded-lg bg-primary-surface text-primary grid place-items-center text-[11px] font-bold shrink-0">
-                        {initials}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">{r.studentName}</p>
-                        <p className="text-xs text-muted-foreground">{r.grade} · {r.section}</p>
-                      </div>
-                      <span className={`ml-auto text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 tabular-nums ${pill}`}>
-                        {r.status === 'overdue' ? `${Math.abs(r.daysUntilDue)}d overdue` : r.daysUntilDue === 0 ? 'due today' : `due in ${r.daysUntilDue}d`}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            </ChartBody>
-          </div>
+          {followUpsCard}
         </div>
       </div>
     );
@@ -796,7 +860,10 @@ export const Dashboard = () => {
               (Sprints A/D) for the same reason. */}
         </div>
 
-        {/* Clinic summary (Sprint D) — same strip as the dentist branch */}
+        {programOverview}
+
+        {/* Clinic summary (Sprint D). "RPC follow-ups overdue" moved into the
+            program overview above (item 14). */}
         <div className="space-y-3 rise rise-1">
           <div className="flex items-baseline justify-between gap-4">
             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Clinic summary</span>
@@ -807,7 +874,7 @@ export const Dashboard = () => {
 
           {/* School rotation: where the dentist is today and tomorrow. */}
           <RotationDashboardCards />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
             <SummaryCell
               icon={Calendar}
               label="Sessions today"
@@ -825,16 +892,6 @@ export const Dashboard = () => {
                 : 'No records for this school year yet'}
               linkTo="/dental-charts"
               loading={studentsLoading || extraLoading}
-            />
-            <SummaryCell
-              icon={AlertCircle}
-              label="RPC follow-ups overdue"
-              value={String(rpcOverdueCount)}
-              // Matches the old tile, which carried its color on the number.
-              valueClass={rpcOverdueCount > 0 ? 'text-destructive' : undefined}
-              context={mostOverdueDays !== null ? `Most overdue by ${mostOverdueDays} days` : 'None overdue'}
-              linkTo="/rpc"
-              loading={rpcLoading}
             />
             <SummaryCell
               icon={Shield}
@@ -942,11 +999,6 @@ export const Dashboard = () => {
 
     const schoolSessions = schoolName ? allSessions.filter((s) => s.school === schoolName) : allSessions;
     const today = toLocalDateString(new Date());
-    const now = new Date();
-    const horizon = toLocalDateString(new Date(now.getFullYear(), now.getMonth(), now.getDate() + UPCOMING_DAYS));
-    const visitsNext30 = schoolSessions
-      .filter((s) => s.date >= today && s.date <= horizon)
-      .sort((a, b) => a.date.localeCompare(b.date));
     const upcomingEvents = schoolSessions
       .filter((s) => s.type === 'Bayanihan Mission' && s.date >= today)
       .sort((a, b) => a.date.localeCompare(b.date))
@@ -971,60 +1023,10 @@ export const Dashboard = () => {
           </Link>
         </div>
 
-        {/* School summary (Sprint E, design 3a) */}
-        <div className="space-y-3 rise rise-1">
-          <div className="flex items-baseline justify-between gap-4">
-            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">School summary</span>
-            <span className="text-xs font-medium text-muted-foreground">
-              {formatDateWithWeekday(new Date())}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            <SummaryCell
-              icon={Users}
-              label="Students enrolled"
-              value={String(schoolStudents.length)}
-              context={schoolName ? getSchoolShortName(schoolName) : scopeLabel}
-              linkTo="/reports"
-              loading={studentsLoading}
-            />
-            <SummaryCell
-              icon={CheckCircle}
-              label="Students screened"
-              value={String(schoolScreenedCount)}
-              trailing={schoolStudents.length < SMALL_N ? `of ${schoolStudents.length}` : `${coveragePct}%`}
-              context={
-                schoolStudents.length - schoolScreenedCount > 0
-                  ? `${schoolStudents.length - schoolScreenedCount} not yet screened`
-                  : 'All students screened'
-              }
-              linkTo="/reports"
-              loading={studentsLoading}
-            />
-            <SummaryCell
-              icon={Activity}
-              // Item 11: /stats/treatment-count counts TREATMENT rows (the
-              // treatment log) across every school year, not dental chart
-              // records. It is school-scoped on the server, not by Switch School.
-              label="Treatments recorded"
-              value={String(treatmentCount)}
-              context={treatmentCount > 0 ? 'Treatment log, all school years' : 'None recorded yet'}
-              linkTo="/reports"
-              loading={extraLoading}
-            />
-            {/* A count since item 11 (was the next date, which said nothing about
-                how busy the coming month is); the next date is the caption. */}
-            <SummaryCell
-              icon={Calendar}
-              label={`Visits, next ${UPCOMING_DAYS} days`}
-              value={String(visitsNext30.length)}
-              context={visitsNext30[0] ? `Next on ${formatDateWithWeekday(new Date(`${visitsNext30[0].date}T00:00:00`))}` : 'None scheduled'}
-              linkTo="/appointments"
-              loading={appointmentsLoading}
-            />
-          </div>
-        </div>
+        {/* The School summary strip (enrolled, screened, treatments, visits in
+            30 days) was exactly the program overview's four figures, so the
+            overview replaces it (item 14). */}
+        {programOverview}
 
         {/* Charts Row.
             The "Screening Coverage" donut was removed in Sprint G -- it rendered
@@ -1121,6 +1123,9 @@ export const Dashboard = () => {
           )}
           </ChartBody>
         </div>
+
+        {/* Follow-ups by name (item 14; the School Admin sees names since 2026-10-04). */}
+        <div className="rise rise-3">{followUpsCard}</div>
       </div>
     );
   }
@@ -1165,7 +1170,6 @@ export const Dashboard = () => {
       };
     });
 
-    const totalStudents = allStudentsRaw.length;
     const totalScreened = allStudentsRaw.filter((s) => s.riskLevel !== null).length;
     // Counts behind the percentages, so the summary strip can show "6 of 18"
     // beside "33%" instead of asking the reader to do the arithmetic.
@@ -1180,7 +1184,7 @@ export const Dashboard = () => {
             icon={LayoutDashboard}
             eyebrow="Overview"
             title="Barangay Health Office Dashboard"
-            description="Aggregated dental health data across all three schools."
+            description="Aggregated dental health data across all schools."
           />
           {/* Date + totals moved into the barangay summary (Sprint F). */}
           <Link
@@ -1192,6 +1196,8 @@ export const Dashboard = () => {
           </Link>
         </div>
 
+        {programOverview}
+
         {/* Barangay summary (Sprint F, design 3a) */}
         <div className="space-y-3 rise rise-1">
           <div className="flex items-baseline justify-between gap-4">
@@ -1201,33 +1207,9 @@ export const Dashboard = () => {
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            <SummaryCell
-              icon={Users}
-              label="Students served"
-              value={String(totalStudents)}
-              context={`Across ${schoolsParticipating} school${schoolsParticipating !== 1 ? 's' : ''}`}
-              linkTo="/reports"
-              loading={studentsLoading}
-            />
-            {/* Coverage is BLUE and orally-fit is GREEN, per the mock and the
-                Operational-vs-Clinical Rule: how much of the programme has been
-                delivered is operational, what state the children's mouths are
-                in is clinical. */}
-            <SummaryCell
-              icon={Activity}
-              label="Program coverage"
-              value={share(totalScreened, totalStudents)}
-              valueClass="text-primary"
-              trailing={totalStudents < SMALL_N ? undefined : `${totalScreened} of ${totalStudents}`}
-              context={
-                totalStudents - totalScreened > 0
-                  ? `${totalStudents - totalScreened} student${totalStudents - totalScreened !== 1 ? 's' : ''} not yet screened`
-                  : 'All students screened'
-              }
-              linkTo="/reports"
-              loading={studentsLoading}
-            />
+          {/* "Students served" and "Program coverage" moved into the program
+              overview above as "Students screened, X of N" (item 14). */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             {/* ⚠ "Low caries risk", NOT "Orally fit". This figure is derived
                 from RISK_STRATIFICATION — `risk === 'Low'` — and nothing else.
                 "Orally Fit Child" is a DOH indicator with a clinical definition
@@ -1324,6 +1306,9 @@ export const Dashboard = () => {
           </div>
           </ChartBody>
         </div>
+
+        {/* Follow-ups by name (item 14; the BHO sees names). */}
+        <div className="rise rise-3">{followUpsCard}</div>
       </div>
     );
   }
@@ -1423,6 +1408,8 @@ export const Dashboard = () => {
             Manage Accounts
           </Link>
         </div>
+
+        {programOverview}
 
         {/* System summary (Sprint I). No 3a mock exists for this role — it was
             excluded from the design work because three of its four tiles read
