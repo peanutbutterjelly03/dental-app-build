@@ -208,6 +208,10 @@ export const Dashboard = () => {
   const mediumRiskCount = allStudents.filter((s) => s.riskLevel === 'Medium').length;
   const lowRiskCount = allStudents.filter((s) => s.riskLevel === 'Low').length;
   const screenedCount = allStudents.filter((s) => s.riskLevel !== null).length;
+  // Risk review queue (item 16), per the shared reviewSummary status.
+  const reviewsWaiting = allStudents.filter((s) => s.riskReview?.status === 'needs_review').length;
+  const reviewsDone = allStudents.filter((s) => s.riskReview?.status === 'reviewed').length;
+  const reviewsNotChecked = allStudents.filter((s) => s.riskReview?.status === 'not_checked').length;
   // Dashboard audit item 10 (2026-10-04): THIS school year's roster only. It
   // used to count a pupil as charted if ANY year had a chart row, so a pupil
   // charted last year never came back as pending, and a chart saved empty
@@ -714,7 +718,22 @@ export const Dashboard = () => {
 
           {/* School rotation: where the dentist is today and tomorrow. */}
           <RotationDashboardCards />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+            {/* Dashboard audit item 16 (2026-10-04): the review queue. The paper
+                has the dentist validate every risk result before clinical
+                action; nothing on the dashboard showed what is waiting (the
+                sidebar badge is the HIGH-RISK count). Counts come from each
+                row's riskReview, the shared reviewSummary rule the Risk
+                Classification screen's tabs use, so the two always agree. */}
+            <SummaryCell
+              icon={Eye}
+              label="Risk results to review"
+              value={String(reviewsWaiting)}
+              valueClass={reviewsWaiting > 0 ? 'text-warning' : undefined}
+              context={`${reviewsDone} reviewed · ${reviewsNotChecked} not checked yet`}
+              linkTo="/ai-analytics?tab=needs_review"
+              loading={studentsLoading}
+            />
             <SummaryCell
               icon={Calendar}
               label="Sessions today"
