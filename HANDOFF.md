@@ -67,6 +67,17 @@ a page guard. Details + per-role API results: `docs/audit/LEDGER-sec.md` → "Sp
 2026-10-01): role limits are off for the classmate's testing. Turn it OFF when she is done, and
 certainly before defense (see "TESTING MODE" below).
 
+⏳ **PENDING (2026-10-04): the classmate's `v2` branch** (github.com/peanutbutterjelly03/dental-app-build,
+branch `v2`; remote `classmate` added locally). Built on our `8a1552da`, +223 commits: offline O1-O5
+(read cache, conflict review, idempotent creates), a bulk "Review Imported Students" page between Scan and
+Verify. She is fixing its UI and will send it again; merge THEN, not before. Her test workbook
+`Downloads/OCR-Bulk-20-try.xlsx` ("Raw Copy of Manual Encoded", 154 columns, 18 filled rows, REAL pupil
+data, never commit) failed because its column names are on ROW 2 (row 1 = group titles), names are
+"Surname / First Name / Middle Initial", birthdays are dd/mm/yyyy. Needed in the spreadsheet reader
+(`parseSpreadsheetRecords`, utils/studentImport.ts): find the header row, those aliases, day-first dates,
+one row = one student. Also: is this the hand-encoded REAL dataset for Phase 3? Ask before using it.
+The dashboard audit (Step 1-4) is still owed; both read-only investigations are done.
+
 **▶ NEXT, in order:** (0) **Rotate the exposed secrets** (above). (1) Browser check signed in as the
 School Admin and the BHO (Dashboard, Reports tabs). (2) The classmate's feedback on the live Risk
 redesign; ask the dentist to glance at the treatment rules (FV Medium/High, PF per D, SDF per d) before
