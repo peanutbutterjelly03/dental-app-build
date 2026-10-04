@@ -20,6 +20,7 @@ import { enforceOneStaffPerSchool } from "../middleware/oneStaffPerSchool.js";
 import { ADMIN_ONLY, CLINICAL_WRITE_ROLES, CLINICAL_READ_ROLES, CLINICAL_READ_ROLES_AND_BHO, NAME_BLIND_ROLES } from "../middleware/roleGroups.js";
 import { aggregateDohReport } from "../../shared/dohAggregate.js";
 import { buildRiskCandidates, filterRiskCandidates, reviewSummary } from "../../shared/riskCandidates.js";
+import { latestRisk } from "../../shared/latestRisk.js";
 import { buildRpcRows, filterRpcRows } from "../../shared/rpcTracking.js";
 import { buildSchoolSummary } from "../../shared/schoolSummary.js";
 import { buildFhsisCounts } from "../../shared/fhsis.js";
@@ -165,29 +166,28 @@ router.get("/stats/high-risk-count", requireAuth, asyncHandler(async (req, res) 
   const [students, iptrs, preventives, risks] = await Promise.all([
     Student.find(studentFilter).select("_id").lean(),
     StudentIptr.find({ isArchived: false }).select("_id student_id").lean(),
-    PreventiveCareRecord.find({ isArchived: false }).select("_id iptr_id").lean(),
+    PreventiveCareRecord.find({ isArchived: false }).select("_id iptr_id visit_date").lean(),
     // VALIDATED only (2026-10-01): suggestions are now stored unvalidated, and
     // an unreviewed machine suggestion must never count as a high-risk student.
-    RiskStratification.find({ isArchived: false, validated_by_dentist: true }).select("preventive_id risk_level").lean(),
+    RiskStratification.find({ isArchived: false, validated_by_dentist: true }).select("preventive_id risk_level validated_at").lean(),
   ]);
-  const preventiveIptrById = new Map(preventives.map((p) => [String(p._id), String(p.iptr_id)]));
-  const riskByIptr = new Map<string, string>();
-  for (const r of risks) {
-    const iptrId = preventiveIptrById.get(String(r.preventive_id));
-    if (iptrId) riskByIptr.set(iptrId, String(r.risk_level));
-  }
-  const iptrsByStudent = new Map<string, string[]>();
-  for (const i of iptrs) {
-    const list = iptrsByStudent.get(String(i.student_id)) ?? [];
-    list.push(String(i._id));
-    iptrsByStudent.set(String(i.student_id), list);
+  // Each student's CURRENT level is their latest validated assessment
+  // (shared/latestRisk.ts, dashboard audit item 5) -- the same rule as
+  // /stats/student-rows, so the badge and the dashboard agree.
+  const preventiveById = new Map((preventives as any[]).map((p) => [String(p._id), p]));
+  const studentByIptr = new Map(iptrs.map((i) => [String(i._id), String(i.student_id)]));
+  const risksByStudent = new Map<string, { risk_level: string; visit_date?: Date; validated_at?: Date }[]>();
+  for (const r of risks as any[]) {
+    const p = preventiveById.get(String(r.preventive_id));
+    const sid = p && studentByIptr.get(String(p.iptr_id));
+    if (!sid) continue;
+    const list = risksByStudent.get(sid) ?? [];
+    list.push({ risk_level: String(r.risk_level), visit_date: p.visit_date, validated_at: r.validated_at });
+    risksByStudent.set(sid, list);
   }
   let count = 0;
   for (const s of students) {
-    const level = (iptrsByStudent.get(String(s._id)) ?? [])
-      .map((id) => riskByIptr.get(id))
-      .find(Boolean);
-    if (level === "High") count++;
+    if (latestRisk(risksByStudent.get(String(s._id)) ?? [])?.risk_level === "High") count++;
   }
   res.json({ count });
 }));
@@ -1201,7 +1201,7 @@ router.get("/stats/student-rows", requireAuth, asyncHandler(async (req, res) => 
     // feed the Students list, every dashboard and the BHO table. A stored but
     // unreviewed suggestion is shown on the Risk Classification screen as
     // "Needs review", never here as the student's risk.
-    RiskStratification.find({ isArchived: false, validated_by_dentist: true }).select("preventive_id risk_level recommendation").lean(),
+    RiskStratification.find({ isArchived: false, validated_by_dentist: true }).select("preventive_id risk_level recommendation validated_at").lean(),
     ToothRecord.find({ isArchived: false }).select("chart_id condition visit_number").lean(),
     OralHealthCondition.find({ isArchived: false }).select("iptr_id gingivitis periodontal_disease debris calculus abnormal_growth cleft_lip_palate others").lean(),
     // ALL rows, validated or not, but ONLY for the review chip (2026-10-01):
@@ -1311,15 +1311,18 @@ router.get("/stats/student-rows", requireAuth, asyncHandler(async (req, res) => 
     if (!visitNumbersByIptr.has(iptrId)) visitNumbersByIptr.set(iptrId, new Set());
     if (p.visit_number === 1 || p.visit_number === 2) visitNumbersByIptr.get(iptrId)!.add(p.visit_number);
   }
-  const preventiveIptrById = new Map((preventives as any[]).map((p) => [String(p._id), String(p.iptr_id)]));
-  const riskByIptr = new Map<string, string>();
-  const recommendationByIptr = new Map<string, string>();
+  // Every validated assessment per IPTR, with its visit date, so a student's
+  // CURRENT level can be their latest one (shared/latestRisk.ts, dashboard
+  // audit item 5) instead of the first school year that had any.
+  const preventiveById = new Map((preventives as any[]).map((p) => [String(p._id), p]));
+  const risksByIptr = new Map<string, { risk_level: string; recommendation: string; visit_date?: Date; validated_at?: Date }[]>();
   for (const r of risks as any[]) {
-    const iptrId = preventiveIptrById.get(String(r.preventive_id));
-    if (iptrId) {
-      riskByIptr.set(iptrId, String(r.risk_level));
-      recommendationByIptr.set(iptrId, String(r.recommendation ?? ""));
-    }
+    const p = preventiveById.get(String(r.preventive_id));
+    if (!p) continue;
+    const iptrId = String(p.iptr_id);
+    const list = risksByIptr.get(iptrId) ?? [];
+    list.push({ risk_level: String(r.risk_level), recommendation: String(r.recommendation ?? ""), visit_date: p.visit_date, validated_at: r.validated_at });
+    risksByIptr.set(iptrId, list);
   }
 
   // Mirrors deriveOralStatus in the client hook — kept identical on purpose so
@@ -1349,12 +1352,12 @@ router.get("/stats/student-rows", requireAuth, asyncHandler(async (req, res) => 
   const rows = (students as any[]).map((s) => {
     const studentIptrs = iptrsByStudent.get(String(s._id)) ?? [];
     const chartDates = studentIptrs.flatMap((id) => chartDatesByIptr.get(id) ?? []);
-    // First iptr carrying a risk wins, matching the badge and the old client
-    // join; `find(Boolean)` over the iptrs in insertion order.
-    const riskLevel = studentIptrs.map((id) => riskByIptr.get(id)).find(Boolean) ?? null;
-    // Same iptr the risk level came from, so the two never disagree about
-    // which assessment they're describing.
-    const recommendation = studentIptrs.map((id) => recommendationByIptr.get(id)).find(Boolean) ?? "";
+    // The LATEST validated assessment across every school year (same rule as
+    // the sidebar badge). Its recommendation comes from the same row, so the
+    // two never describe different assessments.
+    const current = latestRisk(studentIptrs.flatMap((id) => risksByIptr.get(id) ?? []));
+    const riskLevel = (current?.risk_level as "High" | "Medium" | "Low" | undefined) ?? null;
+    const recommendation = current?.recommendation ?? "";
     const visits = studentIptrs
       .flatMap((id) => visitsByIptr.get(id) ?? [])
       .sort((a, b) => new Date(a.visit_date).getTime() - new Date(b.visit_date).getTime());
