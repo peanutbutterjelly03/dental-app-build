@@ -91,6 +91,13 @@ review" tile. System Admin: 7 **"System modules"** cards (Reports = link only, n
 generation). ⚠ **School Admin sees pupil NAMES again** (user decision; contacts/IDs still hidden; switch back =
 re-add `"school_admin"` to `NAME_BLIND_ROLES` in `server/middleware/roleGroups.ts`).
 
+**OWASP TOP 10 WRITE-UP DONE 2026-10-04: `docs/audit/OWASP-TOP10.md`** (2021 edition; built from
+LEDGER-sec with every open row re-checked in the code). Summary: A03, A10 Addressed; A01, A02, A04, A05,
+A07, A08, A09 Partial; A06 Open (`npm audit` 6, 1 high). New finding **SEC-36**: OCR loads Tesseract's
+worker, wasm core and language data from CDNs unpinned (self-host 3 files). Ledger got a dated re-check
+section (SEC-00 resolved, SEC-08 superseded, SEC-30 closed with live evidence, SEC-28 drifted). Its
+"Before the defense" list is the security to-do; the ZAP scan is still not run (needs the user's OK).
+
 **BULK DUPLICATE DETECTION 2026-10-04 (classmate's question "nadedetect ba ang duplicates?"):** before, only
 the per-save check caught them (one pupil at a time during Save & Next). Now "Review Imported Students" checks
 the WHOLE list first: `POST /students/duplicate-check` (same rule as the save check, `findDuplicateStudents`:

@@ -1124,3 +1124,38 @@ excludes them), so the fix is to return `[]` for roles outside `NOTIFIED_ROLES`,
   unmarked). Guard: the dentist typing `/audit` lands on the Dashboard. 162/162, tsc both clean.
   **Not verified in a browser as the School Admin / BHO** (their dashboards and Reports render): to do
   when signed in as them.
+
+---
+
+## Status re-check for the OWASP write-up (2026-10-04, read-only)
+
+Every OPEN row was re-checked against the code for `docs/audit/OWASP-TOP10.md`. Row headers above are
+left as written (append-only); these lines supersede them.
+
+- **SEC-00 → RESOLVED 2026-10-01** (HANDOFF): this PC's `.env` now targets the DEV cluster; the
+  production file is kept as `.env.production-backup-20261001`.
+- **SEC-08 → SUPERSEDED by the offline rework (O2, 2026-10-03):** `src/sw.ts` no longer routes `/api`
+  at all (only a fonts route remains), and sign-out calls `clearOfflineReadCaches()`
+  (`AuthContext.tsx:308`). The remaining, deliberate exposure is the offline `records` store: a
+  decrypted copy of every in-scope pupil on the device, wiped at sign-out (CLAUDE.md, PWA / OFFLINE).
+- **SEC-30 → NOT-A-BUG, verified 2026-10-04:** `POST https://floral-ml-service.onrender.com/predict`
+  without `X-API-Key` answered **401 {"detail":"invalid API key"}**, so the key IS set on Render.
+- **SEC-28 → DRIFTED:** `npm audit --omit=dev` now reports **6** (1 high `brace-expansion`, 4 moderate
+  `qs` / `express` / `body-parser` / `ip-address`, 1 low `dompurify`), each with a fix available. Not
+  applied: a dependency change is its own approved sprint.
+- **Still OPEN as written, re-confirmed in the code:** SEC-10 (`authRoutes.ts:32`, no limiter), SEC-13
+  (`authController.ts:309`, `userController.ts:112`), SEC-14 (no dummy hash), SEC-15 (per-IP only),
+  SEC-16 (`mailer.ts:37`), SEC-17, SEC-09 (`app.ts:69`), SEC-11 (no headers in `vercel.json`, no CSP
+  meta), SEC-21, SEC-23, SEC-24, SEC-25, SEC-04, ARCH-04, ARCH-05.
+
+### SEC-36 · `src/app/utils/iptrOcr.ts:611` · MED · OPEN (new, 2026-10-04)
+Claim:    **OCR loads executable code from third-party CDNs at runtime, unpinned.**
+Evidence: `Tesseract.createWorker('eng', undefined, { logger })` passes no `workerPath`, `corePath` or
+          `langPath`, so Tesseract.js uses its defaults: the worker script and the WebAssembly core
+          from jsDelivr, and `eng.traineddata` from a public tessdata host, fetched on each scan.
+          By contrast, the PDF worker is bundled (`pdf.worker.min.mjs?url`, same file, line 3).
+Impact:   A changed or compromised file on those hosts would run inside the app (the worker runs with
+          the page's origin for messaging, and the page holds decrypted pupil data). Also an
+          availability dependency: OCR fails if those hosts are unreachable.
+Fix:      Copy the three files into `public/` and pass the three paths to `createWorker`. Small; its
+          own approved change (it touches the OCR module the classmate actively tests).
