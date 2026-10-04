@@ -89,6 +89,12 @@ re-add `"school_admin"` to `NAME_BLIND_ROLES` in `server/middleware/roleGroups.t
    Streamlit EDA; **no workbook on any branch**. Leads: (a) `data/` on the user's OTHER laptop
    (`2026Form2withFHSIS.xlsx`, `TCLForm2andFHSISReport.xlsx`, read in Sprint 84; probably the school/grade
    edition), (b) ask the officer via Luan for a copy or photos of every page.
+   Status of the two DOH reports (checked 2026-10-04): **FHSIS is BUILT** (Reports → FHSIS, `FhsisReport.tsx`
+   + `shared/fhsis.ts` + `/stats/fhsis`), transcribed from the "FHSIS" sheet of `TCLForm2andFHSISReport.xlsx`,
+   the SCHOOL variant (that workbook also has a "Health Center:" variant, not built); it already splits by
+   age band and sex. **School Form 2 by grade is BUILT** ("DOH Consolidated"). **Only the health-center Form 2
+   by AGE GROUP is missing.** Most likely source: the same workbook on the other laptop (its name says it holds
+   a Form 2 sheet). User to check its sheet names there and copy it into this PC's `data/` (never commit).
 2. The officer's **target** for a "behind target" dashboard panel (what %, of what: screened? Visit 1?).
 3. **Phase 3 decision:** do the dentist's 50 labels follow a published caries risk instrument (ADA form)?
    The classmate says the model just needs "plugging in" (sasalpakan nalang ng model). It IS already plugged in:
