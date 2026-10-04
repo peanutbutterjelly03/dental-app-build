@@ -45,6 +45,13 @@ import { windowStart, AUDIT_WINDOW_DAYS } from '../hooks/useAuditTrail';
 import { treatmentCodes, treatmentLabel } from '../utils/dentalChartCodes';
 import { calculateAge, getAgeGroup, AGE_GROUPS } from '../utils/age';
 
+// Dashboard audit item 9 (2026-10-04): below 10 students a percentage
+// overstates what it measures ("1 of 2" reads as a confident "50%"), so every
+// rate on this screen shows the plain count instead until the group reaches 10.
+const SMALL_N = 10;
+const share = (count: number, total: number) =>
+  total < SMALL_N ? `${count} of ${total}` : `${Math.round((count / total) * 100)}%`;
+
 export const Dashboard = () => {
   const { user, selectedSchool } = useAuth();
 
@@ -163,14 +170,13 @@ export const Dashboard = () => {
   const mediumRiskCount = allStudents.filter((s) => s.riskLevel === 'Medium').length;
   const lowRiskCount = allStudents.filter((s) => s.riskLevel === 'Low').length;
   const screenedCount = allStudents.filter((s) => s.riskLevel !== null).length;
-  const rpcCompletionRate = rpcFunnel.enrolled ? Math.round((rpcFunnel.complete / rpcFunnel.enrolled) * 100) : 0;
   const pendingChartsCount = allStudents.filter((s) => {
     const iptrIds = iptrsByStudent.get(s.id) ?? [];
     return iptrIds.length > 0 && !iptrIds.some((id) => chartedIptrIds.has(id));
   }).length;
   const rpcOverdueCount = rpcFunnel.overdue;
   const rpcPendingCount = rpcFunnel.pending;
-  // Clinic summary strip (Sprint A): the numerator behind rpcCompletionRate, and
+  // Clinic summary strip (Sprint A): the "RPC completion" numerator, and
   // the Visit-1 rate the funnel card used to compute inline.
   // All of these read the server's population counts, not the delivered rows.
   const rpcBothVisitsCount = rpcFunnel.complete;
@@ -419,7 +425,9 @@ export const Dashboard = () => {
   // `valueText` overrides the default "N (P%)" for charts where each row has
   // its own denominator -- "1 (50%)" is ambiguous when the total differs per
   // row, so those pass "1 of 2" instead. Widens the value column to match.
-  const BarRow = ({ label, value, pct, color, valueText }: { label: string; value: number; pct: number; color: string; valueText?: string }) => (
+  // `total` (the bar's "out of"): when given and under SMALL_N, the figure
+  // reads "1 of 2" instead of "1 (50%)".
+  const BarRow = ({ label, value, pct, color, valueText, total }: { label: string; value: number; pct: number; color: string; valueText?: string; total?: number }) => (
     // max-w caps the row in FULL-WIDTH cards, where a 100% bar became a very
     // long slab of solid color -- a lot of ink for "2 of 2". Self-limiting: the
     // half-width chart cards are already narrower than the cap, so they are
@@ -430,7 +438,7 @@ export const Dashboard = () => {
         <div className="h-full rounded-md grow-x" style={{ width: `${pct}%`, backgroundColor: color }} />
       </div>
       <span className={`${valueText ? 'w-[92px]' : 'w-[68px]'} shrink-0 text-right text-xs font-bold tabular-nums text-foreground`}>
-        {valueText ?? `${value} (${pct}%)`}
+        {valueText ?? (total !== undefined && total < SMALL_N ? `${value} of ${total}` : `${value} (${pct}%)`)}
       </span>
     </div>
   );
@@ -535,11 +543,11 @@ export const Dashboard = () => {
             <SummaryCell
               icon={Shield}
               label="RPC completion"
-              value={`${rpcCompletionRate}%`}
+              value={share(rpcBothVisitsCount, rpcFunnel.enrolled)}
               // Blue = operational state, per the v4 color rule: amber already
               // means "medium caries risk" on this same screen.
               valueClass="text-primary"
-              trailing={`${rpcBothVisitsCount} of ${rpcFunnel.enrolled}`}
+              trailing={rpcFunnel.enrolled < SMALL_N ? undefined : `${rpcBothVisitsCount} of ${rpcFunnel.enrolled}`}
               context="Both visits completed"
               linkTo="/rpc"
               loading={rpcLoading}
@@ -560,7 +568,7 @@ export const Dashboard = () => {
                 </span>
               )}
               {mostOverdueDays !== null && ' · '}
-              Visit 1 done for {rpcVisit1Count} of {rpcFunnel.enrolled} ({rpcVisit1Rate}%) · target 100% by end of school year
+              Visit 1 done for {rpcVisit1Count} of {rpcFunnel.enrolled}{rpcFunnel.enrolled < SMALL_N ? '' : ` (${rpcVisit1Rate}%)`} · target 100% by end of school year
             </div>
           )}
         </div>
@@ -591,6 +599,7 @@ export const Dashboard = () => {
                     label={`${item.name} risk`}
                     value={item.value}
                     pct={Math.round((item.value / riskTotal) * 100)}
+                    total={riskTotal}
                     color={item.color}
                   />
                 ))}
@@ -639,6 +648,7 @@ export const Dashboard = () => {
                     label={step.label}
                     value={step.value}
                     pct={rpcFunnel.enrolled ? Math.round((step.value / rpcFunnel.enrolled) * 100) : 0}
+                    total={rpcFunnel.enrolled}
                     color={step.color}
                   />
                 ))}
@@ -831,7 +841,7 @@ export const Dashboard = () => {
                 </span>
               )}
               {mostOverdueDays !== null && ' · '}
-              Visit 1 done for {rpcVisit1Count} of {rpcFunnel.enrolled} ({rpcVisit1Rate}%) · target 100% by end of school year
+              Visit 1 done for {rpcVisit1Count} of {rpcFunnel.enrolled}{rpcFunnel.enrolled < SMALL_N ? '' : ` (${rpcVisit1Rate}%)`} · target 100% by end of school year
             </div>
           )}
         </div>
@@ -957,7 +967,7 @@ export const Dashboard = () => {
               icon={CheckCircle}
               label="Students screened"
               value={String(schoolScreenedCount)}
-              trailing={`${coveragePct}%`}
+              trailing={schoolStudents.length < SMALL_N ? `of ${schoolStudents.length}` : `${coveragePct}%`}
               context={
                 schoolStudents.length - schoolScreenedCount > 0
                   ? `${schoolStudents.length - schoolScreenedCount} not yet screened`
@@ -1021,7 +1031,7 @@ export const Dashboard = () => {
                   />
                 ))}
                 <p className="text-xs text-muted-foreground pt-1">
-                  {schoolScreenedCount} of {schoolStudents.length} screened overall ({coveragePct}%)
+                  {schoolScreenedCount} of {schoolStudents.length} screened overall{schoolStudents.length < SMALL_N ? '' : ` (${coveragePct}%)`}
                 </p>
               </div>
             )}
@@ -1045,6 +1055,7 @@ export const Dashboard = () => {
                     label={item.name}
                     value={item.value}
                     pct={Math.round((item.value / schoolStudents.length) * 100)}
+                    total={schoolStudents.length}
                     color={item.color}
                   />
                 ))}
@@ -1126,12 +1137,10 @@ export const Dashboard = () => {
 
     const totalStudents = allStudentsRaw.length;
     const totalScreened = allStudentsRaw.filter((s) => s.riskLevel !== null).length;
-    const programCoveragePct = totalStudents ? Math.round((totalScreened / totalStudents) * 100) : 0;
     // Counts behind the percentages, so the summary strip can show "6 of 18"
     // beside "33%" instead of asking the reader to do the arithmetic.
     const orallyFitCount = allStudentsRaw.filter((s) => s.oralStatus === 'Orally Fit').length;
     const needsTreatmentCount = allStudentsRaw.filter((s) => s.oralStatus === 'Needs Treatment').length;
-    const orallyFitPct = totalStudents ? Math.round((orallyFitCount / totalStudents) * 100) : 0;
     const schoolsParticipating = new Set(allStudentsRaw.map((s) => s.school)).size;
 
     return (
@@ -1178,9 +1187,9 @@ export const Dashboard = () => {
             <SummaryCell
               icon={Activity}
               label="Program coverage"
-              value={`${programCoveragePct}%`}
+              value={share(totalScreened, totalStudents)}
               valueClass="text-primary"
-              trailing={`${totalScreened} of ${totalStudents}`}
+              trailing={totalStudents < SMALL_N ? undefined : `${totalScreened} of ${totalStudents}`}
               context={
                 totalStudents - totalScreened > 0
                   ? `${totalStudents - totalScreened} student${totalStudents - totalScreened !== 1 ? 's' : ''} not yet screened`
@@ -1202,9 +1211,9 @@ export const Dashboard = () => {
             <SummaryCell
               icon={CheckCircle}
               label="Low caries risk"
-              value={`${orallyFitPct}%`}
+              value={share(orallyFitCount, totalStudents)}
               valueClass="text-success"
-              trailing={`${orallyFitCount} of ${totalStudents}`}
+              trailing={totalStudents < SMALL_N ? undefined : `${orallyFitCount} of ${totalStudents}`}
               context={
                 needsTreatmentCount > 0
                   ? `${needsTreatmentCount} at high caries risk`
@@ -1275,7 +1284,7 @@ export const Dashboard = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-success font-medium">{group.orallyFit}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-destructive font-medium">{group.needsTreatment}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
-                      {group.total ? Math.round((group.orallyFit / group.total) * 100) : 0}%
+                      {share(group.orallyFit, group.total)}
                     </td>
                   </tr>
                 ))}
