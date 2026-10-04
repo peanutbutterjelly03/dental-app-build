@@ -98,6 +98,8 @@ export const Dashboard = () => {
   const [treatmentCount, setTreatmentCount] = useState(0);
   const [treatmentLoading, setTreatmentLoading] = useState(true);
   const [dmft, setDmft] = useState<(DmftSummary & { enrolled: number }) | null>(null);
+  // A failed request must end the skeleton (it used to wait forever) and say so.
+  const [dmftFailed, setDmftFailed] = useState(false);
   const [currentYearStudentIds, setCurrentYearStudentIds] = useState<Set<string>>(new Set());
   const [auditEntries, setAuditEntries] = useState<ApiAuditTrail[]>([]);
   const [toothRecords, setToothRecords] = useState<{ chart_id: string; treatment_code?: string }[]>([]);
@@ -168,6 +170,7 @@ export const Dashboard = () => {
     setTreatmentLoading(true);
     const q = selectedSchool ? `?school=${encodeURIComponent(selectedSchool)}` : '';
     setDmft(null);
+    setDmftFailed(false);
     apiClient.get<{ count: number }>(`/stats/treatment-count${q}`)
       .then((r) => { if (!cancelled) setTreatmentCount(r.count); })
       .catch((err) => console.error('Treatment count fetch failed:', err))
@@ -176,7 +179,10 @@ export const Dashboard = () => {
     // the browser, so it works for the School Admin and BHO too).
     apiClient.get<DmftSummary & { enrolled: number }>(`/stats/dmft-summary${q}`)
       .then((r) => { if (!cancelled) setDmft(r); })
-      .catch((err) => console.error('DMFT summary fetch failed:', err));
+      .catch((err) => {
+        console.error('DMFT summary fetch failed:', err);
+        if (!cancelled) setDmftFailed(true);
+      });
     return () => { cancelled = true; };
   }, [selectedSchool]);
 
@@ -543,8 +549,10 @@ export const Dashboard = () => {
         From each pupil's latest charting
         {dmft ? ` · ${dmft.charted} of ${dmft.enrolled} pupils charted` : ''}
       </p>
-      <ChartBody ready={dmft !== null}>
-      {!dmft || dmft.charted === 0 ? (
+      <ChartBody ready={dmft !== null || dmftFailed}>
+      {dmftFailed ? (
+        <p className="text-sm text-muted-foreground py-4">Could not load these figures. Refresh the page to try again.</p>
+      ) : !dmft || dmft.charted === 0 ? (
         <p className="text-sm text-muted-foreground py-4">No pupils charted yet.</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
