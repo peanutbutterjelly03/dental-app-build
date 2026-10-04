@@ -45,6 +45,27 @@ Work is on branch **`majorUpdates`** (pushed; not merged to main).
 - Local dev = 3 processes from `dental-4-12-main/project`: `npm run dev:server`, `npm run dev`, plus `uvicorn main:app --port 8000` from `ml-service/` if predictions are needed.
 - Demo accounts: admin/dentist/aide/schooladmin/bho `@floral.com` — passwords rotated, live in `.env` (`SEED_*`) only, never in docs.
 
+## 📋 BARANGAY DENTIST + HEALTH OFFICER INTERVIEW (transcript via classmate Luan, read 2026-10-04)
+What it asks of the build (paraphrased; source is the user's pasted transcript, not saved in the repo):
+1. **Risk classification must rest on a published instrument, not dentist judgment alone.** DMFT measures
+   caries in a POPULATION ("out of 1000, how many have caries"); individual risk needs more factors
+   (toothbrushing, fluoride toothpaste, social history). If the American Dental Association caries risk
+   assessment is used, its fields must all be captured. A purely subjective dentist label is not acceptable
+   for a thesis. ⚠ Affects Phase 3: "dentist labels all 50 by hand" (CLAUDE.md) should mean labelling WITH
+   that published form's criteria, cited in Chapter 3. Not yet decided with the user.
+2. **DOH needs two things: Form 2 and FHSIS.** FHSIS is built (`/stats/fhsis`). The app's "DOH Consolidated"
+   is the SCHOOL's Form 2 by GRADE; the HEALTH CENTER encodes a Form 2 by AGE GROUP (5-9, 10-14, 15-19), and
+   schools currently re-type their data into it. Generating that age-group Form 2 automatically is the
+   biggest time-saver they named. **Black cells** on the DOH form = never fill (grey ones get filled by
+   mistake and pollute the totals). Needs the health center's actual workbook (`2026Form2withFHSIS.xlsx`
+   is on the other laptop only; get the officer's current file first, COPY OFFICIAL FORMS EXACTLY).
+3. **Dashboard wanted "by exception":** show only the grades/sections that are BEHIND, in red; if a grade
+   does not appear it is fine. Needs a target from them (they floated "30%?"). Not built; the School Admin's
+   coverage-by-grade bars are the nearest thing.
+4. Population summary + programme recommendation ("caries rate X, so do oral prophylaxis"): only with a
+   backing study and a pilot; parked.
+5. Confirms item 15 (caries prevalence + DMF/dmf on the dashboard) is the right measure.
+
 ## ▶ RESUME HERE — PARKED 2026-10-01 (12th session, late). ✅ **ALL PUSHED, LIVE**
 
 **Nothing is in progress.** On `main`, level with origin. `npm test` **159/159**, `tsc` both configs and
