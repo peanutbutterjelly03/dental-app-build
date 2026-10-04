@@ -66,11 +66,28 @@ What it asks of the build (paraphrased; source is the user's pasted transcript, 
    backing study and a pilot; parked.
 5. Confirms item 15 (caries prevalence + DMF/dmf on the dashboard) is the right measure.
 
-## ▶ RESUME HERE — PARKED 2026-10-01 (12th session, late). ✅ **ALL PUSHED, LIVE**
+## ▶ RESUME HERE — PARKED 2026-10-04 (13th session). ✅ **ALL PUSHED, LIVE**
 
-**Nothing is in progress.** On `main`, level with origin. `npm test` **159/159**, `tsc` both configs and
-`npm run build` clean. Live https://dental-app-build.vercel.app healthy after the merge
-(`{"db":"connected"}`). Dev processes stopped by process.
+**Nothing is in progress.** On `main`, level with origin (last `6e9798a4`). `npm test` **258 passed + 2
+skipped on purpose**, `tsc` both configs clean. Dev processes stopped.
+
+**2026-10-04 in one line:** merged the classmate's `v2`, fixed her Excel bulk import, and finished the
+**dashboard audit (items 1-18 done, 8 deferred)**; per-item detail in the "DASHBOARD AUDIT" paragraph below.
+What every dashboard now has: a shared **"Dental program overview"** (Students screened X of N · Treatments
+recorded · Sessions next 30 days · RPC follow-ups overdue), a **"Dental Caries and DMF/dmf Index"** card
+(average DMFT/dmf, caries experience; `/stats/dmft-summary`, rule in `shared/dmft.ts`), the named follow-up
+list (School Admin + BHO too), and a **quick name search** (dentist/aide/admin). Dentist: "Risk results to
+review" tile. System Admin: 7 **"System modules"** cards (Reports = link only, nothing records report
+generation). ⚠ **School Admin sees pupil NAMES again** (user decision; contacts/IDs still hidden; switch back =
+re-add `"school_admin"` to `NAME_BLIND_ROLES` in `server/middleware/roleGroups.ts`).
+
+**NEXT (waiting on the user, from the barangay interview, section above):**
+1. The health center's **Form 2 by AGE GROUP** workbook (officer's current file) → build it automatically,
+   copying the form exactly, black cells left empty. Recommended first: the officer's biggest time-saver.
+2. The officer's **target** for a "behind target" dashboard panel (what %, of what: screened? Visit 1?).
+3. **Phase 3 decision:** do the dentist's 50 labels follow a published caries risk instrument (ADA form)?
+Nothing else is queued. Testing access: Claude may sign in with the DEV test accounts on localhost, and unlock
+the 30-minute lock screen with them (user, 2026-10-04).
 
 **2026-10-01 in one line:** the classmate's **Risk Classification redesign (R1–R3) is MERGED and LIVE**,
 and her **three OCR requests are done**: the System Admin can use Add Student + OCR (O1), personal-info
