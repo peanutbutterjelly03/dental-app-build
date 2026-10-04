@@ -93,8 +93,12 @@ re-add `"school_admin"` to `NAME_BLIND_ROLES` in `server/middleware/roleGroups.t
 
 **OWASP TOP 10 WRITE-UP DONE 2026-10-04: `docs/audit/OWASP-TOP10.md`** (2021 edition; built from
 LEDGER-sec with every open row re-checked in the code). Summary: A03, A10 Addressed; A01, A02, A04, A05,
-A07, A08, A09 Partial; A06 Open (`npm audit` 6, 1 high). New finding **SEC-36**: OCR loads Tesseract's
-worker, wasm core and language data from CDNs unpinned (self-host 3 files). Ledger got a dated re-check
+A07, A09 Partial; A08 Addressed; A06 Open (`npm audit` 6, 1 high). ✅ **SEC-10 and SEC-36 FIXED same day
+(`51224759`)**: change-password rate-limited (dev: 11th wrong attempt → 429); OCR engine self-hosted under
+`/ocr/` via `scripts/copy-ocr-assets.mjs` (predev/prebuild; new pinned devDependency
+`@tesseract.js-data/eng@1.0.0`; `public/ocr/` git-ignored; not precached). Proven on dev (hiding the local
+files makes OCR fail, no CDN fallback) and LIVE (the 20:00 deploy serves `/ocr/*` with the right types,
+so Vercel runs prebuild). Ledger got a dated re-check
 section (SEC-00 resolved, SEC-08 superseded, SEC-30 closed with live evidence, SEC-28 drifted). Its
 "Before the defense" list is the security to-do; the ZAP scan is still not run (needs the user's OK).
 
