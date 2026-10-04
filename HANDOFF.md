@@ -91,6 +91,26 @@ review" tile. System Admin: 7 **"System modules"** cards (Reports = link only, n
 generation). ⚠ **School Admin sees pupil NAMES again** (user decision; contacts/IDs still hidden; switch back =
 re-add `"school_admin"` to `NAME_BLIND_ROLES` in `server/middleware/roleGroups.ts`).
 
+**PHONE-WIDTH SWEEP 2026-10-04 (390x664, app in an iframe because the Chrome window would not resize; no
+fixes yet, user report: "buttons too far right, big space on lower half", "DOH Consolidated 1st column
+locked")** — grouped by CAUSE:
+1. **Frozen first column too wide on DOH tables** (user-reported): DOH Consolidated "Indicator" column is
+   321 px of a 346 px box → 25 px for data. Fix: phone-only max width (~40%) + wrapping; keep it frozen;
+   print unaffected. Check TCL / FHSIS / Program Report for the same pattern.
+2. **Verify screen broken on phones** (`VerifyStudentForm.tsx`, `gridTemplateColumns: '18.75rem
+   minmax(0,1fr)'`, padding `0 3rem`): form squeezed to ~40 px, labels overlap, tags overflow. Stack the
+   source panel above the form below ~640 px.
+3. **Desktop fixed padding on the classmate-styled OCR pages** (Scan 3rem-ish, Review Imported Students
+   `padding-left: 3.5rem` with negative right margin): content shifted right ("buttons too far right").
+4. **Screen-height-locked list pages** (Students list, RPC Monitoring, Review Imported Students): header +
+   filters eat the height; Students shows ~2 rows, RPC's table area ~60 px. On phones let the page scroll
+   (and/or fold filters behind one "Filters" button).
+5. **Dental Chart:** pupil card's tag row (Consent/Sex/Edit + hide toggle) runs past the right edge; the
+   pinned title/tabs/year block takes ~1/3 of the screen.
+6. **Dashboard:** no overflow; summary tiles ~190 px tall each, 7 of them → ~2,900 px scroll (compact on
+   phones, e.g. 2 per row).
+OK at 390: Scan page layout (besides padding), Appointments, Risk Classification and Reports (besides #1).
+
 **OWASP TOP 10 WRITE-UP DONE 2026-10-04: `docs/audit/OWASP-TOP10.md`** (2021 edition; built from
 LEDGER-sec with every open row re-checked in the code). Summary: A03, A10 Addressed; A01, A02, A04, A05,
 A07, A09 Partial; A08 Addressed; A06 Open (`npm audit` 6, 1 high). ✅ **SEC-10 and SEC-36 FIXED same day
