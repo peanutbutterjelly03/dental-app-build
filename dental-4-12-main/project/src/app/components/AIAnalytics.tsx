@@ -165,12 +165,14 @@ export const AIAnalytics = () => {
     let failed = 0;
     for (const [i, c] of list.entries()) {
       try {
-        const result = await apiClient.post<{ risk_level: 'High' | 'Medium' | 'Low'; confidence: number; recommendation: string }>(
+        const result = await apiClient.post<{ risk_level: 'High' | 'Medium' | 'Low'; confidence: number }>(
           '/predictions/assess', { student_id: c.id, features: c.features });
         await apiClient.post('/risk-stratifications', {
           preventive_id: c.latestPreventiveId,
           risk_level: result.risk_level,
-          recommendation: result.recommendation ?? '',
+          // Risk only from the model (2026-10-04); the recommendation is the
+          // rule-based list the dentist accepts at review.
+          recommendation: '',
           dmf_score: c.features.dmf_score,
           dmf_index: c.dmfIndex,
           validated_by_dentist: false,

@@ -34,7 +34,6 @@ type Decision = { decision: 'accepted' | 'skipped'; reason: SkipReason | '' };
 interface PredictionResult {
   risk_level: RiskLevel;
   confidence: number;
-  recommendation: string;
 }
 
 const LEVEL_CHIP: Record<RiskLevel, string> = {
@@ -138,7 +137,9 @@ export function RiskReviewDialog({
       const saved = await apiClient.post<{ _id: string }>('/risk-stratifications', {
         preventive_id: candidate.latestPreventiveId,
         risk_level: result.risk_level,
-        recommendation: result.recommendation ?? '',
+        // Empty until the dentist reviews: the model gives risk only, and the
+        // recommendation is the rule-based list the dentist accepts (save below).
+        recommendation: '',
         dmf_score: candidate.features.dmf_score,
         dmf_index: candidate.dmfIndex,
         validated_by_dentist: false,

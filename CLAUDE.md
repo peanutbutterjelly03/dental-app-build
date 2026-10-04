@@ -99,7 +99,7 @@ Full field-level specs for all 22 models live in **`/docs/DATA-MODEL.md`** — R
 3. Digital dental charting — tooth-by-tooth, standard notation, DMF/dmf index tracking
 4. Appointment scheduling + monitoring — follow-up flagging, parental supervision flags
 5. Two-visit RPC monitoring — Visit 1 + 2, oral screening, prophylaxis, fluoride varnish, hygiene instruction, caries risk assessment
-6. Predictive analytics integration — risk classification (High/Medium/Low), treatment recommendations, dentist validation
+6. Predictive analytics integration — risk classification (High/Medium/Low) BY THE MODEL; treatment recommendations are RULE-BASED (`shared/riskTreatments.ts`), never from the model; dentist validates both (scope decision 2026-10-04, "hanggang risk lang")
 7. Dashboard + automated DOH report generation — age-bracket + gender counts, monthly standardized reports, interactive dashboard
 
 ## OCR MODULE
@@ -113,7 +113,7 @@ Full field-level specs for all 22 models live in **`/docs/DATA-MODEL.md`** — R
 - Ticked checkboxes on the Year 1-5 tick grid are read by INK DENSITY per cell, not character recognition (Sprint 86). Findings appear on the Verify screen UNCHECKED; only the ones the encoder ticks are saved into that school year's records, and a section with nothing ticked gets no record (O2b, 2026-10-01). Rows map through `TABLE_LAYOUT` because the section headings are ruled rows. Both the grid reader and the field reader decline rather than guess — including on an upside-down page, where row identity would otherwise silently shift.
 
 ## PREDICTIVE ANALYTICS (Phase 3)
-- Python (scikit-learn, pandas, numpy) via FastAPI. Key inputs: DMF/dmf index (PRIMARY), oral health conditions, dietary habits, medical history, treatment history. Risk output: High/Medium/Low.
+- Python (scikit-learn, pandas, numpy) via FastAPI. Key inputs: DMF/dmf index (PRIMARY), oral health conditions, dietary habits, medical history, treatment history. Risk output: High/Medium/Low. **The model outputs RISK ONLY** (risk_level, confidence, probabilities, top_features); it does not recommend treatment. The old per-level `recommendation` sentence was removed from `predictor.py` 2026-10-04. Rules for treatments must each cite a published guideline in Chapter 3 (barangay dentist: a thesis cannot rest on subjective rules).
 - Pipeline: preprocess → feature-engineer → train + compare → risk output
 - **Architecture:** Strategy Pattern for algo swapping. Active algo in config.py only. Express calls predictor.py only — never individual algo files. Dentist MUST validate before clinical action.
 - **Algorithms (all 5 run — DECIDED 2026-07-02, SVM stays):** Logistic Regression, Decision Tree, Random Forest, SVM, XGBoost. Primary feature: DMF/dmf score. Metric priority: F1. Generate a visual decision tree for Chapter 4.

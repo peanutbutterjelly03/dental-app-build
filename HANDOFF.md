@@ -81,6 +81,13 @@ review" tile. System Admin: 7 **"System modules"** cards (Reports = link only, n
 generation). ⚠ **School Admin sees pupil NAMES again** (user decision; contacts/IDs still hidden; switch back =
 re-add `"school_admin"` to `NAME_BLIND_ROLES` in `server/middleware/roleGroups.ts`).
 
+**SCOPE DECISION 2026-10-04 (classmate, user OK): the model gives RISK ONLY; treatment recommendations are
+RULE-BASED** (`shared/riskTreatments.ts`, dentist accepts/skips each). `ml-service/predictor.py` no longer
+returns the fixed per-level `recommendation` sentence; the two "check risk" paths store `recommendation: ''`
+until the dentist's review writes the accepted/skipped list (which already happened on every validated row).
+Old unvalidated rows may still hold the sentence; no screen shows it. CLAUDE.md module 6 + Predictive
+Analytics updated. ⚠ Chapter 3: cite a published guideline for each rule and have the dentist confirm them.
+
 **NEXT (waiting on the user, from the barangay interview, section above):**
 1. The health center's **Form 2 by AGE GROUP** workbook (officer's current file) → build it automatically,
    copying the form exactly, black cells left empty. Recommended first: the officer's biggest time-saver.

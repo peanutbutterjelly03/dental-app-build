@@ -69,16 +69,13 @@ _model_meta: dict = {}
 
 MODEL_PATH = Path(__file__).resolve().parent / "active" / "model.pkl"
 
-RECOMMENDATIONS = {
-    "High": "High caries risk. Prioritize for restorative treatment and a "
-            "comprehensive oral examination; schedule a follow-up within 1 "
-            "month. Reinforce oral hygiene instruction and dietary counseling.",
-    "Medium": "Moderate caries risk. Schedule preventive care (oral "
-              "prophylaxis, fluoride varnish) and monitor at the next RPC "
-              "visit. Reinforce brushing habits and reduced sugary intake.",
-    "Low": "Low caries risk. Maintain routine preventive care and current "
-           "oral hygiene practices; reassess at the next scheduled screening.",
-}
+# SCOPE (user/classmate decision 2026-10-04, "hanggang risk lang tayo"): the
+# model classifies caries RISK and nothing else. Treatment recommendations are
+# RULE-BASED in the app (dental-4-12-main/project/shared/riskTreatments.ts)
+# and confirmed by the dentist one by one. This service used to also return a
+# fixed sentence per risk level ("recommendation"); it was a lookup, not
+# learned, but coming from the model it read as the model recommending
+# treatment, so it was removed.
 
 
 def load_model() -> RiskClassifier:
@@ -136,8 +133,8 @@ def _top_features(clf: RiskClassifier, X: pd.DataFrame, risk_level: str) -> list
 
 def predict_risk(features: dict) -> dict:
     """features: dict with keys matching FEATURE_COLUMNS.
-    Returns {risk_level, confidence, probabilities, top_features,
-    recommendation, algorithm} per the Sprint 21e spec.
+    Returns {risk_level, confidence, probabilities, top_features, algorithm}
+    (Sprint 21e spec, minus `recommendation` since 2026-10-04: risk only).
     Dentist MUST validate before any clinical action — this never replaces
     clinical judgment (see CLAUDE.md's ABSOLUTE DO NOT list)."""
     if _classifier is None:
@@ -150,7 +147,6 @@ def predict_risk(features: dict) -> dict:
         "confidence": max(probabilities.values()),
         "probabilities": probabilities,
         "top_features": _top_features(_classifier, X, risk_level),
-        "recommendation": RECOMMENDATIONS.get(risk_level, ""),
         "algorithm": _classifier.display_name,
     }
 
