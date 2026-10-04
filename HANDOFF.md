@@ -117,8 +117,8 @@ hand-encoded REAL dataset for Phase 3? Ask before using it for anything else.
 new 2). ✅2 "both visits" = Visit 1 AND Visit 2, same as the completion tile (test fails on old code). ✅3 "Archived
 accounts" real count (`/users?includeArchived=true`; prod has 5 archived, the tile showed 0). ✅4 removed the empty trend/task cards + BHO `treated: 0` (seen on dev as dentist, aide, BHO).
 ✅5 risk = LATEST validated result (`shared/latestRisk.ts`; student-rows + badge; no current
-student changes on dev or prod, it bites once pupils are reviewed in a second school year). 6 relabel "Oral Health Status"
-(it is risk). 7 demo-data policy, NEEDS A DECISION (55/57 prod pupils are demo). 8 denominators = this
+student changes on dev or prod, it bites once pupils are reviewed in a second school year). ✅6 "Oral Health Status" → "Caries Risk
+Breakdown"; BHO "Needs Treatment" column/caption → "High caries risk" (it is risk, not treatment). 7 demo-data policy, NEEDS A DECISION (55/57 prod pupils are demo). 8 denominators = this
 school year's enrolled. 9 counts only when n<10. 10 aide Pending charts (current SY, real content).
 11 School Admin: all schools, Treatments caption, 30-day visits. 12 BHO: schools from DB, low-risk % over
 screened. 13 appointments vs sessions. NEW: 14 Objective 4 core block for every role (coverage, treatments,

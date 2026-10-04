@@ -898,10 +898,14 @@ export const Dashboard = () => {
       // or treated, no debris, no gum pathology) needs a judgement nothing in
       // this system stores. Printing the DOH term here would put a clinical
       // claim on a screen the barangay files returns from.
+      // Dashboard audit item 6 (2026-10-04): the other three bars said "Needs
+      // Treatment" / "Under Treatment" / "Not Yet Screened", but they are the
+      // High / Medium / none risk bands renamed, not anything a treatment
+      // record says. Labelled as what they are, High to Low.
+      { name: 'High caries risk', value: schoolStudents.filter((s) => s.oralStatus === 'Needs Treatment').length, color: CHART.danger },
+      { name: 'Medium caries risk', value: schoolStudents.filter((s) => s.oralStatus === 'Under Treatment').length, color: CHART.brand },
       { name: 'Low caries risk', value: schoolStudents.filter((s) => s.oralStatus === 'Orally Fit').length, color: CHART.success },
-      { name: 'Needs Treatment', value: schoolStudents.filter((s) => s.oralStatus === 'Needs Treatment').length, color: CHART.danger },
-      { name: 'Under Treatment', value: schoolStudents.filter((s) => s.oralStatus === 'Under Treatment').length, color: CHART.brand },
-      { name: 'Not Yet Screened', value: schoolStudents.filter((s) => s.oralStatus === 'Not Yet Screened').length, color: CHART.neutral },
+      { name: 'No validated risk yet', value: schoolStudents.filter((s) => s.oralStatus === 'Not Yet Screened').length, color: CHART.neutral },
     ];
 
     const schoolSessions = schoolName ? allSessions.filter((s) => s.school === schoolName) : [];
@@ -1026,8 +1030,8 @@ export const Dashboard = () => {
 
           {/* Oral Health Status - horizontal bars (Sprint 32) */}
           <div className="bg-card p-4 rounded-xl border border-border">
-            <h2 className="text-sm font-bold text-foreground mb-0.5">Oral Health Status Breakdown</h2>
-            <p className="text-[11px] text-muted-foreground mb-3">Latest recorded status per student</p>
+            <h2 className="text-sm font-bold text-foreground mb-0.5">Caries Risk Breakdown</h2>
+            <p className="text-[11px] text-muted-foreground mb-3">Latest dentist-validated caries risk per student</p>
             <ChartBody ready={!studentsLoading}>
             {schoolStudents.length === 0 ? (
               <NoDataYet message="No students enrolled at this school yet." />
@@ -1203,8 +1207,8 @@ export const Dashboard = () => {
               trailing={`${orallyFitCount} of ${totalStudents}`}
               context={
                 needsTreatmentCount > 0
-                  ? `${needsTreatmentCount} need${needsTreatmentCount === 1 ? 's' : ''} treatment`
-                  : 'None needing treatment'
+                  ? `${needsTreatmentCount} at high caries risk`
+                  : 'None at high caries risk'
               }
               linkTo="/reports"
               loading={studentsLoading}
@@ -1248,7 +1252,7 @@ export const Dashboard = () => {
         {/* Age Group Breakdown Table */}
         <div className="bg-card p-4 rounded-xl border border-border rise rise-3">
           <h2 className="text-sm font-bold text-foreground mb-0.5">Age Group Breakdown</h2>
-          <p className="text-[11px] text-muted-foreground mb-3">Oral health status by DOH age bracket, all schools</p>
+          <p className="text-[11px] text-muted-foreground mb-3">Caries risk by DOH age bracket, all schools</p>
           <ChartBody ready={!studentsLoading}>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -1259,7 +1263,7 @@ export const Dashboard = () => {
                   <th className="px-6 py-3 text-left text-xs font-semibold text-foreground">Age Bracket</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-foreground">Total Students</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-foreground">Low caries risk</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-foreground">Needs Treatment</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-foreground">High caries risk</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-foreground">Low-risk rate</th>
                 </tr>
               </thead>
