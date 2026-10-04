@@ -100,9 +100,11 @@ locked")** — grouped by CAUSE:
    scrolling. Laptop/tablet measured IDENTICAL to before (321 px, one line). PDF export renders at full table
    width so it keeps the laptop layout. Only DOH Consolidated (+ one small internal table) freezes a column;
    TCL / FHSIS / Program Report do not.
-2. **Verify screen broken on phones** (`VerifyStudentForm.tsx`, `gridTemplateColumns: '18.75rem
-   minmax(0,1fr)'`, padding `0 3rem`): form squeezed to ~40 px, labels overlap, tags overflow. Stack the
-   source panel above the form below ~640 px.
+2. ✅ **FIXED 2026-10-04 — Verify screen on phones** (`VerifyStudentForm.tsx`): the page is inline-styled,
+   so a phone-only `<style>` block (`@media (max-width: 639px)`, `!important`) overrides it via class hooks
+   (`verify-page/-head/-body/-thumb/-row3/-foot`): source above the form (preview 12rem tall), name row one
+   per line, 1rem side padding, header/footer wrap. At 390: 0 overflow, inputs 321 px (were ~40). Laptop
+   (1100) unchanged. Also fixed the em dash in "Save anyway: different student" (UI rule).
 3. **Desktop fixed padding on the classmate-styled OCR pages** (Scan 3rem-ish, Review Imported Students
    `padding-left: 3.5rem` with negative right margin): content shifted right ("buttons too far right").
 4. **Screen-height-locked list pages** (Students list, RPC Monitoring, Review Imported Students): header +

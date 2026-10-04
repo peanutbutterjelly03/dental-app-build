@@ -245,9 +245,22 @@ const VerifyOne = ({ handoff, position, onDone, onBack, preConfirmedDuplicate = 
   };
 
   return (
-    <div style={{ background: '#F6F9FC', minHeight: '100%', padding: '0.25rem 3rem 2rem', fontFamily: 'var(--font-sans)', color: '#141413' }}>
+    <div className="verify-page" style={{ background: '#F6F9FC', minHeight: '100%', padding: '0.25rem 3rem 2rem', fontFamily: 'var(--font-sans)', color: '#141413' }}>
+      {/* Phones (< 640 px), 2026-10-04: this page is styled inline, which cannot
+          respond to width, so these rules override it there only. At 390 px the
+          two-column body left the form ~40 px wide. Now: source above the form
+          (its preview shortened), one field per row where three were side by
+          side, 1rem side padding, header and footer wrap. Wider screens unchanged. */}
+      <style>{`@media (max-width: 639px) {
+        .verify-page { padding: 0.25rem 1rem 2rem !important; }
+        .verify-head { flex-wrap: wrap; gap: 0.75rem; }
+        .verify-body { grid-template-columns: minmax(0, 1fr) !important; }
+        .verify-thumb { aspect-ratio: auto !important; height: 12rem; }
+        .verify-row3 { grid-template-columns: minmax(0, 1fr) !important; }
+        .verify-foot { flex-wrap: wrap; }
+      }`}</style>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.875rem' }}>
+      <div className="verify-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.875rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <div style={{ width: '3.25rem', height: '3.25rem', borderRadius: '0.875rem', background: '#F4F7FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <svg width="22.1" height="22.1" viewBox="0 0 24 24" fill="none" stroke="#273A78" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
@@ -283,19 +296,19 @@ const VerifyOne = ({ handoff, position, onDone, onBack, preConfirmedDuplicate = 
           </p>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button type="button" onClick={() => setDuplicates(null)} style={{ cursor: 'pointer', padding: '0.375rem 0.75rem', borderRadius: '62.4375rem', fontSize: '0.75rem', fontWeight: 600, border: '0.0625rem solid rgba(190,18,60,0.3)', background: '#fff', color: '#BE123C' }}>Let me edit</button>
-            <button type="button" onClick={() => { setDuplicates(null); void save(true); }} style={{ cursor: 'pointer', padding: '0.375rem 0.75rem', borderRadius: '62.4375rem', fontSize: '0.75rem', fontWeight: 600, border: 'none', background: '#BE123C', color: '#fff' }}>Save anyway — different student</button>
+            <button type="button" onClick={() => { setDuplicates(null); void save(true); }} style={{ cursor: 'pointer', padding: '0.375rem 0.75rem', borderRadius: '62.4375rem', fontSize: '0.75rem', fontWeight: 600, border: 'none', background: '#BE123C', color: '#fff' }}>Save anyway: different student</button>
           </div>
         </div>
       )}
 
       {/* Body: source + form */}
-      <div style={{ display: 'grid', gridTemplateColumns: '18.75rem minmax(0, 1fr)', gap: '1.5rem' }}>
+      <div className="verify-body" style={{ display: 'grid', gridTemplateColumns: '18.75rem minmax(0, 1fr)', gap: '1.5rem' }}>
         {/* Source thumbnail. The warnings sit UNDER it, in this column, so showing or hiding
             them never moves the form or the footer buttons. */}
         <div style={{ alignSelf: 'start', display: 'flex', flexDirection: 'column', gap: '0.75rem', minWidth: 0 }}>
         <div style={{ background: '#fff', border: '0.0625rem solid #E2E8F0', borderRadius: '1rem', padding: '0.875rem', display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
           <div style={{ fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#67687A' }}>Source</div>
-          <div style={{ width: '100%', aspectRatio: '3/4', background: '#ECECF0', borderRadius: '0.625rem', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#98999f', overflow: 'hidden' }}>
+          <div className="verify-thumb" style={{ width: '100%', aspectRatio: '3/4', background: '#ECECF0', borderRadius: '0.625rem', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#98999f', overflow: 'hidden' }}>
             {handoff.sourcePreviewUrl ? (
               <img src={handoff.sourcePreviewUrl} alt="Source form" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             ) : handoff.sourceRecord ? (
@@ -333,7 +346,7 @@ const VerifyOne = ({ handoff, position, onDone, onBack, preConfirmedDuplicate = 
 
         {/* Form */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '1rem' }}>
+          <div className="verify-row3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '1rem' }}>
             <div>
               <Label required extracted={isExtracted('lastName')}>Last Name</Label>
               <input style={inputStyle} value={form.lastName} onChange={(e) => update('lastName', e.target.value)} />
@@ -348,7 +361,7 @@ const VerifyOne = ({ handoff, position, onDone, onBack, preConfirmedDuplicate = 
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '1rem' }}>
+          <div className="verify-row3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '1rem' }}>
             <div>
               <Label required extracted={isExtracted('birthdate')}>Birthdate</Label>
               <input type="date" style={inputStyle} value={form.birthdate} onChange={(e) => update('birthdate', e.target.value)} />
@@ -506,7 +519,7 @@ const VerifyOne = ({ handoff, position, onDone, onBack, preConfirmedDuplicate = 
       )}
 
       {/* Footer actions */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.25rem' }}>
+      <div className="verify-foot" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.25rem' }}>
         <button
           type="button"
           onClick={() => (onBack ? onBack() : navigate('/students/scan'))}
