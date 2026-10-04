@@ -91,8 +91,13 @@ review" tile. System Admin: 7 **"System modules"** cards (Reports = link only, n
 generation). ⚠ **School Admin sees pupil NAMES again** (user decision; contacts/IDs still hidden; switch back =
 re-add `"school_admin"` to `NAME_BLIND_ROLES` in `server/middleware/roleGroups.ts`).
 
-**PHONE-WIDTH SWEEP 2026-10-04 (390x664, app in an iframe because the Chrome window would not resize; no
-fixes yet, user report: "buttons too far right, big space on lower half", "DOH Consolidated 1st column
+**▶ PARKED MID-MOBILE-PASS (2026-10-04 night):** #1-#4 below FIXED + pushed (`a3a9e314`, `66fff7ee`, `7983b018`).
+**Next, proposed and not yet approved:** the pre-existing 1100 px sideways overflow on the Students page (under #4),
+checked at 768 too; then #5 Dental Chart tag row, #6 Dashboard tiles. Phone checks use the iframe harness
+(390x664 + 1100 side by side, dev servers on 4000/5173, sign in as the dev dentist on localhost).
+
+**PHONE-WIDTH SWEEP 2026-10-04 (390x664, app in an iframe because the Chrome window would not resize;
+user report: "buttons too far right, big space on lower half", "DOH Consolidated 1st column
 locked")** — grouped by CAUSE:
 1. ✅ **FIXED 2026-10-04 — frozen first column on DOH Consolidated** (user-reported): was 321 of 346 px →
    25 px for data. Now on phones only (`max-sm:` classes, `Reports.tsx`) the label column is 9rem and wraps
