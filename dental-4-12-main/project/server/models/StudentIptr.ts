@@ -21,7 +21,7 @@ const studentIptrSchema = new mongoose.Schema(
     // which is what enrolment lists and the appointment roster want.
     grade_level: { type: String, default: null },
     section: { type: String, default: null },
-    // Height and weight are year-varying in exactly the way grade is — a pupil
+    // Height and weight are year-varying in exactly the way grade is — a student
     // measured at 120 cm in Grade 3 is not 120 cm in Grade 6 — so they belong
     // on the per-year record, not on STUDENT (Sprint 68).
     //
@@ -47,7 +47,7 @@ const studentIptrSchema = new mongoose.Schema(
     // moves to the same place for the same reason.
     //
     // Defaults to "pending" for EVERY new year, including a freshly-added year
-    // for a returning pupil: last year's "complete" never carries forward.
+    // for a returning student: last year's "complete" never carries forward.
     // `migrateIptrConsent.ts` backfills the latest year only, from the old
     // STUDENT.consent_status.
     consent_status: { type: String, enum: ["pending", "complete"], default: "pending" },

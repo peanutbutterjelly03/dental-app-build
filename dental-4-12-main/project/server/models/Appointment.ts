@@ -23,7 +23,7 @@ const appointmentSchema = new mongoose.Schema({
   // is exactly the "parental supervision" gap module 4 exists to flag.
   // Encrypted like STUDENT.guardian_contact and .contact_number: it is the
   // same class of PII (a phone number), just recorded per-visit instead of
-  // per-pupil.
+  // per-student.
   // Required when an appointment is CREATED, not on every save (merge fix,
   // 2026-09-30). Every appointment booked before this field existed has none, and
   // the CRUD route updates by findById + save(), so an unconditional `required`
@@ -33,7 +33,7 @@ const appointmentSchema = new mongoose.Schema({
     maxlength: 30,
     required: [function (this: { isNew: boolean }) { return this.isNew; }, "guardian_contact_number is required"],
   },
-  // ERD deviation (Sprint 109). A remark about THIS pupil's slot — "bring
+  // ERD deviation (Sprint 109). A remark about THIS student's slot — "bring
   // guardian", "reschedule, absent". Distinct from a DAY_NOTE, which is about
   // the date itself: the user confirmed the two are different things, so a
   // holiday does not live here and a patient remark does not live there.

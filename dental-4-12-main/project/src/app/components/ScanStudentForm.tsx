@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { CameraCapture } from './CameraCapture';
 import { parseSpreadsheetRecords, normalizeSex, normalizeGrade } from '../utils/studentImport';
@@ -31,6 +31,13 @@ export type ExtractedHandoff = {
   ocrSourceLabel: 'scanned form' | 'uploaded file';
   sourceFileName: string;
   sourcePreviewUrl: string | null;
+  /** The original file, kept so Verify can offer Download and a full-size view. */
+  sourceFile?: File;
+  /** The spreadsheet row this student came from (column header to value). */
+  sourceRecord?: Record<string, string>;
+  /** Every row of the spreadsheet, and which one this student is, for the full-size preview. */
+  sourceRecords?: Record<string, string>[];
+  sourceRowIndex?: number;
   /** The IPTR Year 1-5 tick grid (O2b, 2026-10-01). Computed by the OCR but
    *  dropped here until now; absent for a spreadsheet upload. */
   ticks?: { findings: IptrCheckboxFinding[]; confidence: number; reason?: string };
@@ -40,6 +47,9 @@ const ACCEPT = 'image/png,image/jpeg,image/jpg,application/pdf,text/csv,.csv,.xl
 
 export const ScanStudentForm = () => {
   const navigate = useNavigate();
+  // The top OCR button opens this page with ?bulk=1: many students at once, reviewed
+  // as a list first. Add Student > Scan Form (OCR) has no flag: one student.
+  const bulk = useSearchParams()[0].get('bulk') === '1';
   const { selectedSchool } = useAuth();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -63,10 +73,7 @@ export const ScanStudentForm = () => {
     ? (err instanceof Error ? err.message : 'Could not read the file. Check the column headers and try again.')
     : 'Could not read the image. Try a clearer photo or enter details manually.');
 
-  const readOne = async (file: File): Promise<ExtractedHandoff> => {
-      let handoff: ExtractedHandoff;
-      if (isSpreadsheet(file.name)) {
-        const [rec] = await parseSpreadsheetRecords(file);
+  const handoffFromRecord = (rec: Record<string, string>, file: File, all?: Record<string, string>[], rowIndex?: number): ExtractedHandoff => {
         const get = (...keys: string[]) => { for (const k of keys) if (rec[k]) return rec[k]; return ''; };
         const sexRaw = get('sex', 'gender');
         const gradeRaw = get('grade_level', 'grade', 'gradelevel');
@@ -90,14 +97,25 @@ export const ScanStudentForm = () => {
         };
         if (normalizeSex(sexRaw)) extractedKeys.push('gender');
         if (gradeRaw && normalizeGrade(gradeRaw)) extractedKeys.push('grade');
-        handoff = {
+        return {
           newPatient: { ...BLANK_NEW_PATIENT, ...fields, school: selectedSchool ?? '' },
           confidences: {},
           extractedKeys,
           ocrSourceLabel: 'uploaded file',
           sourceFileName: file.name,
           sourcePreviewUrl: null,
+          sourceFile: file,
+          sourceRecord: rec,
+          sourceRecords: all,
+          sourceRowIndex: rowIndex,
         };
+  };
+
+  const readOne = async (file: File): Promise<ExtractedHandoff> => {
+      let handoff: ExtractedHandoff;
+      if (isSpreadsheet(file.name)) {
+        const records = await parseSpreadsheetRecords(file);
+        handoff = handoffFromRecord(records[0], file, records, 0);
       } else {
         // Dynamic import keeps tesseract.js + pdfjs-dist (~1.5MB) out of the
         // main bundle -- only staff who actually scan a form download them.
@@ -128,6 +146,7 @@ export const ScanStudentForm = () => {
           ocrSourceLabel: 'scanned form',
           sourceFileName: file.name,
           sourcePreviewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
+          sourceFile: file,
           ticks: { findings: result.checkboxes, confidence: result.checkboxConfidence, reason: result.checkboxReason },
         };
       }
@@ -141,6 +160,34 @@ export const ScanStudentForm = () => {
     setError(null);
     setProcessing(true);
     try {
+      if (bulk) {
+        // Bulk: a spreadsheet gives one student PER ROW; an image or PDF gives one per file.
+        const queue: ExtractedHandoff[] = [];
+        for (const [i, file] of files.entries()) {
+          setReading(i);
+          setProgress(0);
+          try {
+            if (isSpreadsheet(file.name)) {
+              const records = await parseSpreadsheetRecords(file);
+              if (!records.length) throw new Error('No rows found in the file.');
+              records.forEach((rec, ri) => queue.push(handoffFromRecord(rec, file, records, ri)));
+            } else {
+              queue.push(await readOne(file));
+            }
+          } catch (err) {
+            queue.push({
+              readError: readError(file.name, err),
+              newPatient: { ...BLANK_NEW_PATIENT, school: selectedSchool ?? '' },
+              confidences: {}, extractedKeys: [], ocrSourceLabel: 'scanned form',
+              sourceFileName: file.name,
+              sourcePreviewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
+              sourceFile: file,
+            });
+          }
+        }
+        navigate('/students/scan/bulk', { state: { queue } });
+        return;
+      }
       // One file: exactly as before, a read failure stays on this page.
       if (files.length === 1) {
         setReading(0);
@@ -168,6 +215,7 @@ export const ScanStudentForm = () => {
             confidences: {}, extractedKeys: [], ocrSourceLabel: 'scanned form',
             sourceFileName: file.name,
             sourcePreviewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
+            sourceFile: file,
           });
         }
       }
@@ -178,7 +226,7 @@ export const ScanStudentForm = () => {
   };
 
   return (
-    <div style={{ background: '#F6F9FC', minHeight: '100%', padding: '2.5rem 3.5rem', fontFamily: 'var(--font-sans)', color: '#141413' }}>
+    <div style={{ background: '#F6F9FC', minHeight: '100%', padding: '0.25rem 3.5rem 2.5rem', fontFamily: 'var(--font-sans)', color: '#141413' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.75rem' }}>
         <div style={{ width: '3.5rem', height: '3.5rem', borderRadius: '1rem', background: '#F4F7FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -187,7 +235,9 @@ export const ScanStudentForm = () => {
         <div>
           <div style={{ fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#67687A' }}>Students &middot; OCR</div>
           <h1 style={{ margin: '0.125rem 0 0', fontSize: '1.625rem', fontWeight: 700 }}>Scan a Student Form</h1>
-          <p style={{ margin: '0.25rem 0 0', fontSize: '0.875rem', color: '#67687A' }}>Capture a photo of the DOH IPTR form, or upload a file. Matching fields will be filled in for you to verify.</p>
+          <p style={{ margin: '0.25rem 0 0', fontSize: '0.875rem', color: '#67687A' }}>{bulk
+            ? 'Upload a spreadsheet with many students, or several forms. Every student found is listed for you to review before anything is saved.'
+            : 'Capture a photo of the DOH IPTR form, or upload a file. Matching fields will be filled in for you to verify.'}</p>
         </div>
       </div>
 

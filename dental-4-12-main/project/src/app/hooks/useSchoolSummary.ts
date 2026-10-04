@@ -80,7 +80,7 @@ export function useSchoolSummary(schoolName: string | null, schoolYear: string |
     tally,
     /** School years present in the data, newest first. */
     years,
-    /** Pupils whose sex is blank or unrecognised: counted in no column, and
+    /** Students whose sex is blank or unrecognised: counted in no column, and
      *  said out loud on screen rather than quietly folded into one. */
     unsexedCount: unsexed,
     loading,

@@ -1,10 +1,17 @@
 import { Router } from "express";
 import mongoose from "mongoose";
+import rateLimit from "express-rate-limit";
 import { getHealth } from "../controllers/healthController.js";
 import { validateStudentValues } from "../../shared/studentValidation.js";
+import {
+  getSchoolYearStatus, setSchoolYearPlan, startAllSchools, requestEarlyStart,
+  approveEarlyStart, declineEarlyStart, guardNextYearIptr, buildSchoolYearNotifications,
+} from "../controllers/schoolYearController.js";
 import { createUser, resetPassword, sendResetLink, initiateTwofa, confirmTwofa, disableTwofa } from "../controllers/userController.js";
 import { createCrudRouter } from "./crudFactory.js";
 import authRoutes from "./authRoutes.js";
+import syncConflictRoutes from "./syncConflictRoutes.js";
+import offlineRoutes from "./offlineRoutes.js";
 import predictionRoutes from "./predictionRoutes.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { scopeFilter } from "../utils/schoolScope.js";
@@ -60,7 +67,28 @@ router.get("/health", getHealth);
 // Public, no auth: only whether testing mode is on, so the app can show its
 // banner and unlock "View as" (see isTestingMode in middleware/auth.ts).
 router.get("/config", (_req, res) => { res.json({ testingMode: isTestingMode() }); });
+
+// ── Update School Year (2026-10-01) ──────────────────────────────────────────
+// The System Admin starts the next school year for every school; a dentist or
+// dental aide may ask once a year for their own school to start early. See
+// controllers/schoolYearController.ts. The password-bearing routes share one
+// limiter: a yes/no on a password is an oracle (same reasoning as /auth).
+const schoolYearPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many attempts. Please try again later." },
+});
+router.get("/school-year/status", requireAuth, requireRole(...CLINICAL_WRITE_ROLES), asyncHandler(getSchoolYearStatus));
+router.put("/school-year/plan", schoolYearPasswordLimiter, requireAuth, requireRole(...ADMIN_ONLY), asyncHandler(setSchoolYearPlan));
+router.post("/school-year/start-all", schoolYearPasswordLimiter, requireAuth, requireRole(...ADMIN_ONLY), asyncHandler(startAllSchools));
+router.post("/school-year/request", requireAuth, requireRole("dentist", "dental_aide"), asyncHandler(requestEarlyStart));
+router.post("/school-year/requests/:id/approve", requireAuth, requireRole(...ADMIN_ONLY), asyncHandler(approveEarlyStart));
+router.post("/school-year/requests/:id/decline", requireAuth, requireRole(...ADMIN_ONLY), asyncHandler(declineEarlyStart));
 router.use("/auth", authRoutes);
+router.use("/sync-conflicts", syncConflictRoutes);
+router.use("/offline", offlineRoutes);
 // Predictive analytics (Sprint 21e) — proxies to the Python ML service;
 // dentist + system_admin only, every assessment audit-logged.
 router.use("/predictions", predictionRoutes);
@@ -139,7 +167,7 @@ router.get("/stats/high-risk-count", requireAuth, asyncHandler(async (req, res) 
     StudentIptr.find({ isArchived: false }).select("_id student_id").lean(),
     PreventiveCareRecord.find({ isArchived: false }).select("_id iptr_id").lean(),
     // VALIDATED only (2026-10-01): suggestions are now stored unvalidated, and
-    // an unreviewed machine suggestion must never count as a high-risk pupil.
+    // an unreviewed machine suggestion must never count as a high-risk student.
     RiskStratification.find({ isArchived: false, validated_by_dentist: true }).select("preventive_id risk_level").lean(),
   ]);
   const preventiveIptrById = new Map(preventives.map((p) => [String(p._id), String(p.iptr_id)]));
@@ -309,7 +337,7 @@ router.get("/stats/notifications", requireAuth, asyncHandler(async (req, res) =>
   const EMPTY_RESPONSE = { overdueRpc: 0, appointmentsToday: 0, appointmentsTomorrow: 0, awaitingValidation: 0, consentPending: 0, unmarkedAppointments: [] as unknown[], dayNoteToday: null as string | null };
   // System Admin gets admin alerts instead of the clinical reminders.
   if (req.user?.role === "system_admin") {
-    res.json({ ...EMPTY_RESPONSE, admin: await buildAdminNotifications() });
+    res.json({ ...EMPTY_RESPONSE, admin: await buildAdminNotifications(), schoolYear: { items: await buildSchoolYearNotifications(req) } });
     return;
   }
   const schoolName = typeof req.query.school === "string" ? req.query.school : null;
@@ -389,11 +417,11 @@ router.get("/stats/notifications", requireAuth, asyncHandler(async (req, res) =>
     if (Math.floor((now - first) / MS_PER_DAY) > RPC_INTERVAL_DAYS) overdueRpc++;
   }
 
-  // ⚠ MIRRORS the Risk Classification "Needs review" tab this links to: pupils
+  // ⚠ MIRRORS the Risk Classification "Needs review" tab this links to: students
   // (not rows) whose LATEST visit has an unreviewed suggestion, via the same
   // shared reviewSummary. Counting every unvalidated row said 20 on dev while
   // the tab said 10 (2026-10-01): superseded suggestions on older visits.
-  // Only in-scope pupils are walked, so the school switcher still applies.
+  // Only in-scope students are walked, so the school switcher still applies.
   const risksByPreventive = new Map<string, { risk_level: "High" | "Medium" | "Low"; validated_by_dentist?: boolean }[]>();
   for (const r of risks as any[]) {
     const k = String(r.preventive_id);
@@ -459,7 +487,7 @@ router.get("/stats/notifications", requireAuth, asyncHandler(async (req, res) =>
     const name = !last && !first ? (s.full_name ?? "").trim() : !last ? first : !first ? last : `${last}, ${first}`;
     return [String(s._id), name];
   }));
-  // Sprint 163 (SEC-03): the "visit not marked" list names pupils and is clinic
+  // Sprint 163 (SEC-03): the "visit not marked" list names students and is clinic
   // work; non-clinical roles get counts only, never this list.
   const clinical = CLINICAL_READ_ROLES.includes(req.user?.role ?? "");
   const unmarkedAppointments = unmarkedRaw
@@ -474,6 +502,7 @@ router.get("/stats/notifications", requireAuth, asyncHandler(async (req, res) =>
     consentPending,
     unmarkedAppointments,
     dayNoteToday: dayNotes[0]?.note ?? null,
+    schoolYear: { items: await buildSchoolYearNotifications(req) },
   });
 }));
 
@@ -512,8 +541,8 @@ router.get("/stats/notifications", requireAuth, asyncHandler(async (req, res) =>
 // browser.
 //
 // ⚠ WHY: `useDohReportData` downloaded ELEVEN WHOLE COLLECTIONS to draw one
-// report. Measured 2026-09-05 against dev — 26 pupils, ~108 KB, i.e. ~4.1 KB
-// per pupil per page open, so ~32 MB at the Chapter 1 scale of 8,000 pupils,
+// report. Measured 2026-09-05 against dev — 26 students, ~108 KB, i.e. ~4.1 KB
+// per student per page open, so ~32 MB at the Chapter 1 scale of 8,000 students,
 // and 60-80 MB once mouths are charted at a realistic 20-32 teeth instead of
 // the demo's ~5. The response here is a few KB whatever the roll size.
 //
@@ -532,13 +561,13 @@ router.get("/stats/notifications", requireAuth, asyncHandler(async (req, res) =>
 // Sprint 139 — the Risk Classification candidate list, joined HERE instead of
 // in the browser. It used to pull NINE whole collections to draw one list.
 //
-// ⚠ UNLIKE /stats/doh-report THIS STILL RETURNS ONE ROW PER PUPIL, so the
+// ⚠ UNLIKE /stats/doh-report THIS STILL RETURNS ONE ROW PER STUDENT, so the
 // response does grow with the roll — a row is ~13 numbers and a short history
 // rather than nine collections of documents. Paging it is separate, still-open
 // work (#24); saying so is better than implying the problem is finished.
 //
 // ⚠ `Student.find()` HAS NO .lean() AND NO .select(). This endpoint needs the
-// pupil's NAME, and mongoose-field-encryption decrypts in post('init') using
+// student's NAME, and mongoose-field-encryption decrypts in post('init') using
 // the `__enc_*` markers stored beside each value: a lean read never triggers
 // it, and a projection that omits the markers leaves the plugin nothing to
 // decrypt. Either one returns `<iv>:<ciphertext>` — silently, with a 200
@@ -548,10 +577,10 @@ router.get("/stats/notifications", requireAuth, asyncHandler(async (req, res) =>
 // aggregates.
 //
 // ⚠ Like /stats/risk-candidates and unlike /stats/doh-report, this returns ONE
-// ROW PER PUPIL, so it still grows with the roll. Paging is open work (#24).
+// ROW PER STUDENT, so it still grows with the roll. Paging is open work (#24).
 //
 // ⚠ `Student.find()` has no .lean() and no .select(): the row carries the
-// pupil's NAME, and either would return `<iv>:<ciphertext>` silently with a
+// student's NAME, and either would return `<iv>:<ciphertext>` silently with a
 // 200 (Sprint 118).
 // Sprint 141 — the per-school summary sheet, tallied HERE instead of in the
 // browser (six whole collections before). Like /stats/doh-report the OUTPUT IS
@@ -575,7 +604,7 @@ router.get("/stats/notifications", requireAuth, asyncHandler(async (req, res) =>
 // report hooks already moved. Last of #24's client half.
 //
 // ⚠ `Student.find()` has no .lean() and no .select(): the referral rows carry
-// the pupil's NAME, and either would return ciphertext silently (Sprint 118).
+// the student's NAME, and either would return ciphertext silently (Sprint 118).
 router.get("/stats/reports-panels", requireAuth, asyncHandler(async (req, res) => {
   const scope = await scopeFilter("Student", req);
   const studentFilter = scope ? { isArchived: false, ...scope } : { isArchived: false };
@@ -783,7 +812,7 @@ router.get("/stats/rpc-rows", requireAuth, asyncHandler(async (req, res) => {
 }));
 
 // Sprint 163 (SEC-03): the risk screens and the chart's Prev/Next nav name
-// pupils and carry clinical findings; clinic roles + System Admin only.
+// students and carry clinical findings; clinic roles + System Admin only.
 router.get("/stats/risk-candidates", requireAuth, requireRole(...CLINICAL_READ_ROLES), asyncHandler(async (req, res) => {
   const scope = await scopeFilter("Student", req);
   const studentFilter = scope ? { isArchived: false, ...scope } : { isArchived: false };
@@ -847,7 +876,7 @@ router.get("/stats/risk-candidates", requireAuth, requireRole(...CLINICAL_READ_R
       model_risk_level: r.model_risk_level ?? null,
       model_confidence: typeof r.model_confidence === "number" ? r.model_confidence : null,
     })),
-    // Sprint 144 — the LIST carries only the last two assessments per pupil.
+    // Sprint 144 — the LIST carries only the last two assessments per student.
     // The badge reads the latest and the trend compares the last two; nothing
     // on the list reads further back. `history` is the one field here that
     // grows with TIME as well as roll size, so leaving it unbounded meant the
@@ -857,7 +886,7 @@ router.get("/stats/risk-candidates", requireAuth, requireRole(...CLINICAL_READ_R
   });
 
   // Sprint 145 — filter, sort and PAGE here. Doing any of those on the client
-  // is what forced this endpoint to send every pupil (measured 673 B/row, so
+  // is what forced this endpoint to send every student (measured 673 B/row, so
   // ~5.4 MB at 8,000). ⚠ The tiles' counts and the dropdown options come back
   // computed over the whole filtered population, never the page.
   const page = filterRiskCandidates(rows, {
@@ -878,9 +907,9 @@ router.get("/stats/risk-candidates", requireAuth, requireRole(...CLINICAL_READ_R
   res.json(page);
 }));
 
-// Sprint 144 — one pupil's FULL assessment history, for the detail panel.
+// Sprint 144 — one student's FULL assessment history, for the detail panel.
 // Deliberately its own endpoint rather than a bigger list row: it is read when
-// a dentist opens one pupil, which is once per selection, not once per page.
+// a dentist opens one student, which is once per selection, not once per page.
 router.get("/stats/risk-history", requireAuth, requireRole(...CLINICAL_READ_ROLES), asyncHandler(async (req, res) => {
   const studentId = typeof req.query.student_id === "string" ? req.query.student_id : "";
   if (!mongoose.isValidObjectId(studentId)) {
@@ -888,7 +917,7 @@ router.get("/stats/risk-history", requireAuth, requireRole(...CLINICAL_READ_ROLE
     return;
   }
   // ⚠ The same school gate as the list. Without it this endpoint would hand a
-  // pinned school_admin any pupil's clinical history by id — the exact hole
+  // pinned school_admin any student's clinical history by id — the exact hole
   // Sprint 101 closed on the read paths.
   const scope = await scopeFilter("Student", req);
   const student = await Student.findOne(
@@ -948,7 +977,7 @@ router.get("/stats/doh-report", requireAuth, asyncHandler(async (req, res) => {
       // ⚠ NOT `.lean()` — MEDICAL_HISTORY.allergies is ENCRYPTED, and the DOH
       // return counts it by truthiness. Under `.lean()` every row comes back as
       // `<iv>:<ciphertext>` (the Sprint 118 trap), and the plugin encrypts the
-      // empty string too — so EVERY pupil looked like they had an allergy.
+      // empty string too — so EVERY student looked like they had an allergy.
       // Measured on dev 2026-09-06: the form printed 26 where the truth was 3.
       // Hydrating decrypts; the other medical fields are plain booleans.
       MedicalHistory.find(active),
@@ -1171,7 +1200,7 @@ router.get("/stats/student-rows", requireAuth, asyncHandler(async (req, res) => 
     // VALIDATED only (2026-10-01): `riskLevel` and `oralStatus` built from this
     // feed the Students list, every dashboard and the BHO table. A stored but
     // unreviewed suggestion is shown on the Risk Classification screen as
-    // "Needs review", never here as the pupil's risk.
+    // "Needs review", never here as the student's risk.
     RiskStratification.find({ isArchived: false, validated_by_dentist: true }).select("preventive_id risk_level recommendation").lean(),
     ToothRecord.find({ isArchived: false }).select("chart_id condition visit_number").lean(),
     OralHealthCondition.find({ isArchived: false }).select("iptr_id gingivitis periodontal_disease debris calculus abnormal_growth cleft_lip_palate others").lean(),
@@ -1183,7 +1212,7 @@ router.get("/stats/student-rows", requireAuth, asyncHandler(async (req, res) => 
 
   const schoolNameById = new Map(schools.map((s: any) => [String(s._id), String(s.school_name)]));
   // The review chip on the Students list: the SAME rule Risk Classification
-  // uses (shared reviewSummary), judged on each pupil's latest RPC visit.
+  // uses (shared reviewSummary), judged on each student's latest RPC visit.
   const reviewRowsByPreventive = new Map<string, any[]>();
   for (const r of reviewRows as any[]) {
     const k = String(r.preventive_id);
@@ -1206,7 +1235,7 @@ router.get("/stats/student-rows", requireAuth, asyncHandler(async (req, res) => 
     iptrsByStudent.set(String(i.student_id), list);
   }
   // This year's own iptr per student, for the treatment-pipeline Status
-  // column below -- a returning pupil who finished both visits LAST year
+  // column below -- a returning student who finished both visits LAST year
   // is "For Oral Exam" again this year, not "Completed" forever.
   const currentYear = schoolYearLabel();
   const currentIptrByStudent = new Map(
@@ -1216,14 +1245,14 @@ router.get("/stats/student-rows", requireAuth, asyncHandler(async (req, res) => 
   for (const c of charts as any[]) iptrIdByChart.set(String(c._id), String(c.iptr_id));
   // "Has had the oral exam this year" for the Status column below -- NOT
   // just "a DentalChart row exists for this iptr" (user, 2026-09-28: a
-  // pupil whose chart was created, then had every condition/treatment
+  // student whose chart was created, then had every condition/treatment
   // cleared back out and saved empty, still showed "For Visit 1" forever
   // after that, because the row itself never gets archived -- see
   // DentalChart.tsx's handleSave, which only ever ADDS tooth records or
   // archives individually CLEARED ones, never the chart row as a whole).
   // Real content is a live ToothRecord with a condition, OR a ticked oral
   // condition -- the exact same "hasChartOrOralConditionData" test the
-  // client itself uses to decide whether a save queues the pupil for
+  // client itself uses to decide whether a save queues the student for
   // Treatment, so the two can't disagree about what "real" means here.
   const hasRealChartDataByIptr = new Set<string>();
   for (const t of toothRecords as any[]) {
@@ -1430,8 +1459,11 @@ router.use("/students", createCrudRouter(Student, {
 // only (restoreRoles default), per the soft-delete rule in CLAUDE.md.
 // Sprint 163 (SEC-19): clinical records are READ by the clinic + System Admin
 // (CLINICAL_READ_ROLES). Reads used to default to every role, so a School Admin
-// could list every pupil's medical history. Three collections stay readable by
+// could list every student's medical history. Three collections stay readable by
 // BHO staff for the named Target Client List / Consent Form (Part B decision).
+// Nobody but the System Admin may create a school year's IPTR before it has
+// started for the student's school (see schoolYearController.ts).
+router.post("/student-iptrs", requireAuth, asyncHandler(guardNextYearIptr));
 router.use("/student-iptrs", createCrudRouter(StudentIptr, { readRoles: CLINICAL_READ_ROLES_AND_BHO, writeRoles: CLINICAL_WRITE_ROLES, archiveRoles: ["system_admin", "dentist"], uniqueBy: ["student_id", "school_year"], filterable: ["student_id"] }));
 router.use("/medical-histories", createCrudRouter(MedicalHistory, { readRoles: CLINICAL_READ_ROLES, writeRoles: CLINICAL_WRITE_ROLES, filterable: ["iptr_id"] }));
 router.use("/dietary-social-habits", createCrudRouter(DietarySocialHabits, { readRoles: CLINICAL_READ_ROLES, writeRoles: CLINICAL_WRITE_ROLES, filterable: ["iptr_id"] }));

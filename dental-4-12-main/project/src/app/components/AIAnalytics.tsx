@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Brain, ChevronDown, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Brain, ChevronDown, CircleDashed, ChevronLeft, ChevronRight, ClipboardList, X, Loader2, Search, ShieldAlert, SlidersHorizontal, ShieldCheck, TriangleAlert, type LucideIcon } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router';
 import { apiClient } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -7,17 +7,19 @@ import { useRiskClassification, type RiskCandidate } from '../hooks/useRiskClass
 import { PageHeader } from './PageHeader';
 import { AGE_GROUPS } from '../utils/age';
 import { formatDate } from '../utils/localDate';
+import { Pagination } from './Pagination';
 import { SkeletonStatGrid, SkeletonTable } from './Skeleton';
 import { Notice } from './Notice';
 import { RiskReviewDialog, LevelChip } from './risk/RiskReviewDialog';
 import { displayLevel, type RiskReviewStatus } from '../../../shared/riskCandidates';
 import { suggestTreatments } from '../../../shared/riskTreatments';
+import { treatmentCodes } from '../../../shared/treatmentCodes';
 
 // Risk Classification (2026-10-01): the classmate's design, replacing the
 // Sprint 21g queue + inline validation panel. Plan and decisions: HANDOFF
 // "PLANNED: Risk Classification redesign".
 //
-// ⚠ What the list SHOWS as a pupil's risk is `displayLevel`: the dentist's
+// ⚠ What the list SHOWS as a student's risk is `displayLevel`: the dentist's
 // level once reviewed, the stored suggestion while it waits ("Needs review").
 // Only this clinical screen shows suggestions; every report and dashboard
 // reads validated results only (R1), which is what makes the banner's "nothing
@@ -34,7 +36,6 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'not_checked', label: 'Not checked yet' },
   { key: 'all', label: 'All students' },
 ];
-const PAGE_SIZE = 25;
 
 interface ModelStatus {
   status: string;
@@ -47,21 +48,40 @@ function YesNo({ value }: { value: boolean }) {
     : <span className="rounded-md bg-green-50 px-2 py-0.5 text-sm font-semibold text-green-700">No</span>;
 }
 
-function StatusChip({ c }: { c: RiskCandidate }) {
-  if (c.status === 'needs_review') return <span className="whitespace-nowrap rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-sm font-semibold text-amber-800">Needs review</span>;
-  if (c.status === 'reviewed') {
+const LEVEL_TEXT = { High: 'text-red-700', Medium: 'text-amber-800', Low: 'text-green-800' } as const;
+
+/** Risk level with its review status underneath, the same look as the Risk card on the Students list. */
+function RiskCell({ c, level }: { c: RiskCandidate; level: keyof typeof LEVEL_TEXT | null }) {
+  if (c.status === 'reviewed' && level) {
     const at = c.history[c.history.length - 1]?.validatedAt;
-    return <span className="whitespace-nowrap rounded-full border border-green-200 bg-green-50 px-2.5 py-0.5 text-sm font-semibold text-green-800">✓ Reviewed{at ? ` · ${formatDate(at)}` : ''}</span>;
+    return (
+      <div className="flex flex-col items-start gap-0">
+        <LevelChip level={level} small />
+        <span className="whitespace-nowrap text-xs text-green-700">Reviewed{at ? ` · ${formatDate(at)}` : ''}</span>
+      </div>
+    );
   }
-  if (c.status === 'not_checked') return <span className="whitespace-nowrap rounded-full border border-border bg-muted px-2.5 py-0.5 text-sm text-muted-foreground">Not checked yet</span>;
-  return <span className="whitespace-nowrap rounded-full border border-border bg-muted px-2.5 py-0.5 text-sm text-muted-foreground">No visit yet</span>;
+  if (c.status === 'needs_review') {
+    return (
+      <div className="flex flex-col items-start gap-0">
+        <span className={`inline-flex items-center rounded-full border border-dashed border-current bg-card px-2 py-0.5 text-[12.5px] font-semibold ${level ? LEVEL_TEXT[level] : 'text-muted-foreground'}`}>{level ?? 'No level'}</span>
+        <span className="whitespace-nowrap text-xs font-medium text-amber-800">Needs review</span>
+      </div>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-normal text-slate-500">
+      <CircleDashed className="h-3.5 w-3.5" aria-hidden="true" />
+      {c.status === 'not_checked' ? 'Not checked' : 'No visit'}
+    </span>
+  );
 }
 
 export const AIAnalytics = () => {
   const { user, selectedSchool } = useAuth();
   const isDentist = user?.role === 'dentist';
 
-  // `?student=<id>` = one pupil, opened from the Students list's Risk card;
+  // `?student=<id>` = one student, opened from the Students list's Risk card;
   // `?tab=` = a tab to open on (the Notifications link). Read from the URL so
   // following either link while already on this page still takes effect.
   const [searchParams, setSearchParams] = useSearchParams();
@@ -79,7 +99,17 @@ export const AIAnalytics = () => {
   const [gender, setGender] = useState('all');
   const [ageGroup, setAgeGroup] = useState('all');
   const [sort, setSort] = useState<'priority' | 'name'>('priority');
+  const [noticeOpen, setNoticeOpen] = useState(() => {
+    try { return localStorage.getItem('risk-notice-open') === 'true'; } catch { return false; }
+  });
+  const toggleNotice = () => {
+    setNoticeOpen((o) => {
+      try { localStorage.setItem('risk-notice-open', String(!o)); } catch { /* storage unavailable: still works for this visit */ }
+      return !o;
+    });
+  };
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
   const [moreOpen, setMoreOpen] = useState(false);
   const [reviewing, setReviewing] = useState<RiskCandidate | null>(null);
   const [serviceDown, setServiceDown] = useState(false);
@@ -87,7 +117,7 @@ export const AIAnalytics = () => {
   const [bulk, setBulk] = useState<{ done: number; total: number; failed: number } | null>(null);
 
   // Any filter change goes back to page 1: page 3 of a smaller set may not exist.
-  useEffect(() => { setPage(0); }, [tab, q, grade, risk, section, gender, ageGroup, sort, selectedSchool, studentId]);
+  useEffect(() => { setPage(0); }, [tab, q, grade, risk, section, gender, ageGroup, sort, selectedSchool, studentId, pageSize]);
 
   const { candidates, total, counts, statusCounts, gradeOptions, sectionOptions, loading, error, reload } = useRiskClassification({
     q,
@@ -100,8 +130,8 @@ export const AIAnalytics = () => {
     ageGroup,
     sort,
     status: tab,
-    limit: PAGE_SIZE,
-    offset: page * PAGE_SIZE,
+    limit: pageSize,
+    offset: page * pageSize,
   });
 
   // The free-tier ML service sleeps after ~15 min idle and takes 30-60 s to
@@ -123,10 +153,10 @@ export const AIAnalytics = () => {
     return () => { cancelled = true; };
   }, []);
 
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const notCheckedOnPage = useMemo(() => candidates.filter((c) => c.status === 'not_checked' && c.latestPreventiveId), [candidates]);
 
-  // "Check risk" for the not-checked pupils ON THIS PAGE: ask the model, then
+  // "Check risk" for the not-checked students ON THIS PAGE: ask the model, then
   // STORE each answer as an unreviewed suggestion. Sequential on purpose: the
   // free ML host handles one request at a time, and the progress stays honest.
   const checkVisible = async () => {
@@ -156,15 +186,22 @@ export const AIAnalytics = () => {
     setBulk((b) => (b && b.failed ? b : null));
   };
 
-  const cards = [
-    { label: 'Needs your review', value: statusCounts.needs_review, note: 'waiting for the dentist', tone: 'text-primary' },
-    { label: 'High risk', value: counts.High, tone: 'text-red-600' },
-    { label: 'Medium risk', value: counts.Medium, tone: 'text-amber-700' },
-    { label: 'Low risk', value: counts.Low, tone: 'text-green-700' },
-    { label: 'Not checked yet', value: statusCounts.not_checked, note: 'no result yet', tone: 'text-muted-foreground' },
+  const cards: { label: string; value: number; note?: string; tone: string; icon: LucideIcon; bg: string; fg: string }[] = [
+    { label: 'Needs your review', value: statusCounts.needs_review, note: 'waiting for the dentist', tone: 'text-primary', icon: ClipboardList, bg: '#E8ECF6', fg: '#273A78' },
+    { label: 'High risk', value: counts.High, tone: 'text-red-600', icon: TriangleAlert, bg: '#FEE2E2', fg: '#DC2626' },
+    { label: 'Medium risk', value: counts.Medium, tone: 'text-amber-700', icon: ShieldAlert, bg: '#FEF3C7', fg: '#B45309' },
+    { label: 'Low risk', value: counts.Low, tone: 'text-green-700', icon: ShieldCheck, bg: '#DCFCE7', fg: '#15803D' },
+    { label: 'Not checked yet', value: statusCounts.not_checked, note: 'no result yet', tone: 'text-muted-foreground', icon: CircleDashed, bg: '#F1F5F9', fg: '#64748B' },
   ];
 
   const selectCls = 'rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring';
+
+  const synthetic = !!modelStatus?.model?.synthetic_data;
+  const statusPill = serviceDown
+    ? <span className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-[13px] font-semibold text-amber-800"><span className="h-2 w-2 rounded-full bg-amber-600" />Prediction service waking up</span>
+    : modelStatus
+      ? <span className="inline-flex items-center gap-2 rounded-full bg-green-100 px-3 py-1 text-[13px] font-semibold text-green-800"><span className="h-2 w-2 rounded-full bg-green-600" />Prediction service ready</span>
+      : <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-[13px] font-semibold text-slate-600"><span className="h-2 w-2 rounded-full bg-slate-400" />Checking the prediction service</span>;
 
   return (
     <div className="space-y-4">
@@ -173,27 +210,49 @@ export const AIAnalytics = () => {
         eyebrow="Clinical Care"
         title="Risk Classification"
         description="Check each student's cavity risk, review it, and confirm the treatments that follow."
+        action={(
+          <div className="flex translate-y-4 items-center gap-2 self-start sm:-translate-x-4 sm:self-center">
+            {synthetic && <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">Synthetic data model</span>}
+            <button type="button" onClick={toggleNotice} aria-expanded={noticeOpen}
+              aria-label="Important Reminder: computer-assisted screening, not a diagnosis"
+              title="Important Reminder: computer-assisted screening, not a diagnosis"
+              className={`relative grid h-11 w-11 place-items-center rounded-full border text-xl font-extrabold ${noticeOpen ? 'border-red-300 bg-red-100 text-red-700 hover:bg-red-200' : 'border-red-700 bg-red-700 text-white hover:bg-red-800'}`}>
+              !
+              {serviceDown && <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-white bg-amber-500" aria-hidden="true" />}
+            </button>
+          </div>
+        )}
       />
 
-      <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-        <strong>Computer-assisted screening, not a diagnosis.</strong> The system only suggests. Nothing counts
-        until the dentist reviews it, and every step is saved in the audit trail.
-      </div>
-
-      {serviceDown && (
-        <Notice variant="warning">
-          The prediction service is not responding. It sleeps when idle and usually wakes within a minute; this
-          page keeps checking. Reviews of results already on record work as normal.
-        </Notice>
-      )}
-      {modelStatus?.model?.synthetic_data && (
-        <Notice variant="warning">
-          <span>
-            The current model ({modelStatus.model.display_name}) was trained on <strong>synthetic placeholder
-            data</strong>. Its suggestions are for demonstration and pipeline testing only until it is retrained
-            on real IPTR records.
-          </span>
-        </Notice>
+      {noticeOpen && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-red-300 bg-card p-4 lg:flex-row lg:items-start">
+          <div className="grid min-w-0 flex-1 gap-4 lg:grid-cols-[1.2fr_1px_1fr]">
+            <div>
+              <div className="mb-1 text-[11px] font-bold uppercase tracking-wider text-red-700">Important Reminder</div>
+              <div className="text-sm font-bold text-foreground">Computer-assisted screening, not a diagnosis.</div>
+              <ul className="mt-1.5 space-y-1 text-[13px] text-slate-700">
+                <li>✓ The system only suggests.</li>
+                <li>✓ Nothing counts until the dentist reviews it.</li>
+                <li>✓ Every step is saved in the audit trail.</li>
+              </ul>
+            </div>
+            <div className="hidden bg-border lg:block" aria-hidden="true" />
+            <div>
+              <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">System status</div>
+              {statusPill}
+              {serviceDown && (
+                <p className="mt-2 text-[12.5px] text-muted-foreground">It sleeps when idle and usually wakes within a minute. This page keeps checking. Reviews of results already on record work as normal.</p>
+              )}
+              {synthetic && (
+                <p className="mt-2 text-[12.5px] text-amber-800">The current model ({modelStatus?.model?.display_name}) was trained on <strong>synthetic placeholder data</strong>. Its suggestions are for demonstration and pipeline testing only until it is retrained on real IPTR records.</p>
+              )}
+            </div>
+          </div>
+          <button type="button" onClick={toggleNotice} aria-label="Close the reminder"
+            className="grid h-8 w-8 flex-shrink-0 place-items-center self-start rounded-full border border-border text-slate-600 hover:bg-gray-50">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       )}
 
       {loading && candidates.length === 0 ? (
@@ -205,17 +264,25 @@ export const AIAnalytics = () => {
         <div className="py-12 text-center text-sm text-destructive">{error}</div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-            {cards.map((c) => (
-              <div key={c.label} className="rounded-2xl border border-border bg-card px-5 py-4">
-                <div className="text-sm text-muted-foreground">{c.label}</div>
-                <div className={`mt-1 text-3xl font-bold tabular-nums ${c.tone}`}>{c.value}</div>
-                {c.note && <div className="mt-1 text-xs text-muted-foreground">{c.note}</div>}
-              </div>
-            ))}
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+            {cards.map((c) => {
+              const Icon = c.icon;
+              return (
+                <div key={c.label} title={c.note} className="flex flex-col rounded-xl border border-border bg-card p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+                  <span style={{ backgroundColor: c.bg, color: c.fg }} className="mb-4 grid h-8 w-8 flex-shrink-0 place-items-center rounded-xl">
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="truncate text-[12px] font-bold text-foreground">{c.label}</div>
+                    <div className={`mt-1 text-[22px] font-extrabold leading-none tabular-nums ${c.tone}`}>{c.value}</div>
+                    <div className="mt-0.5 text-[10px] font-thin text-muted-foreground">{c.value === 1 ? 'student' : 'students'}</div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
-          <div className="rounded-2xl border border-border bg-card">
+          <div className="overflow-hidden rounded-2xl border border-border bg-card">
             {studentId && (
               <div className="flex flex-col gap-2 border-b border-border bg-primary-surface px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
                 <div className="text-foreground">
@@ -227,76 +294,85 @@ export const AIAnalytics = () => {
                 <Link to="/patients"className="font-semibold text-primary hover:underline">← Back to Students</Link>
               </div>
             )}
-            {/* Filters */}
-            <div className="flex flex-col gap-2 p-4 sm:flex-row sm:flex-wrap">
-              <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by student name"
-                aria-label="Search by student name" className={`${selectCls} min-w-0 flex-1`} />
-              <select value={grade} onChange={(e) => { setGrade(e.target.value); setSection('all'); }} aria-label="Grade" className={selectCls}>
-                <option value="all">All grades</option>
-                {gradeOptions.map((g) => <option key={g} value={g}>{g}</option>)}
-              </select>
-              <select value={risk} onChange={(e) => setRisk(e.target.value)} aria-label="Risk level" className={selectCls}>
-                <option value="all">All risk levels</option>
-                <option value="High">High risk</option>
-                <option value="Medium">Medium risk</option>
-                <option value="Low">Low risk</option>
-                <option value="Unassessed">No result yet</option>
-              </select>
-              <div className="relative">
-                <button type="button" onClick={() => setMoreOpen((v) => !v)} aria-expanded={moreOpen}
-                  className={`${selectCls} inline-flex w-full items-center justify-between gap-2 sm:w-auto`}>
-                  More filters <ChevronDown className="h-4 w-4" />
-                </button>
-                {moreOpen && (
-                  <div className="absolute right-0 z-20 mt-2 w-64 space-y-2 rounded-xl border border-border bg-card p-3 shadow-lg">
-                    <select value={section} onChange={(e) => setSection(e.target.value)} aria-label="Section" className={`${selectCls} w-full`}>
-                      <option value="all">All sections</option>
-                      {sectionOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                    <select value={gender} onChange={(e) => setGender(e.target.value)} aria-label="Sex" className={`${selectCls} w-full`}>
-                      <option value="all">Male and female</option>
-                      <option value="Male">Male</option>
-                      <option value="Female">Female</option>
-                    </select>
-                    <select value={ageGroup} onChange={(e) => setAgeGroup(e.target.value)} aria-label="Age group" className={`${selectCls} w-full`}>
-                      <option value="all">All ages</option>
-                      {AGE_GROUPS.map((a) => <option key={a} value={a}>{a} years</option>)}
-                    </select>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Tabs: scroll sideways on a phone */}
-            <div className="overflow-x-auto border-b border-border">
-              <div className="flex min-w-max gap-2 px-4">
+            {/* Tabs on the left; search and one Filters button on the right. */}
+            <div className="flex flex-col gap-3 bg-primary px-5 pt-5 lg:flex-row lg:items-end lg:justify-between">
+              <div className="-mb-0.5 flex min-w-0 gap-6 overflow-x-auto">
                 {TABS.map(({ key, label }) => {
                   const n = key === 'all' ? statusCounts.all : statusCounts[key];
                   const on = tab === key;
                   return (
                     <button key={key} type="button" onClick={() => setTab(key)} aria-pressed={on}
-                      className={`-mb-px flex items-center gap-2 border-b-2 px-3 py-3 text-sm ${on ? 'border-primary font-semibold text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
-                      {label}
-                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground">{n}</span>
+                      className={`whitespace-nowrap border-b-[3px] px-0.5 py-4 text-[15px] font-bold ${on ? 'border-white text-white' : 'border-transparent text-white/70 hover:text-white'}`}>
+                      {label}<span className="ml-1.5 text-[13px] font-normal text-white/70 tabular-nums">{n}</span>
                     </button>
                   );
                 })}
               </div>
-            </div>
-
-            <div className="flex flex-col gap-2 bg-muted/40 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-muted-foreground">
-                {sort === 'priority'
-                  ? <>Listed in order: <strong className="text-foreground">most urgent first</strong> (High risk that needs review, then Medium, then the rest)</>
-                  : <>Listed in order: <strong className="text-foreground">name, A to Z</strong></>}
+              <div className="relative flex flex-wrap items-stretch gap-2 pb-4">
+                <div className="relative flex min-w-0 flex-1 lg:w-72 lg:flex-none">
+                  <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#94A3B8]" />
+                  <input type="text" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by student name..."
+                    aria-label="Search by student name"
+                    className="h-full w-full rounded-2xl bg-[#F8FAFC] py-3.5 pl-12 pr-4 text-sm placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#16214F]/30"
+                    style={{ border: '1px solid #E2E8F0' }} />
+                </div>
+                <button type="button" onClick={() => setMoreOpen((v) => !v)} aria-expanded={moreOpen}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-white px-5 text-sm font-semibold text-primary hover:bg-white/90">
+                  <SlidersHorizontal className="h-4 w-4" /> Filters
+                  <span className="grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[11px] font-bold text-white">
+                    {[grade, risk, section, gender, ageGroup].filter((v) => v !== 'all').length}
+                  </span>
+                </button>
+                {moreOpen && (
+                  <div className="absolute right-0 top-full z-20 mt-2 w-72 space-y-3 rounded-2xl border border-border bg-card p-4 shadow-lg">
+                    <label className="block text-sm font-semibold text-foreground">Grade
+                      <select value={grade} onChange={(e) => { setGrade(e.target.value); setSection('all'); }} aria-label="Grade" className={`${selectCls} mt-1 w-full font-normal`}>
+                        <option value="all">All grades</option>
+                        {gradeOptions.map((g) => <option key={g} value={g}>{g}</option>)}
+                      </select>
+                    </label>
+                    <label className="block text-sm font-semibold text-foreground">Risk level
+                      <select value={risk} onChange={(e) => setRisk(e.target.value)} aria-label="Risk level" className={`${selectCls} mt-1 w-full font-normal`}>
+                        <option value="all">All risk levels</option>
+                        <option value="High">High risk</option>
+                        <option value="Medium">Medium risk</option>
+                        <option value="Low">Low risk</option>
+                        <option value="Unassessed">No result yet</option>
+                      </select>
+                    </label>
+                    <label className="block text-sm font-semibold text-foreground">Section
+                      <select value={section} onChange={(e) => setSection(e.target.value)} aria-label="Section" className={`${selectCls} mt-1 w-full font-normal`}>
+                        <option value="all">All sections</option>
+                        {sectionOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </label>
+                    <label className="block text-sm font-semibold text-foreground">Sex
+                      <select value={gender} onChange={(e) => setGender(e.target.value)} aria-label="Sex" className={`${selectCls} mt-1 w-full font-normal`}>
+                        <option value="all">Male and female</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                      </select>
+                    </label>
+                    <label className="block text-sm font-semibold text-foreground">Age group
+                      <select value={ageGroup} onChange={(e) => setAgeGroup(e.target.value)} aria-label="Age group" className={`${selectCls} mt-1 w-full font-normal`}>
+                        <option value="all">All ages</option>
+                        {AGE_GROUPS.map((a) => <option key={a} value={a}>{a} years</option>)}
+                      </select>
+                    </label>
+                    <label className="block text-sm font-semibold text-foreground">Order by
+                      <select value={sort} onChange={(e) => setSort(e.target.value as 'priority' | 'name')} aria-label="Order by" className={`${selectCls} mt-1 w-full font-normal`}>
+                        <option value="priority">Most urgent first</option>
+                        <option value="name">Name, A to Z</option>
+                      </select>
+                    </label>
+                    <p className="text-xs text-muted-foreground">
+                      {sort === 'priority'
+                        ? 'Most urgent first: High risk that needs review, then Medium, then the rest.'
+                        : 'Listed by name, A to Z.'}
+                    </p>
+                  </div>
+                )}
               </div>
-              <label className="flex items-center gap-2 text-muted-foreground">
-                Order by
-                <select value={sort} onChange={(e) => setSort(e.target.value as 'priority' | 'name')} className={selectCls}>
-                  <option value="priority">Most urgent first</option>
-                  <option value="name">Name, A to Z</option>
-                </select>
-              </label>
             </div>
 
             {tab === 'not_checked' && isDentist && notCheckedOnPage.length > 0 && (
@@ -312,53 +388,84 @@ export const AIAnalytics = () => {
 
             {/* Table: scrolls inside its own container on narrow screens */}
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1100px] text-sm">
+              <table className="w-full min-w-[900px] text-sm">
                 <thead>
-                  <tr className="bg-muted/60 text-left align-bottom text-xs font-semibold text-foreground">
-                    <th className="px-4 py-3">#</th>
-                    <th className="px-4 py-3">Student</th>
-                    <th className="px-4 py-3">Grade / Section</th>
-                    <th className="px-4 py-3">Risk</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-3 py-3 text-center">With caries experience</th>
-                    <th className="px-3 py-3 text-center">In temporary teeth</th>
-                    <th className="px-3 py-3 text-center">In permanent dentition</th>
-                    <th className="px-3 py-3 text-center">With active caries</th>
-                    <th className="px-3 py-3 text-center">Caries-free teeth</th>
-                    <th className="px-3 py-3 text-center">Treatments</th>
-                    <th className="px-4 py-3"><span className="sr-only">Action</span></th>
+                  <tr className="bg-gray-100 text-left align-bottom text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <th rowSpan={2} className="align-middle px-4 py-3">#</th>
+                    <th rowSpan={2} className="align-middle px-4 py-3">Student</th>
+                    <th rowSpan={2} className="align-middle px-4 py-3">Risk</th>
+                    <th colSpan={5} className="border-b-2 border-slate-400 px-3 py-2 text-center text-[11px] font-bold uppercase tracking-wider text-slate-500">Caries Experience</th>
+                    <th rowSpan={2} className="align-middle px-3 py-3 text-center">Treatment Recommendation</th>
+                    <th rowSpan={2} className="align-middle px-4 py-3 text-right">Actions</th>
+                  </tr>
+                  <tr className="bg-gray-100 text-left align-top text-[11px] font-normal normal-case tracking-normal text-slate-500">
+                    <th className="align-top w-[88px] max-w-[88px] px-2 py-2 text-left font-normal leading-tight">With Caries Experience</th>
+                    <th className="align-top w-[88px] max-w-[88px] px-2 py-2 text-left font-normal leading-tight">With Caries Experience in Temporary Teeth</th>
+                    <th className="align-top w-[88px] max-w-[88px] px-2 py-2 text-left font-normal leading-tight">With Caries Experience in Permanent Dentition</th>
+                    <th className="align-top w-[88px] max-w-[88px] px-2 py-2 text-left font-normal leading-tight">With Active Dental Caries</th>
+                    <th className="align-top w-[88px] max-w-[88px] px-2 py-2 text-left font-normal leading-tight">Number of Caries Free Teeth</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {candidates.length === 0 ? (
-                    <tr><td colSpan={12} className="px-4 py-10 text-center text-muted-foreground">No students match.</td></tr>
+                    <tr><td colSpan={10} className="px-4 py-10 text-center text-muted-foreground">No students match.</td></tr>
                   ) : candidates.map((c, i) => {
                     const lvl = displayLevel(c);
                     const charted = c.teeth.length > 0;
-                    const toDecide = c.status === 'needs_review' ? suggestTreatments(c.teeth, c.suggestion?.level ?? null).length : null;
+                    // What the system recommends: from the suggestion while it waits, from the
+                    // confirmed level once the dentist has reviewed it. Computed, never filled in.
+                    const recommended = c.status === 'not_checked' || c.status === 'no_visit'
+                      ? null
+                      : suggestTreatments(c.teeth, c.status === 'reviewed' ? lvl : c.suggestion?.level ?? null);
+                    const recGroups = recommended
+                      ? Object.values(recommended.reduce<Record<string, { code: string; teeth: number }>>((acc, t) => {
+                          acc[t.code] = acc[t.code] ?? { code: t.code, teeth: 0 };
+                          if (t.tooth !== null) acc[t.code].teeth += 1;
+                          return acc;
+                        }, {}))
+                      : null;
                     const canOpen = c.status === 'needs_review' || c.status === 'not_checked';
                     return (
                       <tr key={c.id}>
                         <td className="px-4 py-3">
-                          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-muted text-xs tabular-nums text-muted-foreground">{page * PAGE_SIZE + i + 1}</span>
+                          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-muted text-xs tabular-nums text-muted-foreground">{page * pageSize + i + 1}</span>
                         </td>
                         <td className="px-4 py-3 font-medium text-foreground">{c.name}</td>
-                        <td className="px-4 py-3 text-muted-foreground">{[c.grade, c.section].filter(Boolean).join(' · ')}</td>
-                        <td className="px-4 py-3">{lvl ? <LevelChip level={lvl} /> : <span className="text-muted-foreground">—</span>}</td>
-                        <td className="px-4 py-3"><StatusChip c={c} /></td>
+                        <td className="px-4 py-3"><RiskCell c={c} level={lvl} /></td>
                         {charted ? (
                           <>
-                            <td className="px-3 py-3 text-center"><YesNo value={c.caries.withCariesExperience} /></td>
-                            <td className="px-3 py-3 text-center"><YesNo value={c.caries.inTemporaryTeeth} /></td>
-                            <td className="px-3 py-3 text-center"><YesNo value={c.caries.inPermanentDentition} /></td>
-                            <td className="px-3 py-3 text-center"><YesNo value={c.caries.withActiveCaries} /></td>
-                            <td className="px-3 py-3 text-center tabular-nums">{c.caries.cariesFreeTeeth ?? '—'}</td>
+                            <td className="px-2 py-3 text-left"><YesNo value={c.caries.withCariesExperience} /></td>
+                            <td className="px-2 py-3 text-left"><YesNo value={c.caries.inTemporaryTeeth} /></td>
+                            <td className="px-2 py-3 text-left"><YesNo value={c.caries.inPermanentDentition} /></td>
+                            <td className="px-2 py-3 text-left"><YesNo value={c.caries.withActiveCaries} /></td>
+                            <td className="px-2 py-3 text-left tabular-nums">{c.caries.cariesFreeTeeth ?? '—'}</td>
                           </>
                         ) : (
-                          <td colSpan={5} className="px-3 py-3 text-center text-muted-foreground">Not charted this school year</td>
+                          <td colSpan={5} className="px-3 py-2.5">
+                            <div className="flex items-center gap-2.5 rounded-xl border border-dashed border-slate-300 px-3 py-1.5"
+                              style={{ backgroundImage: 'repeating-linear-gradient(135deg, #fafbfc, #fafbfc 8px, #f4f6f9 8px, #f4f6f9 16px)' }}>
+                              <span className="grid h-6 w-6 flex-shrink-0 place-items-center rounded-lg bg-slate-200 text-slate-500"><CircleDashed className="h-3.5 w-3.5" aria-hidden="true" /></span>
+                              <div className="min-w-0">
+                                <div className="text-[12px] font-semibold leading-tight text-foreground">No dental chart this school year</div>
+                                <div className="text-[11px] leading-tight text-muted-foreground">Caries results appear here once the student is charted.</div>
+                              </div>
+                            </div>
+                          </td>
                         )}
                         <td className="px-3 py-3 text-center text-foreground">
-                          {toDecide !== null ? `${toDecide} to decide` : c.status === 'reviewed' ? 'Decided' : '—'}
+                          {recGroups === null
+                            ? <span className="text-muted-foreground">Not checked yet</span>
+                            : recGroups.length === 0
+                              ? <span className="text-muted-foreground">None recommended</span>
+                              : (
+                                <div className="flex flex-wrap justify-center gap-1">
+                                  {recGroups.map((g) => (
+                                    <span key={g.code} className="whitespace-nowrap rounded-full border border-border bg-muted px-2 py-0.5 text-xs">
+                                      {treatmentCodes.find((t) => t.code === g.code)?.label ?? g.code}{g.teeth > 1 ? ` (${g.teeth} teeth)` : ''}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                         </td>
                         <td className="px-4 py-3 text-right">
                           {canOpen && (
@@ -375,15 +482,19 @@ export const AIAnalytics = () => {
               </table>
             </div>
 
-            <div className="flex flex-col gap-2 border-t border-border px-4 py-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-              <span>Showing {candidates.length} of {total} students</span>
-              <div className="flex items-center gap-2">
-                <span>Rows per page: {PAGE_SIZE} · Page {page + 1} of {pageCount}</span>
-                <button type="button" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} aria-label="Previous page"
-                  className="rounded-lg border border-border p-1 disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button>
-                <button type="button" onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))} disabled={page >= pageCount - 1} aria-label="Next page"
-                  className="rounded-lg border border-border p-1 disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
-              </div>
+            <div className="border-t border-border px-4 py-3">
+              <Pagination
+                page={page + 1}
+                pageCount={pageCount}
+                pageSize={pageSize}
+                from={total === 0 ? 0 : page * pageSize + 1}
+                to={page * pageSize + candidates.length}
+                total={total}
+                onPage={(p) => setPage(p - 1)}
+                onPageSize={(n) => setPageSize(n)}
+                noun="students"
+                detail={selectedSchool ? `at ${selectedSchool}` : undefined}
+              />
             </div>
           </div>
         </>

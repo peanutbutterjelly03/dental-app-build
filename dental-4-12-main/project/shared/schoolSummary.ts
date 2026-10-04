@@ -32,7 +32,7 @@ export interface SchoolSummaryInput {
 export interface SchoolSummaryOutput {
   tally: SchoolSummaryTally;
   years: string[];
-  /** Pupils whose sex is blank or unrecognised: counted in no column, and said
+  /** Students whose sex is blank or unrecognised: counted in no column, and said
    *  out loud on screen rather than quietly folded into one. */
   unsexed: number;
 }

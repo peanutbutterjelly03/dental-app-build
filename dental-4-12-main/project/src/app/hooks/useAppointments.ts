@@ -13,10 +13,10 @@ export interface SessionStudent {
   gender: string;
   age: number | null;
   riskLevel: string | null;
-  /** The underlying APPOINTMENT this pupil holds in the session (Sprint 109).
+  /** The underlying APPOINTMENT this student holds in the session (Sprint 109).
    *  Carried explicitly rather than read positionally out of
    *  `appointmentIds` — the arrays happen to be built in step today, and a
-   *  note written against the wrong pupil is exactly the class of bug that
+   *  note written against the wrong student is exactly the class of bug that
    *  kind of coupling produces. */
   appointmentId: string;
   /** Remark on that appointment; '' when unset. */

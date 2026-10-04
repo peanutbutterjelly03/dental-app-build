@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useOfflineQueue } from '../hooks/useOfflineQueue';
 import { retryQueue, discardFailedWrite, keepMyChange, discardMyChange } from '../offline/queueProcessor';
+import { requestConflictReview } from '../offline/queueEvents';
 import type { QueuedWrite } from '../offline/db';
 
 // "/appointments/6a44ad4..." -> "Appointment"
@@ -196,9 +197,17 @@ export const SyncStatus = ({ schoolLabel }: { schoolLabel?: string }) => {
 
           {conflicts.length > 0 && (
             <div className="mt-3 space-y-2">
-              <p className="text-xs font-medium text-foreground">
-                Edited elsewhere while you were offline:
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-medium text-foreground">
+                  Edited elsewhere while you were offline:
+                </p>
+                <button
+                  onClick={() => { setOpen(false); requestConflictReview(); }}
+                  className="px-2 py-1 rounded border border-border text-foreground text-xs font-medium hover:bg-muted"
+                >
+                  Review side by side
+                </button>
+              </div>
               {conflicts.map((c) => (
                 <div key={c.id} className="border border-orange-200 rounded-lg p-2 text-xs text-foreground bg-orange-50">
                   <p className="font-semibold mb-1.5">{describeResource(c.endpoint)} was changed by someone else</p>

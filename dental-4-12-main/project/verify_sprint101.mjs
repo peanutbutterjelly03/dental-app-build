@@ -87,12 +87,12 @@ check('?school pointing outside the account cannot widen', widened && widened.co
   `count ${widened?.count}`);
 
 // --- the bug the first run caught: a parent filter must SURVIVE the scope
-// clause. Spreading them let the scope overwrite `iptr_id`, so one pupil's
-// request returned every in-scope pupil's records.
+// clause. Spreading them let the scope overwrite `iptr_id`, so one student's
+// request returned every in-scope student's records.
 const ownStudent = saRows[0];
 const ownIptrs = (await get(sa, `/student-iptrs?student_id=${ownStudent.id}`)).body;
 check('a parent filter is not swallowed by the scope clause', ownIptrs.length > 0 && ownIptrs.length < saIptrs.length,
-  `${ownIptrs.length} iptrs for one pupil vs ${saIptrs.length} in scope`);
+  `${ownIptrs.length} iptrs for one student vs ${saIptrs.length} in scope`);
 if (ownIptrs.length) {
   const oneIptr = (await get(sa, `/medical-histories?iptr_id=${ownIptrs[0]._id}`)).body;
   const allMine = (await get(sa, '/medical-histories')).body;

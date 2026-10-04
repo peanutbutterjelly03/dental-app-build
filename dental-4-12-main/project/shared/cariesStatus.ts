@@ -8,7 +8,7 @@
 // Caries EXPERIENCE means decayed, missing or filled: a treated tooth still
 // counts. Caries ACTIVE means currently decayed. The form asks both.
 //
-// Input is the pupil's tooth-condition counts keyed by charting code, as the
+// Input is the student's tooth-condition counts keyed by charting code, as the
 // Target Client List already builds them: D/M/F/X permanent, d/f/x temporary,
 // plus the two sound codes. `x`/`X` (for extraction) are not caries experience.
 //

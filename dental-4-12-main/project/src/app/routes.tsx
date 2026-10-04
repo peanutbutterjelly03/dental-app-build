@@ -1,4 +1,6 @@
+import type { ComponentType } from "react";
 import { createBrowserRouter, useParams } from "react-router";
+import { OnlineOnly } from "./components/OnlineOnly";
 import { RootLayout } from "./components/RootLayout";
 import { Login } from "./components/Login";
 import { ResetPassword } from "./components/ResetPassword";
@@ -20,6 +22,11 @@ import { ArchiveManagement } from './components/ArchiveManagement';
 import { UpdateSchoolYear } from './components/UpdateSchoolYear';
 import { ScanStudentForm } from './components/ScanStudentForm';
 import { VerifyStudentForm } from './components/VerifyStudentForm';
+import { BulkScanReview } from './components/BulkScanReview';
+
+// Pages that need the server. Student Records, Dental Charts, the Dental Chart and
+// Treatment are the offline modules, so they are the only routes NOT wrapped.
+const needsConnection = (Page: ComponentType): ComponentType => () => <OnlineOnly><Page /></OnlineOnly>;
 
 const DentalChartKeyed = () => { const { id } = useParams(); return <DentalChart key={id} />; };
 
@@ -31,24 +38,25 @@ export const router = createBrowserRouter([
     path: "/",
     Component: RootLayout,
     children: [
-      { index: true, Component: Dashboard },
+      { index: true, Component: needsConnection(Dashboard) },
       { path: "patients", Component: PatientList },
-      { path: "students/update-school-year", Component: UpdateSchoolYear },
-      { path: "students/scan", Component: ScanStudentForm },
-      { path: "students/scan/review", Component: VerifyStudentForm },
+      { path: "students/update-school-year", Component: needsConnection(UpdateSchoolYear) },
+      { path: "students/scan", Component: needsConnection(ScanStudentForm) },
+      { path: "students/scan/review", Component: needsConnection(VerifyStudentForm) },
+      { path: "students/scan/bulk", Component: needsConnection(BulkScanReview) },
       { path: "dental-charts", Component: DentalChartNav },
       { path: "dental-chart/:id", Component: DentalChartKeyed },
       { path: "treatment-records", Component: TreatmentRecords },
 
-      { path: "appointments", Component: Appointments },
-      { path: "rpc", Component: RPCTracking },
-      { path: "ai-analytics", Component: AIAnalytics },
-      { path: "reports", Component: Reports },
-      { path: "notifications", Component: Notifications },
-      { path: "accounts", Component: AccountManagement },
-      { path: "schools", Component: SchoolManagement },
-      { path: "archive", Component: ArchiveManagement },
-      { path: "audit", Component: AuditTrail },
+      { path: "appointments", Component: needsConnection(Appointments) },
+      { path: "rpc", Component: needsConnection(RPCTracking) },
+      { path: "ai-analytics", Component: needsConnection(AIAnalytics) },
+      { path: "reports", Component: needsConnection(Reports) },
+      { path: "notifications", Component: needsConnection(Notifications) },
+      { path: "accounts", Component: needsConnection(AccountManagement) },
+      { path: "schools", Component: needsConnection(SchoolManagement) },
+      { path: "archive", Component: needsConnection(ArchiveManagement) },
+      { path: "audit", Component: needsConnection(AuditTrail) },
     ],
   },
 ]);

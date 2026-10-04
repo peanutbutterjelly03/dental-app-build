@@ -467,7 +467,7 @@ export const Root = () => {
   // only the chevron toggles the group, via stopPropagation so it doesn't
   // also trigger the Link.
   const StudentsGroup = ({ studentsTab, children }: { studentsTab: typeof allTabs[0]; children: typeof allTabs }) => {
-    // ⚠ `/dental-chart/:id` (singular, an individual pupil's chart) and
+    // ⚠ `/dental-chart/:id` (singular, an individual student's chart) and
     // `/students/…` (e.g. update-school-year) are NOT prefixes of any tab's
     // own path (`/patients`, `/dental-charts` plural, `/treatment-records`),
     // so `isTabActive` alone lost the highlight and closed the group the
@@ -546,7 +546,7 @@ export const Root = () => {
           <div className={`mt-1 ml-[30px] mr-7 pl-3 border-l ${SB.rule} flex flex-col gap-1 flex-[1.4_1_0%] min-h-0`}>
             {children.map((child) => {
               // Dental Charts and Treatment both cover `/dental-chart/:id`,
-              // an individual pupil's chart -- which one depends on
+              // an individual student's chart -- which one depends on
               // `?context=`, see inDentalChart/inTreatmentViaChart above.
               const childIsActive = isTabActive(child.path)
                 || (child.path === '/dental-charts' && inDentalChart)

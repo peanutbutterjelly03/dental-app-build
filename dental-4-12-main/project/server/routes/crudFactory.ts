@@ -5,6 +5,9 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 import { logAudit } from "../utils/auditLog.js";
 import { ALL_ROLES, ADMIN_ONLY } from "../middleware/roleGroups.js";
 import { scopeFilter, isInScope } from "../utils/schoolScope.js";
+import { SyncConflict } from "../models/index.js";
+import { takeSync, conflictingFields } from "../utils/syncConflict.js";
+import { findFinishedOperation, claimOperation, markOperationDone, markOperationFailed } from "../utils/syncOperation.js";
 
 const PROTECTED_FIELDS = [
   "_id", "isArchived", "archivedAt", "archivedBy", "created_at", "updated_at",
@@ -13,7 +16,7 @@ const PROTECTED_FIELDS = [
   "twofa_enabled", "otp_hash", "otp_expires", "reset_token_hash", "reset_token_expires",
 ];
 
-function sanitizeBody(body: Record<string, unknown>) {
+export function sanitizeBody(body: Record<string, unknown>) {
   const clean = { ...body };
   for (const field of PROTECTED_FIELDS) delete clean[field];
   return clean;
@@ -22,7 +25,7 @@ function sanitizeBody(body: Record<string, unknown>) {
 // mongoose-field-encryption leaves encrypted fields as ciphertext on the in-memory
 // document after create()/save() (decryption only happens on read via post('init')).
 // Decrypt in place before sending the response, without touching the DB.
-function decryptForResponse(doc: any) {
+export function decryptForResponse(doc: any) {
   if (typeof doc.decryptFieldsSync === "function") doc.decryptFieldsSync();
   return doc;
 }
@@ -33,12 +36,12 @@ interface CrudOptions {
   /** Blank these fields out of every response for these roles.
    *
    *  ⚠ Read access is not all-or-nothing. A SCHOOL ADMINISTRATOR needs the
-   *  pupil ROWS to draw their dashboard (counts by grade, sex, age bracket) but
-   *  has no business with the pupil's name, address, guardian, contact number
+   *  student ROWS to draw their dashboard (counts by grade, sex, age bracket) but
+   *  has no business with the student's name, address, guardian, contact number
    *  or PhilHealth number — CLAUDE.md gives that role "school reports +
    *  dashboards only, no clinical records", and the manuscript has them
    *  receiving one aggregate report. Before this (found 2026-09-06) a plain
-   *  GET /api/students handed them fully identified records for every pupil in
+   *  GET /api/students handed them fully identified records for every student in
    *  their school. Hiding the screens is not enough; the API is the door. */
   redact?: { roles: string[]; fields: string[] };
   writeRoles?: string[];
@@ -216,7 +219,7 @@ export function createCrudRouter(model: Model<any>, options: CrudOptions = {}) {
       // (student_id, iptr_id, chart_id), so `{ ...filter, ...scope }` would
       // silently DROP the caller's filter. `GET /medical-histories?iptr_id=X`
       // would then return every in-scope medical history instead of that
-      // pupil's — one child's record rendered under another's name.
+      // student's — one child's record rendered under another's name.
       const scope = await scopeFilter(modelName, req);
       const docs = await model.find(scope ? { $and: [filter, scope] } : filter);
       // decryptForResponse first, while `d` is still a real Mongoose document
@@ -266,6 +269,20 @@ export function createCrudRouter(model: Model<any>, options: CrudOptions = {}) {
     requireRole(...writeRoles),
     asyncHandler(async (req, res) => {
       const body = sanitizeBody(req.body);
+      // Offline sync (utils/syncConflict.ts): the device's id for this change.
+      // Never stored. A change that already reached the server once (the answer
+      // was lost on the way back) is answered with the record that exists, FIRST,
+      // before any validation: running the checks again would only make the
+      // retry collide with its own duplicate guard.
+      const sync = takeSync(body);
+      if (sync) {
+        const finishedId = await findFinishedOperation(sync.operationId, req.user!.id);
+        const already = finishedId ? await model.findById(finishedId) : null;
+        if (already) {
+          res.status(200).json(redactFor(req.user!.role, decryptForResponse(already)));
+          return;
+        }
+      }
       // Not a stored field — it is the caller's answer to a previous 409, so
       // it must never reach model.create().
       const duplicateConfirmed = body.confirm_duplicate === true;
@@ -290,7 +307,7 @@ export function createCrudRouter(model: Model<any>, options: CrudOptions = {}) {
         // Only LIVE records block a create. This used to count archived ones
         // too, to stop a later restore resurrecting a duplicate — but that
         // made archiving worse than deleting: an IPTR recorded against the
-        // wrong pupil and archived left that pupil+year permanently
+        // wrong student and archived left that student+year permanently
         // uncreatable, 409-ing against a record the UI cannot even show.
         // The restore route below now carries that check instead, which is
         // where the conflict is visible and an admin can actually resolve it.
@@ -310,7 +327,29 @@ export function createCrudRouter(model: Model<any>, options: CrudOptions = {}) {
           return;
         }
       }
-      const doc = await model.create(body);
+      if (sync) {
+        // Take the claim just before creating: the unique index on the operation
+        // id lets exactly one of two simultaneous arrivals through.
+        const claim = await claimOperation(sync.operationId, req.user!.id, modelName);
+        if (claim.state === "busy") {
+          res.status(409).json({ error: "This change is already being saved. Try again in a moment." });
+          return;
+        }
+        const already = claim.state === "done" && claim.recordId ? await model.findById(claim.recordId) : null;
+        if (already) {
+          res.status(200).json(redactFor(req.user!.role, decryptForResponse(already)));
+          return;
+        }
+      }
+      let doc;
+      try {
+        doc = await model.create(body);
+      } catch (err) {
+        // Release the claim so the same change can be tried again once fixed.
+        if (sync) await markOperationFailed(sync.operationId);
+        throw err;
+      }
+      if (sync) await markOperationDone(sync.operationId, doc._id);
       const action = options.auditCreateAction?.(req.body) ?? `Created ${modelName}`;
       await logAudit(req.user!.id, action, doc._id.toString(), modelName);
       res.status(201).json(decryptForResponse(doc));
@@ -342,7 +381,7 @@ export function createCrudRouter(model: Model<any>, options: CrudOptions = {}) {
       // (BUG-04, Sprint 159b). `findById` finds archived rows, and until this
       // check existed the GET path 404'd them while PUT happily wrote to them.
       //
-      // The offline queue is how that actually got reached: a pupil archived
+      // The offline queue is how that actually got reached: a student archived
       // while an aide was offline, the aide's queued edit syncing afterwards,
       // landing in a record no screen lists — and the encoder told it saved.
       //
@@ -359,6 +398,9 @@ export function createCrudRouter(model: Model<any>, options: CrudOptions = {}) {
         return;
       }
       const updates = sanitizeBody(req.body);
+      // Offline sync: the values the device started from, so a change someone
+      // else made in the meantime is caught HERE, in the request that writes.
+      const sync = takeSync(updates);
       if (options.validateBody) {
         // The PUT body is PARTIAL -- only the fields being changed are present,
         // so the validator must skip anything absent. Validating the merged
@@ -367,6 +409,35 @@ export function createCrudRouter(model: Model<any>, options: CrudOptions = {}) {
         const problems = options.validateBody(updates);
         if (problems.length) {
           res.status(400).json({ error: problems.join(" ") });
+          return;
+        }
+      }
+      if (sync) {
+        const current = JSON.parse(JSON.stringify(doc.toObject())) as Record<string, unknown>;
+        const clashing = conflictingFields(sync.base, updates, current);
+        if (clashing.length > 0) {
+          // Not applied and not lost: held for a person to decide (routes/
+          // syncConflictRoutes.ts). One row per change, so a retry finds its own.
+          let held = await SyncConflict.findOne({ operation_id: sync.operationId });
+          if (!held) {
+            const started = Object.fromEntries(Object.keys(updates).filter((k) => k in sync.base).map((k) => [k, sync.base[k]]));
+            held = await SyncConflict.create({
+              resource: modelName,
+              record_id: doc._id,
+              operation_id: sync.operationId,
+              owner_id: req.user!.id,
+              base_json: JSON.stringify(started),
+              changes_json: JSON.stringify(updates),
+            });
+            await logAudit(req.user!.id, `Held an offline edit of ${modelName} for review`, (doc._id as any).toString(), modelName);
+          }
+          res.status(409).json({
+            error: "This record was changed by someone else after you started editing it offline.",
+            conflict: true,
+            conflictId: held._id,
+            fields: clashing,
+            current: redactFor(req.user!.role, decryptForResponse(doc)),
+          });
           return;
         }
       }

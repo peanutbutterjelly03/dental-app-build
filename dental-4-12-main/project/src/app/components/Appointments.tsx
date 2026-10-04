@@ -346,7 +346,7 @@ export const Appointments = () => {
     }
   };
 
-  // Sprint 109 — a remark on ONE pupil's slot, distinct from the day note.
+  // Sprint 109 — a remark on ONE student's slot, distinct from the day note.
   const [apptNoteId, setApptNoteId] = useState<string | null>(null);
   const [apptNoteDraft, setApptNoteDraft] = useState('');
   const [apptNoteSaving, setApptNoteSaving] = useState(false);
@@ -476,7 +476,7 @@ export const Appointments = () => {
   // Details side panel (user's pick "B", 2026-09-25). Held by id and looked up
   // fresh each render, so a status change made from the panel shows at once.
   const [detailId, setDetailId] = useState<string | null>(null);
-  // The panel's editable note (one-pupil bookings). Seeded when the panel
+  // The panel's editable note (one-student bookings). Seeded when the panel
   // opens; saved through the same PUT the day view's "Edit note" uses.
   const [panelNote, setPanelNote] = useState('');
   const [panelNoteSaving, setPanelNoteSaving] = useState(false);
@@ -666,7 +666,7 @@ export const Appointments = () => {
   // dialog's left half — roughly 340px, against the ~1300px list it was drawn
   // for. At that width the chips wrap one per line, the section name truncates
   // to "Del Pi…", and a tidy row becomes four ragged ones. Compact drops the
-  // date (the dialog's title IS the date) and the pupil count (the pupils are
+  // date (the dialog's title IS the date) and the student count (the students are
   // listed directly underneath), which are the two chips that say nothing new
   // in that context.
   const AppointmentCard = ({ a, showActions = false, deleteMode = false, compact = false }: { a: AppointmentSession; showActions?: boolean; deleteMode?: boolean; compact?: boolean }) => {
@@ -870,7 +870,7 @@ export const Appointments = () => {
       {appointmentsError && <Notice variant="error">{appointmentsError}</Notice>}
       {/* Header
           ⚠ A SESSION IS NOT AN APPOINTMENT. `appointments` here is the
-          session list — one scheduled slot holding several pupils, which is
+          session list — one scheduled slot holding several students, which is
           what each card below shows — so this line read "10 appointments
           total" for a school with 14 appointment rows. The tab counts are
           session counts and are right, because the cards are sessions; only
@@ -1109,7 +1109,7 @@ export const Appointments = () => {
             <h2 className="text-lg font-bold text-foreground">{formatDateWithWeekday(toLocalDateString(noteDay))}</h2>
             <button onClick={() => setNoteDay(null)} className="p-2 hover:bg-gray-100 rounded-lg" aria-label="Close"><X className="w-4 h-4"/></button>
           </div>
-          {/* ⚠ NOT an even split. The left half carries session cards, pupil
+          {/* ⚠ NOT an even split. The left half carries session cards, student
               rows and their notes; the right is one textarea and a button. An
               even split starved the side with all the content — the section
               name truncated and every chip wrapped. */}
@@ -1133,17 +1133,17 @@ export const Appointments = () => {
                         <AppointmentCard a={a} showActions compact />
                         {/* Student rows stay NESTED under the card. The card is
                             per SESSION (time + grade + section) while these are
-                            the individual pupils in it, so replacing them with
-                            the card alone would have lost the per-pupil note
-                            and the link to that pupil's chart. */}
+                            the individual students in it, so replacing them with
+                            the card alone would have lost the per-student note
+                            and the link to that student's chart. */}
                         <ul className="mt-1 space-y-1 pl-3 border-l-2 border-gray-100">
                           {a.students.map((st) => (
                             <li key={st.appointmentId} className="text-xs">
                               <div className="flex items-start justify-between gap-2">
-                                {/* Straight to THIS pupil's record. The card's
+                                {/* Straight to THIS student's record. The card's
                                     own link goes to the chart LIST, which is
                                     the right target for a session and the
-                                    wrong one for a named pupil. */}
+                                    wrong one for a named student. */}
                                 <Link to={`/dental-chart/${st.id}`} className="text-foreground hover:text-primary hover:underline">
                                   {st.name}
                                 </Link>

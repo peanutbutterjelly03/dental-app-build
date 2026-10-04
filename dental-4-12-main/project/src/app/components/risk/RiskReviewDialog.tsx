@@ -21,7 +21,7 @@ import type { RiskCandidate } from '../../../../shared/riskCandidates';
 // Classification and, in R3, straight from the Students list, so the review
 // can never work differently depending on where it was opened.
 //
-// Saving VALIDATES: a stored suggestion is UPDATED (PUT); a pupil with no
+// Saving VALIDATES: a stored suggestion is UPDATED (PUT); a student with no
 // stored suggestion gets a new, already-validated row (POST). Only the dentist
 // can save (SEC-35: the server refuses anyone else); others can read.
 //
@@ -58,8 +58,8 @@ const keyOf = (t: SuggestedTreatment) => `${t.code}:${t.tooth ?? 'mouth'}`;
 const nameOf = (code: string) => treatmentCodes.find((t) => t.code === code)?.label ?? code;
 const yesNo = (b: boolean) => (b ? 'Yes' : 'No');
 
-export function LevelChip({ level }: { level: RiskLevel }) {
-  return <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-sm font-semibold ${LEVEL_CHIP[level]}`}>{level} risk</span>;
+export function LevelChip({ level, small = false }: { level: RiskLevel; small?: boolean }) {
+  return <span className={`inline-flex items-center rounded-full border font-semibold ${small ? 'px-2 py-0.5 text-[12.5px]' : 'px-2.5 py-0.5 text-sm'} ${LEVEL_CHIP[level]}`}>{small ? level : `${level} risk`}</span>;
 }
 
 export function RiskReviewDialog({
@@ -119,12 +119,10 @@ export function RiskReviewDialog({
   const acceptedCount = treatments.filter((t) => decisions[keyOf(t)]?.decision === 'accepted').length;
   const skippedCount = treatments.filter((t) => decisions[keyOf(t)]?.decision === 'skipped').length;
 
-  const canNext: Record<Step, boolean> = {
-    1: true,
-    2: level !== null && notes.trim().length > 0,
-    3: decided === treatments.length,
-    4: true,
-  };
+  // Roles other than the dentist only read the result: every step is open to them.
+  const canNext: Record<Step, boolean> = canSave
+    ? { 1: true, 2: level !== null, 3: decided === treatments.length, 4: true }
+    : { 1: true, 2: true, 3: true, 4: true };
 
   // "Check risk now": ask the model, then STORE the answer as an unreviewed
   // suggestion, so it survives closing this dialog and shows as Needs review.
@@ -218,7 +216,7 @@ export function RiskReviewDialog({
       {/* Header */}
       <div className="flex items-start justify-between gap-4 px-6 pt-6">
         <div className="min-w-0">
-          <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Review risk result</div>
+          <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{canSave ? 'Review risk result' : 'Risk result'}</div>
           <h2 className="mt-1 text-2xl font-bold text-foreground">{candidate.name}</h2>
           <div className="mt-1 text-sm text-muted-foreground">{subtitle}</div>
         </div>
@@ -298,7 +296,7 @@ export function RiskReviewDialog({
               {findings.length > 0 && (
                 <div className="mt-3">
                   {/* "Findings", not "Reasons": real facts from the chart and
-                      forms. The model does not explain one pupil's result. */}
+                      forms. The model does not explain one student's result. */}
                   <div className="text-sm text-muted-foreground">Findings:</div>
                   <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-foreground">
                     {findings.map((f) => <li key={f}>{f}</li>)}
@@ -323,8 +321,9 @@ export function RiskReviewDialog({
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {(['High', 'Medium', 'Low'] as RiskLevel[]).map((l) => (
-                <button key={l} type="button" onClick={() => setLevel(l)} aria-pressed={level === l}
-                  className={`rounded-xl border-2 p-4 text-left transition-colors ${level === l ? 'border-primary ring-2 ring-primary/15' : 'border-border hover:border-primary/40'}`}>
+                <button key={l} type="button" onClick={() => setLevel(l)} aria-pressed={level === l} disabled={!canSave}
+                  title={canSave ? undefined : 'Only the dentist can change this'}
+                  className={`rounded-xl border-2 p-4 text-left transition-colors disabled:cursor-not-allowed ${level === l ? 'border-primary ring-2 ring-primary/15' : canSave ? 'border-border hover:border-primary/40' : 'border-border'}`}>
                   <LevelChip level={l} />
                   <p className="mt-2 text-sm text-muted-foreground">{LEVEL_HELP[l]}</p>
                   {suggestion?.level === l && <p className="mt-2 text-sm font-bold text-primary">System suggestion</p>}
@@ -332,10 +331,10 @@ export function RiskReviewDialog({
               ))}
             </div>
             <div>
-              <label htmlFor="risk-notes" className="text-sm font-bold text-foreground">Your notes (required)</label>
-              <textarea id="risk-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3}
+              <label htmlFor="risk-notes" className="text-sm font-bold text-foreground">Your notes (optional)</label>
+              <textarea id="risk-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} disabled={!canSave}
                 placeholder={suggestion ? 'Why do you agree, or why did you change it?' : 'Why this level?'}
-                className="mt-2 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                className="mt-2 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:bg-muted/40" />
             </div>
           </div>
         )}
@@ -367,12 +366,12 @@ export function RiskReviewDialog({
                           <div className="text-sm text-muted-foreground">Why: {t.why}</div>
                         </div>
                         <div className="flex gap-2">
-                          <button type="button" onClick={() => decide(t, 'accepted')} aria-pressed={d?.decision === 'accepted'}
-                            className={`rounded-lg border px-4 py-1.5 text-sm font-semibold ${d?.decision === 'accepted' ? 'border-green-300 bg-green-50 text-green-700' : 'border-border text-foreground hover:bg-muted'}`}>
+                          <button type="button" onClick={() => decide(t, 'accepted')} aria-pressed={d?.decision === 'accepted'} disabled={!canSave} title={canSave ? undefined : 'Only the dentist can decide'}
+                            className={`rounded-lg border px-4 py-1.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent ${d?.decision === 'accepted' ? 'border-green-300 bg-green-50 text-green-700' : 'border-border text-foreground hover:bg-muted'}`}>
                             Accept
                           </button>
-                          <button type="button" onClick={() => decide(t, 'skipped')} aria-pressed={d?.decision === 'skipped'}
-                            className={`rounded-lg border px-4 py-1.5 text-sm font-semibold ${d?.decision === 'skipped' ? 'border-red-300 bg-red-50 text-red-700' : 'border-border text-foreground hover:bg-muted'}`}>
+                          <button type="button" onClick={() => decide(t, 'skipped')} aria-pressed={d?.decision === 'skipped'} disabled={!canSave} title={canSave ? undefined : 'Only the dentist can decide'}
+                            className={`rounded-lg border px-4 py-1.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent ${d?.decision === 'skipped' ? 'border-red-300 bg-red-50 text-red-700' : 'border-border text-foreground hover:bg-muted'}`}>
                             Skip
                           </button>
                         </div>
@@ -388,9 +387,11 @@ export function RiskReviewDialog({
                     </div>
                   );
                 })}
-                <button type="button" onClick={acceptAll} className="rounded-lg border border-border px-4 py-1.5 text-sm font-medium text-foreground hover:bg-muted">
-                  Accept all
-                </button>
+                {treatments.length >= 2 && (
+                  <button type="button" onClick={acceptAll} disabled={!canSave} title={canSave ? undefined : 'Only the dentist can decide'} className="rounded-lg border border-border px-4 py-1.5 text-sm font-medium text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent">
+                    Accept all
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -410,9 +411,26 @@ export function RiskReviewDialog({
                     </span>
                   </span>
                 )],
-                ['Your notes', <span key="n" className="break-words">{notes.trim()}</span>],
-                ['Treatments accepted', <span key="a" className="font-semibold">{acceptedCount}</span>],
-                ['Treatments skipped', <span key="k" className="font-semibold">{skippedCount}</span>],
+                ['Your notes', notes.trim() ? <span key="n" className="break-words">{notes.trim()}</span> : <span key="n" className="text-muted-foreground">None</span>],
+                ['Treatments accepted', (
+                  <div key="a">
+                    <span className="font-semibold">{acceptedCount}</span>
+                    {treatments.filter((t) => decisions[keyOf(t)]?.decision === 'accepted').map((t) => (
+                      <div key={keyOf(t)} className="text-sm text-foreground">{nameOf(t.code)} <span className="text-muted-foreground">· {t.tooth ? `Tooth ${t.tooth}` : 'Whole mouth'}</span></div>
+                    ))}
+                  </div>
+                )],
+                ['Treatments skipped', (
+                  <div key="k">
+                    <span className="font-semibold">{skippedCount}</span>
+                    {treatments.filter((t) => decisions[keyOf(t)]?.decision === 'skipped').map((t) => (
+                      <div key={keyOf(t)} className="text-sm text-foreground">
+                        {nameOf(t.code)} <span className="text-muted-foreground">· {t.tooth ? `Tooth ${t.tooth}` : 'Whole mouth'}</span>
+                        {decisions[keyOf(t)]?.reason && <div className="text-xs text-muted-foreground">Reason: {decisions[keyOf(t)].reason}</div>}
+                      </div>
+                    ))}
+                  </div>
+                )],
                 ['Still to decide', <span key="d" className="font-semibold">{treatments.length - decided}</span>],
               ] as const).map(([label, value]) => (
                 <div key={label} className="flex items-start justify-between gap-4 py-3 text-sm">
@@ -421,7 +439,7 @@ export function RiskReviewDialog({
                 </div>
               ))}
             </dl>
-            <p className="mt-3 text-sm text-muted-foreground">
+            <p className={`mt-3 ${canSave ? 'text-sm text-muted-foreground' : 'text-xs text-destructive'}`}>
               {canSave ? 'Saving records this review under your name in the audit trail.' : 'Only the dentist can save a risk review. You can read it, but saving is left to the dentist.'}
             </p>
             {saveError && <p className="mt-2 text-sm text-destructive" role="alert">{saveError}</p>}

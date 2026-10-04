@@ -38,7 +38,7 @@ export interface StudentRow {
   };
   /** This school year's treatment pipeline stage (user, 2026-09-28) --
    *  distinct from riskLevel/oralStatus's clinical severity. Resets to
-   *  "For Oral Exam" each new school year even for a pupil who finished
+   *  "For Oral Exam" each new school year even for a student who finished
    *  both RPC visits last year. */
   pipelineStatus: 'For Oral Exam' | 'For First Treatment' | 'For Second Treatment' | 'Completed';
   /** From the student's LATEST STUDENT_IPTR (consent is per school year).

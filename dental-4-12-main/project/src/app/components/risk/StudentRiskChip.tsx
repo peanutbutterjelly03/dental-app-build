@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Loader2 } from 'lucide-react';
+import { CircleDashed, Loader2 } from 'lucide-react';
 import { Modal } from '../Modal';
 import { apiClient } from '../../api/client';
 import { formatDate } from '../../utils/localDate';
@@ -14,7 +14,7 @@ import type { StudentRow } from '../../hooks/useStudents';
 // rule as Risk Classification, so the two screens cannot disagree.
 //
 // "Needs review" opens a small card; "Review now" opens the SAME 4-step
-// review Risk Classification uses, fetched fresh for this one pupil.
+// review Risk Classification uses, fetched fresh for this one student.
 
 const LEVEL_TEXT = { High: 'text-red-700', Medium: 'text-amber-800', Low: 'text-green-800' } as const;
 
@@ -40,14 +40,20 @@ export function StudentRiskChip({
 
   if (review.status === 'reviewed' && review.level) {
     return (
-      <div className="flex flex-col items-start gap-0.5">
-        <LevelChip level={review.level} />
-        <span className="whitespace-nowrap text-xs text-green-700">✓ Reviewed{review.reviewedAt ? ` · ${formatDate(review.reviewedAt)}` : ''}</span>
+      <div className="flex flex-col items-start gap-0">
+        <LevelChip level={review.level} small />
+        <span className="whitespace-nowrap text-xs text-green-700">Reviewed{review.reviewedAt ? ` · ${formatDate(review.reviewedAt)}` : ''}</span>
       </div>
     );
   }
-  if (review.status === 'not_checked') return <span className="whitespace-nowrap text-xs text-muted-foreground">Not checked yet</span>;
-  if (review.status === 'no_visit') return <span className="whitespace-nowrap text-xs text-muted-foreground">No visit yet</span>;
+  if (review.status === 'not_checked' || review.status === 'no_visit') {
+    return (
+      <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-normal text-slate-500">
+        <CircleDashed className="h-3.5 w-3.5" aria-hidden="true" />
+        {review.status === 'not_checked' ? 'Not checked' : 'No visit'}
+      </span>
+    );
+  }
 
   const openCard = async () => {
     setOpen(true);
@@ -77,11 +83,11 @@ export function StudentRiskChip({
       <button
         type="button"
         onClick={openCard}
-        className="flex flex-col items-start gap-0.5 text-left"
+        className="flex flex-col items-start gap-0 text-left"
         aria-label={`Needs review${review.level ? `, suggested ${review.level} risk` : ''}. Open details`}
       >
-        <span className={`inline-flex items-center rounded-full border border-dashed border-amber-400 bg-card px-2.5 py-0.5 text-sm font-semibold ${review.level ? LEVEL_TEXT[review.level] : 'text-muted-foreground'}`}>
-          {review.level ? `${review.level} risk` : 'No level'}
+        <span className={`inline-flex items-center rounded-full border border-dashed border-current bg-card px-2 py-0.5 text-[12.5px] font-semibold ${review.level ? LEVEL_TEXT[review.level] : 'text-muted-foreground'}`}>
+          {review.level ?? 'No level'}
         </span>
         <span className="whitespace-nowrap text-xs font-medium text-amber-800">Needs review</span>
       </button>
@@ -119,8 +125,8 @@ export function StudentRiskChip({
                     <p className="mt-1 text-sm text-muted-foreground">Nothing charted on this visit.</p>
                   )}
                 </div>
-                <p className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">Not counted in reports until the dentist reviews it.</p>
-                <div className="flex flex-col gap-2 sm:flex-row-reverse">
+                <p className="rounded-lg bg-muted px-2.5 py-1.5 text-xs text-muted-foreground">Not counted in reports until the dentist reviews it.</p>
+                <div className="flex flex-col gap-2 pt-3 sm:flex-row-reverse">
                   <button type="button" onClick={() => setReviewing(true)}
                     className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover">
                     Review now

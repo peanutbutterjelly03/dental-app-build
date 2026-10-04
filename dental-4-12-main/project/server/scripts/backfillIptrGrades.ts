@@ -9,7 +9,7 @@ import mongoose from "mongoose";
 
 /**
  * Sprint 130 — stamps `grade_level` / `section` onto STUDENT_IPTR rows that
- * have none, copying them from the pupil's current STUDENT record.
+ * have none, copying them from the student's current STUDENT record.
  *
  * WHY: the DOH Consolidated report is grade x age x sex. Measured 2026-09-05,
  * 0 of 26 IPTRs carried a grade while all 26 students did, so every record fell
@@ -19,12 +19,12 @@ import mongoose from "mongoose";
  * that backlog of records, not a display bug.
  *
  * ⚠ WHAT THIS ASSUMES, stated because it is the one thing that can be wrong:
- * the pupil's CURRENT grade is used for the year the IPTR belongs to. That is
+ * the student's CURRENT grade is used for the year the IPTR belongs to. That is
  * correct for a record created before Sprint 57a introduced per-year grades and
  * never promoted since, which is what the seeded data is. It is NOT correct for
- * a pupil who has since moved up: their older years would be stamped with
+ * a student who has since moved up: their older years would be stamped with
  * today's grade. So it only fills EMPTY fields, never overwrites, and it
- * reports how many years each pupil has — more than one is the case a human
+ * reports how many years each student has — more than one is the case a human
  * should look at.
  *
  * Dry run by default; pass --confirm to write. Refuses on production without
@@ -66,7 +66,7 @@ async function main() {
     if ((yearsPerStudent.get(String(iptr.student_id)) ?? 0) > 1) {
       multiYear++;
       console.log(
-        `  ⚠ ${String(iptr._id)} — pupil has ${yearsPerStudent.get(String(iptr.student_id))} school years; ` +
+        `  ⚠ ${String(iptr._id)} — student has ${yearsPerStudent.get(String(iptr.student_id))} school years; ` +
           `stamping today's grade on year ${iptr.school_year} may be wrong. Skipped.`
       );
       continue;
@@ -81,7 +81,7 @@ async function main() {
 
   console.log(
     `\n${CONFIRM ? "Filled" : "Would fill"}: ${filled}` +
-      `\nSkipped — pupil missing: ${noStudent} · pupil has no grade either: ${noSourceGrade} · pupil has several years: ${multiYear}`
+      `\nSkipped — student missing: ${noStudent} · student has no grade either: ${noSourceGrade} · student has several years: ${multiYear}`
   );
   if (!CONFIRM) console.log("\nDry run. Pass --confirm to write.");
 

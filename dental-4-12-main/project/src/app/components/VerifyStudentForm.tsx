@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from './Toast';
@@ -52,15 +52,21 @@ const Label = ({ children, extracted, required }: { children: React.ReactNode; e
 );
 
 // The route reads a QUEUE (O3, 2026-10-01): one scanned file is a queue of one
-// and behaves exactly as before (save opens the pupil's chart); a batch is
+// and behaves exactly as before (save opens the student's chart); a batch is
 // reviewed one form at a time with Save & next / Skip, then a summary.
 export const VerifyStudentForm = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
-  const queue = (location.state as { queue?: ExtractedHandoff[] } | null)?.queue ?? null;
-  const [index, setIndex] = useState(0);
+  const nav = location.state as { queue?: ExtractedHandoff[]; startIndex?: number; returnTo?: string; saved?: number[] } | null;
+  const queue = nav?.queue ?? null;
+  // Opened from the bulk review list: start at the chosen student, remember who was
+  // saved, and go back to that list instead of ending the batch.
+  const returnTo = nav?.returnTo ?? null;
+  const [index, setIndex] = useState(nav?.startIndex ?? 0);
   const [outcomes, setOutcomes] = useState<BatchOutcome[]>([]);
+  const [savedIdx, setSavedIdx] = useState<number[]>(nav?.saved ?? []);
+  const backToList = (saved: number[] = savedIdx) => navigate(returnTo ?? '/students/scan', returnTo ? { state: { queue, saved } } : undefined);
 
   // No queue (direct visit, or a page refresh: router state doesn't survive
   // one) means there's nothing to verify.
@@ -69,6 +75,13 @@ export const VerifyStudentForm = () => {
 
   const done = (outcome: BatchOutcome) => {
     const all = [...outcomes, outcome];
+    const saved = outcome === 'saved' ? [...savedIdx, index] : savedIdx;
+    setSavedIdx(saved);
+    if (index + 1 >= queue.length && returnTo) {
+      toast.success(batchSummary(all));
+      backToList(saved);
+      return;
+    }
     if (index + 1 < queue.length) {
       setOutcomes(all);
       setIndex(index + 1);
@@ -85,15 +98,18 @@ export const VerifyStudentForm = () => {
       handoff={queue[index]}
       position={queue.length > 1 ? { index, total: queue.length } : null}
       onDone={done}
+      onBack={returnTo ? () => backToList() : null}
     />
   );
 };
 
-const VerifyOne = ({ handoff, position, onDone }: {
+const VerifyOne = ({ handoff, position, onDone, onBack }: {
   handoff: ExtractedHandoff;
   /** Where this form sits in a batch; null for a single scan. */
   position: { index: number; total: number } | null;
   onDone: (outcome: BatchOutcome) => void;
+  /** Set when opened from the bulk review list: Back and Stop return to it. */
+  onBack?: (() => void) | null;
 }) => {
   const navigate = useNavigate();
   const { selectedSchool } = useAuth();
@@ -106,6 +122,19 @@ const VerifyOne = ({ handoff, position, onDone }: {
   const [missing, setMissing] = useState<Set<keyof NewPatientForm>>(new Set());
   const [duplicates, setDuplicates] = useState<DuplicateCandidate[] | null>(null);
   const [showSourcePreview, setShowSourcePreview] = useState(false);
+  // The original file for Download, and a full-size view for images and PDFs.
+  const fileUrl = useMemo(() => (handoff.sourceFile ? URL.createObjectURL(handoff.sourceFile) : null), [handoff.sourceFile]);
+  useEffect(() => () => { if (fileUrl) URL.revokeObjectURL(fileUrl); }, [fileUrl]);
+  const isPdf = handoff.sourceFile?.type === 'application/pdf' || /\.pdf$/i.test(handoff.sourceFileName);
+  const viewUrl = handoff.sourcePreviewUrl ?? fileUrl;
+  const downloadSource = () => {
+    const href = fileUrl ?? handoff.sourcePreviewUrl;
+    if (!href) return;
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = handoff.sourceFileName;
+    a.click();
+  };
   // The IPTR tick grid (O2b, 2026-10-01). Every finding starts UNCHECKED and
   // the Year select defaults to the latest column with ticks (user decisions).
   const tickFindings = handoff.ticks?.findings ?? [];
@@ -200,7 +229,7 @@ const VerifyOne = ({ handoff, position, onDone }: {
   };
 
   return (
-    <div style={{ background: '#F6F9FC', minHeight: '100%', padding: '2rem 3rem', fontFamily: 'var(--font-sans)', color: '#141413' }}>
+    <div style={{ background: '#F6F9FC', minHeight: '100%', padding: '0.25rem 3rem 2rem', fontFamily: 'var(--font-sans)', color: '#141413' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.875rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -216,7 +245,7 @@ const VerifyOne = ({ handoff, position, onDone }: {
         </div>
         <button
           type="button"
-          onClick={() => navigate('/students/scan')}
+          onClick={() => (onBack ? onBack() : navigate('/students/scan'))}
           style={{ cursor: 'pointer', boxSizing: 'border-box', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5625rem 1rem', borderRadius: '0.625rem', fontSize: '0.8125rem', fontWeight: 600, color: '#141413', border: '0.0625rem solid #E2E8F0', background: '#fff' }}
         >
           <svg width="12.8" height="12.8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
@@ -245,26 +274,45 @@ const VerifyOne = ({ handoff, position, onDone }: {
 
       {/* Body: source + form */}
       <div style={{ display: 'grid', gridTemplateColumns: '18.75rem minmax(0, 1fr)', gap: '1.5rem' }}>
-        {/* Source thumbnail */}
-        <div style={{ background: '#fff', border: '0.0625rem solid #E2E8F0', borderRadius: '1rem', padding: '0.875rem', display: 'flex', flexDirection: 'column', gap: '0.625rem', alignSelf: 'start' }}>
+        {/* Source thumbnail. The warnings sit UNDER it, in this column, so showing or hiding
+            them never moves the form or the footer buttons. */}
+        <div style={{ alignSelf: 'start', display: 'flex', flexDirection: 'column', gap: '0.75rem', minWidth: 0 }}>
+        <div style={{ background: '#fff', border: '0.0625rem solid #E2E8F0', borderRadius: '1rem', padding: '0.875rem', display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
           <div style={{ fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#67687A' }}>Source</div>
           <div style={{ width: '100%', aspectRatio: '3/4', background: '#ECECF0', borderRadius: '0.625rem', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#98999f', overflow: 'hidden' }}>
             {handoff.sourcePreviewUrl ? (
               <img src={handoff.sourcePreviewUrl} alt="Source form" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : handoff.sourceRecord ? (
+              <div style={{ width: '100%', height: '100%', overflow: 'auto', background: '#fff', padding: '0.5rem 0.625rem', fontSize: '0.71875rem', color: '#141413' }}>
+                <div style={{ fontWeight: 700, marginBottom: '0.375rem', color: '#67687A' }}>Row from the file</div>
+                {Object.entries(handoff.sourceRecord).filter(([, v]) => String(v ?? '').trim()).map(([k, v]) => (
+                  <div key={k} style={{ display: 'grid', gridTemplateColumns: '38% 1fr', gap: '0.375rem', padding: '0.1875rem 0', borderTop: '0.0625rem solid #F1F5F9' }}>
+                    <span style={{ color: '#67687A', wordBreak: 'break-word' }}>{k}</span>
+                    <span style={{ wordBreak: 'break-word' }}>{String(v)}</span>
+                  </div>
+                ))}
+              </div>
             ) : (
               <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="15.3" height="15.3" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
             )}
           </div>
           <div style={{ fontSize: '0.78125rem', fontWeight: 600, wordBreak: 'break-word' }}>{handoff.sourceFileName}</div>
-          {handoff.sourcePreviewUrl && (
-            <button
-              type="button"
-              onClick={() => setShowSourcePreview(true)}
-              style={{ fontSize: '0.78125rem', color: '#273A78', fontWeight: 600, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
-            >
-              View full size &rarr;
-            </button>
-          )}
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+            {viewUrl && (
+              <button
+                type="button"
+                onClick={() => setShowSourcePreview(true)}
+                style={{ fontSize: '0.78125rem', color: '#273A78', fontWeight: 600, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
+              >
+                View full size &rarr;
+              </button>
+            )}
+          </div>
+        </div>
+        {error && <p style={{ margin: 0, fontSize: '0.71875rem', lineHeight: 1.4, color: '#BE123C' }}>{error}</p>}
+        {missing.size > 0 && (
+          <p style={{ margin: 0, fontSize: '0.65625rem', lineHeight: 1.4, color: '#BE123C' }}>Highlighted fields to the right are required.</p>
+        )}
         </div>
 
         {/* Form */}
@@ -441,16 +489,11 @@ const VerifyOne = ({ handoff, position, onDone }: {
         </div>
       )}
 
-      {error && <p style={{ marginTop: '1rem', fontSize: '0.8125rem', color: '#BE123C' }}>{error}</p>}
-      {missing.size > 0 && (
-        <p style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#BE123C' }}>Highlighted fields above are required.</p>
-      )}
-
       {/* Footer actions */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.25rem' }}>
         <button
           type="button"
-          onClick={() => navigate('/students/scan')}
+          onClick={() => (onBack ? onBack() : navigate('/students/scan'))}
           style={{ cursor: 'pointer', boxSizing: 'border-box', padding: '0.6875rem 1.25rem', borderRadius: '0.625rem', fontSize: '0.875rem', fontWeight: 600, color: '#141413', border: '0.0625rem solid #E2E8F0', background: '#fff' }}
         >
           {position ? 'Stop batch' : 'Cancel'}
@@ -478,17 +521,33 @@ const VerifyOne = ({ handoff, position, onDone }: {
 
       <PreviewModal
         open={showSourcePreview}
-        kind="image"
+        kind={handoff.sourcePreviewUrl ? 'image' : isPdf ? 'pdf' : 'excel'}
         title={handoff.sourceFileName}
-        url={handoff.sourcePreviewUrl}
+        url={viewUrl}
         onClose={() => setShowSourcePreview(false)}
-        onDownload={() => {
-          if (!handoff.sourcePreviewUrl) return;
-          const a = document.createElement('a');
-          a.href = handoff.sourcePreviewUrl;
-          a.download = handoff.sourceFileName;
-          a.click();
-        }}
+        onDownload={downloadSource}
+        content={handoff.sourceRecords?.length ? (
+          <table style={{ borderCollapse: 'collapse', fontSize: '0.78125rem', background: '#fff' }}>
+            <thead>
+              <tr>
+                <th style={{ position: 'sticky', top: 0, background: '#F1F5F9', padding: '0.375rem 0.625rem', textAlign: 'left', color: '#67687A' }}>#</th>
+                {Object.keys(handoff.sourceRecords[0]).map((k) => (
+                  <th key={k} style={{ position: 'sticky', top: 0, background: '#F1F5F9', padding: '0.375rem 0.625rem', textAlign: 'left', whiteSpace: 'nowrap', color: '#67687A' }}>{k}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {handoff.sourceRecords.map((rec, ri) => (
+                <tr key={ri} style={{ background: ri === handoff.sourceRowIndex ? '#EEF2FF' : undefined }}>
+                  <td style={{ padding: '0.3125rem 0.625rem', borderTop: '0.0625rem solid #E2E8F0', color: '#67687A' }}>{ri + 1}</td>
+                  {Object.keys(handoff.sourceRecords![0]).map((k) => (
+                    <td key={k} style={{ padding: '0.3125rem 0.625rem', borderTop: '0.0625rem solid #E2E8F0', whiteSpace: 'nowrap', fontWeight: ri === handoff.sourceRowIndex ? 700 : 400 }}>{String(rec[k] ?? '')}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : undefined}
       />
     </div>
   );

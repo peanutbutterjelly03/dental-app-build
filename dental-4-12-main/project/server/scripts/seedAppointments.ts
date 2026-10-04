@@ -17,18 +17,18 @@ import mongoose from "mongoose";
  *
  * ⚠ ONLY `is_demo` STUDENTS ARE USED. That is what makes these rows removable:
  * `purge:demo` deletes appointments by `student_id` against the demo students,
- * so seeded appointments come out with them. A pupil encoded by a person is
+ * so seeded appointments come out with them. A student encoded by a person is
  * never given a fabricated appointment.
  *
  * The spread is deliberate rather than random — one bucket per tab, so every
- * tab has something to show and the day dialog has a day with several pupils
+ * tab has something to show and the day dialog has a day with several students
  * in one session:
  *   · TODAY        two sessions, Scheduled  → the Today tab, and mark-attended
  *   · UPCOMING     +3 and +10 days, Scheduled
  *   · COMPLETED    -7 days, Completed
  *   · MISSED       -14 days, Missed
  *
- * Sessions are grouped by (datetime, grade, section) in the UI, so pupils that
+ * Sessions are grouped by (datetime, grade, section) in the UI, so students that
  * share a slot must share a datetime exactly — hence the fixed hours below.
  *
  * Idempotent by refusal, like `seed:demo`: if any appointment already exists it
@@ -105,7 +105,7 @@ async function main() {
     // prints a 9am slot as 01:00 and the log contradicts what the app shows.
     console.log(
       `  ${slot.when.toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" })} · ${slot.status} · ` +
-        `${slot.students.length} pupil(s) · ${TYPES[i % TYPES.length]}`,
+        `${slot.students.length} student(s) · ${TYPES[i % TYPES.length]}`,
     );
   }
 

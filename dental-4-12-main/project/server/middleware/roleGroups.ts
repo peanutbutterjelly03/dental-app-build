@@ -8,5 +8,5 @@ export const CLINICAL_READ_ROLES = ["system_admin", "dentist", "dental_aide"];
 // Part B (user decision 2026-09-29): BHO staff KEEP the named Target Client List
 // and Consent Form, which read these three collections; the School Admin does not.
 export const CLINICAL_READ_ROLES_AND_BHO = [...CLINICAL_READ_ROLES, "bho_staff"];
-// Sprint 163 (SEC-03): roles that see counts, never a pupil's name.
+// Sprint 163 (SEC-03): roles that see counts, never a student's name.
 export const NAME_BLIND_ROLES = ["school_admin"];

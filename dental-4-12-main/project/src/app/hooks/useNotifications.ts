@@ -51,6 +51,10 @@ export interface NotificationCounts {
   dayNoteToday: string | null;
   /** Only present for System Admin, who gets these instead of the clinical rows. */
   admin: { items: AdminNotificationItem[] } | null;
+  /** Update School Year events (early-start requests for the System Admin; approvals,
+   *  declines, starts and the planned date for the dentist and dental aide). Same
+   *  item shape as `admin`, built by buildSchoolYearNotifications. */
+  schoolYear: { items: AdminNotificationItem[] } | null;
 }
 
 const EMPTY: NotificationCounts = {
@@ -62,6 +66,7 @@ const EMPTY: NotificationCounts = {
   unmarkedAppointments: [],
   dayNoteToday: null,
   admin: null,
+  schoolYear: null,
 };
 
 /**
@@ -116,7 +121,8 @@ export function useNotifications(enabled: boolean, schoolName: string | null) {
     counts.consentPending +
     counts.unmarkedAppointments.length +
     (counts.dayNoteToday ? 1 : 0) +
-    (counts.admin?.items.length ?? 0);
+    (counts.admin?.items.length ?? 0) +
+    (counts.schoolYear?.items.length ?? 0);
 
   return { counts, total, loading, error, reload };
 }

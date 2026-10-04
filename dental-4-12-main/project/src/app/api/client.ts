@@ -1,4 +1,7 @@
-import { enqueueWrite } from '../offline/db';
+import { enqueueWrite, getQueue } from '../offline/db';
+import { saveRead, loadRead, findCachedRecord, isCacheablePath, referencesPendingRecord } from '../offline/readCache';
+import { deriveFromRecords } from '../offline/records';
+import { applyPendingWrites, parsePath, OVERLAY_RESOURCES } from '../offline/overlay';
 import { notifyQueueChange } from '../offline/queueEvents';
 import { loadUserCache } from '../offline/authCache';
 
@@ -68,8 +71,10 @@ async function request<T>(path: string, options: RequestInit = {}, isRetry = fal
 // "synced later" risk prediction is meaningless, so it's never queued either.
 // /twofa/ management is a live email round-trip (send code / confirm code) —
 // queueing it offline would fake success without any code ever being sent.
+// /school-year/* carries a password and starts a school year for real -- a
+// "synced later" start, or a password replayed from storage, is never wanted.
 function isNeverQueuedPath(path: string): boolean {
-  return path.startsWith('/auth/') || path.startsWith('/predictions') || path.includes('/twofa/');
+  return path.startsWith('/auth/') || path.startsWith('/predictions') || path.includes('/twofa/') || path.startsWith('/school-year');
 }
 
 // "View as" preview (utils/viewAs.ts): while the System Admin previews another
@@ -102,33 +107,15 @@ async function writeRequest<T>(path: string, method: 'POST' | 'PUT' | 'PATCH', b
   }
 }
 
-// Best-effort snapshot of the record as this device last saw it, for
-// PUT/PATCH conflict detection at sync time (see queueProcessor.ts). Reads
-// from the Cache Storage the service worker's NetworkFirst /api/* caching
-// populates — works fully offline since Cache Storage is local. Tries the
-// exact by-id URL first, then falls back to scanning the parent list
-// endpoint's cached response for a matching _id. Returns undefined (no
-// baseline, conflict detection just won't apply) if nothing's cached yet.
+// Best-effort snapshot of the record as this device last saw it, for PUT/PATCH
+// conflict detection at sync time (see queueProcessor.ts): the last SERVER copy
+// in the per-user read cache (offline/readCache.ts), never the overlaid one, so
+// it is what the server had when this device last looked. Works fully offline.
+// Returns undefined (no baseline, conflict detection just won't apply) for a
+// record not cached yet, or one that exists only on this device.
 async function captureBaselineSnapshot(path: string): Promise<Record<string, unknown> | undefined> {
-  if (!('caches' in globalThis)) return undefined;
-  try {
-    const cache = await caches.open('api-cache');
-    const direct = await cache.match(`/api${path}`);
-    if (direct) return await direct.json();
-
-    const idMatch = path.match(/^(\/[a-z-]+)\/([a-f0-9]{24})$/i);
-    if (idMatch) {
-      const [, listPath, id] = idMatch;
-      const listRes = await cache.match(`/api${listPath}`);
-      if (listRes) {
-        const list = await listRes.json();
-        if (Array.isArray(list)) return list.find((r: Record<string, unknown>) => r._id === id);
-      }
-    }
-  } catch {
-    // Cache API unavailable — no baseline, conflict detection skipped for this write.
-  }
-  return undefined;
+  const match = path.match(/^\/([a-z-]+)\/([a-f0-9]{24})$/i);
+  return match ? findCachedRecord(match[1], match[2]) : undefined;
 }
 
 // Best-effort — registers with the service worker's Background Sync so the
@@ -167,9 +154,67 @@ async function queueWrite<T>(path: string, method: 'POST' | 'PUT' | 'PATCH', bod
   } as T;
 }
 
+// Pending writes laid over a read (offline/overlay.ts). Skipped for anything that
+// is not an offline-module record, so no extra IndexedDB read is paid there.
+async function withPendingWrites(path: string, data: unknown): Promise<unknown> {
+  const parsed = parsePath(path);
+  if (!parsed || !OVERLAY_RESOURCES.includes(parsed.resource)) return data;
+  try {
+    return applyPendingWrites(path, data, await getQueue());
+  } catch {
+    return data;
+  }
+}
+
+async function readFromCache<T>(path: string, networkError?: unknown): Promise<T> {
+  const cached = await loadRead(path);
+  // Never opened on this device, but every student's chart was downloaded by the
+  // background sync (offline/bulkSync.ts): answer from those records.
+  const data = cached ? cached.data : await deriveFromRecords(path);
+  if (data === undefined) {
+    // A plain Error, not an ApiError: AuthContext reads "not an ApiError" as
+    // "could not ask the server", which is what this is.
+    throw networkError instanceof Error ? networkError : new Error("You're offline and this has not been downloaded to this device yet.");
+  }
+  return (await withPendingWrites(path, data)) as T;
+}
+
+// Reads of the offline modules: network first, saved per user on success, and
+// answered from that saved copy when the network is down. A real server answer
+// (even an error) is never replaced by the cache.
+async function read<T>(path: string): Promise<T> {
+  // A record that exists only on this device (`pending-<n>`): the server has
+  // never heard of it, so nothing is sent. It is built from the queued create.
+  if (referencesPendingRecord(path)) {
+    const out = await withPendingWrites(path, parsePath(path)?.kind === 'list' ? [] : undefined);
+    if (out === undefined) throw new ApiError(404, 'Not found');
+    return out as T;
+  }
+  if (!isCacheablePath(path)) return request<T>(path);
+  if (!navigator.onLine) return readFromCache<T>(path);
+  try {
+    const data = await request<T>(path);
+    void saveRead(path, data);
+    return (await withPendingWrites(path, data)) as T;
+  } catch (err) {
+    if (err instanceof ApiError) throw err;
+    return readFromCache<T>(path, err);
+  }
+}
+
 export const apiClient = {
-  get: <T>(path: string) => request<T>(path),
+  get: <T>(path: string) => read<T>(path),
   post: <T>(path: string, body?: unknown) => writeRequest<T>(path, "POST", body),
   put: <T>(path: string, body?: unknown) => writeRequest<T>(path, "PUT", body),
   patch: <T>(path: string, body?: unknown) => writeRequest<T>(path, "PATCH", body),
 };
+
+/** True when the write was queued on this device rather than saved on the
+ *  server — queueWrite's synthetic response carries `_pending`. Callers use it
+ *  to say "saved on this device" instead of "saved", and to skip a reload that
+ *  would only read the stale cached copy. */
+export function isQueuedResponse(response: unknown): boolean {
+  return !!response && typeof response === 'object' && (response as { _pending?: boolean })._pending === true;
+}
+
+export const QUEUED_SAVE_MESSAGE = "Saved on this device. It will sync automatically when you're back online.";

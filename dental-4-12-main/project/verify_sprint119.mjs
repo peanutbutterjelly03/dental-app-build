@@ -15,11 +15,11 @@ const env = Object.fromEntries(
     .map((m) => [m[1], m[2].trim()])
 );
 
-// Row checkboxes only -- the header's "Select all pupils" also starts with
-// "Select ", which made an earlier run count 17 for a 16-pupil roster and then
+// Row checkboxes only -- the header's "Select all students" also starts with
+// "Select ", which made an earlier run count 17 for a 16-student roster and then
 // try to tick the header while meaning a row.
 const ROW_CB = 'input[aria-label^="Select "]:not([aria-label^="Select all"]):not([aria-label^="Deselect all"])';
-const HEAD_CB = 'input[aria-label="Select all pupils"], input[aria-label="Deselect all pupils"]';
+const HEAD_CB = 'input[aria-label="Select all students"], input[aria-label="Deselect all students"]';
 // ⚠ EVERY locator must be scoped to the modal. The Student Records list behind
 // it has its OWN checkbox column (Sprint 107's queue-for-charting). Unscoped
 // selectors matched those through the overlay: Playwright called them visible
@@ -76,7 +76,7 @@ try {
   // PromoteAssign's ROOT element. `.last()` on a bare div filter picks the
   // DEEPEST div containing the Grade select -- the little flex row holding the
   // two dropdowns -- which leaves the table outside the scope and reports a
-  // 0-pupil roster. Anchor on the component's own root class instead.
+  // 0-student roster. Anchor on the component's own root class instead.
   const modal = page.locator('div.max-w-4xl').filter({ has: page.locator('select[aria-label="Grade"]') }).first();
   check('Promote / Assign modal opened', await modal.locator('select[aria-label="Grade"]').count() > 0);
 
@@ -90,7 +90,7 @@ try {
     rowCount = await modal.locator(ROW_CB).count();
     if (rowCount > 1) break;
   }
-  check('roster loaded with rows', rowCount > 1, `${rowCount} pupils`);
+  check('roster loaded with rows', rowCount > 1, `${rowCount} students`);
 
   // 1. No bulk bar until something is ticked.
   check('bulk bar hidden with no selection', await page.locator('text=/\\d+ selected/').count() === 0);
@@ -127,7 +127,7 @@ try {
 
   // 4. A bulk action changes the per-row dropdowns.
   //
-  // Which action is legal depends on the roster: a pupil who ALREADY has a
+  // Which action is legal depends on the roster: a student who ALREADY has a
   // 2027-2028 record can only be corrected or skipped (Sprint 102), so on such
   // a grade "Retain" is correctly refused. Read the row dropdowns to find out
   // which case we are in, then assert the right one -- an earlier run assumed a
@@ -163,7 +163,7 @@ try {
   }
 
   // 5. Bulk section applies to the rows that have an action set.
-  await modal.locator('input[aria-label="Section to apply to the selected pupils"]').fill('ZZBulk');
+  await modal.locator('input[aria-label="Section to apply to the selected students"]').fill('ZZBulk');
   await modal.locator('button').filter({ hasText: 'Apply section' }).first().click();
   await page.waitForTimeout(800);
   const sections = await modal.locator('input[aria-label^="Section for"]').evaluateAll((els) => els.map((e) => e.value));

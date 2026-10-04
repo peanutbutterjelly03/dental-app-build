@@ -7,7 +7,7 @@
 // (live, from the odontogram being edited) and `IptrFormV2` (saved tooth
 // records, for the printed Form 1). Two implementations of one official form's
 // arithmetic is how a screen and the sheet filed with the City Health Office
-// end up disagreeing about the same pupil. One function, two callers.
+// end up disagreeing about the same student. One function, two callers.
 //
 // The row set, the order and the two readings below follow the collaborator's
 // implementation on `peanutbutterjelly03:majorUpdates`, which got them right:

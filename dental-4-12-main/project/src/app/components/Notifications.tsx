@@ -214,33 +214,31 @@ export const Notifications = () => {
   const rows = useMemo<Row[]>(() => {
     const list: Row[] = [];
 
-    if (isAdmin) {
-      const KIND_ICON = { students: Users, school: SchoolIcon, archive: Archive, account: UserCog, security: ShieldAlert, housekeeping: SchoolIcon } as const;
-      const TIER_STYLE = {
-        'needs-action': { iconBg: 'bg-danger-surface', iconFg: 'text-destructive', badgeBg: 'bg-destructive', Badge: AlertTriangle },
-        'recent-activity': { iconBg: 'bg-primary-surface', iconFg: 'text-primary', badgeBg: 'bg-primary', Badge: Clock },
-        'awaiting-review': { iconBg: 'bg-warning-surface', iconFg: 'text-warning', badgeBg: 'bg-warning', Badge: Clock },
-      } as const;
-      for (const a of counts.admin?.items ?? []) {
-        const st = TIER_STYLE[a.tier];
-        list.push({
-          id: a.id,
-          group: a.at && Date.now() - new Date(a.at).getTime() > 24 * 60 * 60 * 1000 ? 'earlier' : 'today',
-          tier: a.tier,
-          Icon: KIND_ICON[a.kind],
-          Badge: st.Badge,
-          iconBg: st.iconBg,
-          iconFg: st.iconFg,
-          badgeBg: st.badgeBg,
-          textBefore: a.before,
-          textBold: a.bold,
-          textAfter: a.after,
-          timeLabel: '',
-          linkTo: a.linkTo,
-          linkLabel: a.linkLabel,
-          at: a.at ? new Date(a.at).getTime() : undefined,
-        });
-      }
+    const KIND_ICON = { students: Users, school: SchoolIcon, archive: Archive, account: UserCog, security: ShieldAlert, housekeeping: SchoolIcon } as const;
+    const TIER_STYLE = {
+      'needs-action': { iconBg: 'bg-danger-surface', iconFg: 'text-destructive', badgeBg: 'bg-destructive', Badge: AlertTriangle },
+      'recent-activity': { iconBg: 'bg-primary-surface', iconFg: 'text-primary', badgeBg: 'bg-primary', Badge: Clock },
+      'awaiting-review': { iconBg: 'bg-warning-surface', iconFg: 'text-warning', badgeBg: 'bg-warning', Badge: Clock },
+    } as const;
+    for (const a of [...(isAdmin ? counts.admin?.items ?? [] : []), ...(counts.schoolYear?.items ?? [])]) {
+      const st = TIER_STYLE[a.tier];
+      list.push({
+        id: a.id,
+        group: a.at && Date.now() - new Date(a.at).getTime() > 24 * 60 * 60 * 1000 ? 'earlier' : 'today',
+        tier: a.tier,
+        Icon: KIND_ICON[a.kind],
+        Badge: st.Badge,
+        iconBg: st.iconBg,
+        iconFg: st.iconFg,
+        badgeBg: st.badgeBg,
+        textBefore: a.before,
+        textBold: a.bold,
+        textAfter: a.after,
+        timeLabel: '',
+        linkTo: a.linkTo,
+        linkLabel: a.linkLabel,
+        at: a.at ? new Date(a.at).getTime() : undefined,
+      });
     }
 
     if (!isAdmin) for (const a of counts.unmarkedAppointments) {
@@ -517,6 +515,8 @@ export const Notifications = () => {
         { key: 'needs-action', label: 'Needs Action', tone: 'text-destructive' },
         { key: 'today-tomorrow', label: 'Today & Tomorrow', tone: 'text-primary' },
         { key: 'awaiting-review', label: 'Awaiting Review', tone: 'text-yellow-600' },
+        // School-year updates (approved, declined, started, planned date) arrive here.
+        { key: 'recent-activity', label: 'Recent Activity', tone: 'text-primary' },
       ]) as readonly { key: Row['tier']; label: string; tone: string }[];
   const tierCount = (key: string) => rows.filter((r) => r.tier === key).length;
 

@@ -1,6 +1,6 @@
 // Sprint 123: Transfer mode on Promote / Assign.
 // Performs ONE REAL transfer (the user confirmed all records are test input),
-// records the pupil's placement first and RESTORES it at the end.
+// records the student's placement first and RESTORES it at the end.
 import { chromium } from 'playwright';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -63,18 +63,18 @@ try {
     total = await modal.locator(ROW_CB).count();
     if (total > 0) break;
   }
-  check('roster loaded in transfer mode', total > 0, `${total} pupils`);
+  check('roster loaded in transfer mode', total > 0, `${total} students`);
 
   // The Action dropdown is promotion's; it must be gone here.
   check('no Action dropdown in transfer mode', await modal.locator('select[aria-label^="Action for"]').count() === 0);
   check('shows current placement ("Now" column)', /Now/.test(await modal.innerText()));
 
   // Footer must be disabled until something is ticked.
-  const moveBtn = modal.locator('button').filter({ hasText: /^Move \d+ pupil/ }).first();
+  const moveBtn = modal.locator('button').filter({ hasText: /^Move \d+ student/ }).first();
   check('move button reflects the selection', await moveBtn.count() > 0, await moveBtn.innerText().catch(() => '-'));
   check('move button disabled with nothing ticked', await moveBtn.isDisabled());
 
-  // Capture the pupil we are about to move, so it can be put back.
+  // Capture the student we are about to move, so it can be put back.
   const firstCb = modal.locator(ROW_CB).first();
   const label = await firstCb.getAttribute('aria-label');
   await firstCb.scrollIntoViewIfNeeded();

@@ -50,7 +50,7 @@ try {
     total = await modal.locator(ROW_CB).count();
     if (total > 1) break;
   }
-  check('roster loaded', total > 1, `${total} pupils`);
+  check('roster loaded', total > 1, `${total} students`);
 
   const box = modal.locator('input[aria-label="Search the roster by name or section"]');
   check('search box present', await box.count() > 0);
@@ -62,11 +62,11 @@ try {
   const label = await modal.locator(ROW_CB).first().getAttribute('aria-label');
   const term = String(label || '').replace(/^Select\s+/, '').split(',')[0].trim().slice(0, 4);
   if (!term) throw new Error('could not derive a search term from ' + label);
-  console.log(`    [diag] searching for "${term}" across ${total} pupils`);
+  console.log(`    [diag] searching for "${term}" across ${total} students`);
   await box.fill(term);
   await page.waitForTimeout(700);
   const narrowed = await modal.locator(ROW_CB).count();
-  check('search filters to matching pupils', narrowed > 0 && narrowed <= total, `${narrowed} of ${total} for "${term}"`);
+  check('search filters to matching students', narrowed > 0 && narrowed <= total, `${narrowed} of ${total} for "${term}"`);
 
   // Footer count must be unchanged -- search is a view filter, not a scope filter.
   const bodyText = await modal.innerText();
@@ -81,7 +81,7 @@ try {
   // Select-all applies to VISIBLE rows only.
   await box.fill(term);
   await page.waitForTimeout(700);
-  const head = modal.locator('input[aria-label="Select all pupils"], input[aria-label="Deselect all pupils"]').first();
+  const head = modal.locator('input[aria-label="Select all students"], input[aria-label="Deselect all students"]').first();
   await head.scrollIntoViewIfNeeded();
   await head.click();
   await page.waitForTimeout(800);
@@ -92,7 +92,7 @@ try {
   const checkedNow = await modal.locator(ROW_CB + ':checked').count();
   check('select-all ticks only what the search shows', checkedNow === narrowed,
     `${checkedNow} ticked, ${narrowed} shown, ${total} in the list`);
-  check('select-all did NOT reach the filtered-out pupils', checkedNow < total,
+  check('select-all did NOT reach the filtered-out students', checkedNow < total,
     `${checkedNow} < ${total}`);
 
   // Clearing the search must reveal the hidden-selection warning.

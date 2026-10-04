@@ -7,9 +7,9 @@
 //
 // MOVED, not copied, for the same reason as `dohAggregate.ts`: the features
 // assembled here are what the ML service is asked to classify, and two
-// implementations would eventually disagree about a pupil's DMF score.
+// implementations would eventually disagree about a student's DMF score.
 //
-// ⚠ The response still carries ONE ROW PER PUPIL, so unlike the DOH aggregate
+// ⚠ The response still carries ONE ROW PER STUDENT, so unlike the DOH aggregate
 // it does grow with the roll — but a row is ~13 numbers and a short history
 // instead of nine collections' worth of documents. Paging this list is
 // separate, still-open work (#24).
@@ -58,7 +58,7 @@ export interface RiskStrat {
 }
 export interface RiskSchool { _id: string; school_name: string }
 
-/** Where a pupil stands in the review flow, judged on their LATEST RPC visit
+/** Where a student stands in the review flow, judged on their LATEST RPC visit
  *  (2026-10-01, Risk Classification redesign). */
 export type RiskReviewStatus =
   /** The dentist has validated a result for the latest visit. */
@@ -111,17 +111,17 @@ export interface RiskCandidate {
   features: StudentMlFeatures;
   dmfIndex: 'DMF' | 'dmf';
   /** Risk assessments attach to an RPC visit per the ERD (preventive_id FK);
-   *  null means the pupil has no RPC visit yet, so nothing to attach to. */
+   *  null means the student has no RPC visit yet, so nothing to attach to. */
   latestPreventiveId: string | null;
   /** Trimmed to `historyLimit` when the caller asks for it — see that field. */
   history: RiskHistoryEntry[];
-  /** How many assessments the pupil actually has, whatever `history` carries.
+  /** How many assessments the student actually has, whatever `history` carries.
    *  The detail panel needs to know a trimmed list is trimmed. */
   historyCount: number;
   // ── 2026-10-01, Risk Classification redesign ──
   status: RiskReviewStatus;
   /** The stored, UNREVIEWED system suggestion on the latest visit, if any.
-   *  Never counted anywhere as the pupil's risk (see dohAggregate / student-rows). */
+   *  Never counted anywhere as the student's risk (see dohAggregate / student-rows). */
   suggestion: { id: string; level: 'High' | 'Medium' | 'Low'; confidence: number | null } | null;
   /** The DOH workbook's five caries columns, from the latest school year's
    *  latest charting that HAS tooth records (the BUG-12 rule). */
@@ -148,17 +148,17 @@ export interface RiskCandidatesInput {
   /** "Now" for the age calculation. Passed in rather than read from the clock
    *  so a caller can reproduce a result; defaults to the current time. */
   now?: number;
-  /** Keep only the LAST n assessments per pupil, and report the true count in
+  /** Keep only the LAST n assessments per student, and report the true count in
    *  `historyCount`.
    *
    *  ⚠ WHY THIS EXISTS: `history` is the only field on this row that grows with
-   *  TIME as well as with roll size — a pupil followed K to G10 accumulates
+   *  TIME as well as with roll size — a student followed K to G10 accumulates
    *  assessments forever, so the list response would grow every school year
    *  even if the roll never changed. The LIST only ever reads the last two (the
    *  badge reads the latest, the trend compares the last two); the full history
-   *  belongs to the detail panel, which fetches it per pupil.
+   *  belongs to the detail panel, which fetches it per student.
    *
-   *  Undefined means "no limit" — the per-pupil endpoint passes nothing. */
+   *  Undefined means "no limit" — the per-student endpoint passes nothing. */
   historyLimit?: number;
 }
 
@@ -189,7 +189,7 @@ export interface ReviewSummary {
 
 /**
  * THE review-status rule (2026-10-01), shared by Risk Classification and the
- * Students list so they can never disagree about a pupil. Judged on the
+ * Students list so they can never disagree about a student. Judged on the
  * LATEST RPC visit: a validated row there = reviewed; otherwise an unvalidated
  * one = needs review; otherwise not checked. No visit at all = no_visit.
  */
@@ -362,7 +362,7 @@ export function buildRiskCandidates(input: RiskCandidatesInput): RiskCandidate[]
 //
 // ⚠ THESE RUN ON THE SERVER NOW. The page used to filter and sort the whole
 // population in the browser, which is why the list endpoint had to send every
-// pupil. Paging the query WITHOUT moving these would have produced filters
+// student. Paging the query WITHOUT moving these would have produced filters
 // that only filter the current page — a control that appears to work and does
 // not.
 //
@@ -374,7 +374,7 @@ import { calculateAge, getAgeGroup } from './age.js';
 
 export interface RiskListQuery {
   q?: string;
-  /** One pupil, opened from the Students list's Risk chip (2026-10-01). */
+  /** One student, opened from the Students list's Risk chip (2026-10-01). */
   studentId?: string;
   /** ⚠ The school context ALSO had to move here. The page scoped by school in
    *  the browser; leaving that client-side while paging server-side would have
@@ -409,7 +409,7 @@ export interface RiskListPage {
 }
 
 /** Unassessed sits between Medium and Low, as it did on the client. */
-/** The level the list SHOWS for a pupil (2026-10-01): the dentist's level once
+/** The level the list SHOWS for a student (2026-10-01): the dentist's level once
  *  reviewed, the stored suggestion while it waits, nothing when not checked.
  *  Only this clinical screen shows a suggestion; reports never count one. */
 export function displayLevel(c: RiskCandidate): 'High' | 'Medium' | 'Low' | null {
@@ -419,7 +419,7 @@ export function displayLevel(c: RiskCandidate): 'High' | 'Medium' | 'Low' | null
 }
 
 /** "Most urgent first", her wording: High risk that needs review, then Medium,
- *  then the rest (not checked, then reviewed, then pupils with no visit). */
+ *  then the rest (not checked, then reviewed, then students with no visit). */
 function priorityRank(c: RiskCandidate): number {
   const lvl = displayLevel(c);
   const within = lvl ? { High: 0, Medium: 1, Low: 2 }[lvl] : 1;

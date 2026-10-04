@@ -50,14 +50,14 @@ async function main() {
   const student = await Student.findById(iptr.student_id);
   if (!student) throw new Error("PRECONDITION FAILED: IPTR points at no student");
   // ⚠ Stated, not assumed: the count checks below only mean anything if this
-  // pupil starts with no referrals. Once someone records one through the
+  // student starts with no referrals. Once someone records one through the
   // Referrals tab, an unasserted run would report a FALSE FAILURE on dirty
   // state — which is exactly the scenario this script exists to survive.
   const preExisting = await Referral.countDocuments({ iptr_id: iptr._id });
   if (preExisting > 0) {
     throw new Error(
       `PRECONDITION FAILED: IPTR ${iptr._id} already has ${preExisting} referral(s). ` +
-        `The count checks assume a clean pupil. Pick another IPTR or archive those first.`,
+        `The count checks assume a clean student. Pick another IPTR or archive those first.`,
     );
   }
   console.log(`Using IPTR ${iptr._id} (school_year ${iptr.school_year}, grade ${iptr.grade_level})`);
@@ -67,9 +67,9 @@ async function main() {
     { iptr_id: iptr._id, referral_type: "oral_cancer_screening", date_issued: new Date(), facility_name: "Taguig City Health Office", reason: REASON },
     { iptr_id: iptr._id, referral_type: "surgical", date_issued: new Date(), facility_name: "Ospital ng Makati", reason: "Impacted third molar" },
     { iptr_id: iptr._id, referral_type: "primary_care", date_issued: new Date(), facility_name: "Barangay Health Center", reason: "Prophylaxis follow-up" },
-    // A SECOND surgical referral for the same pupil — this is the one that
+    // A SECOND surgical referral for the same student — this is the one that
     // proves the report counts patients rather than slips.
-    { iptr_id: iptr._id, referral_type: "surgical", date_issued: new Date(), facility_name: "Ospital ng Makati", reason: "Second surgical referral, same pupil" },
+    { iptr_id: iptr._id, referral_type: "surgical", date_issued: new Date(), facility_name: "Ospital ng Makati", reason: "Second surgical referral, same student" },
   ]);
   check("create", made.length === 4, `${made.length} referrals written for one IPTR`);
 

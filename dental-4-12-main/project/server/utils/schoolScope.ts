@@ -71,6 +71,9 @@ const RULES: Record<string, ScopeRule> = {
   // note that EVERY user must see; `{school_id: {$in: [...]}}` excludes null,
   // so a plain rule would silently hide every holiday from scoped users.
   DayNote: { via: "school_id_or_global" },
+  // The plan row (school_id null) is shared by every school; the per-school rows
+  // (requests, starts) carry their school. Same shape as DAY_NOTE.
+  SchoolYearRollover: { via: "school_id_or_global" },
 
   // Deliberately unscoped, each for a reason:
   //  School  — every user needs school NAMES to render anything, and the list

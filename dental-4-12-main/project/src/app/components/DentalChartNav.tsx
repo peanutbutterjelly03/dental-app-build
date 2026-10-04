@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
-import { Eye, Users, Calendar, Clipboard, ClipboardList, Shield, Stethoscope, SlidersHorizontal, PanelLeftClose, PanelLeftOpen, X, ChevronDown, MoreVertical } from 'lucide-react';
+import { Eye, Users, Calendar, Clipboard, ClipboardList, Shield, Stethoscope, SlidersHorizontal, PanelLeftClose, PanelLeftOpen, X, ChevronDown, MoreVertical, CircleDashed } from 'lucide-react';
+import { LevelChip } from './risk/RiskReviewDialog';
 import { GradePill } from './GradePill';
 import { PipelineStatusPill } from './PipelineStatusPill';
 import { getSchoolColor } from '../utils/schoolColors';
@@ -11,6 +12,7 @@ import { useStudents } from '../hooks/useStudents';
 import { useRPCTracking } from '../hooks/useRPCTracking';
 import { useAuth } from '../context/AuthContext';
 import { apiClient } from '../api/client';
+import { OfflineDataStatus } from './OfflineDataStatus';
 import type { ApiAppointment, ApiStudentIptr, ApiTreatment } from '../api/types';
 import { toLocalDateString, formatDate } from '../utils/localDate';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
@@ -37,7 +39,7 @@ const RISK_BADGE: Record<string, string> = {
 };
 
 /** Two-letter initials for the row avatar. Same derivation her Student
- *  Records rows use, so a pupil is recognised by the same mark on both
+ *  Records rows use, so a student is recognised by the same mark on both
  *  screens rather than two near-misses. */
 const initials = (name: string) =>
   name.split(/[\s,]+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
@@ -220,7 +222,7 @@ export const DentalChartNav = () => {
     [allPatients, treatmentStudentIds],
   );
 
-  // Appointments Today: this school's pupils with a non-archived
+  // Appointments Today: this school's students with a non-archived
   // appointment on today's LOCAL calendar date. Kept as the actual student
   // ID set, not just a count (user, 2026-09-26) -- clicking the card queues
   // and filters to exactly these students.
@@ -461,6 +463,7 @@ export const DentalChartNav = () => {
           <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Clinical Services</div>
           <h1 className="text-2xl font-bold text-foreground mt-0.5">Dental Charts</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Manage student dental charts and the charting queue.</p>
+          <OfflineDataStatus />
         </div>
       </div>
 
@@ -472,14 +475,15 @@ export const DentalChartNav = () => {
             // Same hover spec as Dashboard's own SummaryCell (user,
             // 2026-09-26): -translate-y + primary-tinted border + the exact
             // shadow, not a generic hover:shadow-md.
-            className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6 shadow-[0_4px_20px_rgba(0,0,0,0.06)] cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_10px_30px_rgba(15,23,42,0.08)] focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-2"
+            className="flex flex-col rounded-xl border border-border bg-card p-4 shadow-sm cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-2"
           >
-            <span style={{ backgroundColor: bg, color: fg }} className="w-10 h-10 flex-shrink-0 rounded-xl grid place-items-center">
+            <span style={{ backgroundColor: bg, color: fg }} className="w-8 h-8 flex-shrink-0 rounded-xl grid place-items-center mb-4">
               <Icon className="w-4 h-4" />
             </span>
             <div className="min-w-0">
-              <div className="text-[11px] font-bold text-foreground truncate">{label}</div>
-              <div className="text-2xl font-bold text-foreground">{value}</div>
+              <div className="text-[12px] font-bold text-foreground truncate">{label}</div>
+              <div className="text-[22px] leading-none font-extrabold text-foreground mt-1">{value}</div>
+              <div className="text-[10px] font-thin text-muted-foreground mt-0.5">{value === 1 ? 'student' : 'students'}</div>
             </div>
           </div>
         ))}
@@ -526,7 +530,14 @@ export const DentalChartNav = () => {
                 {isSpotlightUpNext ? 'Up Next' : 'Selected'}
               </div>
               <div className="font-bold text-foreground">{spotlightStudent.name}</div>
-              <div className="text-xs text-muted-foreground">{spotlightStudent.grade} · {spotlightStudent.section}</div>
+              {[spotlightStudent.grade, spotlightStudent.section].filter(Boolean).length > 0 && (
+                <span
+                  className="-mt-1.5 inline-flex items-center justify-center rounded-full px-2 py-0.5 text-center text-[10px] font-bold leading-none"
+                  style={{ backgroundColor: getGradeColor(spotlightStudent.grade).light, color: getGradeColor(spotlightStudent.grade).solid }}
+                >
+                  {[spotlightStudent.grade, spotlightStudent.section].filter(Boolean).join(' · ')}
+                </span>
+              )}
               {/* Only when real risk data exists -- never a fabricated pill
                   (CLAUDE.md "NOTHING COSMETIC"). */}
               {spotlightStudent.riskLevel && (
@@ -792,8 +803,6 @@ export const DentalChartNav = () => {
                 </th>
                 <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">#</th>
                 <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Student</th>
-                <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Grade</th>
-                <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Section</th>
                 <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Risk</th>
                 <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground w-36">Status</th>
                 {/* Position in the actual queue (queueStorage's stored order,
@@ -813,7 +822,7 @@ export const DentalChartNav = () => {
                   {/* Extra top padding (user, 2026-09-27) -- pushes the icon
                       further from the column header row than a plain py-10
                       did, so it doesn't read as cramped against it. */}
-                  <td colSpan={9} className="px-4 pt-20 pb-10 text-center">
+                  <td colSpan={7} className="px-4 pt-20 pb-10 text-center">
                     <div className="w-10 h-10 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
                       <Users className="w-4 h-4 text-muted-foreground/60" />
                     </div>
@@ -863,36 +872,12 @@ export const DentalChartNav = () => {
                       </div>
                     </td>
                     <td className="px-4 py-2.5">
-                      {bulkSelectMode && queuePosition >= 0 ? (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); toggleGradeCriterion(p.grade); }}
-                          title={activeGradeCriteria.has(p.grade) ? `Deselect all of ${p.grade}` : `Select all of ${p.grade}`}
-                          className={`rounded-full ${activeGradeCriteria.has(p.grade) ? 'ring-2 ring-primary' : 'hover:ring-2 hover:ring-primary/30'}`}
-                        >
-                          <GradePill grade={p.grade} />
-                        </button>
-                      ) : (
-                        <GradePill grade={p.grade} />
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5 text-muted-foreground">
-                      {bulkSelectMode && queuePosition >= 0 ? (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); toggleSectionCriterion(p.section); }}
-                          title={activeSectionCriteria.has(p.section) ? `Deselect ${p.section} section` : `Select all of ${p.section} section`}
-                          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${activeSectionCriteria.has(p.section) ? 'bg-foreground text-white' : 'bg-gray-100 text-foreground hover:bg-gray-200'}`}
-                        >
-                          {p.section}
-                        </button>
-                      ) : (
-                        p.section
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5">
                       {p.riskLevel ? (
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${RISK_BADGE[p.riskLevel]}`}>{p.riskLevel.toUpperCase()}</span>
+                        <LevelChip level={p.riskLevel as 'High' | 'Medium' | 'Low'} small />
                       ) : (
-                        <span className="text-[10px] font-light text-muted-foreground/50">Not assessed</span>
+                        <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-normal text-slate-500">
+                          <CircleDashed className="h-3.5 w-3.5" aria-hidden="true" /> Not assessed
+                        </span>
                       )}
                     </td>
                     <td className="px-4 py-2.5 w-36"><PipelineStatusPill status={p.pipelineStatus} isRpcDueThisMonth={rpcDueThisMonthIds.has(p.id)} /></td>

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useMemo } from 'react';
 import { apiClient, ApiError } from '../api/client';
 import { saveUserCache, loadUserCache, clearUserCache, wasRemembered } from '../offline/authCache';
+import { clearOfflineReadCaches, warmOfflineCache } from '../offline/offlineCache';
 import type { ApiUser, ApiRole, ApiSchool } from '../api/types';
 import { setSchoolRegistry } from '../utils/schoolColors';
 import { startIdleClock, clearIdleClock } from '../utils/sessionIdle';
@@ -293,10 +294,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [completeLogin]);
 
+  // Once someone is signed in and online, pre-read the queued students' charts
+  // so they still open if the connection drops (offline/offlineCache.ts).
+  const signedInId = user?.id;
+  useEffect(() => {
+    if (signedInId) void warmOfflineCache();
+  }, [signedInId]);
+
   const logout = useCallback(async () => {
     await apiClient.post('/auth/logout').catch(() => {});
     setUser(null);
     clearUserCache();
+    void clearOfflineReadCaches();
     clearSessionHint();
     clearIdleClock();
     // Signing out ends any "View as" preview, so the next person never

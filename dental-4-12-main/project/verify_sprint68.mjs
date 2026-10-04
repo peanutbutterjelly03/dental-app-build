@@ -1,7 +1,7 @@
 // Sprint 68 — height, weight and derived BMI, per school year.
 //
 // From the P2 to-do, where it appears twice. Neither measurement existed
-// anywhere in the data model. They go on STUDENT_IPTR, not STUDENT: a pupil
+// anywhere in the data model. They go on STUDENT_IPTR, not STUDENT: a student
 // measured at 120 cm in Grade 3 is not 120 cm in Grade 6, so they are
 // year-varying in exactly the way grade is (Sprint 57a).
 //

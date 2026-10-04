@@ -214,7 +214,7 @@ type ServiceCol = {
 // — a column with no source, which is what the form's blank cell means.
 /** ⚠ SPRINT 147 CHANGED WHERE THESE COLUMNS GET THEIR ANSWER.
  *
- *  They used to read the DENTAL CHART: "has this pupil ever had fluoride
+ *  They used to read the DENTAL CHART: "has this student ever had fluoride
  *  varnish?" — where the form asks "was fluoride varnish done AT THIS VISIT?".
  *  `PREVENTIVE_CARE_RECORD` stored no services at all, so there was nothing
  *  better to read, and `useRPCTracking` said so in its own comment. The visit
@@ -661,7 +661,7 @@ export const TargetClientList = () => {
   const page1Services = visibleServices.filter((c) => PAGE1_GROUPS.includes(c.group));
   const page2Services = visibleServices.filter((c) => !PAGE1_GROUPS.includes(c.group));
   /** Page 2 opens with a repeated `No.`, exactly as the paper form does — it is
-   *  the only thing joining a row of ticks back to the pupil named on page 1.
+   *  the only thing joining a row of ticks back to the student named on page 1.
    *  Not subject to the column picker for that reason. */
   const NUMBER_COLUMN: IdentityCol = { key: 'no', label: 'No.', value: (_r, i) => i + 1 };
   const groupBands = (cols: typeof visibleServices) =>

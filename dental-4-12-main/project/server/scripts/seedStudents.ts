@@ -84,7 +84,7 @@ async function main() {
         dmf_score: s.risk === "High" ? 5 : s.risk === "Medium" ? 2 : 0,
         // Secondary rows carry "DMF" (permanent dentition); elementary rows
         // default to "dmf" as before. The DOH table counts the two on
-        // separate lines, so getting this wrong puts high school pupils on
+        // separate lines, so getting this wrong puts high school students on
         // the primary-teeth row.
         dmf_index: (s as { dmf_index?: string }).dmf_index ?? "dmf",
       });

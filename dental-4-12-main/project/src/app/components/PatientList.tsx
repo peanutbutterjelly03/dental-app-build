@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Eye, FileText, X, School as SchoolIcon, List, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Users, Upload, CheckCircle, AlertCircle, ScanLine, GraduationCap, MoreVertical, ListChecks, Archive as ArchiveIcon, Copy, ListPlus } from 'lucide-react';
+import { Plus, Eye, FileText, X, School as SchoolIcon, List, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Users, Upload, CheckCircle, AlertCircle, ScanLine, CalendarClock, MoreVertical, ListChecks, Archive as ArchiveIcon, Copy, ListPlus } from 'lucide-react';
 import { ConfirmDialog } from './ConfirmDialog';
 import { formatDate } from '../utils/localDate';
 import { OCR_CONFIDENCE_THRESHOLD, type IptrOcrFieldKey, type IptrCheckboxFinding } from '../utils/iptrOcrShared';
@@ -21,7 +21,8 @@ import { addQueuedStudentId, getQueuedStudentIds, removeQueuedStudentId, setQueu
 import { useStudents } from '../hooks/useStudents';
 import { useRPCTracking } from '../hooks/useRPCTracking';
 import { usePagination, PAGE_SIZE_OPTIONS } from './Pagination';
-import { apiClient, ApiError } from '../api/client';
+import { apiClient, ApiError, isQueuedResponse } from '../api/client';
+import { OfflineDataStatus } from './OfflineDataStatus';
 import type { ApiSchool } from '../api/types';
 import { schoolYearLabel } from '../utils/schoolYear';
 import { calculateAge, getAgeGroup } from '../utils/age';
@@ -36,7 +37,7 @@ import { validateStudentValues } from '../../../shared/studentValidation';
 const GRADES = ['Kinder','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10'];
 
 // Sentinels for "not assigned yet" (user, 2026-09-28) -- a new school year's
-// promotion leaves a pupil's grade/section blank until re-assigned, and
+// promotion leaves a student's grade/section blank until re-assigned, and
 // that population needs to be findable, not just invisible among "All
 // Grades"/"All Sections". Distinct from '' itself so a literal empty string
 // value on a <select> (which reads as unset) can never collide with these.
@@ -701,8 +702,12 @@ export const PatientList = () => {
       }
       await reloadStudents();
       setDuplicateWarning(null);
+      // No connection: the student and their year record are queued on this
+      // device. The chart opens anyway: it is built from the queued records.
       toast.success(
-        yearOpened
+        isQueuedResponse(created)
+          ? `Student saved on this device: ${newPatient.lastName}, ${newPatient.firstName}. It will sync when you're back online.`
+          : yearOpened
           ? `Student added: ${newPatient.lastName}, ${newPatient.firstName} · ${schoolYearLabel()} record opened`
           : `Student added: ${newPatient.lastName}, ${newPatient.firstName} — but the ${schoolYearLabel()} record could not be opened. Add it from the chart.`,
       );
@@ -750,7 +755,8 @@ export const PatientList = () => {
   // Bulk Transfer re-settles them into the new year. So "does anyone still
   // need a grade/section" doubles as "has this year's rollover been finished
   // yet" — no separate open/closed flag needed anywhere in the data model.
-  const schoolYearNeedsUpdate = schoolStudents.some(s => !s.pending && (!s.grade || !s.section));
+  const schoolYearPendingCount = schoolStudents.filter(s => !s.pending && (!s.grade || !s.section)).length;
+  const schoolYearNeedsUpdate = schoolYearPendingCount > 0;
 
   // Every section name already in use anywhere in the school being entered
   // on the Add Student form — real sections come from the whole roster, not
@@ -1075,7 +1081,7 @@ export const PatientList = () => {
               back if 0e ever ships. Kept standalone (user, 2026-09-29: "I
               never said delete, I just said add") alongside Add Student's
               own OCR option below, not replaced by it. */}
-          <button onClick={() => navigate('/students/scan')} className="flex items-center gap-2 px-4 py-2 border border-primary text-primary rounded-full hover:bg-primary-surface text-sm font-medium">
+          <button onClick={() => navigate('/students/scan?bulk=1')} className="flex items-center gap-2 px-4 py-2 border border-primary text-primary rounded-full hover:bg-primary-surface text-sm font-medium">
             <Upload className="w-4 h-4" /> OCR
           </button>
           {/* Add Student also offers OCR as a second entry point (designed on
@@ -1160,44 +1166,15 @@ export const PatientList = () => {
                 </span>
                 <span style={{ color: kickerColor.solid }} className="text-xs font-bold uppercase tracking-wider">{kickerLabel}</span>
               </div>
-              <h1 className="text-2xl font-bold text-foreground">Student Records</h1>
-              <p className="text-sm text-muted-foreground mt-0.5">{schoolStudents.length} students{selectedSchool ? '' : ' across 3 schools'}</p>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <h1 className="text-2xl font-bold text-foreground">Student Records</h1>
+                <span style={{ backgroundColor: kickerColor.light, color: kickerColor.solid }} className="text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                  {schoolStudents.length} {schoolStudents.length === 1 ? 'STUDENT' : 'STUDENTS'}{selectedSchool ? '' : ' ACROSS 3 SCHOOLS'}
+                </span>
+              </div>
+              <OfflineDataStatus />
             </div>
-            {/* Annual rollover — was "Promote / Assign" (a modal, one grade
-                at a time). Now a full page: school-wide clear + reassign +
-                archive, see UpdateSchoolYear.tsx. Sits top-right of this card,
-                level with the school kicker, because it acts on THIS roster. */}
-            {canAddStudent && (
-              <button
-                onClick={() => navigate('/students/update-school-year')}
-                title="Update School Year Information"
-                aria-label="Update School Year Information"
-                className={`shrink-0 p-2 rounded-full text-white shadow-sm transition-colors hover:brightness-110 ${
-                  schoolYearNeedsUpdate ? 'bg-gray-400' : 'bg-primary'
-                }`}
-              >
-                <GraduationCap className="w-6 h-6 text-white/90" strokeWidth={1.25} />
-              </button>
-            )}
-          </div>
-
-          {/* Filters */}
-          <div className="flex flex-wrap items-center gap-2">
-            <ListSearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search student, grade, or section" />
-            <FilterSelect value={gradeFilter} onChange={v => { setGradeFilter(v); setSectionFilter('all'); }} label="All Grades"
-              options={[{ value: NO_GRADE, label: 'No Grade' }, ...GRADES.map(g => ({ value: g, label: g }))]} />
-            <FilterSelect value={sectionFilter} onChange={setSectionFilter} label="All Sections"
-              options={[{ value: NO_SECTION, label: 'No Section' }, ...allSections.map(s => ({ value: s, label: s }))]} />
-            <FilterSelect value={genderFilter} onChange={setGenderFilter} label="All Genders"
-              options={[{ value:'Male', label:'Male' }, { value:'Female', label:'Female' }]} />
-            <FilterSelect value={ageGroupFilter} onChange={setAgeGroupFilter} label="All Age Groups"
-              options={[{ value:'4 & below', label:'4 & below' }, { value:'5-9', label:'5-9' }, { value:'10-14', label:'10-14' }, { value:'15-19', label:'15-19' }, { value:'20 & above', label:'20 & above' }]} />
-            {hasActiveFilters && (
-              <button onClick={clearFilters} className="flex items-center gap-1 px-3 py-2 text-sm text-destructive border border-destructive/20 rounded-full hover:bg-danger-surface">
-                <X className="w-3 h-3" /> Clear All
-              </button>
-            )}
-            <div className="ml-auto flex items-center gap-2">
+            <div className="flex flex-shrink-0 items-center gap-2">
               {selectMode && tickedIds.size > 0 && (
                 <button
                   onClick={() => { setArchivePassword(''); setArchivePasswordError(null); setConfirmArchiveTicked(true); }}
@@ -1206,6 +1183,25 @@ export const PatientList = () => {
                   className="p-2 rounded-full border border-destructive text-destructive hover:bg-danger-surface"
                 >
                   <ArchiveIcon className="w-4 h-4" />
+                </button>
+              )}
+              {/* Annual rollover (see UpdateSchoolYear.tsx): school-wide clear +
+                  reassign + archive. Solid navy icon button beside the more-options
+                  button; turns amber with a count while students still lack a grade or
+                  section (the same check that doubles as "rollover not finished"). */}
+              {canAddStudent && !selectMode && !bulkQueueMode && (
+                <button
+                  onClick={() => navigate('/students/update-school-year')}
+                  title={schoolYearNeedsUpdate ? `Update School Year: ${schoolYearPendingCount} ${schoolYearPendingCount === 1 ? 'student needs' : 'students need'} a grade or section` : 'Update School Year'}
+                  aria-label={schoolYearNeedsUpdate ? `Update School Year Information, ${schoolYearPendingCount} need a grade or section` : 'Update School Year Information'}
+                  className={`relative grid h-[38px] w-[38px] place-items-center rounded-[10px] text-white transition-colors hover:brightness-110 ${schoolYearNeedsUpdate ? 'bg-amber-500' : 'bg-primary'}`}
+                >
+                  <CalendarClock className="h-[19px] w-[19px]" strokeWidth={1.5} />
+                  {schoolYearNeedsUpdate && (
+                    <span className="absolute -right-1.5 -top-1.5 grid h-[18px] min-w-[18px] place-items-center rounded-full border-2 border-amber-500 bg-white px-1 text-[11px] font-bold leading-none text-amber-700">
+                      {schoolYearPendingCount}
+                    </span>
+                  )}
                 </button>
               )}
               {selectMode ? (
@@ -1219,7 +1215,7 @@ export const PatientList = () => {
                     ref={listMenuBtnRef}
                     onClick={toggleListMenu}
                     disabled={bulkQueueMode}
-                    className={`p-2 rounded-full ${bulkQueueMode ? 'text-muted-foreground/40 cursor-not-allowed' : 'text-muted-foreground hover:bg-canvas hover:text-foreground'}`}
+                    className={`flex items-center justify-center h-[38px] w-[38px] rounded-[10px] bg-primary text-white ${bulkQueueMode ? 'opacity-40 cursor-not-allowed' : 'hover:brightness-110'}`}
                     title="More options"
                   >
                     <MoreVertical className="w-4 h-4" />
@@ -1267,7 +1263,7 @@ export const PatientList = () => {
                           onClick={() => { setBulkQueueMode(true); setShowListMenu(false); }}
                           className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-canvas flex items-center gap-2"
                         >
-                          <ListPlus className="w-3.5 h-3.5" /> Queue
+                          <ListPlus className="w-3.5 h-3.5" /> Bulk Queue
                         </button>
                       </div>
                     </>
@@ -1275,6 +1271,24 @@ export const PatientList = () => {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-2">
+            <ListSearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search student, grade, or section" />
+            <FilterSelect value={gradeFilter} onChange={v => { setGradeFilter(v); setSectionFilter('all'); }} label="All Grades"
+              options={[{ value: NO_GRADE, label: 'No Grade' }, ...GRADES.map(g => ({ value: g, label: g }))]} />
+            <FilterSelect value={sectionFilter} onChange={setSectionFilter} label="All Sections"
+              options={[{ value: NO_SECTION, label: 'No Section' }, ...allSections.map(s => ({ value: s, label: s }))]} />
+            <FilterSelect value={genderFilter} onChange={setGenderFilter} label="All Genders"
+              options={[{ value:'Male', label:'Male' }, { value:'Female', label:'Female' }]} />
+            <FilterSelect value={ageGroupFilter} onChange={setAgeGroupFilter} label="All Age Groups"
+              options={[{ value:'4 & below', label:'4 & below' }, { value:'5-9', label:'5-9' }, { value:'10-14', label:'10-14' }, { value:'15-19', label:'15-19' }, { value:'20 & above', label:'20 & above' }]} />
+            {hasActiveFilters && (
+              <button onClick={clearFilters} className="flex items-center gap-1 px-3 py-2 text-sm text-destructive border border-destructive/20 rounded-full hover:bg-danger-surface">
+                <X className="w-3 h-3" /> Clear All
+              </button>
+            )}
           </div>
         </div>
 
@@ -1336,7 +1350,21 @@ export const PatientList = () => {
             a sticky `<tr>` rendered as a visual duplicate mid-table in some
             browsers. */}
         <div ref={rowsBoxRef} className="min-h-0 flex-1 overflow-auto">
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[1000px] table-fixed text-sm">
+            {/* Fixed column widths (user, 2026-10-01): with auto layout the
+                spare width went mostly to Risk, leaving a wide gap before
+                Grade. Student takes the largest share; the rest sit close. */}
+            <colgroup>
+              <col className="w-16" />
+              <col style={{ width: '21%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '13%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '6%' }} />
+              <col style={{ width: '13%' }} />
+              <col className="w-[120px]" />
+            </colgroup>
             <thead>
               <tr className="border-b border-border">
                 <th className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 sm:pl-6 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -1377,8 +1405,8 @@ export const PatientList = () => {
                 const isQueued = queuePosition !== -1;
                 const gc = getGradeColor(student.grade);
                 return (
-                  <tr key={student.id} {...activatable(() => { if (!student.pending) navigate(`/dental-chart/${student.id}?tab=history`); })} className={`hover:bg-canvas transition-colors cursor-pointer ${student.pending ? 'opacity-70' : ''}`}>
-                    <td className="px-4 py-2.5 sm:pl-6 text-xs text-muted-foreground tabular-nums" onClick={(e) => e.stopPropagation()}>
+                  <tr key={student.id} {...activatable(() => { if (!student.pending) navigate(`/dental-chart/${student.id}?tab=history`); })} className={`h-14 hover:bg-canvas transition-colors cursor-pointer ${student.pending ? 'opacity-70' : ''}`}>
+                    <td className="px-4 py-1.5 sm:pl-6 text-xs text-muted-foreground tabular-nums" onClick={(e) => e.stopPropagation()}>
                       {selectMode || bulkQueueMode ? (
                         !student.pending && (
                           <input
@@ -1389,9 +1417,11 @@ export const PatientList = () => {
                             className="w-4 h-4 accent-primary align-middle"
                           />
                         )
-                      ) : pager.from + i}
+                      ) : (
+                        <span className="grid h-7 w-7 place-items-center rounded-full bg-slate-200/70 text-xs text-slate-600">{pager.from + i}</span>
+                      )}
                     </td>
-                    <td className="px-4 py-2.5 font-medium text-foreground">
+                    <td className="px-4 py-1.5 font-medium text-foreground">
                       <div className="flex items-center gap-3">
                         <span style={{ backgroundColor: gc.light, color: gc.solid }} className="w-8 h-8 shrink-0 rounded-full grid place-items-center text-xs font-bold">
                           {initials(student.name)}
@@ -1408,12 +1438,12 @@ export const PatientList = () => {
                         (activatable). The chip's card and review dialog render
                         inside this cell, so both must stop here, or typing a
                         space in the review notes would navigate away. */}
-                    <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                    <td className="px-4 py-1.5" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                       {!student.pending && (
                         <StudentRiskChip studentId={student.id} review={student.riskReview} canSave={user?.role === 'dentist'} onSaved={reloadStudents} />
                       )}
                     </td>
-                    <td className="px-4 py-2.5 text-muted-foreground" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-4 py-1.5 text-muted-foreground" onClick={(e) => e.stopPropagation()}>
                       {bulkQueueMode && !student.pending ? (
                         <button
                           onClick={() => toggleGradeCriterionQ(student.grade)}
@@ -1426,7 +1456,7 @@ export const PatientList = () => {
                         <GradePill grade={student.grade} />
                       )}
                     </td>
-                    <td className="px-4 py-2.5 text-muted-foreground" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-4 py-1.5 text-muted-foreground" onClick={(e) => e.stopPropagation()}>
                       {bulkQueueMode && !student.pending ? (
                         <button
                           onClick={() => toggleSectionCriterionQ(student.section)}
@@ -1439,10 +1469,10 @@ export const PatientList = () => {
                         student.section
                       )}
                     </td>
-                    <td className="px-4 py-2.5 text-muted-foreground">{student.gender}</td>
-                    <td className="px-4 py-2.5 text-muted-foreground">{age ?? '—'}</td>
-                    <td className="px-4 py-2.5">{!student.pending && <PipelineStatusPill status={student.pipelineStatus} isRpcDueThisMonth={rpcDueThisMonthIds.has(student.id)} />}</td>
-                    <td className="px-4 py-2.5 sm:pr-6">
+                    <td className="px-4 py-1.5 text-muted-foreground">{student.gender}</td>
+                    <td className="px-4 py-1.5 text-muted-foreground">{age ?? '—'}</td>
+                    <td className="px-4 py-1.5">{!student.pending && <PipelineStatusPill status={student.pipelineStatus} isRpcDueThisMonth={rpcDueThisMonthIds.has(student.id)} />}</td>
+                    <td className="px-4 py-1.5 sm:pr-6">
                       {!student.pending && (
                         <button
                           onClick={(e) => {

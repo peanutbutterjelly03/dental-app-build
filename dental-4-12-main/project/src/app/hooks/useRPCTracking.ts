@@ -8,7 +8,7 @@ export type { RPCRow, RpcListQuery } from '../../../shared/rpcTracking';
 
 // ⚠ Sprint 140 moved this join to the server; Sprint 146 moved the FILTERS and
 // the PAGING with it. Filtering in the browser is what forced the endpoint to
-// send every pupil (685 B/row — ~5.5 MB at 8,000), and paging the query while
+// send every student (685 B/row — ~5.5 MB at 8,000), and paging the query while
 // the filters stayed client-side would have filtered only the visible page.
 //
 // ⚠ `total`, `schoolTotal` and `sectionOptions` come back computed over the

@@ -71,7 +71,7 @@ export interface FindingInputs {
 }
 
 /**
- * "Findings": REAL facts from this pupil's chart and forms. Deliberately not
+ * "Findings": REAL facts from this student's chart and forms. Deliberately not
  * called "Reasons" (user decision 2026-10-01): the model does not explain an
  * individual prediction, so presenting these as its reasoning would invent it.
  */

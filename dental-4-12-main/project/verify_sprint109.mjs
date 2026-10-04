@@ -1,7 +1,7 @@
 // Sprint 109 — a note on ONE appointment.
 //
 // The risk worth testing is not "does it save" but "does it save against the
-// RIGHT pupil". Appointments are grouped into sessions, and the note is
+// RIGHT student". Appointments are grouped into sessions, and the note is
 // addressed by appointmentId; if that were ever matched positionally against
 // the session's appointmentIds array, a note would land on a neighbour.
 import fs from 'node:fs';

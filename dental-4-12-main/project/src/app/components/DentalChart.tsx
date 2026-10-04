@@ -11,7 +11,9 @@ import { useToast } from './Toast';
 import { useStudentNav } from '../hooks/useStudentNav';
 import { validateStudentValues } from '../../../shared/studentValidation';
 import { useDentalChartData } from '../hooks/useDentalChartData';
-import { apiClient, ApiError } from '../api/client';
+import { apiClient, ApiError, isQueuedResponse, QUEUED_SAVE_MESSAGE } from '../api/client';
+import { subscribeSyncReport } from '../offline/syncReport';
+import { OfflineDataStatus } from './OfflineDataStatus';
 import { toLocalDateString, formatDate } from '../utils/localDate';
 import { ageOn } from '../utils/age';
 import { schoolYearLabel } from '../utils/schoolYear';
@@ -59,7 +61,7 @@ import {
 // DRIFTED — see BUG-14.
 
 // Capped at 11 (2026-09-25) -- matching GRADES' own 11 levels (Kinder
-// through Grade 10), the longest a pupil is ever enrolled here. Add Year
+// through Grade 10), the longest a student is ever enrolled here. Add Year
 // naturally stops once ALL_SCHOOL_YEARS is exhausted (see getNextSchoolYear),
 // so extending this list is also how the cap would ever need to move.
 const ALL_SCHOOL_YEARS = ['2023-2024', '2024-2025', '2025-2026', '2026-2027', '2027-2028', '2028-2029', '2029-2030', '2030-2031', '2031-2032', '2032-2033', '2033-2034'];
@@ -121,7 +123,7 @@ let chartingModeMemo = false;
 // ⚠ Same reason as `chartingModeMemo` above: routes.tsx keys this component by
 // `:id`, so Next student remounts it and a useState would spring the card back
 // open on every child. Collapsing it is a decision about how you want to WORK,
-// not a fact about one pupil, so it should outlive the pupil.
+// not a fact about one student, so it should outlive the student.
 let basicInfoExpandedMemo = true;
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -143,6 +145,10 @@ export const DentalChart = () => {
   // School list comes from the DB now, not a hardcoded array (Sprint 60).
   const { schoolNames } = useSchools();
   const { student, schoolName, years, dentists, loading, error, reload } = useDentalChartData(id);
+
+  // The queue just drained (back online): re-read, so the real server records
+  // replace whatever this page was showing while changes were still pending.
+  useEffect(() => subscribeSyncReport(() => { void reload(); }), [reload]);
   const currentDentist = dentists.find((d) => d.user_id === user?.id);
 
   // ⚠ 'appointments' (the Consent tab) is gone as of Sprint 171 — six tabs,
@@ -350,7 +356,7 @@ export const DentalChart = () => {
   // latest", which is what the hook already hands over.
   //
   // ⚠ Until now the screen rendered the OLDEST charting of the year and hid
-  // every later one: 22 of 26 IPTRs on dev have two or more, and a pupil with
+  // every later one: 22 of 26 IPTRs on dev have two or more, and a student with
   // three showed 3 of their 4 tooth records. A dentist looking at August's
   // findings while January's existed is reading a stale mouth.
   // `?chart=<id>` lands directly on one charting — Record Visit's "chart now"
@@ -725,7 +731,7 @@ export const DentalChart = () => {
   // Design adopted from the collaborator's `majorUpdates` branch; the rows and
   // the two readings of the form are hers. The derivation lives in
   // `shared/iptrSectionB.ts` so this panel and the PRINTED Form 1 cannot
-  // disagree about the same pupil — they now compute from one function.
+  // disagree about the same student — they now compute from one function.
   //
   // ⚠ Reads the odontogram being EDITED, so the numbers move as the dentist
   // charts. That is the point: a summary that only updated on save would be
@@ -798,7 +804,7 @@ export const DentalChart = () => {
   const gc = getGradeColor(years[selectedYear]?.iptr.grade_level ?? '');
   // Age AS OF THE SELECTED SCHOOL YEAR, not today (Sprint 57b). Deriving age
   // from `birthday` does not make it safe — deriving it TO TODAY is the
-  // staleness: viewing a 2025-2026 record showed the age the pupil is now, and
+  // staleness: viewing a 2025-2026 record showed the age the student is now, and
   // on a DOH form age at examination is clinical data. Anchored to that year's
   // charting date when one exists, otherwise to the start of that school year.
   // BUG-02: the shared `ageOn`. The local copy returned 0 for a missing or
@@ -1005,7 +1011,7 @@ export const DentalChart = () => {
   const [addingYear, setAddingYear] = useState(false);
 
   const handleAddYear = async (target?: string) => {
-    // ⚠ Takes a TARGET now (Sprint 172). A pupil with a gap — last record
+    // ⚠ Takes a TARGET now (Sprint 172). A student with a gap — last record
     // 2024-2025 while today is 2026-2027 — needs to jump to the ACTUAL current
     // year, not merely the one after their last. Her menu offers both.
     const nextYear = target ?? getNextSchoolYear();
@@ -1158,7 +1164,7 @@ export const DentalChart = () => {
 
       // A service ticked with zero tooth changes (2026-09-25) must still get a
       // chart to attach its new RPC visit to -- not only pendingTeeth.length,
-      // or a Treatments-Given-only save on a pupil's first-ever charting this
+      // or a Treatments-Given-only save on a student's first-ever charting this
       // year would have nowhere to write the visit. Checked across BOTH
       // visits' drafts (2026-09-28 fix) -- Save now persists whichever visit
       // was actually edited, not just whichever tab happens to be open.
@@ -1294,10 +1300,15 @@ export const DentalChart = () => {
         extraWrites.push(apiClient.put(`/dental-charts/${savedChartId}`, { date_charted: draftChartDate }));
       }
 
-      await Promise.all([...toothWrites, medWrite, dietWrite, oralWrite, ...extraWrites]);
+      const writeResults = await Promise.all([...toothWrites, medWrite, dietWrite, oralWrite, ...extraWrites]);
+      // Any write queued on this device (no connection). The reload below still
+      // runs: reads of the chart come back as the last server copy PLUS what is
+      // waiting in the queue (offline/overlay.ts), so the saved teeth show up and
+      // the chart can be saved again without writing them twice.
+      const savedOffline = writeResults.some(isQueuedResponse);
       // Student Records' Status column and the Charting Queue's own status
       // both read /stats/student-rows -- without this, either would keep
-      // showing this pupil's PRE-save pipeline stage until something else
+      // showing this student's PRE-save pipeline stage until something else
       // happened to invalidate the cache (user, 2026-09-28: "status should
       // be real time... without refreshing the page").
       invalidateCached('/stats/student-rows');
@@ -1310,15 +1321,15 @@ export const DentalChart = () => {
       // form, so someone who edited teeth further down never sees it. The
       // toast is what actually confirms the save. One message, not four:
       // the writes above are a single user action, not four separate ones.
-      toast.success('Chart saved.');
+      toast.success(savedOffline ? QUEUED_SAVE_MESSAGE : 'Chart saved.');
       // A charted student no longer belongs in the Dental Charts queue --
       // user, 2026-09-26: "when dental chart is marked or updated, the
-      // queue should be gone" for that pupil. Harmless if they were never
+      // queue should be gone" for that student. Harmless if they were never
       // queued (removeQueuedStudentId no-ops).
       removeQueuedStudentId(id);
       // Auto-queue for Treatment (user, 2026-09-28): any save that leaves
       // behind a charted tooth condition/treatment or a ticked oral health
-      // condition queues this pupil for the Treatment submodule -- checked
+      // condition queues this student for the Treatment submodule -- checked
       // against the SAVED state, not just this save's delta, so a chart
       // that already had decay marked queues again on every later save too.
       const hasChartOrOralConditionData =
@@ -1404,7 +1415,7 @@ export const DentalChart = () => {
     // Same shared rules as the Add form and the bulk import (Sprint 120). Only
     // ONE of the 27 records on file fails them (a contact number), so this
     // blocks almost nothing that already exists -- but it does mean a legacy
-    // bad value must be corrected before that pupil can be edited, which is
+    // bad value must be corrected before that student can be edited, which is
     // the point. Undefined fields are skipped, so editing a name never trips
     // on a phone the encoder is not looking at.
     const problems = validateStudentValues({
@@ -1434,7 +1445,7 @@ export const DentalChart = () => {
           // Physical Measurements on the History tab owns them now; sending
           // them from this panel too would let a stale draft overwrite a fresh
           // measurement depending on which save ran last.
-          // Editable so a RETAINED pupil, or a section moved mid-year, can be
+          // Editable so a RETAINED student, or a section moved mid-year, can be
           // corrected on the year it belongs to — the dentist's own example.
           // Blank clears back to "not recorded" rather than writing "".
           grade_level: draftYear.grade_level.trim() === '' ? null : draftYear.grade_level,
@@ -1508,7 +1519,7 @@ export const DentalChart = () => {
     setTreatmentSaving(true);
     setTreatmentError(null);
     try {
-      await apiClient.post('/treatments', {
+      const savedTreatment = await apiClient.post('/treatments', {
         iptr_id: currentYearData.iptr._id,
         dentist_id: currentDentist._id,
         diagnosis: treatmentForm.diagnosis,
@@ -1517,7 +1528,7 @@ export const DentalChart = () => {
         date: treatmentForm.date,
       });
       await reload();
-      toast.success('Treatment entry saved.');
+      toast.success(isQueuedResponse(savedTreatment) ? QUEUED_SAVE_MESSAGE : 'Treatment entry saved.');
       setTreatmentForm({ date: toLocalDateString(new Date()), diagnosis: '', treatmentDone: '', remarks: '' });
       setShowAddTreatment(false);
     } catch (err) {
@@ -1562,7 +1573,7 @@ export const DentalChart = () => {
     setReferralSaving(true);
     setReferralError(null);
     try {
-      await apiClient.post('/referrals', {
+      const savedReferral = await apiClient.post('/referrals', {
         iptr_id: currentYearData.iptr._id,
         // Nullable on the model: an aide can record a referral, and no dentist
         // record is linked to an aide's account.
@@ -1578,7 +1589,7 @@ export const DentalChart = () => {
         ...(referralForm.followUp ? { follow_up_date: referralForm.followUp } : {}),
       });
       await reload();
-      toast.success('Referral recorded.');
+      toast.success(isQueuedResponse(savedReferral) ? QUEUED_SAVE_MESSAGE : 'Referral recorded.');
       setReferralForm({
         date: toLocalDateString(new Date()),
         referralType: 'higher_level',
@@ -1613,10 +1624,10 @@ export const DentalChart = () => {
   // previous render" crash that blanked this page in c0ce442b. tsc and the
   // build were clean for it; only opening the screen showed it.
   // ⚠ Consent is per SCHOOL YEAR (Sprint 167). Reading STUDENT.consent_status
-  // said a pupil who consented once had consented forever — a 2023 signature
+  // said a student who consented once had consented forever — a 2023 signature
   // authorising 2026 treatment.
   // ⚠ Age in MONTHS at this year's measurement anchor, not today — the
-  // DOH/DepEd BMI-for-Age table is banded by month, and a pupil measured in
+  // DOH/DepEd BMI-for-Age table is banded by month, and a student measured in
   // August is not the age they are in June. Same reasoning as patientAge
   // (Sprint 57b).
   const patientAgeMonths = useMemo(() => {
@@ -1644,7 +1655,13 @@ export const DentalChart = () => {
     return (
       <div className="bg-card rounded-xl border border-border p-12 text-center">
         <p className="text-destructive">{error ?? 'Student not found.'}</p>
-        <Link to="/dental-charts" className="text-sm text-blue-600 hover:underline mt-2 inline-block">← Back to Dental Charts</Link>
+        {/* Offline and this student is not on the device: say how far the download
+            of everyone's chart has got, so it is clear whether to wait or retry. */}
+        {!navigator.onLine && <OfflineDataStatus />}
+        <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1">
+          <Link to="/patients" className="text-sm text-blue-600 hover:underline inline-block">← Back to Student Records</Link>
+          <Link to="/dental-charts" className="text-sm text-blue-600 hover:underline inline-block">← Back to Dental Charts</Link>
+        </div>
       </div>
     );
   }
@@ -1869,7 +1886,7 @@ export const DentalChart = () => {
                   </button>
                 )}
                 {/* ⚠ The button CARRIES ITS LABEL WHEN COLLAPSED. The state
-                    persists across pupils (Sprint 166), so a bare chevron meant
+                    persists across students (Sprint 166), so a bare chevron meant
                     the birthday, address, PhilHealth and guardian simply were
                     not there on every record for the rest of the session, with
                     nothing on screen saying they could come back. Reported as
@@ -1996,7 +2013,7 @@ export const DentalChart = () => {
               {years.map((y, idx) => {
                 // BUG-12: the year's DMFT comes from the latest charting that
                 // HAS records, not from whichever charting is newest. An empty
-                // charting made this read "DMFT: 0" for a pupil with 14 decayed
+                // charting made this read "DMFT: 0" for a student with 14 decayed
                 // teeth recorded a day earlier. No records at all prints 0 (user, 2026-09-25; was "—").
                 const yrChart: Record<number, ChartEntry> = {};
                 for (const tr of y.dmftToothRecords ?? []) yrChart[tr.tooth_number] = { condition: tr.condition, treatment: tr.treatment_code ?? '' };
