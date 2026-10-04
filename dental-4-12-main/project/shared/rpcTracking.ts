@@ -429,9 +429,19 @@ export interface RpcListPage {
   /** School years with at least one IPTR in the school context — same
    *  population-wide rule as sectionOptions, oldest first. */
   schoolYearOptions: string[];
-  /** Population-wide counts for the dashboard funnel — never page-scoped. */
-  funnel: { enrolled: number; visit1: number; both: number; overdue: number; complete: number };
+  /** Population-wide counts for the dashboard funnel — never page-scoped.
+   *  `pending` and `mostOverdueDays` added 2026-10-04: the dashboard used to
+   *  count them from the delivered page (25 rows), so a school of more than 25
+   *  students showed figures for its first 25 alphabetically. */
+  funnel: { enrolled: number; visit1: number; both: number; overdue: number; complete: number; pending: number; mostOverdueDays: number | null };
+  /** The dashboard's "RPC follow-ups due" worklist over the WHOLE school
+   *  context: overdue, or due within 60 days, most overdue first, at most 6. */
+  followUps: RPCRow[];
 }
+
+/** How many days ahead counts as "due soon" on the dashboard worklist. */
+export const FOLLOW_UP_WINDOW_DAYS = 60;
+const FOLLOW_UP_LIST_SIZE = 6;
 
 export function filterRpcRows(all: RPCRow[], query: RpcListQuery): RpcListPage {
   const inSchool = query.school ? all.filter((r) => r.school === query.school) : all;
@@ -507,7 +517,17 @@ export function filterRpcRows(all: RPCRow[], query: RpcListQuery): RpcListPage {
       both: inSchool.filter((r) => r.visit2Status === 'Completed').length,
       overdue: inSchool.filter((r) => r.status === 'overdue').length,
       complete: inSchool.filter((r) => r.status === 'complete').length,
+      pending: inSchool.filter((r) => r.status === 'pending').length,
+      mostOverdueDays: (() => {
+        const overdue = inSchool.filter((r) => r.status === 'overdue');
+        return overdue.length ? Math.max(...overdue.map((r) => -r.daysUntilDue)) : null;
+      })(),
     },
+    // daysUntilDue is negative when overdue, so ascending = most overdue first.
+    followUps: inSchool
+      .filter((r) => r.status === 'overdue' || (r.status === 'pending' && r.daysUntilDue <= FOLLOW_UP_WINDOW_DAYS))
+      .sort((a, b) => a.daysUntilDue - b.daysUntilDue)
+      .slice(0, FOLLOW_UP_LIST_SIZE),
     sectionOptions: [...new Set(
       inSchool.filter((r) => !query.grade || query.grade === 'all' || r.grade === query.grade).map((r) => r.section),
     )].filter(Boolean).sort(),

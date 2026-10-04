@@ -66,7 +66,11 @@ export const Dashboard = () => {
   // ⚠ SCOPED, and `status: 'all'`. Without the school the funnel counted every
   // school while every other tile on this page counted one; without status the
   // endpoint defaults to "outstanding" and the completed students never arrive.
-  const { records: rpcRecords, funnel: rpcFunnel, loading: rpcLoading } =
+  // ⚠ Only the population-wide `funnel` and `followUps` are read here, never
+  // the delivered rows: those are one PAGE (25 by default), so counting them
+  // showed a school of more than 25 students as its first 25 alphabetically
+  // (fixed 2026-10-04, dashboard audit item 1).
+  const { funnel: rpcFunnel, followUps: rpcFollowUps, loading: rpcLoading } =
     useRPCTracking({ school: selectedSchool ?? '', status: 'all' });
   const [users, setUsers] = useState<ApiUser[]>([]);
   const [treatmentCount, setTreatmentCount] = useState(0);
@@ -151,10 +155,6 @@ export const Dashboard = () => {
     const sessions = selectedSchool ? allSessions.filter((s) => s.school === selectedSchool) : allSessions;
     return sessions.filter((s) => s.date === today);
   }, [allSessions, selectedSchool]);
-  const scopedRpc = useMemo(
-    () => (selectedSchool ? rpcRecords.filter((r) => r.school === selectedSchool) : rpcRecords),
-    [rpcRecords, selectedSchool],
-  );
   const highRiskCount = allStudents.filter((s) => s.riskLevel === 'High').length;
   const mediumRiskCount = allStudents.filter((s) => s.riskLevel === 'Medium').length;
   const lowRiskCount = allStudents.filter((s) => s.riskLevel === 'Low').length;
@@ -164,14 +164,11 @@ export const Dashboard = () => {
     const iptrIds = iptrsByStudent.get(s.id) ?? [];
     return iptrIds.length > 0 && !iptrIds.some((id) => chartedIptrIds.has(id));
   }).length;
-  const rpcOverdueCount = scopedRpc.filter((r) => r.status === 'overdue').length;
-  const rpcPendingCount = scopedRpc.filter((r) => r.status === 'pending').length;
+  const rpcOverdueCount = rpcFunnel.overdue;
+  const rpcPendingCount = rpcFunnel.pending;
   // Clinic summary strip (Sprint A): the numerator behind rpcCompletionRate, and
-  // the Visit-1 rate the funnel card used to compute inline. Both are over
-  // scopedRpc (RPC records), NOT allStudents -- a student with no RPC record is
-  // absent from this denominator, so these must never be captioned as a share
-  // of enrolled patients.
-  // All three read the server's population counts, not the delivered rows.
+  // the Visit-1 rate the funnel card used to compute inline.
+  // All of these read the server's population counts, not the delivered rows.
   const rpcBothVisitsCount = rpcFunnel.complete;
   const rpcVisit1Count = rpcFunnel.visit1;
   const rpcVisit1Rate = rpcFunnel.enrolled ? Math.round((rpcVisit1Count / rpcFunnel.enrolled) * 100) : 0;
@@ -240,24 +237,12 @@ export const Dashboard = () => {
     }));
   }, [riskStrats, preventiveIptrById, iptrStudentById, studentSchoolById, selectedSchool]);
 
-  // RPC follow-ups needing attention: overdue first, then due within 60 days
-  const upcomingFollowUps = useMemo(() => {
-    const due = scopedRpc.filter(
-      (r) => r.status === 'overdue' || (r.status === 'pending' && r.daysUntilDue <= 60),
-    );
-    // daysUntilDue is negative when overdue, so ascending = most overdue first
-    return due.sort((a, b) => a.daysUntilDue - b.daysUntilDue).slice(0, 6);
-  }, [scopedRpc]);
-
-  // Most-overdue student, for the clinic summary footer. upcomingFollowUps is
-  // sorted ascending and daysUntilDue is negative when overdue, so [0] is the
-  // worst case -- but it also carries not-yet-due records, hence the < 0 guard.
+  // RPC follow-ups needing attention (overdue first, then due within 60 days)
+  // and the most-overdue student's days, both over the WHOLE school (server).
   // null means nothing is overdue, and the footer drops that clause entirely
   // rather than printing "0 days overdue".
-  const mostOverdueDays =
-    upcomingFollowUps[0] && upcomingFollowUps[0].daysUntilDue < 0
-      ? Math.abs(upcomingFollowUps[0].daysUntilDue)
-      : null;
+  const upcomingFollowUps = rpcFollowUps;
+  const mostOverdueDays = rpcFunnel.mostOverdueDays;
 
   // Real appointment sessions for the current calendar week, bucketed by day + status.
   const weekAppointmentsByDay = useMemo(() => {
@@ -557,7 +542,7 @@ export const Dashboard = () => {
             />
           </div>
 
-          {!rpcLoading && scopedRpc.length > 0 && (
+          {!rpcLoading && rpcFunnel.enrolled > 0 && (
             <div className="text-[11px] text-muted-foreground">
               {/* mostOverdueDays belongs to ONE student, so it can only be
                   attached to the figure when there is exactly one. With several
@@ -636,7 +621,7 @@ export const Dashboard = () => {
               <Link to="/rpc" className="text-xs text-primary hover:underline">RPC Monitoring →</Link>
             </div>
             <ChartBody ready={!rpcLoading}>
-            {scopedRpc.length === 0 ? (
+            {rpcFunnel.enrolled === 0 ? (
               <NoDataYet message="No enrolled students yet." />
             ) : (
               <div className="space-y-2.5">
@@ -835,13 +820,13 @@ export const Dashboard = () => {
               icon={Shield}
               label="RPC visits pending"
               value={String(rpcPendingCount)}
-              context={`${rpcBothVisitsCount} of ${scopedRpc.length} complete`}
+              context={`${rpcBothVisitsCount} of ${rpcFunnel.enrolled} complete`}
               linkTo="/rpc"
               loading={rpcLoading}
             />
           </div>
 
-          {!rpcLoading && scopedRpc.length > 0 && (
+          {!rpcLoading && rpcFunnel.enrolled > 0 && (
             <div className="text-[11px] text-muted-foreground">
               {mostOverdueDays !== null && (
                 <span className="text-primary font-semibold">
@@ -851,7 +836,7 @@ export const Dashboard = () => {
                 </span>
               )}
               {mostOverdueDays !== null && ' · '}
-              Visit 1 done for {rpcVisit1Count} of {scopedRpc.length} ({rpcVisit1Rate}%) · target 100% by end of school year
+              Visit 1 done for {rpcVisit1Count} of {rpcFunnel.enrolled} ({rpcVisit1Rate}%) · target 100% by end of school year
             </div>
           )}
         </div>

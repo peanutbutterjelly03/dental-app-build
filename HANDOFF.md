@@ -112,7 +112,18 @@ data, never commit) failed because its column names are on ROW 2 (row 1 = group 
 read in UTC, day-first columns, Middle Initial alias. Real workbook checked locally: 18/18 rows complete,
 ages match its Age column. Not yet clicked through her bulk page in a browser. Still to ask: is this the
 hand-encoded REAL dataset for Phase 3? Ask before using it for anything else.
-The dashboard audit (Step 1-4) is still owed; both read-only investigations are done.
+**DASHBOARD AUDIT DONE 2026-10-04 (in chat; the user approves items ONE AT A TIME).** Plan, in order:
+✅1 RPC tiles/footers/follow-ups use whole-school counts, not the 25-row page (dev: old 1 overdue, true 2,
+new 2). 2 one meaning of "both visits" (rpcTracking `both` counts Visit 2 without Visit 1). 3 "Archived
+accounts" always 0 (/users without includeArchived). 4 remove 5 empty placeholders + BHO `treated: 0`.
+5 risk = LATEST validated result (student-rows :1325 takes the first IPTR). 6 relabel "Oral Health Status"
+(it is risk). 7 demo-data policy, NEEDS A DECISION (55/57 prod pupils are demo). 8 denominators = this
+school year's enrolled. 9 counts only when n<10. 10 aide Pending charts (current SY, real content).
+11 School Admin: all schools, Treatments caption, 30-day visits. 12 BHO: schools from DB, low-risk % over
+screened. 13 appointments vs sessions. NEW: 14 Objective 4 core block for every role (coverage, treatments,
+appointments, follow-ups), 15 DMFT median/IQR + caries prevalence, 16 risk review status, 17 admin
+per-module cards (classmate's ask), 18 quick search. Exclusions agreed: no trends, no unvalidated risk in
+totals, no model accuracy, no % for n<10, no school ranking, no grouping by encrypted fields.
 
 **▶ NEXT, in order:** (0) **Rotate the exposed secrets** (above). (1) Browser check signed in as the
 School Admin and the BHO (Dashboard, Reports tabs). (2) The classmate's feedback on the live Risk

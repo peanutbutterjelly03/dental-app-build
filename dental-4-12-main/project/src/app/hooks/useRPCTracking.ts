@@ -15,7 +15,7 @@ export type { RPCRow, RpcListQuery } from '../../../shared/rpcTracking';
 // population, never the page: the pager's "of N" and its "(filtered from N)"
 // have to describe the roll, and a section dropdown listing only this page's
 // sections hides the one you need next.
-const EMPTY: RpcListPage = { rows: [], total: 0, schoolTotal: 0, sectionOptions: [], schoolYearOptions: [], funnel: { enrolled: 0, visit1: 0, both: 0, overdue: 0, complete: 0 } };
+const EMPTY: RpcListPage = { rows: [], total: 0, schoolTotal: 0, sectionOptions: [], schoolYearOptions: [], funnel: { enrolled: 0, visit1: 0, both: 0, overdue: 0, complete: 0, pending: 0, mostOverdueDays: null }, followUps: [] };
 
 export function useRPCTracking(query: RpcListQuery = {}) {
   const [page, setPage] = useState<RpcListPage>(EMPTY);
@@ -60,6 +60,8 @@ export function useRPCTracking(query: RpcListQuery = {}) {
     records: page.rows as RPCRow[],
     /** Population-wide, never the page — see filterRpcRows. */
     funnel: page.funnel,
+    /** Whole-school worklist (overdue or due within 60 days), never the page. */
+    followUps: page.followUps as RPCRow[],
     total: page.total,
     schoolTotal: page.schoolTotal,
     sectionOptions: page.sectionOptions,
