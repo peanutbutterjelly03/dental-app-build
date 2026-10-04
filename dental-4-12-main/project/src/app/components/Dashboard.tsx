@@ -44,6 +44,7 @@ import type { ApiUser, ApiTreatment, ApiStudentIptr, ApiAuditTrail, ApiRiskStrat
 import { windowStart, AUDIT_WINDOW_DAYS } from '../hooks/useAuditTrail';
 import { treatmentCodes, treatmentLabel } from '../utils/dentalChartCodes';
 import { calculateAge, getAgeGroup, AGE_GROUPS } from '../utils/age';
+import { schoolYearLabel } from '../utils/schoolYear';
 
 // Dashboard audit item 9 (2026-10-04): below 10 students a percentage
 // overstates what it measures ("1 of 2" reads as a confident "50%"), so every
@@ -81,8 +82,7 @@ export const Dashboard = () => {
     useRPCTracking({ school: selectedSchool ?? '', status: 'all' });
   const [users, setUsers] = useState<ApiUser[]>([]);
   const [treatmentCount, setTreatmentCount] = useState(0);
-  const [iptrsByStudent, setIptrsByStudent] = useState<Map<string, string[]>>(new Map());
-  const [chartedIptrIds, setChartedIptrIds] = useState<Set<string>>(new Set());
+  const [currentYearStudentIds, setCurrentYearStudentIds] = useState<Set<string>>(new Set());
   const [auditEntries, setAuditEntries] = useState<ApiAuditTrail[]>([]);
   const [toothRecords, setToothRecords] = useState<{ chart_id: string; treatment_code?: string }[]>([]);
   const [riskStrats, setRiskStrats] = useState<ApiRiskStratification[]>([]);
@@ -133,14 +133,8 @@ export const Dashboard = () => {
         ]);
         setUsers(apiUsers);
         setTreatmentCount(treatments.length);
-        const byStudent = new Map<string, string[]>();
-        for (const i of iptrs) {
-          const list = byStudent.get(i.student_id) ?? [];
-          list.push(i._id);
-          byStudent.set(i.student_id, list);
-        }
-        setIptrsByStudent(byStudent);
-        setChartedIptrIds(new Set(charts.map((c) => c.iptr_id)));
+        const thisYear = schoolYearLabel();
+        setCurrentYearStudentIds(new Set(iptrs.filter((i) => i.school_year === thisYear).map((i) => i.student_id)));
         setAuditEntries(audits);
         setToothRecords(teeth);
         setRiskStrats(risks);
@@ -170,10 +164,13 @@ export const Dashboard = () => {
   const mediumRiskCount = allStudents.filter((s) => s.riskLevel === 'Medium').length;
   const lowRiskCount = allStudents.filter((s) => s.riskLevel === 'Low').length;
   const screenedCount = allStudents.filter((s) => s.riskLevel !== null).length;
-  const pendingChartsCount = allStudents.filter((s) => {
-    const iptrIds = iptrsByStudent.get(s.id) ?? [];
-    return iptrIds.length > 0 && !iptrIds.some((id) => chartedIptrIds.has(id));
-  }).length;
+  // Dashboard audit item 10 (2026-10-04): THIS school year's roster only. It
+  // used to count a pupil as charted if ANY year had a chart row, so a pupil
+  // charted last year never came back as pending, and a chart saved empty
+  // counted as done. pipelineStatus 'For Oral Exam' is the server's own
+  // "no real chart on this year's IPTR" (/stats/student-rows).
+  const thisYearStudents = allStudents.filter((s) => currentYearStudentIds.has(s.id));
+  const pendingChartsCount = thisYearStudents.filter((s) => s.pipelineStatus === 'For Oral Exam').length;
   const rpcOverdueCount = rpcFunnel.overdue;
   const rpcPendingCount = rpcFunnel.pending;
   // Clinic summary strip (Sprint A): the "RPC completion" numerator, and
@@ -807,7 +804,9 @@ export const Dashboard = () => {
               icon={FileText}
               label="Pending charts"
               value={String(pendingChartsCount)}
-              context={`${allStudents.length - pendingChartsCount} of ${allStudents.length} charted`}
+              context={thisYearStudents.length
+                ? `${thisYearStudents.length - pendingChartsCount} of ${thisYearStudents.length} charted this school year`
+                : 'No records for this school year yet'}
               linkTo="/dental-charts"
               loading={studentsLoading || extraLoading}
             />
