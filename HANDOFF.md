@@ -84,9 +84,18 @@ re-add `"school_admin"` to `NAME_BLIND_ROLES` in `server/middleware/roleGroups.t
 **NEXT (waiting on the user, from the barangay interview, section above):**
 1. The health center's **Form 2 by AGE GROUP** workbook (officer's current file) → build it automatically,
    copying the form exactly, black cells left empty. Recommended first: the officer's biggest time-saver.
-   ✅ **FOUND ON THIS PC (2026-10-04)** — the "other laptop / data/" notes were WRONG. The user uploaded both
-   into a Claude chat on 2026-09-03 and they live at `C:\Users\Jerald\.claude\uploads\9043838c-4ced-4de7-96fb-a907f392edab\`
-   (`1a187db8-2026Form2withFHSIS.xlsx`, `f6dff8ba-TCLForm2andFHSISReport.xlsx`). Never commit them.
+   ✅ **NOW IN `data/` (gitignored, permanent): `data/2026-Form-2-with-FHSIS.xlsx`, `data/TCL-Form-2-and-FHSIS-Report.xlsx`**
+   (user re-copied them 2026-10-04 after the Claude uploads folder holding the 09-03 copies VANISHED on the
+   session restart; never keep source files in `~/.claude/uploads`). Never commit them.
+   **COMPARISON DONE 2026-10-04 (read-only):** the health-center "ORAL HEALTH PROGRAM REPORTING FORM, HEALTH
+   CENTER:" (A/B/C by age group, monthly/quarterly/semi/annual sheets) is ALREADY BUILT as the app's "Oral
+   Health Program Report" (every row present, all age columns, all four periods) — most likely the officer's
+   "Form 2" (the file itself is named "Form 2 with FHSIS"). Differences: ours prints "School:" not "HEALTH
+   CENTER:"; never-fill cells are GREY in the DOH file (1,014 on "2026 Form 2"), the officer blackens them.
+   FHSIS: built as the School variant only. The TCL workbook's **"2026 Form 2" sheet** (66 rows by age group:
+   caries free/experience, dfx/DMFX counts, sound teeth, head/tooth counts, FHSIS block) is a DIFFERENT form and
+   NOT built. ASK via Luan: is our Program Report their Form 2? should it say Health Center (all schools)? do
+   they also use the "2026 Form 2" sheet? Nothing to build until answered.
    - `2026Form2withFHSIS.xlsx` (38 sheets) = HEALTH-CENTER edition: "ORAL HEALTH PROGRAM REPORTING FORM,
      HEALTH CENTER:" by age group (Under Five, Children above 5, Adolescent, ...), one sheet per month,
      quarter, semi-annual and annual, each paired with "FHSIS <period>" headed "Health Center:".
