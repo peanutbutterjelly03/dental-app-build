@@ -94,9 +94,12 @@ re-add `"school_admin"` to `NAME_BLIND_ROLES` in `server/middleware/roleGroups.t
 **PHONE-WIDTH SWEEP 2026-10-04 (390x664, app in an iframe because the Chrome window would not resize; no
 fixes yet, user report: "buttons too far right, big space on lower half", "DOH Consolidated 1st column
 locked")** — grouped by CAUSE:
-1. **Frozen first column too wide on DOH tables** (user-reported): DOH Consolidated "Indicator" column is
-   321 px of a 346 px box → 25 px for data. Fix: phone-only max width (~40%) + wrapping; keep it frozen;
-   print unaffected. Check TCL / FHSIS / Program Report for the same pattern.
+1. ✅ **FIXED 2026-10-04 — frozen first column on DOH Consolidated** (user-reported): was 321 of 346 px →
+   25 px for data. Now on phones only (`max-sm:` classes, `Reports.tsx`) the label column is 9rem and wraps
+   (the `<table>` itself sets `white-space: nowrap`): 143 px label, 203 px of data visible, still frozen when
+   scrolling. Laptop/tablet measured IDENTICAL to before (321 px, one line). PDF export renders at full table
+   width so it keeps the laptop layout. Only DOH Consolidated (+ one small internal table) freezes a column;
+   TCL / FHSIS / Program Report do not.
 2. **Verify screen broken on phones** (`VerifyStudentForm.tsx`, `gridTemplateColumns: '18.75rem
    minmax(0,1fr)'`, padding `0 3rem`): form squeezed to ~40 px, labels overlap, tags overflow. Stack the
    source panel above the form below ~640 px.

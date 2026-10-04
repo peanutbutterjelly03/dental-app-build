@@ -786,7 +786,12 @@ export const Reports = () => {
 
                   {/* ── ROW 1: GRADE HEADERS ── */}
                   <tr className="bg-gray-50 border-b border-border">
-                    <th data-doh="indicator" rowSpan={3} className="sticky left-0 bg-gray-50 z-20 text-left px-2 py-1 border-r border-border text-[10px] font-semibold text-muted-foreground min-w-[240px]">
+                    {/* Phones (< sm): the frozen label column is a fixed 9rem and
+                        wraps, so data columns show beside it (it used to take
+                        321 of 346 px at 390 px wide, user-reported 2026-10-04).
+                        sm and up are unchanged. The PDF export renders at the
+                        table's full width, so it always gets the sm+ layout. */}
+                    <th data-doh="indicator" rowSpan={3} className="sticky left-0 bg-gray-50 z-20 text-left px-2 py-1 border-r border-border text-[10px] font-semibold text-muted-foreground min-w-[240px] max-sm:w-36 max-sm:min-w-36">
                       Indicator
                     </th>
                     {visibleGrades.map(g => {
@@ -852,8 +857,8 @@ export const Reports = () => {
                       const restCols = cols.length*2 + dohGrades.length*2 + sumCols.length;
                       return (
                         <tr key={idx} className="bg-blue-50 border-t border-b border-blue-200">
-                          <td className="sticky left-0 z-10 px-3 py-1 font-bold text-blue-900 text-[10px] uppercase tracking-wide bg-blue-50 min-w-[240px]">
-                            {row.label}
+                          <td className="sticky left-0 z-10 px-3 py-1 font-bold text-blue-900 text-[10px] uppercase tracking-wide bg-blue-50 min-w-[240px] max-sm:min-w-0">
+                            <div className="max-sm:w-32 max-sm:whitespace-normal max-sm:break-words">{row.label}</div>
                           </td>
                           <td colSpan={restCols} className="bg-blue-50" />
                         </tr>
@@ -867,8 +872,9 @@ export const Reports = () => {
                     return (
                       <tr key={idx} className="group border-b border-gray-100 hover:bg-yellow-50 transition-colors">
                         {/* Label */}
-                        <td className={`sticky left-0 bg-card group-hover:bg-yellow-50 border-r border-border px-2 py-0.5 text-[10px] transition-colors ${labelPadding} min-w-[240px]`}>
-                          {row.label}
+                        <td className={`sticky left-0 bg-card group-hover:bg-yellow-50 border-r border-border px-2 py-0.5 text-[10px] transition-colors ${labelPadding} min-w-[240px] max-sm:min-w-0`}>
+                          {/* the <table> sets white-space: nowrap; phones let the label wrap */}
+                          <div className="max-sm:w-32 max-sm:whitespace-normal max-sm:break-words">{row.label}</div>
                         </td>
 
                         {/* Per grade per age bracket M/F + grade total M/F */}
