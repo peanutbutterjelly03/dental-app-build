@@ -54,14 +54,18 @@ const Status = ({ r, saved, dup, decision, onCompare }: {
   r: Row; saved: boolean; dup: Dup | null; decision?: 'skip' | 'different'; onCompare: () => void;
 }) => {
   if (saved) return <span style={pill('#DCFCE7', '#166534')}>Saved</span>;
-  if (decision === 'skip') return <span style={pill('#F1F5F9', '#475569')}>Skipped: already on file</span>;
+  // Wording (user, 2026-10-04): "records" = the system, "upload" = the
+  // spreadsheet, so "file" never means both on one screen.
+  if (decision === 'skip') {
+    return <span style={pill('#F1F5F9', '#475569')}>{dup && !dup.onFile.length && dup.inFile.length ? 'Skipped: repeated row' : 'Skipped: already in records'}</span>;
+  }
   if (r.h.readError) return <span style={pill('#FEE2E2', '#B91C1C')}>Could not read</span>;
   if (r.missing.length) return <span style={pill('#FEE2E2', '#B91C1C')}>Missing {r.missing[0].toLowerCase()}{r.missing.length > 1 ? ` +${r.missing.length - 1}` : ''}</span>;
   if (dup && !decision) {
     return (
       <button type="button" onClick={(e) => { e.stopPropagation(); onCompare(); }} title="Compare side by side"
         style={{ ...pill('#FEF3C7', '#92400E'), cursor: 'pointer', border: '0.0625rem solid #F59E0B' }}>
-        {dup.onFile.length ? 'Possibly on file' : 'Twice in this file'}: compare
+        {dup.onFile.length ? 'Already in records? Compare' : 'Repeated in this upload. Compare'}
       </button>
     );
   }
@@ -268,7 +272,7 @@ export const BulkScanReview = () => {
         <span style={chip}><b style={{ color: '#B91C1C' }}>{fixes}</b> need fixes</span>
         {onFile === null
           ? <span style={{ ...chip, color: MUTED }}>Checking for duplicates…</span>
-          : dupCount > 0 && <span style={{ ...chip, borderColor: '#F59E0B' }}><b style={{ color: '#92400E' }}>{dupCount}</b> possible duplicate{dupCount === 1 ? '' : 's'}</span>}
+          : dupCount > 0 && <span style={{ ...chip, borderColor: '#F59E0B' }}><b style={{ color: '#92400E' }}>{dupCount}</b> to check</span>}
         {saved.size > 0 && <span style={chip}><b style={{ color: '#15803D' }}>{saved.size}</b> saved</span>}
         <button type="button" onClick={() => setOnlyFixes((v) => !v)} aria-pressed={onlyFixes} style={{ ...secondaryBtn, padding: '0.3125rem 0.875rem', fontSize: '0.8125rem' }}>
           {onlyFixes ? 'Show all students' : 'Show only: Needs fixes'}
@@ -368,16 +372,16 @@ export const BulkScanReview = () => {
                 Same school, same birthday and same name. Check the details before saving.
               </p>
               <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                {side('From the file', [
+                {side('From the upload', [
                   ['Name', [p.lastName, p.firstName].filter(Boolean).join(', ') + (p.middleName ? ` ${p.middleName}` : '')],
                   ['Birthdate', p.birthdate], ['Sex', p.gender], ['Grade', [p.grade, p.section].filter(Boolean).join(' ')], ['School', p.school],
                 ])}
                 {existing
-                  ? side('Already on file', [
+                  ? side('Already in records', [
                       ['Name', existing.full_name], ['Birthdate', String(existing.birthday ?? '').slice(0, 10)], ['Sex', existing.sex],
                       ['Grade', [existing.grade_level, existing.section].filter(Boolean).join(' ')], ['School', p.school],
-                    ], d && d.onFile.length > 1 ? `${d.onFile.length - 1} more record(s) on file also match.` : undefined)
-                  : otherRow && side(`Also in this file (row ${(d?.inFile[0] ?? 0) + 1})`, [
+                    ], d && d.onFile.length > 1 ? `${d.onFile.length - 1} more record(s) in the system also match.` : undefined)
+                  : otherRow && side(`Also in this upload (row ${(d?.inFile[0] ?? 0) + 1})`, [
                       ['Name', [otherRow.lastName, otherRow.firstName].filter(Boolean).join(', ') + (otherRow.middleName ? ` ${otherRow.middleName}` : '')],
                       ['Birthdate', otherRow.birthdate], ['Sex', otherRow.gender], ['Grade', [otherRow.grade, otherRow.section].filter(Boolean).join(' ')], ['School', otherRow.school],
                     ])}
