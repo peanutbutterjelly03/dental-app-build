@@ -254,9 +254,18 @@ export function buildRiskCandidates(input: RiskCandidatesInput): RiskCandidate[]
     const studentIptrs = (iptrsByStudent.get(s._id) ?? [])
       .slice()
       .sort((a, b) => a.school_year.localeCompare(b.school_year));
-    const allTeeth = studentIptrs
-      .flatMap((iptr) => chartsByIptr.get(iptr._id) ?? [])
-      .flatMap((c) => teethByChart.get(c._id) ?? []);
+    // The model's DMF inputs come from ONE charting: the pupil's latest that
+    // recorded a tooth (latest school year, then latest date), the same rule
+    // as the chart screens and /stats/dmft-summary (BUG-12: each charting is
+    // read alone, never merged). This used to sum EVERY charting of every
+    // year, so a pupil charted twice had each decayed tooth counted twice and
+    // reached the model with an inflated DMF (fixed 2026-10-04).
+    const chartsOldestFirst = studentIptrs.flatMap((iptr) =>
+      (chartsByIptr.get(iptr._id) ?? [])
+        .slice()
+        .sort((a, c) => String(a.date_charted ?? '').localeCompare(String(c.date_charted ?? ''))));
+    const featureChart = [...chartsOldestFirst].reverse().find((c) => (teethByChart.get(c._id) ?? []).length > 0);
+    const allTeeth = featureChart ? teethByChart.get(featureChart._id) ?? [] : [];
 
     // Same condition-code convention as DentalChart: D/M/F permanent, d/m/f
     // temporary.

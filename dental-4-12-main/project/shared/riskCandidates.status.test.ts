@@ -74,6 +74,31 @@ describe('caries columns and teeth come from the latest charting WITH records', 
     expect(r.caries).toMatchObject({ withCariesExperience: true, withActiveCaries: true, cariesFreeTeeth: 1 });
   });
 
+  it('the model DMF counts ONE charting, not every charting summed (2026-10-04)', () => {
+    const r = row({
+      iptrs: [
+        { _id: 'i0', student_id: 'st1', school_year: '2025-2026' },
+        { _id: 'i1', student_id: 'st1', school_year: '2026-2027' },
+      ],
+      charts: [
+        { _id: 'c0', iptr_id: 'i0', date_charted: '2025-08-10' },
+        { _id: 'c1', iptr_id: 'i1', date_charted: '2026-08-12' },
+        { _id: 'c2', iptr_id: 'i1', date_charted: '2026-09-01' }, // newest, empty
+      ],
+      toothRecords: [
+        // last year: 3 decayed
+        { chart_id: 'c0', condition: 'D', tooth_number: 46 },
+        { chart_id: 'c0', condition: 'D', tooth_number: 36 },
+        { chart_id: 'c0', condition: 'd', tooth_number: 55 },
+        // this year, latest charting with records: 1 decayed, 1 filled, 1 missing
+        { chart_id: 'c1', condition: 'D', tooth_number: 46 },
+        { chart_id: 'c1', condition: 'F', tooth_number: 36 },
+        { chart_id: 'c1', condition: 'm', tooth_number: 55 },
+      ],
+    });
+    expect(r.features).toMatchObject({ decayed_count: 1, filled_count: 1, missing_count: 1, dmf_score: 3 });
+  });
+
   it('nothing charted: caries-free teeth is null ("—" on screen), not 0', () => {
     expect(row().caries.cariesFreeTeeth).toBeNull();
   });

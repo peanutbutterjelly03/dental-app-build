@@ -81,6 +81,16 @@ review" tile. System Admin: 7 **"System modules"** cards (Reports = link only, n
 generation). ⚠ **School Admin sees pupil NAMES again** (user decision; contacts/IDs still hidden; switch back =
 re-add `"school_admin"` to `NAME_BLIND_ROLES` in `server/middleware/roleGroups.ts`).
 
+**MODEL INPUT FIX 2026-10-04 (B):** `shared/riskCandidates.ts` summed teeth from EVERY charting of every year
+into the model's DMF inputs, so a pupil charted twice was double-counted (live: 11 of 28 charted pupils, dev 8
+of 23). Now ONE charting: latest with tooth records (year, then date), same rule as the chart screens and
+/stats/dmft-summary. Test fails on the old code (DMF 6 vs 3). ⚠ Suggestions stored before this fix for those
+pupils were computed from inflated DMF; dentist-validated levels are the dentist's own and unaffected.
+**NEXT (A, approved): make `ml-service/pipeline/clean_excel.py` read the classmate's "Raw Copy of Manual
+Encoded" template** — header row not found ("Full Name"/"Surname" unknown); D/M/F must be permanent+temporary
+summed and DMF = D+M+F (NOT her "TOTAL DMFX+dmfx", which includes X); "Gingivities", "Sugar Sweetened
+Beverages/…", "Risk Classification" (= the label) unmapped; her dates are day-first, pipeline tries month-first.
+
 **BULK UPLOAD TESTED END TO END 2026-10-04 (dev, Chrome):** a FAKE workbook with the classmate's exact
 154-column layout (her two header rows, 5 made-up "Zztest" pupils; file in the scratchpad, never in git) →
 5/5 parsed correctly → **BUG FOUND AND FIXED** (`ScanStudentForm.tsx` `extract`): without `?bulk=1` (i.e. not
