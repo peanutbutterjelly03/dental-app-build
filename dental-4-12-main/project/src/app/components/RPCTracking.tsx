@@ -187,6 +187,10 @@ export const RPCTracking = () => {
     // instead of hardcoding 20px.
     const measure = () => {
       if (!cardRef.current) return;
+      // Phones (< 640 px, 2026-10-04): no fixed card height, same as the
+      // Students list. Locked to the screen, the seven filters left the table
+      // ~60 px; the card now grows with its rows and the page scrolls.
+      if (window.innerWidth < 640) { setCardHeight(null); return; }
       const top = cardRef.current.getBoundingClientRect().top;
       const sidebar = document.getElementById('main-nav');
       // Hide targets the screen's true bottom edge, not the sidebar's own

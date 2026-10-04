@@ -105,11 +105,15 @@ locked")** — grouped by CAUSE:
    (`verify-page/-head/-body/-thumb/-row3/-foot`): source above the form (preview 12rem tall), name row one
    per line, 1rem side padding, header/footer wrap. At 390: 0 overflow, inputs 321 px (were ~40). Laptop
    (1100) unchanged. Also fixed the em dash in "Save anyway: different student" (UI rule).
-3. **Desktop fixed padding on the classmate-styled OCR pages** (Scan 3rem-ish, Review Imported Students
-   `padding-left: 3.5rem` with negative right margin): content shifted right ("buttons too far right").
-4. **Screen-height-locked list pages** (Students list, RPC Monitoring, Review Imported Students): header +
-   filters eat the height; Students shows ~2 rows, RPC's table area ~60 px. On phones let the page scroll
-   (and/or fold filters behind one "Filters" button).
+3. ✅ **FIXED 2026-10-04 — fixed 3.5rem padding on the OCR pages** (`ScanStudentForm.tsx`,
+   `BulkScanReview.tsx`): phone-only `<style>` overrides via `scan-page` / `bulk-shell` / `bulk-pr`; 1rem there.
+4. ✅ **FIXED 2026-10-04 — screen-height-locked pages on phones:** `PatientList.tsx` + `RPCTracking.tsx`
+   `measure()` sets no card height below 640 px (card grows, page scrolls; Students showed ~2 rows, now
+   rows on the first screen). Review Imported Students: below 640 the shell is `height:auto` and the list
+   pane is capped at 75vh. Laptop (1100) measured unchanged on all three; filters NOT folded (not needed).
+   - ⚠ **NEW finding, not fixed, pre-existing:** at 1100 px the Students page is 1,323 px wide (the sticky
+     filter/OCR/Add Student row overflows `<main>`), so a sideways page scroll on tablets/small laptops.
+     The Review page at 1100 also scrolls 26 px vertically (same with the old code; maybe the iframe harness).
 5. **Dental Chart:** pupil card's tag row (Consent/Sex/Edit + hide toggle) runs past the right edge; the
    pinned title/tabs/year block takes ~1/3 of the screen.
 6. **Dashboard:** no overflow; summary tiles ~190 px tall each, 7 of them → ~2,900 px scroll (compact on

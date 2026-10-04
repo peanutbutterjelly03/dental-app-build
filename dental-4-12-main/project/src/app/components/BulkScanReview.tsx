@@ -182,7 +182,8 @@ export const BulkScanReview = () => {
   // A refresh drops router state, so there is nothing to review.
   if (!queue?.length) {
     return (
-      <div ref={shellRef} style={shell}>
+      <div ref={shellRef} className="bulk-shell" style={shell}>
+        <style>{'@media (max-width: 639px){.bulk-shell{height:auto !important;padding:0.25rem 1rem 1rem 1rem !important;margin-bottom:0 !important}}'}</style>
         <p style={{ fontSize: '0.875rem', color: MUTED }}>There is nothing to review. Upload the file again to start.</p>
         <button type="button" onClick={() => navigate('/students/scan?bulk=1')} style={{ ...primaryBtn, marginTop: '0.75rem' }}>Upload files</button>
       </div>
@@ -241,11 +242,17 @@ export const BulkScanReview = () => {
   };
 
   return (
-    <div ref={shellRef} style={shell}>
-      {/* Scrolling still works (wheel, trackpad, touch, arrow keys); only the bars are hidden. */}
-      <style>{'.bulk-scroll{scrollbar-width:none;-ms-overflow-style:none}.bulk-scroll::-webkit-scrollbar{display:none}'}</style>
+    <div ref={shellRef} className="bulk-shell" style={shell}>
+      {/* Scrolling still works (wheel, trackpad, touch, arrow keys); only the bars are hidden.
+          Phones (< 640 px, 2026-10-04): the screen-height pane left the list a thin
+          strip under the header, and the inline 3.5rem left padding pushed the page
+          right. There, the page scrolls normally, the list pane is capped at 75% of
+          the screen, and the side padding is 1rem. Wider screens unchanged. */}
+      <style>{'.bulk-scroll{scrollbar-width:none;-ms-overflow-style:none}.bulk-scroll::-webkit-scrollbar{display:none}'
+        + '@media (max-width: 639px){.bulk-shell{height:auto !important;overflow:visible !important;padding:0.25rem 0 1rem 1rem !important;margin-bottom:0 !important}'
+        + '.bulk-pr{padding-right:1rem !important}.bulk-scroll{flex:none !important;max-height:75vh}}'}</style>
       {/* Header, same shape as the Scan and Verify pages */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem', flexShrink: 0, paddingRight: '3.5rem' }}>
+      <div className="bulk-pr" style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem', flexShrink: 0, paddingRight: '3.5rem' }}>
         <div style={{ width: '3.5rem', height: '3.5rem', borderRadius: '1rem', background: '#F4F7FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           <svg width="23.8" height="23.8" viewBox="0 0 24 24" fill="none" stroke={NAVY} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>
         </div>
@@ -266,7 +273,7 @@ export const BulkScanReview = () => {
       </div>
 
       {/* Summary, filter and the Grid / Cards switch sit directly above the list */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem', flexShrink: 0, paddingRight: '3.5rem' }}>
+      <div className="bulk-pr" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem', flexShrink: 0, paddingRight: '3.5rem' }}>
         <span style={chip}><b>{rows.length}</b> found</span>
         <span style={chip}><b style={{ color: '#15803D' }}>{ready}</b> ready</span>
         <span style={chip}><b style={{ color: '#B91C1C' }}>{fixes}</b> need fixes</span>
@@ -323,7 +330,7 @@ export const BulkScanReview = () => {
       )}
 
       {shown.length > 0 && view === 'cards' && (
-        <div className="bulk-scroll" style={{ flex: '1 1 0', minHeight: 0, width: 0, minWidth: '100%', overflow: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(17rem, 1fr))', gap: '1rem', alignContent: 'start', paddingRight: '3.5rem', paddingBottom: '1rem' }}>
+        <div className="bulk-scroll bulk-pr" style={{ flex: '1 1 0', minHeight: 0, width: 0, minWidth: '100%', overflow: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(17rem, 1fr))', gap: '1rem', alignContent: 'start', paddingRight: '3.5rem', paddingBottom: '1rem' }}>
           {shown.map((r) => {
             const p = r.h.newPatient;
             return (

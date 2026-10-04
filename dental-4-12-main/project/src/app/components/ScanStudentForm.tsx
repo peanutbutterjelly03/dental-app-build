@@ -235,7 +235,10 @@ export const ScanStudentForm = () => {
   };
 
   return (
-    <div style={{ background: '#F6F9FC', minHeight: '100%', padding: '0.25rem 3.5rem 2.5rem', fontFamily: 'var(--font-sans)', color: '#141413' }}>
+    <div className="scan-page" style={{ background: '#F6F9FC', minHeight: '100%', padding: '0.25rem 3.5rem 2.5rem', fontFamily: 'var(--font-sans)', color: '#141413' }}>
+      {/* Phones (< 640 px, 2026-10-04): the inline 3.5rem side padding pushed the
+          page right and squeezed it; 1rem there, wider screens unchanged. */}
+      <style>{'@media (max-width: 639px) { .scan-page { padding: 0.25rem 1rem 2rem !important; } }'}</style>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.75rem' }}>
         <div style={{ width: '3.5rem', height: '3.5rem', borderRadius: '1rem', background: '#F4F7FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>

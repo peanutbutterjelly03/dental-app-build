@@ -918,6 +918,10 @@ export const PatientList = () => {
     // instead of hardcoding 20px.
     const measure = () => {
       if (!cardRef.current) return;
+      // Phones (< 640 px, 2026-10-04): no fixed card height. Locked to the
+      // screen, the header, search and filters filled it and left room for
+      // about two rows; the card now grows with its rows and the page scrolls.
+      if (window.innerWidth < 640) { setCardHeight(null); return; }
       const top = cardRef.current.getBoundingClientRect().top;
       const sidebar = document.getElementById('main-nav');
       // Hide wants the card to actually reach the screen's true bottom edge
