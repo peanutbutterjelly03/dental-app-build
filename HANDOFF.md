@@ -107,9 +107,11 @@ dev details privately, add her IP in Atlas dev Network Access); leave the prod t
 purge. Her test workbook
 `Downloads/OCR-Bulk-20-try.xlsx` ("Raw Copy of Manual Encoded", 154 columns, 18 filled rows, REAL pupil
 data, never commit) failed because its column names are on ROW 2 (row 1 = group titles), names are
-"Surname / First Name / Middle Initial", birthdays are dd/mm/yyyy. Needed in the spreadsheet reader
-(`parseSpreadsheetRecords`, utils/studentImport.ts): find the header row, those aliases, day-first dates,
-one row = one student. Also: is this the hand-encoded REAL dataset for Phase 3? Ask before using it.
+"Surname / First Name / Middle Initial", birthdays are dd/mm/yyyy. ✅ FIXED 2026-10-04 (`47c64eca`,
+`parseSpreadsheetRecords` in utils/studentImport.ts): header row found, captions normalized, Excel dates
+read in UTC, day-first columns, Middle Initial alias. Real workbook checked locally: 18/18 rows complete,
+ages match its Age column. Not yet clicked through her bulk page in a browser. Still to ask: is this the
+hand-encoded REAL dataset for Phase 3? Ask before using it for anything else.
 The dashboard audit (Step 1-4) is still owed; both read-only investigations are done.
 
 **▶ NEXT, in order:** (0) **Rotate the exposed secrets** (above). (1) Browser check signed in as the
