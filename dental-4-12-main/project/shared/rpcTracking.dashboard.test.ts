@@ -38,6 +38,15 @@ describe('dashboard RPC figures cover the whole school, not the page', () => {
     expect(page.followUps.map((r) => r.daysUntilDue)).toEqual([-50, -40, -30, -20, -10]);
   });
 
+  it('"both visits" needs Visit 1 AND Visit 2, never Visit 2 alone (item 2)', () => {
+    const v2only = { ...row(99, 'not-started', 0), visit1Status: 'Pending', visit2Status: 'Completed' } as RPCRow;
+    const done = { ...row(98, 'complete', 0), visit1Status: 'Completed', visit2Status: 'Completed' } as RPCRow;
+    const f = filterRpcRows([v2only, done], { status: 'all' }).funnel;
+    expect(f.both).toBe(1);
+    expect(f.both).toBe(f.complete);
+    expect(f.both).toBeLessThanOrEqual(f.visit1);
+  });
+
   it('nothing overdue gives null, not 0 days', () => {
     expect(filterRpcRows(all.slice(0, 22), { status: 'all' }).funnel.mostOverdueDays).toBeNull();
   });

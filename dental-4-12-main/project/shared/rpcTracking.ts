@@ -514,7 +514,12 @@ export function filterRpcRows(all: RPCRow[], query: RpcListQuery): RpcListPage {
     funnel: {
       enrolled: inSchool.length,
       visit1: inSchool.filter((r) => r.visit1Status === 'Completed').length,
-      both: inSchool.filter((r) => r.visit2Status === 'Completed').length,
+      // BOTH visits: Visit 1 AND Visit 2, the same rule as `complete` and the
+      // "RPC completion" tile (2026-10-04, dashboard audit item 2). It used to
+      // count any recorded Visit 2, including one with no Visit 1, so the
+      // funnel's last bar could exceed the bar before it and disagree with
+      // the completion tile on the same screen.
+      both: inSchool.filter((r) => r.visit1Status === 'Completed' && r.visit2Status === 'Completed').length,
       overdue: inSchool.filter((r) => r.status === 'overdue').length,
       complete: inSchool.filter((r) => r.status === 'complete').length,
       pending: inSchool.filter((r) => r.status === 'pending').length,
