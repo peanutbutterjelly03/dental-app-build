@@ -13,7 +13,8 @@ import {
   BarChart3,
   ArrowRight,
   ChevronRight,
-  LayoutDashboard
+  LayoutDashboard,
+  Search
 } from 'lucide-react';
 import { SkeletonBlock } from './Skeleton';
 import { PageHeader } from './PageHeader';
@@ -34,7 +35,7 @@ import {
   Line
 } from 'recharts';
 import { ChartTooltip } from './ChartTooltip';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { canOpen } from '../utils/routeRoles';
 import { FOLLOW_UP_WINDOW_DAYS } from '../../../shared/rpcTracking';
 import type { DmftSummary, Spread } from '../../../shared/dmft';
@@ -100,6 +101,8 @@ export const Dashboard = () => {
   const [users, setUsers] = useState<ApiUser[]>([]);
   const [treatmentCount, setTreatmentCount] = useState(0);
   const [treatmentLoading, setTreatmentLoading] = useState(true);
+  const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState('');
   const [dmft, setDmft] = useState<(DmftSummary & { enrolled: number }) | null>(null);
   // A failed request must end the skeleton (it used to wait forever) and say so.
   const [dmftFailed, setDmftFailed] = useState(false);
@@ -582,9 +585,56 @@ export const Dashboard = () => {
     </div>
   );
 
+  // Quick search (dashboard audit item 18): jump to a pupil's record from the
+  // dashboard. Filters the rows this page already holds (no new request) and
+  // opens the same place the Students list does. Only for roles that may open
+  // a pupil's record; for the School Admin and BHO there is nowhere to go.
+  const canSearch = canOpen('/dental-chart', user?.role);
+  const searchTerm = searchQuery.trim().toLowerCase();
+  const searchHits = searchTerm
+    ? allStudents.filter((s) => s.name.toLowerCase().includes(searchTerm)).slice(0, 8)
+    : [];
+  const openPupil = (id: string) => { setSearchQuery(''); navigate(`/dental-chart/${id}?tab=history`); };
+  const quickSearch = canSearch && (
+    <div className="relative w-full sm:w-72">
+      <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+      <input
+        type="search"
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter' && searchHits[0]) openPupil(searchHits[0].id); }}
+        placeholder="Find a student by name"
+        aria-label="Find a student by name"
+        className="w-full text-sm bg-card border border-border rounded-lg pl-9 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
+      />
+      {searchTerm && (
+        <div className="absolute z-20 mt-1 w-full bg-card border border-border rounded-lg shadow-lg overflow-hidden">
+          {searchHits.length === 0 ? (
+            <p className="px-3 py-2 text-xs text-muted-foreground">No student matches "{searchQuery.trim()}".</p>
+          ) : (
+            searchHits.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => openPupil(s.id)}
+                className="block w-full text-left px-3 py-2 hover:bg-primary-surface transition-colors"
+              >
+                <span className="block text-sm font-medium text-foreground truncate">{s.name}</span>
+                <span className="block text-xs text-muted-foreground truncate">{s.grade} · {s.section} · {getSchoolShortName(s.school)}</span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+
   const programOverview = (
     <div className="space-y-3 rise">
-      <span className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dental program overview</span>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <span className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dental program overview</span>
+        {quickSearch}
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <SummaryCell
           icon={CheckCircle}

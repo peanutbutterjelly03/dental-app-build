@@ -166,7 +166,10 @@ experience, matches an independent count and a pupil's own chart (Diaz, Jomar dm
 as Risk Classification's tabs; dev 9 / 2 reviewed / 1 not checked, matches the screen; links to ?tab=needs_review), ✅17 admin "System modules": 7 cards, one per
 Chapter 3 module, figures from data already loaded (+ students added in 30 days from the audit trail, missed
 sessions in 30 days; appointment fetch widened back 30 days); Reports card is a link only (nothing records
-report generation, so no number). (was: 17 admin per-module cards (classmate's ask)), 18 quick search. Exclusions agreed: no trends, no unvalidated risk in
+report generation, so no number). (was: 17 admin per-module cards (classmate's ask)), ✅18 quick search in the overview header (dentist, aide, admin only:
+roles that may open /dental-chart): filters the loaded rows by name, follows Switch School, Enter or click opens
+`/dental-chart/:id?tab=history` like the Students list. ALL 18 DONE (8 deferred). Next from the interview: "behind
+target" panel (needs the officer's target) and the age-group Form 2 (needs the health center's workbook). Exclusions agreed: no trends, no unvalidated risk in
 totals, no model accuracy, no % for n<10, no school ranking, no grouping by encrypted fields.
 
 **▶ NEXT, in order:** (0) **Rotate the exposed secrets** (above). (1) Browser check signed in as the
