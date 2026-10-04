@@ -87,12 +87,24 @@ a page guard. Details + per-role API results: `docs/audit/LEDGER-sec.md` → "Sp
 
 ⚠ **LIVE SITE IS IN TESTING MODE right now** (`OPEN_ACCESS_TESTING=true` in Vercel Production, set
 2026-10-01): role limits are off for the classmate's testing. Turn it OFF when she is done, and
-certainly before defense (see "TESTING MODE" below).
+certainly before defense (see "TESTING MODE" below). ⚠ Also before defense: set
+`SCHOOL_YEAR_DATE_RULES = true` (shared/schoolYearRollover.ts; from her merged v2).
 
-⏳ **PENDING (2026-10-04): the classmate's `v2` branch** (github.com/peanutbutterjelly03/dental-app-build,
-branch `v2`; remote `classmate` added locally). Built on our `8a1552da`, +223 commits: offline O1-O5
-(read cache, conflict review, idempotent creates), a bulk "Review Imported Students" page between Scan and
-Verify. She is fixing its UI and will send it again; merge THEN, not before. Her test workbook
+✅ **MERGED 2026-10-04: the classmate's `v2` branch** (github.com/peanutbutterjelly03/dental-app-build,
+branch `v2`, remote `classmate`; 223 commits: offline O1-O5 read cache / conflict review / idempotent
+creates, bulk "Review Imported Students" page, School Year rollover page). Restore point: tag
+`pre-v2-merge`. No conflicts, no new packages; tsc both clean; 238 tests + 2 SKIPPED on purpose; build
+clean. Verified on DEV via the API: add pupil, open 2026-2027 IPTR, chart, tooth record, stats routes
+all OK; `/offline/bundle` works for the dentist and is 403 for the School Admin.
+⚠ **Her school-year date rules are OFF** (`SCHOOL_YEAR_DATE_RULES = false`, shared/schoolYearRollover.ts,
+her "testing switch"): an admin can start the next school year at any time. The 2 date-rule tests skip
+while it is off. **Turn it back on before defense**, with testing mode.
+⚠ **She tested against the PRODUCTION database.** Prod now holds 2 extra schools ("Bagong Tanyag
+Highschool", "Tanyag Elementary and High School"), 2027-2028 "started" for all 5 schools, and IPTRs for
+2027-2028 (60) and later years (8). All demo data except 2 non-demo BTIS pupils (Grade 2 added 09-04,
+Grade 5 added 10-01; ask her). Recommendation given: move her local testing to the DEV database (send
+dev details privately, add her IP in Atlas dev Network Access); leave the prod test records for the demo
+purge. Her test workbook
 `Downloads/OCR-Bulk-20-try.xlsx` ("Raw Copy of Manual Encoded", 154 columns, 18 filled rows, REAL pupil
 data, never commit) failed because its column names are on ROW 2 (row 1 = group titles), names are
 "Surname / First Name / Middle Initial", birthdays are dd/mm/yyyy. Needed in the spreadsheet reader
