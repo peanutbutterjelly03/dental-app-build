@@ -84,8 +84,18 @@ re-add `"school_admin"` to `NAME_BLIND_ROLES` in `server/middleware/roleGroups.t
 **NEXT (waiting on the user, from the barangay interview, section above):**
 1. The health center's **Form 2 by AGE GROUP** workbook (officer's current file) → build it automatically,
    copying the form exactly, black cells left empty. Recommended first: the officer's biggest time-saver.
+   ⚠ The user does NOT have it (2026-10-04). Checked the classmate's repo the same day: `v2` has 0 commits
+   not in our `main`; her other branches hold only a reverted client/server restructure and a 09-15
+   Streamlit EDA; **no workbook on any branch**. Leads: (a) `data/` on the user's OTHER laptop
+   (`2026Form2withFHSIS.xlsx`, `TCLForm2andFHSISReport.xlsx`, read in Sprint 84; probably the school/grade
+   edition), (b) ask the officer via Luan for a copy or photos of every page.
 2. The officer's **target** for a "behind target" dashboard panel (what %, of what: screened? Visit 1?).
 3. **Phase 3 decision:** do the dentist's 50 labels follow a published caries risk instrument (ADA form)?
+   The classmate says the model just needs "plugging in" (sasalpakan nalang ng model). It IS already plugged in:
+   the Render ML service answered 200 on 2026-10-04 (Logistic Regression on dmf_score, decayed/missing/filled,
+   gingivitis, ...) and Risk Classification calls it. What is missing is REAL training data: 50 hand-encoded
+   IPTRs + dentist labels against the chosen instrument, then clean → features → 5-algo comparison → retrain →
+   redeploy (~1 day once data exists). Ask Luan whether `OCR-Bulk-20-try.xlsx` (18 real pupils) starts those 50.
 Nothing else is queued. Testing access: Claude may sign in with the DEV test accounts on localhost, and unlock
 the 30-minute lock screen with them (user, 2026-10-04).
 
