@@ -84,11 +84,20 @@ re-add `"school_admin"` to `NAME_BLIND_ROLES` in `server/middleware/roleGroups.t
 **NEXT (waiting on the user, from the barangay interview, section above):**
 1. The health center's **Form 2 by AGE GROUP** workbook (officer's current file) → build it automatically,
    copying the form exactly, black cells left empty. Recommended first: the officer's biggest time-saver.
-   ⚠ The user does NOT have it (2026-10-04). Checked the classmate's repo the same day: `v2` has 0 commits
-   not in our `main`; her other branches hold only a reverted client/server restructure and a 09-15
-   Streamlit EDA; **no workbook on any branch**. Leads: (a) `data/` on the user's OTHER laptop
-   (`2026Form2withFHSIS.xlsx`, `TCLForm2andFHSISReport.xlsx`, read in Sprint 84; probably the school/grade
-   edition), (b) ask the officer via Luan for a copy or photos of every page.
+   ✅ **FOUND ON THIS PC (2026-10-04)** — the "other laptop / data/" notes were WRONG. The user uploaded both
+   into a Claude chat on 2026-09-03 and they live at `C:\Users\Jerald\.claude\uploads\9043838c-4ced-4de7-96fb-a907f392edab\`
+   (`1a187db8-2026Form2withFHSIS.xlsx`, `f6dff8ba-TCLForm2andFHSISReport.xlsx`). Never commit them.
+   - `2026Form2withFHSIS.xlsx` (38 sheets) = HEALTH-CENTER edition: "ORAL HEALTH PROGRAM REPORTING FORM,
+     HEALTH CENTER:" by age group (Under Five, Children above 5, Adolescent, ...), one sheet per month,
+     quarter, semi-annual and annual, each paired with "FHSIS <period>" headed "Health Center:".
+   - `TCLForm2andFHSISReport.xlsx` (29 sheets) = SCHOOL edition: 27 TCL tabs (built), "FHSIS" "School:"
+     (built), and **"2026 Form 2"** (72 x 46) by age group (Infants, Under Five, School Age, Adolescent,
+     Other Adults, Pregnant, Total).
+   - NEXT STEP: read "2026 Form 2" and the health-center Program Reporting Form end to end and compare
+     with the app's existing "Oral Health Program Report" (Sprint 89, matched to a FILED January 2026
+     return that BUILD-LOG says differs from the workbook) BEFORE building. Which one is the officer's
+     "Form 2" may need the officer's/Luan's confirmation.
+   Classmate repo checked 2026-10-04: `v2` fully merged, no workbook on any branch.
    Status of the two DOH reports (checked 2026-10-04): **FHSIS is BUILT** (Reports → FHSIS, `FhsisReport.tsx`
    + `shared/fhsis.ts` + `/stats/fhsis`), transcribed from the "FHSIS" sheet of `TCLForm2andFHSISReport.xlsx`,
    the SCHOOL variant (that workbook also has a "Health Center:" variant, not built); it already splits by
@@ -1019,7 +1028,7 @@ Re-verified against the code on 2026-09-05, counting properly this time (the WOR
 - **`facility_based`** was added in Sprint 81, so the FHSIS facility rows are fed.
 - **What is genuinely left is NOT reconciliation:** 9 columns render blank and 2 render `—` because no model feeds them — `Counseling`, `Completely Edentulous / No Dentition`, `2nd Silver Diamine Fluoride App`, `Gum Treatment - Scaling`, `Gum Treatment - Prescription`, `Consultation`, `Referred Out`, `Complete Mouth Rehab`, `After Complete Mouth Rehabilitation`, plus `Family Serial Number` and `Barangay` at `—`. **That is correct behaviour** under CLAUDE.md's "official DOH forms keep ALL their rows and columns even when empty" — it is a missing DATA SOURCE, not a missing column. The referral half is already logged as backlog **#45 (a `REFERRAL` model)**.
 - **The 27 cohort tabs (age x sex) remain a PRESENTATION of the same rows**, not extra data. Cosmetic unless DOH filing requires the tab layout — **ask before building it.**
-- ⚠ **The workbooks (`TCLForm2andFHSISReport.xlsx`, `2026Form2withFHSIS.xlsx`) are NOT on this device.** `data/` is per-device; this machine holds only the Nutritional Status files. They were read on the other laptop during Sprint 84. Nothing needs them now, but do not plan a sprint here assuming they are on disk.
+- ✅ (corrected 2026-10-04) The workbooks (`TCLForm2andFHSISReport.xlsx`, `2026Form2withFHSIS.xlsx`) ARE on this PC, in `~/.claude/uploads/9043838c-4ced-4de7-96fb-a907f392edab/` (uploaded into a Claude chat 2026-09-03). The old "NOT on this device / other laptop" note was wrong.
 
 ## Sprint 125 (the one VERIFIED half of the audit finding) - DONE 2026-09-04, tsc + build clean, **9/9 verified**. Closes the actionable part of backlog #21.
 `selected-school` outlived logout carrying `{userId, school}`, so on a shared clinic PC DevTools showed the previous user's ID and school after they left. That was the only part of the 2026-08-25 audit report ever independently confirmed - the serious RBAC version was read against the code and does not hold.
