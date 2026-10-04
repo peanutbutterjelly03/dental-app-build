@@ -128,8 +128,8 @@ WHOLE dashboard per school year (numerators too), a redesign that would blank de
 (pipelineStatus 'For Oral Exam'); dev shows "No records for this school year yet" (0 current IPTRs).
 ✅11 School Admin: every assigned school (Switch School
 narrows), "Treatments recorded / Treatment log, all school years", "Visits, next 30 days" count (dev: 0, no
-appointments after 2026-09-15). 12 BHO: schools from DB, low-risk % over
-screened. 13 appointments vs sessions. NEW: 14 Objective 4 core block for every role (coverage, treatments,
+appointments after 2026-09-15). ✅12 BHO: schools from DB (`useSchools`; "Schools
+participating" x of N), low-risk rate over SCREENED pupils (summary cell + age table). 13 appointments vs sessions. NEW: 14 Objective 4 core block for every role (coverage, treatments,
 appointments, follow-ups), 15 DMFT median/IQR + caries prevalence, 16 risk review status, 17 admin
 per-module cards (classmate's ask), 18 quick search. Exclusions agreed: no trends, no unvalidated risk in
 totals, no model accuracy, no % for n<10, no school ranking, no grouping by encrypted fields.

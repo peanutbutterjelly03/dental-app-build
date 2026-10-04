@@ -37,6 +37,7 @@ import { ChartTooltip } from './ChartTooltip';
 import { Link } from 'react-router';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useStudents } from '../hooks/useStudents';
+import { useSchools } from '../hooks/useSchools';
 import { useAppointments } from '../hooks/useAppointments';
 import { useRPCTracking } from '../hooks/useRPCTracking';
 import { apiClient } from '../api/client';
@@ -62,6 +63,7 @@ export const Dashboard = () => {
   // screen's charts speak the same semantic color language.
 
   const { students: allStudentsRaw, loading: studentsLoading } = useStudents();
+  const { schoolNames: dbSchoolNames, loading: schoolsLoading } = useSchools();
   // The dashboard reads today's list, the current calendar week's bar chart and
   // (School Admin) the next 30 days' visits, so it loads from the start of this
   // week to whichever ends later, and nothing else (Sprint 56; widened for
@@ -1116,15 +1118,13 @@ export const Dashboard = () => {
 
   // ===== BARANGAY HEALTH OFFICE DASHBOARD =====
   if (user?.role === 'bho_staff') {
-    const SCHOOLS_SHORT: Record<string, string> = {
-      'Bagong Tanyag Integrated School': 'Bagong Tanyag Integrated',
-      'Bagong Tanyag Elementary School Annex A': 'Annex A',
-      'South Daang Hari Elementary School Main': 'South Daang Hari',
-    };
-    const schoolComparisonData = Object.entries(SCHOOLS_SHORT).map(([full, short]) => {
+    // Dashboard audit item 12 (2026-10-04): the school list comes from the
+    // database. It was a hard-coded three, so a school added later never
+    // appeared in the comparison and "Schools participating" read "of 3".
+    const schoolComparisonData = dbSchoolNames.map((full) => {
       const students = allStudentsRaw.filter((s) => s.school === full);
       return {
-        school: short,
+        school: getSchoolShortName(full),
         screened: students.filter((s) => s.riskLevel !== null).length,
         // No "treated" series (dashboard audit item 4, 2026-10-04): it was a
         // hard-coded 0 drawn as if it were data.
@@ -1147,6 +1147,10 @@ export const Dashboard = () => {
       return {
         bracket,
         total: inBracket.length,
+        // Item 12: the low-risk rate's base. Unscreened pupils have no risk
+        // level at all, so counting them made the rate read as poor oral
+        // health when it was really low screening coverage.
+        screened: inBracket.filter((s) => s.riskLevel !== null).length,
         orallyFit: inBracket.filter((s) => s.oralStatus === 'Orally Fit').length,
         needsTreatment: inBracket.filter((s) => s.oralStatus === 'Needs Treatment').length,
       };
@@ -1228,9 +1232,10 @@ export const Dashboard = () => {
             <SummaryCell
               icon={CheckCircle}
               label="Low caries risk"
-              value={share(orallyFitCount, totalStudents)}
+              // Item 12: out of SCREENED pupils (see ageGroupData's `screened`).
+              value={share(orallyFitCount, totalScreened)}
               valueClass="text-success"
-              trailing={totalStudents < SMALL_N ? undefined : `${orallyFitCount} of ${totalStudents}`}
+              trailing={totalScreened < SMALL_N ? 'screened' : `${orallyFitCount} of ${totalScreened} screened`}
               context={
                 needsTreatmentCount > 0
                   ? `${needsTreatmentCount} at high caries risk`
@@ -1242,10 +1247,10 @@ export const Dashboard = () => {
             <SummaryCell
               icon={Shield}
               label="Schools participating"
-              value={`${schoolsParticipating} of 3`}
-              context={schoolsParticipating === 3 ? 'All barangay schools' : `${3 - schoolsParticipating} with no records yet`}
+              value={`${schoolsParticipating} of ${dbSchoolNames.length}`}
+              context={schoolsParticipating >= dbSchoolNames.length ? 'All barangay schools' : `${dbSchoolNames.length - schoolsParticipating} with no records yet`}
               linkTo="/reports"
-              loading={studentsLoading}
+              loading={studentsLoading || schoolsLoading}
             />
           </div>
         </div>
@@ -1259,7 +1264,7 @@ export const Dashboard = () => {
           <div className="bg-card p-4 rounded-xl border border-border">
             <h2 className="text-sm font-bold text-foreground mb-0.5">School Comparison</h2>
             <p className="text-[11px] text-muted-foreground mb-3">Screened · high-risk counts per school</p>
-            <ChartBody ready={!studentsLoading}>
+            <ChartBody ready={!studentsLoading && !schoolsLoading}>
             <ResponsiveContainer width="100%" height={220} key="school-comparison-container">
               <BarChart data={schoolComparisonData} id="school-comparison-chart">
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART.grid} key="school-grid" />
@@ -1290,7 +1295,7 @@ export const Dashboard = () => {
                   <th className="px-6 py-3 text-left text-xs font-semibold text-foreground">Total Students</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-foreground">Low caries risk</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-foreground">High caries risk</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-foreground">Low-risk rate</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-foreground">Low-risk rate (of screened)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -1301,7 +1306,7 @@ export const Dashboard = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-success font-medium">{group.orallyFit}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-destructive font-medium">{group.needsTreatment}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
-                      {share(group.orallyFit, group.total)}
+                      {share(group.orallyFit, group.screened)}
                     </td>
                   </tr>
                 ))}
