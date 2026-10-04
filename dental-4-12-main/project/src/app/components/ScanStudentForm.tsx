@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { CameraCapture } from './CameraCapture';
-import { parseSpreadsheetRecords, normalizeSex, normalizeGrade } from '../utils/studentImport';
+import { parseSpreadsheetRecords, normalizeSex, normalizeGrade, toIsoDate } from '../utils/studentImport';
 import { BLANK_NEW_PATIENT, type NewPatientForm } from './PatientList';
 import type { IptrOcrFieldKey, IptrCheckboxFinding } from '../utils/iptrOcrShared';
 import { batchProblem, isSpreadsheet, MAX_BATCH_FILES } from '../utils/ocrBatch';
@@ -82,8 +82,8 @@ export const ScanStudentForm = () => {
         const fields: Partial<NewPatientForm> = {
           lastName: set('lastName', get('last_name', 'lastname', 'surname')),
           firstName: set('firstName', get('first_name', 'firstname', 'given_name')),
-          middleName: set('middleName', get('middle_name', 'middlename')),
-          birthdate: set('birthdate', get('birthday', 'birthdate', 'birth_date', 'date_of_birth')),
+          middleName: set('middleName', get('middle_name', 'middlename', 'middle_initial')),
+          birthdate: set('birthdate', toIsoDate(get('birthday', 'birthdate', 'birth_date', 'date_of_birth'), false)),
           gender: normalizeSex(sexRaw) ?? '',
           grade: (gradeRaw ? normalizeGrade(gradeRaw) : null) ?? '',
           section: get('section'),
