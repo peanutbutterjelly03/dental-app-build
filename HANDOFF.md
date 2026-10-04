@@ -89,6 +89,9 @@ a page guard. Details + per-role API results: `docs/audit/LEDGER-sec.md` → "Sp
 2026-10-01): role limits are off for the classmate's testing. Turn it OFF when she is done, and
 certainly before defense (see "TESTING MODE" below). ⚠ Also before defense: set
 `SCHOOL_YEAR_DATE_RULES = true` (shared/schoolYearRollover.ts; from her merged v2).
+⚠ Also before defense / real use: **purge the seeded DEMO records** (`is_demo`, 55 of 57 prod pupils on
+2026-10-04). Nothing filters them, so every live dashboard figure is mostly demo until then. Decided
+2026-10-04 (dashboard item 7): no app change, they stay visible for the classmate's alpha test.
 
 ✅ **MERGED 2026-10-04: the classmate's `v2` branch** (github.com/peanutbutterjelly03/dental-app-build,
 branch `v2`, remote `classmate`; 223 commits: offline O1-O5 read cache / conflict review / idempotent
@@ -118,7 +121,7 @@ new 2). ✅2 "both visits" = Visit 1 AND Visit 2, same as the completion tile (t
 accounts" real count (`/users?includeArchived=true`; prod has 5 archived, the tile showed 0). ✅4 removed the empty trend/task cards + BHO `treated: 0` (seen on dev as dentist, aide, BHO).
 ✅5 risk = LATEST validated result (`shared/latestRisk.ts`; student-rows + badge; no current
 student changes on dev or prod, it bites once pupils are reviewed in a second school year). ✅6 "Oral Health Status" → "Caries Risk
-Breakdown"; BHO "Needs Treatment" column/caption → "High caries risk" (it is risk, not treatment). 7 demo-data policy, NEEDS A DECISION (55/57 prod pupils are demo). 8 denominators = this
+Breakdown"; BHO "Needs Treatment" column/caption → "High caries risk" (it is risk, not treatment). ✅7 demo data: no app change; purge before defense (checklist above). 8 denominators = this
 school year's enrolled. 9 counts only when n<10. 10 aide Pending charts (current SY, real content).
 11 School Admin: all schools, Treatments caption, 30-day visits. 12 BHO: schools from DB, low-risk % over
 screened. 13 appointments vs sessions. NEW: 14 Objective 4 core block for every role (coverage, treatments,
