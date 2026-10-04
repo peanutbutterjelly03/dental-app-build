@@ -14,7 +14,7 @@ import syncConflictRoutes from "./syncConflictRoutes.js";
 import offlineRoutes from "./offlineRoutes.js";
 import predictionRoutes from "./predictionRoutes.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { scopeFilter } from "../utils/schoolScope.js";
+import { scopeFilter, userSchools } from "../utils/schoolScope.js";
 import { requireAuth, requireRole, isTestingMode } from "../middleware/auth.js";
 import { enforceOneStaffPerSchool } from "../middleware/oneStaffPerSchool.js";
 import { ADMIN_ONLY, CLINICAL_WRITE_ROLES, CLINICAL_READ_ROLES, CLINICAL_READ_ROLES_AND_BHO, NAME_BLIND_ROLES } from "../middleware/roleGroups.js";
@@ -1464,6 +1464,30 @@ router.get("/stats/student-rows", requireAuth, asyncHandler(async (req, res) => 
     a.middleName.localeCompare(b.middleName));
 
   res.json(rows);
+}));
+
+// Bulk duplicate check (2026-10-04): the bulk review list asks, for every row
+// at once and BEFORE anything is saved, "is this child already on file?" Same
+// rule as the per-save check below (findDuplicateStudents: same school + same
+// birthday + same first and last name), so the list and the save never
+// disagree. Registered before the /students CRUD mount so it is not taken as a
+// record id. Read-only; only the roles that may add students may ask, and only
+// about their own schools (a school outside the user's scope answers no match).
+router.post("/students/duplicate-check", requireAuth, requireRole(...CLINICAL_WRITE_ROLES), asyncHandler(async (req, res) => {
+  const list = Array.isArray(req.body?.students) ? req.body.students.slice(0, 500) : null;
+  if (!list) { res.status(400).json({ error: "students must be a list" }); return; }
+  const schools = await School.find({ isArchived: false }).select("_id school_name").lean<{ _id: unknown; school_name: string }[]>();
+  const idByName = new Map(schools.map((s) => [s.school_name, String(s._id)]));
+  const allowed = userSchools(req);
+  const matches = [];
+  for (const item of list) {
+    const schoolId = idByName.get(String(item?.school ?? ""));
+    if (!schoolId || (allowed && !allowed.includes(schoolId))) { matches.push([]); continue; }
+    matches.push(await findDuplicateStudents({
+      school_id: schoolId, birthday: item.birthday, last_name: item.last_name, first_name: item.first_name,
+    }));
+  }
+  res.json({ matches });
 }));
 
 // Clinical models — all 5 roles can read (school_admin/bho_staff need this

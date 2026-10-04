@@ -14,6 +14,7 @@ import {
 import type { IptrCheckboxFinding } from '../utils/iptrOcrShared';
 import { tickBodies, tickKind, tickKey, defaultTickYear } from '../utils/ocrTickFindings';
 import { batchSummary, type BatchOutcome } from '../utils/ocrBatch';
+import type { DupDecisions } from '../utils/bulkDuplicates';
 import type { ExtractedHandoff } from './ScanStudentForm';
 // Same shared value-format rules the manual Add Student form and the server use.
 import { validateStudentValues } from '../../../shared/studentValidation';
@@ -58,15 +59,25 @@ export const VerifyStudentForm = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
-  const nav = location.state as { queue?: ExtractedHandoff[]; startIndex?: number; returnTo?: string; saved?: number[] } | null;
+  const nav = location.state as { queue?: ExtractedHandoff[]; startIndex?: number; returnTo?: string; saved?: number[]; dupDecisions?: DupDecisions } | null;
   const queue = nav?.queue ?? null;
   // Opened from the bulk review list: start at the chosen student, remember who was
   // saved, and go back to that list instead of ending the batch.
   const returnTo = nav?.returnTo ?? null;
+  // Duplicate choices made on the bulk list (2026-10-04): 'skip' rows are passed
+  // over by Save & Next; 'different' rows save without asking a second time.
+  const dupDecisions = nav?.dupDecisions ?? {};
   const [index, setIndex] = useState(nav?.startIndex ?? 0);
   const [outcomes, setOutcomes] = useState<BatchOutcome[]>([]);
   const [savedIdx, setSavedIdx] = useState<number[]>(nav?.saved ?? []);
-  const backToList = (saved: number[] = savedIdx) => navigate(returnTo ?? '/students/scan', returnTo ? { state: { queue, saved } } : undefined);
+  const backToList = (saved: number[] = savedIdx) => navigate(returnTo ?? '/students/scan', returnTo ? { state: { queue, saved, dupDecisions } } : undefined);
+  // The next row Save & Next should show: not saved already, not marked "same child, skip".
+  const nextIndex = (from: number, saved: number[]) => {
+    for (let i = from + 1; i < (queue?.length ?? 0); i++) {
+      if (!saved.includes(i) && dupDecisions[i] !== 'skip') return i;
+    }
+    return null;
+  };
 
   // No queue (direct visit, or a page refresh: router state doesn't survive
   // one) means there's nothing to verify.
@@ -77,14 +88,15 @@ export const VerifyStudentForm = () => {
     const all = [...outcomes, outcome];
     const saved = outcome === 'saved' ? [...savedIdx, index] : savedIdx;
     setSavedIdx(saved);
-    if (index + 1 >= queue.length && returnTo) {
+    const next = returnTo ? nextIndex(index, saved) : (index + 1 < queue.length ? index + 1 : null);
+    if (next === null && returnTo) {
       toast.success(batchSummary(all));
       backToList(saved);
       return;
     }
-    if (index + 1 < queue.length) {
+    if (next !== null) {
       setOutcomes(all);
-      setIndex(index + 1);
+      setIndex(next);
       window.scrollTo(0, 0);
       return;
     }
@@ -99,11 +111,15 @@ export const VerifyStudentForm = () => {
       position={queue.length > 1 ? { index, total: queue.length } : null}
       onDone={done}
       onBack={returnTo ? () => backToList() : null}
+      preConfirmedDuplicate={dupDecisions[index] === 'different'}
     />
   );
 };
 
-const VerifyOne = ({ handoff, position, onDone, onBack }: {
+const VerifyOne = ({ handoff, position, onDone, onBack, preConfirmedDuplicate = false }: {
+  /** Marked "different child" on the bulk list: send confirm_duplicate so the
+   *  server does not ask again. Required-field checks still run. */
+  preConfirmedDuplicate?: boolean;
   handoff: ExtractedHandoff;
   /** Where this form sits in a batch; null for a single scan. */
   position: { index: number; total: number } | null;
@@ -187,7 +203,7 @@ const VerifyOne = ({ handoff, position, onDone, onBack }: {
         guardian_occupation: form.guardianOccupation, philhealth_number: form.philhealthNumber,
         philhealth_status: form.philhealthNumber.trim() ? form.philhealthStatus : 'None',
         is_4ps: form.is4Ps, fourps_id: form.fourPsId,
-        ...(confirmDuplicate ? { confirm_duplicate: true } : {}),
+        ...(confirmDuplicate || preConfirmedDuplicate ? { confirm_duplicate: true } : {}),
       });
       let iptrId: string | null = null;
       try {

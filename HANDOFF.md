@@ -89,6 +89,17 @@ review" tile. System Admin: 7 **"System modules"** cards (Reports = link only, n
 generation). ⚠ **School Admin sees pupil NAMES again** (user decision; contacts/IDs still hidden; switch back =
 re-add `"school_admin"` to `NAME_BLIND_ROLES` in `server/middleware/roleGroups.ts`).
 
+**BULK DUPLICATE DETECTION 2026-10-04 (classmate's question "nadedetect ba ang duplicates?"):** before, only
+the per-save check caught them (one pupil at a time during Save & Next). Now "Review Imported Students" checks
+the WHOLE list first: `POST /students/duplicate-check` (same rule as the save check, `findDuplicateStudents`:
+school + birthday + first/last name; clinical write roles; own schools only) → "Possibly on file", and
+`utils/bulkDuplicates.ts` (tested) → "Twice in this file". A side-by-side compare (like the offline conflict
+pop-up) offers Same child skip it / Different child save anyway / Edit this row; Save & Next skips "skip" rows
+and sends `confirm_duplicate` for "different" rows (required fields still checked). Skipping one twin clears
+the other. Per-save check unchanged (safety net). Verified on dev end to end, two rounds (DB: Trisha 1, Dup 2,
+New 1 as chosen), test pupils archived. Design-hook literal-colour warnings on BulkScanReview.tsx left as-is:
+that page uses literal colours by its own stated convention.
+
 **MODEL INPUT FIX 2026-10-04 (B):** `shared/riskCandidates.ts` summed teeth from EVERY charting of every year
 into the model's DMF inputs, so a pupil charted twice was double-counted (live: 11 of 28 charted pupils, dev 8
 of 23). Now ONE charting: latest with tooth records (year, then date), same rule as the chart screens and

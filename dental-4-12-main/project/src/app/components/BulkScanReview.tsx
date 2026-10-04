@@ -1,10 +1,12 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { LayoutGrid, Table2 } from 'lucide-react';
 import type { CSSProperties, ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router';
-import { REQUIRED_STUDENT_FIELDS } from './PatientList';
+import { REQUIRED_STUDENT_FIELDS, type DuplicateCandidate } from './PatientList';
 import type { ExtractedHandoff } from './ScanStudentForm';
 import { calculateAge } from '../utils/age';
+import { apiClient } from '../api/client';
+import { inFileDuplicates, type DupDecisions } from '../utils/bulkDuplicates';
 
 // Bulk upload review (user, 2026-10-01): the OCR button reads several forms or a
 // spreadsheet with many rows, and lands HERE first, so every extracted student is
@@ -44,10 +46,25 @@ const pill = (bg: string, fg: string): CSSProperties => ({
   fontSize: '0.71875rem', fontWeight: 700, background: bg, color: fg,
 });
 
-const Status = ({ r, saved }: { r: Row; saved: boolean }) => {
+// A possible duplicate not yet decided on the list (2026-10-04). Amber, not red:
+// it may be a different child, so it asks for a look, not a fix.
+type Dup = { onFile: DuplicateCandidate[]; inFile: number[] };
+
+const Status = ({ r, saved, dup, decision, onCompare }: {
+  r: Row; saved: boolean; dup: Dup | null; decision?: 'skip' | 'different'; onCompare: () => void;
+}) => {
   if (saved) return <span style={pill('#DCFCE7', '#166534')}>Saved</span>;
+  if (decision === 'skip') return <span style={pill('#F1F5F9', '#475569')}>Skipped: already on file</span>;
   if (r.h.readError) return <span style={pill('#FEE2E2', '#B91C1C')}>Could not read</span>;
   if (r.missing.length) return <span style={pill('#FEE2E2', '#B91C1C')}>Missing {r.missing[0].toLowerCase()}{r.missing.length > 1 ? ` +${r.missing.length - 1}` : ''}</span>;
+  if (dup && !decision) {
+    return (
+      <button type="button" onClick={(e) => { e.stopPropagation(); onCompare(); }} title="Compare side by side"
+        style={{ ...pill('#FEF3C7', '#92400E'), cursor: 'pointer', border: '0.0625rem solid #F59E0B' }}>
+        {dup.onFile.length ? 'Possibly on file' : 'Twice in this file'}: compare
+      </button>
+    );
+  }
   return <span style={pill('#DCFCE7', '#166534')}>Ready</span>;
 };
 
@@ -69,9 +86,45 @@ const chip: CSSProperties = {
 export const BulkScanReview = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const state = location.state as { queue?: ExtractedHandoff[]; saved?: number[] } | null;
+  const state = location.state as { queue?: ExtractedHandoff[]; saved?: number[]; dupDecisions?: DupDecisions } | null;
   const queue = state?.queue ?? null;
   const saved = useMemo(() => new Set(state?.saved ?? []), [state]);
+
+  // Duplicate detection before anything is saved (2026-10-04): one server
+  // request for the whole list ("already on file?"), plus "twice in this file".
+  // The per-save check on the Verify page stays as the safety net.
+  const [dupDecisions, setDupDecisions] = useState<DupDecisions>(state?.dupDecisions ?? {});
+  const [onFile, setOnFile] = useState<DuplicateCandidate[][] | null>(null);
+  const [compareIndex, setCompareIndex] = useState<number | null>(null);
+  const keyRows = useMemo(
+    () => (queue ?? []).map((h) => (h.readError ? null : {
+      school: h.newPatient.school, birthdate: h.newPatient.birthdate, lastName: h.newPatient.lastName, firstName: h.newPatient.firstName,
+    })),
+    [queue],
+  );
+  const inFile = useMemo(() => inFileDuplicates(keyRows), [keyRows]);
+  useEffect(() => {
+    if (!queue?.length) return;
+    let cancelled = false;
+    apiClient.post<{ matches: DuplicateCandidate[][] }>('/students/duplicate-check', {
+      students: keyRows.map((k) => ({ school: k?.school ?? '', birthday: k?.birthdate ?? '', last_name: k?.lastName ?? '', first_name: k?.firstName ?? '' })),
+    })
+      .then((r) => { if (!cancelled) setOnFile(r.matches); })
+      // A failed check hides nothing: every save is still checked by the server.
+      .catch(() => { if (!cancelled) setOnFile([]); });
+    return () => { cancelled = true; };
+  }, [queue, keyRows]);
+  const dupOf = (index: number): Dup | null => {
+    const onFileHere = onFile?.[index] ?? [];
+    // A twin marked "same child, skip it" will not be saved, so it no longer
+    // makes this row a duplicate: skipping one copy clears the other.
+    const inFileHere = (inFile.get(index) ?? []).filter((j) => dupDecisions[j] !== 'skip');
+    return onFileHere.length || inFileHere.length ? { onFile: onFileHere, inFile: inFileHere } : null;
+  };
+  const decide = (index: number, decision: 'skip' | 'different') => {
+    setDupDecisions((d) => ({ ...d, [index]: decision }));
+    setCompareIndex(null);
+  };
   const [view, setView] = useState<View>(() => {
     try { return localStorage.getItem(VIEW_KEY) === 'cards' ? 'cards' : 'grid'; } catch { return 'grid'; }
   });
@@ -133,11 +186,15 @@ export const BulkScanReview = () => {
   }
 
   const open = (index: number) =>
-    navigate('/students/scan/review', { state: { queue, startIndex: index, returnTo: '/students/scan/bulk', saved: [...saved] } });
-  const firstOpen = rows.find((r) => !saved.has(r.index))?.index ?? 0;
-  const isFix = (r: Row) => !saved.has(r.index) && (!!r.h.readError || r.missing.length > 0);
-  const ready = rows.filter((r) => !saved.has(r.index) && !r.h.readError && r.missing.length === 0).length;
+    navigate('/students/scan/review', { state: { queue, startIndex: index, returnTo: '/students/scan/bulk', saved: [...saved], dupDecisions } });
+  const firstOpen = rows.find((r) => !saved.has(r.index) && dupDecisions[r.index] !== 'skip')?.index ?? 0;
+  const unresolvedDup = (r: Row) => !saved.has(r.index) && !dupDecisions[r.index] && !!dupOf(r.index);
+  const isFix = (r: Row) => !saved.has(r.index) && dupDecisions[r.index] !== 'skip'
+    && (!!r.h.readError || r.missing.length > 0 || unresolvedDup(r));
+  const ready = rows.filter((r) => !saved.has(r.index) && dupDecisions[r.index] !== 'skip'
+    && !r.h.readError && r.missing.length === 0 && !unresolvedDup(r)).length;
   const fixes = rows.filter(isFix).length;
+  const dupCount = rows.filter(unresolvedDup).length;
   const shown = onlyFixes ? rows.filter(isFix) : rows;
 
   const openBtn = (r: Row) => (
@@ -164,7 +221,7 @@ export const BulkScanReview = () => {
     { label: 'PhilHealth Number', cell: (r) => r.h.newPatient.philhealthNumber },
     { label: 'PhilHealth Status', cell: (r) => r.h.newPatient.philhealthStatus },
     { label: 'Address', cell: (r) => r.h.newPatient.address },
-    { label: 'Status', cell: (r) => <Status r={r} saved={saved.has(r.index)} /> },
+    { label: 'Status', cell: (r) => <Status r={r} saved={saved.has(r.index)} dup={dupOf(r.index)} decision={dupDecisions[r.index]} onCompare={() => setCompareIndex(r.index)} /> },
     { label: 'Form', cell: (r) => openBtn(r) },
   ];
 
@@ -209,6 +266,9 @@ export const BulkScanReview = () => {
         <span style={chip}><b>{rows.length}</b> found</span>
         <span style={chip}><b style={{ color: '#15803D' }}>{ready}</b> ready</span>
         <span style={chip}><b style={{ color: '#B91C1C' }}>{fixes}</b> need fixes</span>
+        {onFile === null
+          ? <span style={{ ...chip, color: MUTED }}>Checking for duplicates…</span>
+          : dupCount > 0 && <span style={{ ...chip, borderColor: '#F59E0B' }}><b style={{ color: '#92400E' }}>{dupCount}</b> possible duplicate{dupCount === 1 ? '' : 's'}</span>}
         {saved.size > 0 && <span style={chip}><b style={{ color: '#15803D' }}>{saved.size}</b> saved</span>}
         <button type="button" onClick={() => setOnlyFixes((v) => !v)} aria-pressed={onlyFixes} style={{ ...secondaryBtn, padding: '0.3125rem 0.875rem', fontSize: '0.8125rem' }}>
           {onlyFixes ? 'Show all students' : 'Show only: Needs fixes'}
@@ -266,7 +326,7 @@ export const BulkScanReview = () => {
               <div key={r.index} style={{ background: '#fff', border: `${isFix(r) ? '0.09375rem' : '0.0625rem'} solid ${isFix(r) ? '#F87171' : LINE}`, borderRadius: '1rem', padding: '1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.625rem' }}>
                   <h2 style={{ margin: 0, fontSize: '0.9375rem', fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fullName(r.h, r.index)}</h2>
-                  <Status r={r} saved={saved.has(r.index)} />
+                  <Status r={r} saved={saved.has(r.index)} dup={dupOf(r.index)} decision={dupDecisions[r.index]} onCompare={() => setCompareIndex(r.index)} />
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '5.25rem 1fr', gap: '0.1875rem 0.5rem', fontSize: '0.8125rem' }}>
                   <span style={{ color: MUTED }}>Grade</span><span><Req value={p.grade} /></span>
@@ -282,6 +342,56 @@ export const BulkScanReview = () => {
           })}
         </div>
       )}
+
+      {/* Side by side, like the offline conflict review: the row from the file next
+          to the record it may duplicate, then a decision that Save & Next honours. */}
+      {compareIndex !== null && queue[compareIndex] && (() => {
+        const p = queue[compareIndex].newPatient;
+        const d = dupOf(compareIndex);
+        const existing = d?.onFile[0];
+        const otherRow = !existing && d?.inFile.length ? queue[d.inFile[0]].newPatient : null;
+        const side = (title: string, lines: [string, string][], note?: string) => (
+          <div style={{ flex: '1 1 14rem', minWidth: 0, border: `0.0625rem solid ${LINE}`, borderRadius: '0.75rem', padding: '0.875rem' }}>
+            <div style={{ fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: MUTED, marginBottom: '0.5rem' }}>{title}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '5.5rem 1fr', gap: '0.25rem 0.5rem', fontSize: '0.8125rem' }}>
+              {lines.map(([k, v]) => <Fragment key={k}><span style={{ color: MUTED }}>{k}</span><span style={{ fontWeight: 600, wordBreak: 'break-word' }}>{v || '(blank)'}</span></Fragment>)}
+            </div>
+            {note && <p style={{ margin: '0.5rem 0 0', fontSize: '0.75rem', color: MUTED }}>{note}</p>}
+          </div>
+        );
+        return (
+          <div role="dialog" aria-modal="true" aria-label="Compare possible duplicate" onClick={() => setCompareIndex(null)}
+            style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(15,23,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: '1rem', padding: '1.25rem', width: '100%', maxWidth: '44rem', maxHeight: '90vh', overflow: 'auto', boxSizing: 'border-box' }}>
+              <h2 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 700 }}>Is this the same child?</h2>
+              <p style={{ margin: '0.25rem 0 1rem', fontSize: '0.8125rem', color: MUTED }}>
+                Same school, same birthday and same name. Check the details before saving.
+              </p>
+              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                {side('From the file', [
+                  ['Name', [p.lastName, p.firstName].filter(Boolean).join(', ') + (p.middleName ? ` ${p.middleName}` : '')],
+                  ['Birthdate', p.birthdate], ['Sex', p.gender], ['Grade', [p.grade, p.section].filter(Boolean).join(' ')], ['School', p.school],
+                ])}
+                {existing
+                  ? side('Already on file', [
+                      ['Name', existing.full_name], ['Birthdate', String(existing.birthday ?? '').slice(0, 10)], ['Sex', existing.sex],
+                      ['Grade', [existing.grade_level, existing.section].filter(Boolean).join(' ')], ['School', p.school],
+                    ], d && d.onFile.length > 1 ? `${d.onFile.length - 1} more record(s) on file also match.` : undefined)
+                  : otherRow && side(`Also in this file (row ${(d?.inFile[0] ?? 0) + 1})`, [
+                      ['Name', [otherRow.lastName, otherRow.firstName].filter(Boolean).join(', ') + (otherRow.middleName ? ` ${otherRow.middleName}` : '')],
+                      ['Birthdate', otherRow.birthdate], ['Sex', otherRow.gender], ['Grade', [otherRow.grade, otherRow.section].filter(Boolean).join(' ')], ['School', otherRow.school],
+                    ])}
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end', marginTop: '1.125rem' }}>
+                <button type="button" onClick={() => setCompareIndex(null)} style={secondaryBtn}>Cancel</button>
+                <button type="button" onClick={() => { const i = compareIndex; setCompareIndex(null); open(i); }} style={secondaryBtn}>Edit this row</button>
+                <button type="button" onClick={() => decide(compareIndex, 'different')} style={secondaryBtn}>Different child, save anyway</button>
+                <button type="button" onClick={() => decide(compareIndex, 'skip')} style={primaryBtn}>Same child, skip it</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };
