@@ -32,7 +32,10 @@ export const computeDMFT = (chart: Record<number, { condition: string }>) => {
 
 // ─── Dashboard summary (dashboard audit item 15) ─────────────────────────────
 
-export interface Spread { median: number; q1: number; q3: number; max: number }
+// `mean` is what the dashboard shows (user decision 2026-10-04): the DOH/WHO
+// convention reports the AVERAGE DMF/dmf, so the figure compares directly with
+// the official forms. Median and quartiles stay available for a later view.
+export interface Spread { mean: number; median: number; q1: number; q3: number; max: number }
 export interface DmftSummary {
   /** Pupils with at least one charting that recorded a tooth. Everyone else is
    *  "not charted" and is left out of every figure, never counted as 0. */
@@ -55,7 +58,8 @@ function quantile(sorted: number[], p: number): number {
 function spread(values: number[]): Spread | null {
   if (!values.length) return null;
   const s = [...values].sort((a, b) => a - b);
-  return { median: quantile(s, 0.5), q1: quantile(s, 0.25), q3: quantile(s, 0.75), max: s[s.length - 1] };
+  const mean = s.reduce((a, b) => a + b, 0) / s.length;
+  return { mean, median: quantile(s, 0.5), q1: quantile(s, 0.25), q3: quantile(s, 0.75), max: s[s.length - 1] };
 }
 
 /** One entry per CHARTED pupil: the result of computeDMFT on the charting that

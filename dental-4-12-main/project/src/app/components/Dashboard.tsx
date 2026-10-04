@@ -530,21 +530,17 @@ export const Dashboard = () => {
   const ovHigh = allStudents.filter((s) => s.riskLevel === 'High').length;
   // A tile only links where this role may go (the page guard would bounce it).
   const linkIfAllowed = (path: string) => (canOpen(path, user?.role) ? path : undefined);
-  // Caries burden (dashboard audit item 15): DMFT is the paper's primary
-  // dental-health measure. Median and quartiles, not a mean, because a few
-  // heavily decayed mouths drag a mean far from the typical pupil. Under
-  // SMALL_N charted pupils the quartiles are left out; a median of 3 is
-  // still worth showing, an "IQR" of 3 values is not.
+  // Dental caries and DMF/dmf (dashboard audit item 15). The manuscript's own
+  // terms: the DMF/dmf index is the study's dental-health measure (Ch. 1
+  // definitions), and the Section-Level Dental Health Status Tally Form
+  // reports caries prevalence and DMF/dmf indices (Ch. 3). The AVERAGE is
+  // shown, the DOH/WHO convention, so it compares directly with the official
+  // forms (user decision 2026-10-04; it was the median).
   const num = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
-  const spreadText = (s: Spread | null, n: number) => {
-    if (!s) return 'Not charted';
-    return n < SMALL_N
-      ? `median ${num(s.median)} · max ${s.max}`
-      : `median ${num(s.median)} · IQR ${num(s.q1)} to ${num(s.q3)} · max ${s.max}`;
-  };
+  const spreadText = (s: Spread | null) => (s ? `average ${num(s.mean)} · highest ${s.max}` : 'Not charted');
   const dmftCard = (
     <div className="bg-card p-4 rounded-xl border border-border">
-      <h2 className="text-sm font-bold text-foreground mb-0.5">Caries Burden</h2>
+      <h2 className="text-sm font-bold text-foreground mb-0.5">Dental Caries and DMF/dmf Index</h2>
       <p className="text-[11px] text-muted-foreground mb-3">
         From each pupil's latest charting
         {dmft ? ` · ${dmft.charted} of ${dmft.enrolled} pupils charted` : ''}
@@ -567,11 +563,11 @@ export const Dashboard = () => {
           </div>
           <div>
             <p className="text-xs text-muted-foreground">DMFT (permanent teeth)</p>
-            <p className="text-sm font-semibold text-foreground tabular-nums">{spreadText(dmft.permanent, dmft.charted)}</p>
+            <p className="text-sm font-semibold text-foreground tabular-nums">{spreadText(dmft.permanent)}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">dmft (primary teeth)</p>
-            <p className="text-sm font-semibold text-foreground tabular-nums">{spreadText(dmft.primary, dmft.charted)}</p>
+            <p className="text-sm font-semibold text-foreground tabular-nums">{spreadText(dmft.primary)}</p>
           </div>
         </div>
       )}

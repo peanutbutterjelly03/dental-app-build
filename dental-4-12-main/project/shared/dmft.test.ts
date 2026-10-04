@@ -11,8 +11,9 @@ describe('DMFT dashboard summary (dashboard audit item 15)', () => {
   it('median and quartiles over charted pupils only', () => {
     const s = summarizeDmft([{ T: 0, t: 0 }, { T: 1, t: 2 }, { T: 2, t: 0 }, { T: 4, t: 1 }, { T: 8, t: 0 }]);
     expect(s.charted).toBe(5);
-    expect(s.permanent).toEqual({ median: 2, q1: 1, q3: 4, max: 8 });
+    expect(s.permanent).toEqual({ mean: 3, median: 2, q1: 1, q3: 4, max: 8 });
     expect(s.primary?.median).toBe(0);
+    expect(s.primary?.mean).toBe(0.6); // (0 + 2 + 0 + 1 + 0) / 5, the DOH-style average
   });
 
   it('caries experience is DMFT + dmft above 0', () => {
