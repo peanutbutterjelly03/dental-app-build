@@ -86,10 +86,15 @@ into the model's DMF inputs, so a pupil charted twice was double-counted (live: 
 of 23). Now ONE charting: latest with tooth records (year, then date), same rule as the chart screens and
 /stats/dmft-summary. Test fails on the old code (DMF 6 vs 3). ⚠ Suggestions stored before this fix for those
 pupils were computed from inflated DMF; dentist-validated levels are the dentist's own and unaffected.
-**NEXT (A, approved): make `ml-service/pipeline/clean_excel.py` read the classmate's "Raw Copy of Manual
-Encoded" template** — header row not found ("Full Name"/"Surname" unknown); D/M/F must be permanent+temporary
-summed and DMF = D+M+F (NOT her "TOTAL DMFX+dmfx", which includes X); "Gingivities", "Sugar Sweetened
-Beverages/…", "Risk Classification" (= the label) unmapped; her dates are day-first, pipeline tries month-first.
+**DONE (A) 2026-10-04: `ml-service/pipeline/clean_excel.py` reads the clinic's "Raw Copy of Manual Encoded"
+template** (the classmate's workbook = the likely format for the 50 real records): name columns recognised (and
+still dropped; duplicate key = all name parts), D/M/F = permanent + temporary SUMMED, dmf_score = D+M+F only when
+a file has no DMF column (her "TOTAL DMFX+dmfx" includes X and stays unused), Gingivities / Sugar Sweetened
+Beverages / Risk Classification mapped, "dd/mm" columns parsed day-first, pandas' ".1" duplicate-heading suffix
+ignored. Verified: fake template rows correct; all 6 synthetic files clean IDENTICALLY to before. Her real
+workbook (totals only): 18/18 pupils read, **all 18 already labelled (9 Low, 8 High, 1 Medium)**, but tooth
+counts only 8/18 and sugary drinks 0/18; its typed "dd/mm" birthday column was actually typed month-first
+(3/30/2021) — refused, the real-date column wins. Tell the encoders: fill the D/M/F columns for every pupil.
 
 **BULK UPLOAD TESTED END TO END 2026-10-04 (dev, Chrome):** a FAKE workbook with the classmate's exact
 154-column layout (her two header rows, 5 made-up "Zztest" pupils; file in the scratchpad, never in git) →
