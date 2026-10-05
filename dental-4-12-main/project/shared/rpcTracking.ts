@@ -399,7 +399,8 @@ export interface RpcListQuery {
    *  students enrolled (had a record made) that year. 'all' or omitted = every
    *  year. */
   schoolYear?: string;
-  /** 'date_desc' (the resting value, user 2026-09-25 -- newest activity
+  /** 'due_asc' (the resting value, user 2026-10-05): nearest due date first, rows with no
+   *  due date last. 'date_desc' (was the resting value, user 2026-09-25 -- newest activity
    *  first) and 'date_asc' sort by the LATEST of Visit 1/Visit 2 date, not
    *  just Visit 1 -- a student with a recent Visit 2 leads a student whose only
    *  visit was older, rows with no visit yet sorted last either way.
@@ -491,6 +492,19 @@ export function filterRpcRows(all: RPCRow[], query: RpcListQuery): RpcListPage {
       if (at === null) return 1; // no visit yet — always last
       if (bt === null) return -1;
       return (at - bt) * dir;
+    });
+  } else if (query.sort === 'due_asc') {
+    // Nearest due date first (user, 2026-10-05): overdue rows lead (their due date is the
+    // oldest), then the soonest upcoming. Rows with no due date (both visits done, or no
+    // Visit 1 yet) follow, in the rows' own alphabetical order (the sort is stable).
+    const due = (r: RPCRow) => dueDateOf(r)?.getTime() ?? null;
+    sortedRows = [...rows].sort((a, b) => {
+      const at = due(a);
+      const bt = due(b);
+      if (at === null && bt === null) return 0;
+      if (at === null) return 1;
+      if (bt === null) return -1;
+      return at - bt;
     });
   } else if (query.sort === 'due_this_month') {
     // `rows` is already narrowed to due-this-month above; soonest due date
