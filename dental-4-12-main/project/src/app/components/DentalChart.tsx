@@ -1055,7 +1055,7 @@ export const DentalChart = () => {
       await apiClient.patch(`/student-iptrs/${iptrId}/archive`);
       setSelectedYear((prev) => (prev === yearIndex ? Math.max(0, yearIndex - 1) : prev > yearIndex ? prev - 1 : prev));
       await reload();
-      toast.success('School year removed.');
+      toast.success('School year archived.');
     } catch (err) {
       setSaveError(err instanceof ApiError ? err.message : 'Failed to remove school year');
     }
@@ -2059,63 +2059,6 @@ export const DentalChart = () => {
                   `date_opened`, which her STUDENT_IPTR has and ours does not.
                   A menu item that saves nowhere is the placeholder CLAUDE.md
                   forbids, so it is left out rather than stubbed. */}
-              {canEdit && (
-                <div className="relative ml-2 flex-shrink-0 py-2">
-                  <button type="button" ref={yearMenuBtnRef} onClick={openYearMenu}
-                    title="School year options" aria-label="School year options" aria-expanded={yearMenuOpen}
-                    className="flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1.5 text-[11px] font-medium text-muted-foreground hover:bg-gray-50">
-                    School year <MoreVertical className="w-3.5 h-3.5" />
-                  </button>
-                  {yearMenuOpen && (
-                    <>
-                      {/* Click-away sheet, under the menu and over everything
-                          else — without it the menu only closes by re-pressing
-                          the button, which nobody does. */}
-                      <div className="fixed inset-0 z-10" onClick={() => setYearMenuOpen(false)} />
-                      <div
-                        style={yearMenuAt ? { top: yearMenuAt.top, right: yearMenuAt.right } : undefined}
-                        className="fixed z-50 w-52 rounded-xl border border-border bg-card shadow-md py-1"
-                      >
-                        {(() => {
-                          const nextYear = getNextSchoolYear();
-                          const currentYear = schoolYearLabel();
-                          const existing = new Set(years.map((y) => y.iptr.school_year));
-                          const showCurrent = !existing.has(currentYear);
-                          const showNext = !!nextYear && nextYear !== currentYear && !existing.has(nextYear);
-                          return (
-                            <>
-                              {showCurrent && (
-                                <button type="button" disabled={addingYear}
-                                  onClick={() => { setYearMenuOpen(false); handleAddYear(currentYear); }}
-                                  className="block w-full text-left px-3 py-2 text-xs text-foreground hover:bg-canvas disabled:opacity-50">
-                                  Add {currentYear} <span className="text-muted-foreground">(current)</span>
-                                </button>
-                              )}
-                              {showNext && (
-                                <button type="button" disabled={addingYear}
-                                  onClick={() => { setYearMenuOpen(false); handleAddYear(nextYear); }}
-                                  className="block w-full text-left px-3 py-2 text-xs text-foreground hover:bg-canvas disabled:opacity-50">
-                                  Add {nextYear} <span className="text-muted-foreground">(next)</span>
-                                </button>
-                              )}
-                              {!showCurrent && !showNext && (
-                                <div className="px-3 py-2 text-xs text-muted-foreground">Current and next year already recorded</div>
-                              )}
-                            </>
-                          );
-                        })()}
-                        {years.length > 1 && (
-                          <button type="button"
-                            onClick={() => { setYearMenuOpen(false); setConfirmDeleteYear(selectedYear); }}
-                            className="block w-full text-left px-3 py-2 text-xs text-destructive hover:bg-danger-surface">
-                            Remove {years[selectedYear]?.iptr.school_year}
-                          </button>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
               {/* Sprint 163 — Charting Mode and Legend sit at the right end of
                   the YEAR ROW, level with the year chips, which is where hers
                   are. They were below the charting picker, half a screen down
@@ -2140,6 +2083,36 @@ export const DentalChart = () => {
                   >
                     <FileText className="w-3.5 h-3.5" /> Legend
                   </button>
+                </div>
+              )}
+              {/* ⋮ menu (user, 2026-10-05): far right of the year row, one option. It archives the
+                  school year on screen. Adding a year is done from Update School Year. */}
+              {canEdit && (
+                <div className={`relative flex-shrink-0 py-2 ${activeTab === 'chart' ? 'pr-1' : 'ml-auto pr-1'}`}>
+                  <button type="button" ref={yearMenuBtnRef} onClick={openYearMenu}
+                    title="Record options" aria-label="Record options" aria-expanded={yearMenuOpen}
+                    className="grid h-8 w-8 place-items-center rounded-lg border border-border bg-card text-muted-foreground hover:bg-gray-50">
+                    <MoreVertical className="w-4 h-4" />
+                  </button>
+                  {yearMenuOpen && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setYearMenuOpen(false)} />
+                      <div
+                        style={yearMenuAt ? { top: yearMenuAt.top, right: yearMenuAt.right } : undefined}
+                        className="fixed z-50 w-52 rounded-xl border border-border bg-card shadow-md py-1"
+                      >
+                        {years.length > 1 ? (
+                          <button type="button"
+                            onClick={() => { setYearMenuOpen(false); setConfirmDeleteYear(selectedYear); }}
+                            className="block w-full text-left px-3 py-2 text-xs text-destructive hover:bg-danger-surface">
+                            Archive record
+                          </button>
+                        ) : (
+                          <div className="px-3 py-2 text-xs text-muted-foreground">The only school year cannot be archived.</div>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
               </div>
@@ -2562,7 +2535,7 @@ export const DentalChart = () => {
       />
       <ConfirmDialog
         open={confirmDeleteYear !== null}
-        title={`Remove ${confirmDeleteYear !== null ? years[confirmDeleteYear]?.iptr.school_year ?? 'school year' : 'school year'}?`}
+        title={`Archive ${confirmDeleteYear !== null ? years[confirmDeleteYear]?.iptr.school_year ?? 'school year' : 'school year'}?`}
         message={
           <div className="space-y-3">
             <p>This archives the entire school year — its dental chart and medical, dietary, and oral-health records. A System Admin can restore it from the archive.</p>
@@ -2584,7 +2557,7 @@ export const DentalChart = () => {
             </div>
           </div>
         }
-        confirmLabel="Remove year"
+        confirmLabel="Archive record"
         busy={deletingYear}
         onConfirm={confirmDeleteYearNow}
         onCancel={() => { setConfirmDeleteYear(null); setYearPassword(''); setYearPasswordError(null); }}

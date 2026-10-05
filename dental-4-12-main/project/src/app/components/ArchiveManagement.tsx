@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RotateCcw, Archive as ArchiveIcon, Filter, Search, Calendar } from 'lucide-react';
 import { PageHeader } from './PageHeader';
 import { apiClient, ApiError } from '../api/client';
-import type { ApiUser, ApiStudent, ApiSchool } from '../api/types';
+import type { ApiUser, ApiStudent, ApiSchool, ApiStudentIptr } from '../api/types';
 import { SkeletonTable } from './Skeleton';
 import { Modal } from './Modal';
 import { Notice } from './Notice';
@@ -61,6 +61,31 @@ const KINDS: Kind[] = [
       ['School', c.schoolById.get(r.school_id)?.school_name ?? ''],
       ['Grade and section', [r.grade_level, r.section].filter(Boolean).join(' · ')],
     ],
+  },
+  {
+    // A student's record for one school year (chart, medical, dietary and oral-health records hang off it).
+    key: 'iptr',
+    label: 'IPTR',
+    module: 'IPTR',
+    pill: { bg: '#F5F3FF', fg: '#6D28D9', border: '#DDD6FE' },
+    path: '/student-iptrs',
+    describe: (r: ApiStudentIptr, c) => {
+      const st = c.studentById.get(r.student_id);
+      return `${st ? surnameFirst(st) : 'Unknown student'} · ${r.school_year}`;
+    },
+    detail: (r: ApiStudentIptr, c) => {
+      const st = c.studentById.get(r.student_id);
+      return [st ? c.schoolById.get(st.school_id)?.school_name : '', r.grade_level, r.section].filter(Boolean).join(' · ');
+    },
+    facts: (r: ApiStudentIptr, c) => {
+      const st = c.studentById.get(r.student_id);
+      return [
+        ['Student', st ? surnameFirst(st) : 'Unknown student'],
+        ['School year', r.school_year],
+        ['School', (st ? c.schoolById.get(st.school_id)?.school_name : '') ?? ''],
+        ['Grade and section', [r.grade_level, r.section].filter(Boolean).join(' · ')],
+      ];
+    },
   },
   {
     key: 'schools',
