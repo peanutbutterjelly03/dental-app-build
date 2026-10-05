@@ -29,17 +29,20 @@ interface CameraCaptureProps {
 
 type Orientation = 'landscape' | 'portrait';
 
-/** Where the guide sits inside the frame, as fractions of its width/height. */
-const GUIDE: Record<Orientation, { l: number; t: number; r: number; b: number }> = {
-  landscape: { l: 0.08, t: 0.12, r: 0.08, b: 0.12 },
-  portrait: { l: 0.14, t: 0.06, r: 0.14, b: 0.06 },
-};
+/** Side margin of the guide, as a fraction of the frame width. Top and bottom are
+ *  fixed pixel bands (below), so the guide always sits BETWEEN the controls and
+ *  never under them. */
+const GUIDE_SIDE: Record<Orientation, number> = { landscape: 0.07, portrait: 0.12 };
+/** Room kept clear for the toggle/close row on top and the hint + shutter row below. */
+const GUIDE_TOP = 60;
+const GUIDE_BOTTOM = 116;
 
 const glass = 'bg-white/20 border border-white/40 text-white backdrop-blur-sm';
 
 export const CameraCapture = ({ onCapture, onClose }: CameraCaptureProps) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const frameRef = useRef<HTMLDivElement | null>(null);
+  const guideRef = useRef<HTMLDivElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const appInputRef = useRef<HTMLInputElement | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -72,22 +75,23 @@ export const CameraCapture = ({ onCapture, onClose }: CameraCaptureProps) => {
   const capture = () => {
     const video = videoRef.current;
     const frame = frameRef.current;
-    if (!video || !frame || !video.videoWidth) return;
-    const { width: cw, height: ch } = frame.getBoundingClientRect();
+    const guide = guideRef.current;
+    if (!video || !frame || !guide || !video.videoWidth) return;
+    const fr = frame.getBoundingClientRect();
+    const gr = guide.getBoundingClientRect();
+    const cw = fr.width;
+    const ch = fr.height;
     const vw = video.videoWidth;
     const vh = video.videoHeight;
     const scale = Math.max(cw / vw, ch / vh);
     const offsetX = (cw - vw * scale) / 2;
     const offsetY = (ch - vh * scale) / 2;
-    const g = GUIDE[orientation];
-    const gx = cw * g.l;
-    const gy = ch * g.t;
-    const gw = cw * (1 - g.l - g.r);
-    const gh = ch * (1 - g.t - g.b);
+    const gx = gr.left - fr.left;
+    const gy = gr.top - fr.top;
     const sx = Math.max(0, (gx - offsetX) / scale);
     const sy = Math.max(0, (gy - offsetY) / scale);
-    const sw = Math.min(vw - sx, gw / scale);
-    const sh = Math.min(vh - sy, gh / scale);
+    const sw = Math.min(vw - sx, gr.width / scale);
+    const sh = Math.min(vh - sy, gr.height / scale);
     const canvas = document.createElement('canvas');
     canvas.width = Math.round(sw);
     canvas.height = Math.round(sh);
@@ -108,8 +112,8 @@ export const CameraCapture = ({ onCapture, onClose }: CameraCaptureProps) => {
     onCapture(new File([photo.blob], `iptr-capture-${Date.now()}.jpg`, { type: 'image/jpeg' }));
   };
 
-  const g = GUIDE[orientation];
-  const guideStyle = { left: `${g.l * 100}%`, top: `${g.t * 100}%`, right: `${g.r * 100}%`, bottom: `${g.b * 100}%` };
+  const side = `${GUIDE_SIDE[orientation] * 100}%`;
+  const guideStyle = { left: side, right: side, top: GUIDE_TOP, bottom: GUIDE_BOTTOM };
 
   return (
     <Modal onClose={onClose} maxWidth={orientation === 'portrait' && !photo ? 'max-w-sm' : 'max-w-xl'}>
@@ -168,7 +172,7 @@ export const CameraCapture = ({ onCapture, onClose }: CameraCaptureProps) => {
             className="absolute inset-0 h-full w-full object-cover"
           />
           {/* Guide: dashed outline, everything outside it dimmed. */}
-          <div className="pointer-events-none absolute rounded-md border-2 border-dashed border-white/95" style={{ ...guideStyle, boxShadow: '0 0 0 999px rgba(0,0,0,0.38)' }} />
+          <div ref={guideRef} className="pointer-events-none absolute rounded-md border-2 border-dashed border-white/95" style={{ ...guideStyle, boxShadow: '0 0 0 999px rgba(0,0,0,0.38)' }} />
           <div className="absolute inset-x-0 top-0 flex items-center justify-between gap-2 bg-gradient-to-b from-black/45 to-transparent p-3">
             <div className={`inline-flex overflow-hidden rounded-full ${glass}`} role="group" aria-label="Photo shape">
               {(['landscape', 'portrait'] as const).map((o) => (
