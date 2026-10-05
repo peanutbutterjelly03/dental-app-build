@@ -5,6 +5,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { REQUIRED_STUDENT_FIELDS, type DuplicateCandidate } from './PatientList';
 import type { ExtractedHandoff } from './ScanStudentForm';
 import { calculateAge } from '../utils/age';
+import { TOPBAR_H } from '../utils/layout';
 import { apiClient } from '../api/client';
 import { inFileDuplicates, type DupDecisions } from '../utils/bulkDuplicates';
 
@@ -174,6 +175,26 @@ export const BulkScanReview = () => {
     if (table) ro?.observe(table);
     return () => { el.removeEventListener('scroll', update); ro?.disconnect(); };
   }, [gridEl]);
+  // Page first, then the rows. The grid pane sticks under the top bar once it gets there; until then
+  // the wheel moves the PAGE even with the pointer over the table, and when the rows are back at
+  // the top a wheel up gives the page back. Sideways gestures are left alone.
+  useEffect(() => {
+    const el = gridEl;
+    if (!el) return;
+    const wrap = el.closest('.bulk-sticky') as HTMLElement | null;
+    if (!wrap) return;
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      if (getComputedStyle(wrap).position !== 'sticky') return;
+      const stuck = wrap.getBoundingClientRect().top <= TOPBAR_H + 1;
+      if (!stuck || (e.deltaY < 0 && el.scrollTop <= 0)) {
+        window.scrollBy(0, e.deltaY);
+        e.preventDefault();
+      }
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [gridEl]);
   // Grab and drag with the mouse to pan the table (touch screens already do this natively).
   // A drag must not count as a click on the row underneath, or it would open that student.
   useEffect(() => {
@@ -250,7 +271,6 @@ export const BulkScanReview = () => {
       el.scrollTo({ left: to, behavior: 'smooth' });
     }
   };
-  const [fitHeight, setFitHeight] = useState<number | null>(null);
   // The layout pads the page on the right and bottom; the grid should touch those edges, so the
   // page cancels that padding with matching negative margins.
   const [edge, setEdge] = useState({ r: 0, b: 0 });
@@ -258,13 +278,11 @@ export const BulkScanReview = () => {
     const fit = () => {
       const el = shellRef.current;
       if (!el) return;
-      const top = el.getBoundingClientRect().top + window.scrollY;
       const parent = el.parentElement;
       const cs = parent ? getComputedStyle(parent) : null;
       const padB = cs ? parseFloat(cs.paddingBottom) || 0 : 0;
       const padR = cs ? parseFloat(cs.paddingRight) || 0 : 0;
       setEdge({ r: padR, b: padB });
-      setFitHeight(Math.max(240, Math.floor(window.innerHeight - top)));
     };
     window.scrollTo(0, 0);
     fit();
@@ -278,12 +296,13 @@ export const BulkScanReview = () => {
   );
 
   const shell: CSSProperties = {
-    // The PAGE never scrolls: it is exactly the screen below the top bar, and only the
-    // grid (or the cards) inside it scrolls, both ways, like a spreadsheet pane.
-    background: '#F6F9FC', height: fitHeight ?? 'calc(100vh - 8rem)', padding: '0.25rem 0 0 3.5rem', fontFamily: 'var(--font-sans)', color: '#141413',
+    // The page scrolls first. The grid pane below the header then sticks under the top bar and
+    // fills the rest of the screen, so from there only its rows scroll (see .bulk-sticky). The
+    // shell must not clip (overflow stays visible) or the pane could not stick.
+    background: '#F6F9FC', padding: '0.25rem 0 0 3.5rem', fontFamily: 'var(--font-sans)', color: '#141413',
     // width 100% + inline-size containment: a wide table inside must never widen the page
     // (an overflow:auto child still counts toward its ancestors' minimum width otherwise).
-    width: `calc(100% + ${edge.r}px)`, marginRight: -edge.r, marginBottom: -edge.b, minWidth: 0, maxWidth: 'none', contain: 'inline-size', boxSizing: 'border-box', overflow: 'hidden', display: 'flex', flexDirection: 'column',
+    width: `calc(100% + ${edge.r}px)`, marginRight: -edge.r, marginBottom: -edge.b, minWidth: 0, maxWidth: 'none', contain: 'inline-size', boxSizing: 'border-box', overflow: 'visible', display: 'flex', flexDirection: 'column',
   };
 
   // A refresh drops router state, so there is nothing to review.
@@ -367,7 +386,7 @@ export const BulkScanReview = () => {
         + '.bulk-tab button:disabled{opacity:.4;cursor:default}.bulk-tab button:focus-visible{outline:0.125rem solid #7AA2FF;outline-offset:0.125rem}'
         + '@media (pointer: coarse){.bulk-tab button{width:2.75rem;height:2.75rem}}'
         + '@media (max-width: 639px){.bulk-shell{height:auto !important;overflow:visible !important;padding:0.25rem 0 1rem 1rem !important;margin-bottom:0 !important}'
-        + '.bulk-pr{padding-right:1rem !important}.bulk-scroll{flex:none !important;max-height:75vh}}'}</style>
+        + '.bulk-pr{padding-right:1rem !important}.bulk-scroll{flex:none !important;max-height:75vh}.bulk-sticky{position:static !important;height:auto !important}}'}</style>
       {/* Header, same shape as the Scan and Verify pages */}
       <div className="bulk-pr" style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem', flexShrink: 0, paddingRight: '3.5rem' }}>
         <div style={{ width: '3.5rem', height: '3.5rem', borderRadius: '1rem', background: '#F4F7FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -425,7 +444,7 @@ export const BulkScanReview = () => {
         // column titles stay pinned and only the rows scroll down (user, 2026-10-05). It also
         // scrolls sideways, by bar, by the corner tab, or by grabbing and dragging. The Student
         // column stays pinned on the left.
-        <div className="bulk-pr" style={{ position: 'relative', width: '100%', boxSizing: 'border-box', paddingRight: '3.5rem', flex: '1 1 0', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <div className="bulk-pr bulk-sticky" style={{ position: 'sticky', top: TOPBAR_H, height: `calc(100vh - ${TOPBAR_H}px)`, width: '100%', boxSizing: 'border-box', paddingRight: '3.5rem', display: 'flex', flexDirection: 'column' }}>
           <div style={{ position: 'relative', flex: '1 1 0', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         <div ref={setGrid} className="bulk-scroll bulk-grid" style={{ flex: '1 1 0', minHeight: 0, width: 0, minWidth: '100%', maxWidth: '100%', overflow: 'auto', background: '#fff', border: `0.0625rem solid ${GRID_LINE}`, borderBottom: 'none', borderRadius: '0.75rem 0.75rem 0 0' }}>
           <table style={{ borderCollapse: 'separate', borderSpacing: 0, width: '100%' }}>
@@ -459,7 +478,7 @@ export const BulkScanReview = () => {
       )}
 
       {shown.length > 0 && view === 'cards' && (
-        <div className="bulk-scroll bulk-pr" style={{ flex: '1 1 0', minHeight: 0, width: 0, minWidth: '100%', overflow: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(17rem, 1fr))', gap: '1rem', alignContent: 'start', paddingRight: '3.5rem', paddingBottom: '1rem' }}>
+        <div className="bulk-scroll bulk-pr" style={{ flex: 'none', width: 0, minWidth: '100%', overflow: 'visible', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(17rem, 1fr))', gap: '1rem', alignContent: 'start', paddingRight: '3.5rem', paddingBottom: '1rem' }}>
           {shown.map((r) => {
             const p = r.h.newPatient;
             return (
