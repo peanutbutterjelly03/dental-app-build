@@ -284,7 +284,7 @@ const VerifyOne = ({ handoff, position, onDone, onBack, decision, onDecide, repe
       : missingNow.length
         ? { label: 'Needs fixes', bg: '#FEE2E2', fg: '#B91C1C', line: '#F87171' }
         : { label: decision === 'different' ? 'Ready, different child' : 'Ready', bg: '#DCFCE7', fg: '#166534', line: '#4ADE80' };
-  const hitStyle = isDup && decision !== 'different' ? { borderColor: '#F87171', background: '#FFF1F2' } : {};
+  const hitStyle = isDup && decision !== 'different' ? { borderColor: pill.line, background: pill.bg } : {};
   const isLast = !position || position.index + 1 >= position.total;
   const barBtn = { cursor: 'pointer', boxSizing: 'border-box', padding: '0.625rem 1.125rem', borderRadius: '0.625rem', fontSize: '0.8125rem', fontWeight: 600, color: '#141413', border: '0.0625rem solid #E2E8F0', background: '#fff' } as const;
   const skipHere = () => { onDecide('skip'); onDone('skipped'); };

@@ -24,6 +24,7 @@ import { inFileDuplicates, type DupDecisions } from '../utils/bulkDuplicates';
 
 const VIEW_KEY = 'bulk-scan-view';
 const SCROLL_KEY = 'bulk-review-scroll';
+const FIXES_KEY = 'bulk-review-fixes';
 type View = 'grid' | 'cards';
 
 type Row = { index: number; h: ExtractedHandoff; missing: string[] };
@@ -171,7 +172,15 @@ export const BulkScanReview = () => {
     setView(v);
     try { localStorage.setItem(VIEW_KEY, v); } catch { /* storage unavailable: the choice still holds for this visit */ }
   };
-  const [onlyFixes, setOnlyFixes] = useState(false);
+  // "Needs fixes only" is part of the state a student's form returns to, like the scroll position.
+  const [onlyFixes, setOnlyFixesRaw] = useState(() => {
+    try { return Array.isArray(state?.saved) && sessionStorage.getItem(FIXES_KEY) === '1'; } catch { return false; }
+  });
+  const setOnlyFixes = (v: boolean | ((prev: boolean) => boolean)) => setOnlyFixesRaw((prev) => {
+    const next = typeof v === 'function' ? v(prev) : v;
+    try { sessionStorage.setItem(FIXES_KEY, next ? '1' : '0'); } catch { /* ignore */ }
+    return next;
+  });
 
   // The page must never scroll: only the grid does. The app's own layout puts this page
   // under a top bar and inside padding, so a fixed `100vh - N` can never be exact. Measure
@@ -190,7 +199,7 @@ export const BulkScanReview = () => {
   const scrollMemo = useRef<{ left: number; top: number; page: number }>((() => {
     try {
       if (returning) { const v = JSON.parse(sessionStorage.getItem(SCROLL_KEY) ?? 'null'); if (v) return v; }
-      else sessionStorage.removeItem(SCROLL_KEY);
+      else { sessionStorage.removeItem(SCROLL_KEY); sessionStorage.removeItem(FIXES_KEY); }
     } catch { /* storage unavailable: start at the top */ }
     return { left: 0, top: 0, page: 0 };
   })());
