@@ -320,7 +320,7 @@ export const TreatmentRecords = () => {
       // so the region (and the pinned card inside it) always reaches the
       // true bottom of the viewport once scrolled all the way, same as
       // Charting Queue's own region.
-      className="space-y-4 overflow-y-auto no-scrollbar -mb-4 md:-mb-8"
+      className="space-y-4 overflow-y-auto no-scrollbar -mb-4 md:-mb-8 pb-6 md:pb-10"
       style={{ height: regionHeight ?? undefined }}
     >
       {/* Same header pattern as Dental Charts' own page title (user,
