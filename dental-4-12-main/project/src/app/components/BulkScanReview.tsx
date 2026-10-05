@@ -155,7 +155,21 @@ export const BulkScanReview = () => {
   // there is more to the left or right, and whether everything already fits.
   const [gridEl, setGridEl] = useState<HTMLDivElement | null>(null);
   const setGrid = (el: HTMLDivElement | null) => { gridRef.current = el; setGridEl(el); };
-  const [tab, setTab] = useState({ left: false, right: false, fits: true, headH: 36, sbw: 0 });
+  const [tab, setTab] = useState({ left: false, right: false, fits: true, headH: 36, sbw: 0, fill: 0, rowH: 45, tail: 0 });
+  // With only a few students the pane would show a big blank area. Empty rows (cells and
+  // gridlines, no text) fill it down to the bottom, like a spreadsheet.
+  const fillRows = (el: HTMLElement) => {
+    const real = Array.from(el.querySelectorAll('tbody tr:not(.bulk-fill)')) as HTMLElement[];
+    const head = (el.querySelector('thead th') as HTMLElement | null)?.offsetHeight ?? 36;
+    if (real.length === 0) return { fill: 0, rowH: 45, tail: 0 };
+    const realH = real.reduce((n, r) => n + r.offsetHeight, 0);
+    const rowH = Math.max(24, Math.round(realH / real.length));
+    // Whole empty rows, then one shorter row for what is left, so the total is exactly the
+    // pane's height and no scroll bar appears for rows that are not there.
+    const free = Math.max(0, el.clientHeight - head - realH - 1);
+    const fill = Math.floor(free / rowH);
+    return { fill, rowH, tail: free - fill * rowH };
+  };
   useEffect(() => {
     const el = gridEl;
     if (!el) return;
@@ -167,6 +181,7 @@ export const BulkScanReview = () => {
         fits: el.scrollWidth <= el.clientWidth + 1,
         headH: th?.offsetHeight ?? 36,
         sbw: Math.max(0, el.offsetWidth - el.clientWidth - 2),
+        ...fillRows(el),
       });
     };
     update();
@@ -473,6 +488,15 @@ export const BulkScanReview = () => {
                   <tr key={r.index} onClick={() => open(r.index)} style={{ cursor: 'pointer', background: band }}>
                     <td style={{ ...cell, position: 'sticky', left: 0, zIndex: 2, background: '#E8EEFB', fontWeight: 700, color: NAVY, boxShadow: `1px 0 0 ${GRID_LINE}` }}>{fullName(r.h, r.index)}</td>
                     {cols.map((c, ci) => <td key={c.label} style={ci === cols.length - 1 ? { ...cell, paddingRight: LAST_COL_PAD } : cell}>{c.cell(r)}</td>)}
+                  </tr>
+                );
+              })}
+              {Array.from({ length: tab.fill + (tab.tail > 2 ? 1 : 0) }, (_, k) => {
+                const band = (shown.length + k) % 2 ? '#F5F8FF' : '#fff';
+                return (
+                  <tr key={`fill-${k}`} className="bulk-fill" aria-hidden="true" style={{ background: band, height: k < tab.fill ? tab.rowH : tab.tail }}>
+                    <td style={{ ...cell, position: 'sticky', left: 0, zIndex: 2, background: '#E8EEFB', boxShadow: `1px 0 0 ${GRID_LINE}` }} />
+                    {cols.map((c) => <td key={c.label} style={cell} />)}
                   </tr>
                 );
               })}
