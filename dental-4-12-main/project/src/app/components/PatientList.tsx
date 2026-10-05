@@ -1719,7 +1719,7 @@ export const PatientList = () => {
                 <div className="flex items-center justify-between">
                   {stepTag}
                   {assignPicker.both && (
-                    <button onClick={() => setAssignPicker({ ...assignPicker, step: 'grade', grade: undefined })} className="rounded-full border border-border px-2.5 py-0.5 text-[11px] font-medium normal-case tracking-normal text-foreground hover:bg-canvas">‹ Back</button>
+                    <button onClick={() => setAssignPicker({ ...assignPicker, step: 'grade', grade: undefined })} className="rounded-full bg-primary px-2 py-px text-[10px] font-semibold normal-case leading-4 tracking-normal text-white hover:bg-primary-hover">‹ Back</button>
                   )}
                 </div>
               </div>
@@ -1741,8 +1741,6 @@ export const PatientList = () => {
                   + Add "{q}"
                 </button>
               )}
-              {!q && <p className="px-3 py-1.5 text-xs text-muted-foreground">Type a name to add a new section.</p>}
-              <p className="px-3 pb-1 pt-1 text-[11px] text-muted-foreground">Saves when you pick</p>
             </div>
           </>
         );
