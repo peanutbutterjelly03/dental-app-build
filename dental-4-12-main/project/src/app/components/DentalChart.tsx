@@ -329,13 +329,15 @@ export const DentalChart = () => {
   // browser clips the other too. An absolutely positioned dropdown opened
   // inside it rendered at full size and was cut off by the strip, which looked
   // exactly like the button doing nothing.
-  const [yearMenuAt, setYearMenuAt] = useState<{ top: number; right: number } | null>(null);
+  const [yearMenuAt, setYearMenuAt] = useState<{ top: number; left: number } | null>(null);
   // Which year chip's ⋮ is open (user, 2026-10-05: the menu lives inside the chip, top right).
   const [yearMenuIdx, setYearMenuIdx] = useState(0);
   const openYearMenu = (e: React.MouseEvent<HTMLElement>, idx: number) => {
     e.stopPropagation();
     const r = e.currentTarget.getBoundingClientRect();
-    setYearMenuAt({ top: r.bottom + 4, right: Math.max(8, window.innerWidth - r.right) });
+    // Opens to the right of the dot, not leftwards: the chips sit at the page's left edge, where a menu
+    // opening leftwards ran under the sidebar.
+    setYearMenuAt({ top: r.bottom + 4, left: Math.max(8, Math.min(r.left, window.innerWidth - 216)) });
     setYearMenuOpen((open) => !(open && yearMenuIdx === idx));
     setYearMenuIdx(idx);
   };
@@ -2073,7 +2075,7 @@ export const DentalChart = () => {
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setYearMenuOpen(false)} />
                   <div
-                    style={yearMenuAt ? { top: yearMenuAt.top, right: yearMenuAt.right } : undefined}
+                    style={yearMenuAt ? { top: yearMenuAt.top, left: yearMenuAt.left } : undefined}
                     className="fixed z-50 w-52 rounded-xl border border-border bg-card shadow-md py-1"
                   >
                     {years.length > 1 ? (
