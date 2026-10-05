@@ -431,11 +431,10 @@ export const TreatmentRecords = () => {
         // No shadow (user, 2026-09-28: "remove the shadows for both the
         // bottom corner of the treatment queue") -- was toned down per
         // Hide/shown state earlier the same day, now removed outright.
-        className="sticky top-0 z-30 flex flex-col bg-card border border-border overflow-clip rounded-2xl"
-        // User, 2026-10-05: the card is no longer stretched to the screen's edges. It is as tall
-        // as its rows (capped at the screen), so a short list ends with the card instead of
-        // leaving a tall empty box. Supersedes the 2026-09-28 fixed-height-when-paginated rule above.
-        style={{ maxHeight: regionHeight ?? undefined }}
+        className="flex flex-col bg-card border border-border overflow-clip rounded-2xl"
+        // User, 2026-10-05: nothing on the card is pinned. Its header, tabs, rows and pagination all
+        // scroll together with the page, and it is as tall as its rows. Supersedes the 2026-09-28
+        // pinned, fixed-height rule above.
       >
         {/* Dark green top accent bar. */}
         <div className="h-1.5 bg-[#0F9D74] flex-shrink-0" />
@@ -563,7 +562,7 @@ export const TreatmentRecords = () => {
           </div>
         </div>
 
-        <div ref={rowsBoxRef} className="min-h-0 flex-1 overflow-auto">
+        <div ref={rowsBoxRef} className="min-w-0 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
