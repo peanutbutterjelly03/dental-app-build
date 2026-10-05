@@ -1060,8 +1060,14 @@ export const PatientList = () => {
                 <span style={{ backgroundColor: kickerColor.light, color: kickerColor.solid }} className="text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap">
                   {schoolStudents.length} {schoolStudents.length === 1 ? 'STUDENT' : 'STUDENTS'}{selectedSchool ? '' : ' ACROSS 3 SCHOOLS'}
                 </span>
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap bg-green-100 text-green-800">
+                  SY {schoolYearLabel()}
+                </span>
               </div>
-                          </div>
+              <p className="mt-1 max-w-[62ch] text-sm text-muted-foreground">
+                {selectedSchool ? 'Everyone enrolled at this school.' : 'Everyone enrolled across all schools.'} Search, filter, queue for dental care, or open a student's chart.
+              </p>
+            </div>
             <div className="flex flex-shrink-0 items-center gap-2">
               {selectMode && (
                 <button
