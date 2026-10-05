@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Eye, FileText, X, School as SchoolIcon, List, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Users, Upload, CheckCircle, AlertCircle, ScanLine, CalendarClock, MoreVertical, ListChecks, Archive as ArchiveIcon, Copy, ListPlus } from 'lucide-react';
+import { Plus, Eye, FileText, X, School as SchoolIcon, List, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Users, Upload, CheckCircle, AlertCircle, ScanLine, CalendarClock, ListChecks, Archive as ArchiveIcon, Copy, ListPlus } from 'lucide-react';
 import { ConfirmDialog } from './ConfirmDialog';
 import { formatDate } from '../utils/localDate';
 import { OCR_CONFIDENCE_THRESHOLD, type IptrOcrFieldKey, type IptrCheckboxFinding } from '../utils/iptrOcrShared';
@@ -1114,7 +1114,7 @@ export const PatientList = () => {
                     className={`flex items-center justify-center h-[38px] w-[38px] rounded-[10px] bg-primary text-white ${bulkQueueMode ? 'opacity-40 cursor-not-allowed' : 'hover:brightness-110'}`}
                     title="More options"
                   >
-                    <MoreVertical className="w-4 h-4" />
+                    <ListChecks className="h-[19px] w-[19px]" strokeWidth={1.5} />
                   </button>
                   {showListMenu && !bulkQueueMode && (
                     <>
