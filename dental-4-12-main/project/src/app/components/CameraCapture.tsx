@@ -29,18 +29,13 @@ interface CameraCaptureProps {
 
 type Orientation = 'landscape' | 'portrait';
 
-/** Side margin of the guide, as a fraction of the frame width. Top and bottom are
- *  fixed pixel bands (below), so the guide always sits BETWEEN the controls and
- *  never under them. */
-const GUIDE_SIDE: Record<Orientation, number> = { landscape: 0.07, portrait: 0.12 };
-/** Room kept clear for the toggle/close row on top and the hint + shutter row below. */
-const GUIDE_TOP = 56;
-const GUIDE_BOTTOM = 108;
-
-/** `capture` only opens the camera app on touch devices (phones, tablets); a
- *  laptop browser ignores it and shows a file picker, so the button is only
- *  offered where it does what it says. */
-const canOpenCameraApp = () => typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
+/** Margin of the guide inside the frame, as fractions of its width/height. The
+ *  controls now sit OUTSIDE the frame (above and below it), so the guide can use
+ *  almost all of the picture and can never run under a button. */
+const GUIDE_INSET: Record<Orientation, { x: number; y: number }> = {
+  landscape: { x: 0.04, y: 0.07 },
+  portrait: { x: 0.07, y: 0.04 },
+};
 
 const glass = 'bg-white/20 border border-white/40 text-white backdrop-blur-sm';
 
@@ -50,8 +45,7 @@ export const CameraCapture = ({ onCapture, onClose }: CameraCaptureProps) => {
   const guideRef = useRef<HTMLDivElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const appInputRef = useRef<HTMLInputElement | null>(null);
-  const cameraApp = canOpenCameraApp();
-  const [error, setError] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
   const [orientation, setOrientation] = useState<Orientation>('landscape');
   const [photo, setPhoto] = useState<{ url: string; blob: Blob; width: number; height: number } | null>(null);
 
@@ -118,11 +112,11 @@ export const CameraCapture = ({ onCapture, onClose }: CameraCaptureProps) => {
     onCapture(new File([photo.blob], `iptr-capture-${Date.now()}.jpg`, { type: 'image/jpeg' }));
   };
 
-  const side = `${GUIDE_SIDE[orientation] * 100}%`;
-  const guideStyle = { left: side, right: side, top: GUIDE_TOP, bottom: GUIDE_BOTTOM };
+  const gi = GUIDE_INSET[orientation];
+  const guideStyle = { left: `${gi.x * 100}%`, right: `${gi.x * 100}%`, top: `${gi.y * 100}%`, bottom: `${gi.y * 100}%` };
 
   return (
-    <Modal onClose={onClose} maxWidth={orientation === 'portrait' && !photo ? 'max-w-[min(22rem,calc(80vh*0.5625))]' : 'max-w-2xl'}>
+    <Modal onClose={onClose} maxWidth={orientation === 'portrait' && !photo ? 'max-w-[min(22rem,calc((90vh-11rem)*0.5625))]' : 'max-w-2xl'}>
       {/* The device's own camera app. Whatever it returns goes straight into the scan flow. */}
       <input
         ref={appInputRef}
@@ -159,53 +153,57 @@ export const CameraCapture = ({ onCapture, onClose }: CameraCaptureProps) => {
             <button onClick={onClose} aria-label="Close" className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
           </div>
           <p className="text-sm text-destructive">{error}</p>
-          {cameraApp && (
-            <button type="button" onClick={() => appInputRef.current?.click()} className="flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">
-              <Smartphone className="h-4 w-4" /> Camera App
-            </button>
-          )}
+          <button type="button" onClick={() => appInputRef.current?.click()} className="flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">
+            <Smartphone className="h-4 w-4" /> Camera App
+          </button>
         </div>
       ) : (
-        <div ref={frameRef} className="relative w-full overflow-hidden bg-card" style={{ aspectRatio: orientation === 'landscape' ? '16 / 9' : '9 / 16' }}>
-          <video
-            // Callback ref: the <video> is unmounted while a captured photo is
-            // shown, so after Retake the new element needs the live stream again.
-            ref={(el) => {
-              videoRef.current = el;
-              if (el && streamRef.current && el.srcObject !== streamRef.current) el.srcObject = streamRef.current;
-            }}
-            autoPlay
-            playsInline
-            muted
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-          {/* Guide: dashed outline, everything outside it dimmed. */}
-          <div ref={guideRef} className="pointer-events-none absolute rounded-md border-2 border-dashed border-white/95" style={{ ...guideStyle, boxShadow: '0 0 0 999px rgba(0,0,0,0.38)' }} />
-          <div className="absolute inset-x-0 top-0 flex items-center justify-between gap-2 bg-gradient-to-b from-black/45 to-transparent p-3">
-            <div className={`inline-flex overflow-hidden rounded-full ${glass}`} role="group" aria-label="Photo shape">
+        <div className="flex flex-col">
+          {/* Controls above the picture, not on it: nothing can cover the guide. */}
+          <div className="flex items-center justify-between gap-2 px-3 py-2.5">
+            <div className="inline-flex overflow-hidden rounded-full border border-border" role="group" aria-label="Photo shape">
               {(['landscape', 'portrait'] as const).map((o) => (
                 <button
                   key={o}
                   type="button"
                   onClick={() => setOrientation(o)}
                   aria-pressed={orientation === o}
-                  className={`px-3 py-1 text-xs font-semibold capitalize ${orientation === o ? 'bg-white text-foreground' : 'text-white'}`}
+                  className={`px-3 py-1 text-xs font-semibold capitalize ${orientation === o ? 'bg-primary text-white' : 'text-foreground hover:bg-canvas'}`}
                 >
                   {o}
                 </button>
               ))}
             </div>
-            <button type="button" onClick={onClose} aria-label="Close" className={`grid h-8 w-8 place-items-center rounded-full ${glass}`}><X className="h-4 w-4" /></button>
+            <button type="button" onClick={onClose} aria-label="Close" className="grid h-8 w-8 place-items-center rounded-full border border-border text-muted-foreground hover:bg-canvas"><X className="h-4 w-4" /></button>
           </div>
-          <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 bg-gradient-to-t from-black/55 to-transparent p-3 pb-4">
-            <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${glass}`}>Line the form up with the outline</span>
-            <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center">
-              {cameraApp ? (
-                <button type="button" onClick={() => appInputRef.current?.click()} className={`inline-flex items-center gap-1.5 justify-self-start whitespace-nowrap rounded-full px-3 py-1.5 text-[11.5px] font-semibold ${glass}`}>
-                  <Smartphone className="h-3.5 w-3.5" /> Camera App
-                </button>
-              ) : <span />}
-              <button type="button" onClick={capture} aria-label="Capture" className="grid h-14 w-14 place-items-center rounded-full border-4 border-white/60 bg-white text-foreground shadow ring-2 ring-black/25 hover:bg-gray-100">
+          <div ref={frameRef} className="relative w-full overflow-hidden bg-card" style={{ aspectRatio: orientation === 'landscape' ? '16 / 9' : '9 / 16' }}>
+            <video
+              // Callback ref: the <video> is unmounted while a captured photo is
+              // shown, so after Retake the new element needs the live stream again.
+              ref={(el) => {
+                videoRef.current = el;
+                if (el && streamRef.current && el.srcObject !== streamRef.current) el.srcObject = streamRef.current;
+              }}
+              autoPlay
+              playsInline
+              muted
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+            {/* Guide: dashed outline, everything outside it dimmed. */}
+            <div ref={guideRef} className="pointer-events-none absolute rounded-md border-2 border-dashed border-white/95" style={{ ...guideStyle, boxShadow: '0 0 0 999px rgba(0,0,0,0.38)' }} />
+          </div>
+          <div className="grid gap-2 px-3 pb-3 pt-2">
+            <p className="text-center text-xs text-muted-foreground">Line the form up with the outline</p>
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center">
+              <button
+                type="button"
+                onClick={() => appInputRef.current?.click()}
+                title="Open this device's camera app (on a laptop the browser can only offer a file picker)"
+                className="inline-flex items-center gap-1.5 justify-self-start whitespace-nowrap rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-canvas"
+              >
+                <Smartphone className="h-3.5 w-3.5" /> Camera App
+              </button>
+              <button type="button" onClick={capture} aria-label="Capture" className="grid h-14 w-14 place-items-center rounded-full bg-primary text-white shadow ring-4 ring-primary/20 hover:bg-primary-hover">
                 <Camera className="h-5 w-5" />
               </button>
               <span />
