@@ -1393,7 +1393,7 @@ export const DentalChart = () => {
     { key: 'first_name', label: 'First Name', on: true },
     { key: 'birthday', label: 'Birthdate', on: true },
     { key: 'sex', label: 'Sex', on: true },
-    { key: 'not_student_role', label: 'Others', on: !!d.is_not_student },
+    { key: 'not_student_role', label: 'Relation to the school', on: !!d.is_not_student },
     { key: 'grade_level', label: 'Grade', on: !d.is_not_student },
     { key: 'section', label: 'Section', on: !d.is_not_student },
     { key: 'fourps_id', label: '4Ps ID', on: !!d.is_4ps },
@@ -2471,8 +2471,8 @@ export const DentalChart = () => {
           </div>
           {draftInfo.is_not_student && (
             <div className="mx-6 mt-3">
-              <label htmlFor="edit-not-student-role" className="block text-sm font-medium text-foreground mb-1">Others{infoReq('not_student_role')} <span className="text-muted-foreground font-normal">(Teacher, Staff, Guard, etc.)</span></label>
-              <input id="edit-not-student-role" type="text" maxLength={40} value={draftInfo.not_student_role ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, not_student_role: e.target.value }))} placeholder="Who is this person?" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              <label htmlFor="edit-not-student-role" className="block text-sm font-medium text-foreground mb-1">Relation to the school{infoReq('not_student_role')}</label>
+              <input id="edit-not-student-role" type="text" maxLength={40} value={draftInfo.not_student_role ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, not_student_role: e.target.value }))} placeholder="Teacher, Staff, Guard..." className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
               {infoMiss('not_student_role')}
             </div>
           )}

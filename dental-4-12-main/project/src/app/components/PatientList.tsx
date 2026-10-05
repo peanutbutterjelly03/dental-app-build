@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Check, Eye, FileText, X, School as SchoolIcon, List, ChevronLeft, ChevronRight, ChevronDown, Users, Upload, CheckCircle, AlertCircle, ScanLine, CalendarClock, ListChecks, Archive as ArchiveIcon, Copy, ListPlus } from 'lucide-react';
+import { Plus, Search, Check, Eye, FileText, X, School as SchoolIcon, List, ChevronLeft, ChevronRight, ChevronDown, Users, Upload, CheckCircle, AlertCircle, ScanLine, CalendarClock, ListChecks, Archive as ArchiveIcon, Copy, ListPlus } from 'lucide-react';
 import { ConfirmDialog } from './ConfirmDialog';
 import { formatDate } from '../utils/localDate';
 import { OCR_CONFIDENCE_THRESHOLD, type IptrOcrFieldKey, type IptrCheckboxFinding } from '../utils/iptrOcrShared';
@@ -175,7 +175,7 @@ export const REQUIRED_STUDENT_FIELDS: {
   { key: 'firstName', label: 'First Name' },
   { key: 'birthdate', label: 'Birthdate' },
   { key: 'gender', label: 'Gender' },
-  { key: 'notStudentRole', label: 'Others', onlyIf: (f) => f.isNotStudent },
+  { key: 'notStudentRole', label: 'Relation to the school', onlyIf: (f) => f.isNotStudent },
   { key: 'grade', label: 'Grade', onlyIf: (f) => !f.isNotStudent },
   { key: 'section', label: 'Section', onlyIf: (f) => !f.isNotStudent },
   // Guardian Name/Contact are NOT required (2026-09-04, user decision) —
@@ -1206,7 +1206,7 @@ export const PatientList = () => {
           <div className="flex flex-wrap items-center gap-2">
             <ListSearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search student, grade, or section" />
             <FilterSelect value={gradeFilter} onChange={v => { setGradeFilter(v); setSectionFilter('all'); }} label="All Grades"
-              options={[{ value: NO_GRADE, label: 'No Grade' }, ...GRADES.map(g => ({ value: g, label: g })), { value: OTHERS, label: 'Others' }]} />
+              options={[{ value: NO_GRADE, label: 'No Grade' }, ...GRADES.map(g => ({ value: g, label: g })), { value: OTHERS, label: 'Non-students' }]} />
             <FilterSelect value={sectionFilter} onChange={setSectionFilter} label="All Sections"
               options={[{ value: NO_SECTION, label: 'No Section' }, ...allSections.map(s => ({ value: s, label: s }))]} />
             <FilterSelect value={genderFilter} onChange={setGenderFilter} label="All Genders"
@@ -1353,7 +1353,44 @@ export const PatientList = () => {
             </thead>
             <tbody className="divide-y divide-border/60">
               {filtered.length === 0 ? (
-                <tr><td colSpan={9}className="text-center py-14 text-muted-foreground">{hasActiveFilters ? <>No students match your filters. <button onClick={clearFilters} className="text-primary hover:underline font-medium">Clear filters</button></> : 'No students at this school yet — use Add Student to register one.'}</td></tr>
+                <tr><td colSpan={9} className="py-12 text-center text-muted-foreground">{hasActiveFilters ? (() => {
+                  // One removable chip per active filter, so the person sees which
+                  // one emptied the list and can drop just that one.
+                  const chips: { key: string; label: string; clear: () => void }[] = [];
+                  if (searchTerm) chips.push({ key: 'q', label: `Search: ${searchTerm}`, clear: () => setSearchTerm('') });
+                  if (gradeFilter !== 'all') chips.push({ key: 'g', label: `Grade: ${gradeFilter === OTHERS ? 'Non-students' : gradeFilter === NO_GRADE ? 'No Grade' : gradeFilter}`, clear: () => setGradeFilter('all') });
+                  if (sectionFilter !== 'all') chips.push({ key: 's', label: `Section: ${sectionFilter === NO_SECTION ? 'No Section' : sectionFilter}`, clear: () => setSectionFilter('all') });
+                  if (genderFilter !== 'all') chips.push({ key: 'x', label: `Gender: ${genderFilter}`, clear: () => setGenderFilter('all') });
+                  if (ageGroupFilter !== 'all') chips.push({ key: 'a', label: `Age: ${ageGroupFilter}`, clear: () => setAgeGroupFilter('all') });
+                  const noOthers = gradeFilter === OTHERS;
+                  return (
+                    <div className="mx-auto flex max-w-md flex-col items-center gap-3">
+                      <span className="grid h-12 w-12 place-items-center rounded-full bg-canvas text-primary"><Search className="h-5 w-5" /></span>
+                      <h3 className="text-base font-bold text-foreground">No students match</h3>
+                      <div className="flex flex-wrap justify-center gap-2">
+                        {chips.map((c) => (
+                          <button key={c.key} onClick={c.clear} aria-label={`Remove filter ${c.label}`} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-canvas px-3 py-1 text-xs text-foreground hover:bg-muted">
+                            {c.label} <X className="h-3 w-3" />
+                          </button>
+                        ))}
+                      </div>
+                      {noOthers && (
+                        <p className="text-sm">Tick "Not a Student" when adding someone who is not enrolled, such as a teacher or staff member.</p>
+                      )}
+                      <div className="flex flex-wrap justify-center gap-2">
+                        <button onClick={clearFilters} className="rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white hover:bg-primary-hover">Clear all filters</button>
+                        {noOthers && canAddStudent && (
+                          <button
+                            onClick={() => { setOcrConfidences({}); setOcrFindings([]); setOcrFindingsNote(null); setOcrSourceLabel(null); setShowAddForm(true); }}
+                            className="inline-flex items-center gap-1.5 rounded-full border border-primary px-5 py-2 text-sm font-semibold text-primary hover:bg-primary-surface"
+                          >
+                            <Plus className="h-4 w-4" /> Add Student
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })() : 'No students at this school yet. Use Add Student to register one.'}</td></tr>
               ) : paged.map((student, i) => {
                 const age = calculateAge(student.birthdate);
                 const queuePosition = queuedStudentIds.indexOf(student.id);
@@ -1400,7 +1437,7 @@ export const PatientList = () => {
                     </td>
                     <td className="px-4 py-1.5 text-muted-foreground" onClick={(e) => e.stopPropagation()}>
                       {student.isNotStudent ? (
-                        <span className="inline-flex items-center whitespace-nowrap rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold leading-none text-foreground" title="Not a student">{student.notStudentRole || 'Others'}</span>
+                        <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold leading-none text-foreground" title="Not a student"><span className="h-[7px] w-[7px] rounded-full bg-violet-600" />{student.notStudentRole || 'Not a student'}</span>
                       ) : bulkQueueMode && !student.pending ? (
                         <button
                           onClick={() => toggleGradeCriterionQ(student.grade)}
@@ -1417,7 +1454,7 @@ export const PatientList = () => {
                     </td>
                     <td className="px-4 py-1.5 text-muted-foreground" onClick={(e) => e.stopPropagation()}>
                       {student.isNotStudent ? (
-                        <span className="text-muted-foreground">-</span>
+                        <span className="text-xs italic text-muted-foreground">Not Applicable</span>
                       ) : bulkQueueMode && !student.pending ? (
                         <button
                           onClick={() => toggleSectionCriterionQ(student.section)}
@@ -1744,14 +1781,14 @@ export const PatientList = () => {
             </div>
             {newPatient.isNotStudent && (
               <div className="mx-6 mt-3">
-                <label htmlFor="notStudentRole" className="block text-sm font-medium text-foreground mb-1">Others{req('notStudentRole')} <span className="text-muted-foreground font-normal">(Teacher, Staff, Guard, etc.)</span></label>
+                <label htmlFor="notStudentRole" className="block text-sm font-medium text-foreground mb-1">Relation to the school{req('notStudentRole')}</label>
                 <input
                   id="notStudentRole"
                   type="text"
                   maxLength={40}
                   value={newPatient.notStudentRole}
                   onChange={e => updateField('notStudentRole', e.target.value)}
-                  placeholder="Who is this person?"
+                  placeholder="Teacher, Staff, Guard..."
                   className={plainFieldClass}
                 />
                 {fieldError('notStudentRole')}
