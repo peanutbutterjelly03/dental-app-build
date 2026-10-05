@@ -1702,7 +1702,7 @@ export const PatientList = () => {
         const q = assignQuery.trim().replace(/\s+/g, ' ');
         const match = (x: string) => !q || x.toLowerCase().includes(q.toLowerCase());
         const exact = [...forGrade, ...others].find((x) => x.toLowerCase() === q.toLowerCase());
-        const row = 'flex w-full items-center px-3 py-1.5 text-left text-sm text-foreground hover:bg-canvas disabled:opacity-50';
+        const row = 'flex w-full items-center px-3 py-1 text-left text-xs text-foreground hover:bg-canvas disabled:opacity-50';
         const save = (section: string) => void saveAssign(target.id, chosenGrade, section);
         const list = (title: string, items: string[]) => items.length === 0 ? null : (
           <>
@@ -1716,7 +1716,12 @@ export const PatientList = () => {
             <div data-floating-menu style={place} className={`${shell} max-h-80 overflow-y-auto`}>
               <div className={head}>
                 <span className="flex items-center gap-1.5 whitespace-nowrap">Section for <span className="whitespace-nowrap rounded-full px-2 py-0.5 text-[10.5px] font-semibold normal-case tracking-normal" style={{ backgroundColor: gcol.light, color: gcol.solid }}>{chosenGrade}</span></span>
-                {stepTag}
+                <div className="flex items-center justify-between">
+                  {stepTag}
+                  {assignPicker.both && (
+                    <button onClick={() => setAssignPicker({ ...assignPicker, step: 'grade', grade: undefined })} className="rounded-full border border-border px-2.5 py-0.5 text-[11px] font-medium normal-case tracking-normal text-foreground hover:bg-canvas">‹ Back</button>
+                  )}
+                </div>
               </div>
               <div className="px-2 pb-1">
                 <input
@@ -1726,23 +1731,18 @@ export const PatientList = () => {
                   onKeyDown={(e) => { if (e.key === 'Enter' && q) save(exact ?? q); if (e.key === 'Escape') setAssignPicker(null); }}
                   placeholder="Search or add a section"
                   aria-label={`Section for ${target.name}`}
-                  className="w-full rounded-lg border border-primary px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="w-full rounded-lg border border-primary px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
               {list(`${chosenGrade} sections`, forGrade.filter(match))}
               {list('Other sections', others.filter(match))}
               {q && !exact && (
-                <button disabled={assignSaving} onClick={() => save(q)} className="flex w-full items-center px-3 py-2 text-left text-sm font-semibold text-primary hover:bg-canvas disabled:opacity-50">
+                <button disabled={assignSaving} onClick={() => save(q)} className="flex w-full items-center px-3 py-1.5 text-left text-xs font-semibold text-primary hover:bg-canvas disabled:opacity-50">
                   + Add "{q}"
                 </button>
               )}
               {!q && <p className="px-3 py-1.5 text-xs text-muted-foreground">Type a name to add a new section.</p>}
-              <div className="flex items-center justify-between border-t border-border px-3 pt-1.5">
-                {assignPicker.both ? (
-                  <button onClick={() => setAssignPicker({ ...assignPicker, step: 'grade', grade: undefined })} className="rounded-full border border-border px-3 py-1 text-xs font-medium text-foreground hover:bg-canvas">‹ Back</button>
-                ) : <span />}
-                <span className="text-xs text-muted-foreground">Saves when you pick</span>
-              </div>
+              <p className="px-3 pb-1 pt-1 text-[11px] text-muted-foreground">Saves when you pick</p>
             </div>
           </>
         );
