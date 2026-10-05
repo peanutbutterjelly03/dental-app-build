@@ -116,7 +116,7 @@ export const CameraCapture = ({ onCapture, onClose }: CameraCaptureProps) => {
   const guideStyle = { left: `${gi.x * 100}%`, right: `${gi.x * 100}%`, top: `${gi.y * 100}%`, bottom: `${gi.y * 100}%` };
 
   return (
-    <Modal onClose={onClose} maxWidth={photo ? (photo.height > photo.width ? 'max-w-sm' : 'max-w-2xl') : orientation === 'portrait' ? 'max-w-[min(22rem,calc((90vh-11rem)*0.5625))]' : 'max-w-2xl'}>
+    <Modal onClose={onClose} maxWidth={photo ? (photo.height > photo.width ? 'max-w-[min(22rem,calc((90vh-9rem)*0.5))]' : 'max-w-2xl') : orientation === 'portrait' ? 'max-w-[min(22rem,calc((90vh-11rem)*0.5625))]' : 'max-w-2xl'}>
       {/* The device's own camera app. Whatever it returns goes straight into the scan flow. */}
       <input
         ref={appInputRef}
@@ -137,7 +137,7 @@ export const CameraCapture = ({ onCapture, onClose }: CameraCaptureProps) => {
               the review looks like what was framed instead of a zoomed-in crop. */}
           <div className="relative w-full overflow-hidden bg-card">
             {/* eslint-disable-next-line jsx-a11y/img-redundant-alt -- fine, this is an internal review tool, not user-facing alt text */}
-            <img src={photo.url} alt="Captured form" className="mx-auto block h-auto w-auto max-w-full object-contain" style={{ maxHeight: 'calc(90vh - 7rem)' }} />
+            <img src={photo.url} alt="Captured form" className="block h-auto w-full" />
             <button type="button" onClick={onClose} aria-label="Close" className={`absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-full ${glass}`}><X className="h-4 w-4" /></button>
           </div>
           <div className="flex justify-center gap-3 p-4">
