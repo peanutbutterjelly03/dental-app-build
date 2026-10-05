@@ -657,7 +657,7 @@ export const TreatmentRecords = () => {
               })}
             </tbody>
           </table>
-          {/* "Hide" collapses the footer to this thin reveal tab -- placed
+          {/* Pagination (user, 2026-10-05) is the last row of the scrolling list, not pinned under it. "Hide" collapses the footer to this thin reveal tab -- placed
               INSIDE the scrollable box, as the last row of its content, not
               pinned below it: it only comes into view once you've scrolled
               to the end of the list, same as any other row would. Same
@@ -672,19 +672,19 @@ export const TreatmentRecords = () => {
               <ChevronUp className="h-3 w-3" /> Show pagination controls
             </button>
           )}
+          {!hidePagination && filtered.length > 0 && (
+            <div className="px-4 py-3 border-t border-border">
+              <Pagination
+                {...pager}
+                onPage={pager.setPage}
+                onPageSize={pager.changePageSize}
+                onHide={() => setHidePagination(true)}
+                noun="students"
+                detail={selectedSchool ? `at ${selectedSchool}` : ''}
+              />
+            </div>
+          )}
         </div>
-        {!hidePagination && filtered.length > 0 && (
-          <div className="px-4 py-3 border-t border-border flex-shrink-0">
-            <Pagination
-              {...pager}
-              onPage={pager.setPage}
-              onPageSize={pager.changePageSize}
-              onHide={() => setHidePagination(true)}
-              noun="students"
-              detail={selectedSchool ? `at ${selectedSchool}` : ''}
-            />
-          </div>
-        )}
       </div>
 
       <ConfirmDialog
