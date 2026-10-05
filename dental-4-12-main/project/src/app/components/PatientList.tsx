@@ -380,7 +380,10 @@ export const PatientList = () => {
   const [rowMenu, setRowMenu] = useState<{ id: string; top: number; right: number } | null>(null);
   // Assign Grade / Assign Section picker: one field at a time, anchored to the
   // prompt that opened it (FIXED, taken from the button's rect).
-  const [assignPicker, setAssignPicker] = useState<{ kind: 'grade' | 'section'; id: string; left: number; top?: number; bottom?: number } | null>(null);
+  // `step` is what the popover is asking now; `both` means the student has neither
+  // value, so it asks grade, then section, and saves the PAIR at the end (a student
+  // is never saved with only one of them). `grade` holds the grade picked in step 1.
+  const [assignPicker, setAssignPicker] = useState<{ id: string; step: 'grade' | 'section'; both: boolean; grade?: string; left: number; top?: number; bottom?: number } | null>(null);
   const [assignQuery, setAssignQuery] = useState('');
   const [assignSaving, setAssignSaving] = useState(false);
   // A fixed popover does not move with the page, so scrolling or resizing closes
@@ -396,12 +399,17 @@ export const PatientList = () => {
     window.addEventListener('resize', close);
     return () => { window.removeEventListener('scroll', close, true); window.removeEventListener('resize', close); };
   }, [assignPicker, rowMenu]);
-  const openAssignPicker = (kind: 'grade' | 'section', id: string, e: React.MouseEvent<HTMLButtonElement>) => {
+  const openAssignPicker = (id: string, e: React.MouseEvent<HTMLButtonElement>) => {
+    const student = allStudents.find((s) => s.id === id);
+    if (!student) return;
     const r = e.currentTarget.getBoundingClientRect();
     const left = Math.max(8, Math.min(r.left, window.innerWidth - 264));
     const above = r.bottom + 300 > window.innerHeight && r.top > 300;
+    // Either prompt opens the same picker, asking only for what is missing:
+    // grade first when there is none, otherwise the section.
+    const base = { id, step: student.grade ? 'section' as const : 'grade' as const, both: !student.grade && !student.section, left };
     setAssignQuery('');
-    setAssignPicker(above ? { kind, id, left, bottom: window.innerHeight - r.top + 4 } : { kind, id, left, top: r.bottom + 4 });
+    setAssignPicker(above ? { ...base, bottom: window.innerHeight - r.top + 4 } : { ...base, top: r.bottom + 4 });
   };
   const [tickedIds, setTickedIds] = useState<Set<string>>(new Set());
   const [confirmArchiveTicked, setConfirmArchiveTicked] = useState(false);
@@ -797,43 +805,37 @@ export const PatientList = () => {
     return sc?.status === 'started' ? st!.nextYear : (st?.currentYear ?? schoolYearLabel());
   };
 
-  // Saves ONE field (grade or section) for one student: the student's current
-  // value, then the same field on that school year's record, so this list and
-  // Update School Year agree. A school year that has started already has an
-  // empty record; otherwise one is opened for the year.
-  const saveAssign = async (studentId: string, kind: 'grade' | 'section', rawValue: string) => {
+  // Saves a student's grade AND section together (never one without the other):
+  // the student's current values, then the same pair on that school year's
+  // record, so this list and Update School Year agree. A school year that has
+  // started already has an empty record; otherwise one is opened for the year.
+  const saveAssign = async (studentId: string, rawGrade: string, rawSection: string) => {
     const student = allStudents.find((s) => s.id === studentId);
-    const value = rawValue.trim().replace(/\s+/g, ' ');
-    if (!student || !value || assignSaving) return;
-    const field = kind === 'grade' ? 'grade_level' : 'section';
+    const grade = rawGrade.trim();
+    const section = rawSection.trim().replace(/\s+/g, ' ');
+    if (!student || !grade || !section || assignSaving) return;
     setAssignSaving(true);
     try {
-      await apiClient.put(`/students/${studentId}`, { [field]: value });
+      await apiClient.put(`/students/${studentId}`, { grade_level: grade, section });
       let yearSaved = true;
       try {
         const year = yearForSchool(student.school);
         const iptrs = await apiClient.get<ApiStudentIptr[]>(`/student-iptrs?student_id=${studentId}`);
         const mine = iptrs.find((i) => i.school_year === year);
         if (mine) {
-          await apiClient.put(`/student-iptrs/${mine._id}`, { [field]: value });
+          await apiClient.put(`/student-iptrs/${mine._id}`, { grade_level: grade, section });
         } else {
-          await apiClient.post('/student-iptrs', {
-            student_id: studentId,
-            school_year: year,
-            grade_level: kind === 'grade' ? value : (student.grade || null),
-            section: kind === 'section' ? value : (student.section || null),
-            consent_status: 'pending',
-          });
+          await apiClient.post('/student-iptrs', { student_id: studentId, school_year: year, grade_level: grade, section, consent_status: 'pending' });
         }
       } catch {
         yearSaved = false;
       }
       setAssignPicker(null);
       await reloadStudents();
-      if (yearSaved) toast.success(kind === 'grade' ? `${student.name} is now in ${value}.` : `${student.name} is now in section ${value}.`);
-      else toast.error(`${student.name}'s ${kind} is saved, but this school year's record could not be updated. Open Update School Year to check it.`);
+      if (yearSaved) toast.success(`${student.name} is now in ${grade}, section ${section}.`);
+      else toast.error(`${student.name}'s grade and section are saved, but this school year's record could not be updated. Open Update School Year to check it.`);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : `Could not save the ${kind}.`);
+      toast.error(err instanceof ApiError ? err.message : 'Could not save the grade and section.');
     } finally {
       setAssignSaving(false);
     }
@@ -1529,7 +1531,7 @@ export const PatientList = () => {
                           <GradePill grade={student.grade} />
                         </button>
                       ) : !student.grade ? (
-                        <AssignPrompt label="grade" enabled={canAddStudent && !student.pending} onAssign={(e) => openAssignPicker('grade', student.id, e)} />
+                        <AssignPrompt label="grade" enabled={canAddStudent && !student.pending} onAssign={(e) => openAssignPicker(student.id, e)} />
                       ) : (
                         <GradePill grade={student.grade} />
                       )}
@@ -1546,7 +1548,7 @@ export const PatientList = () => {
                           {student.section}
                         </button>
                       ) : !student.section ? (
-                        <AssignPrompt label="section" enabled={canAddStudent && !student.pending} onAssign={(e) => openAssignPicker('section', student.id, e)} />
+                        <AssignPrompt label="section" enabled={canAddStudent && !student.pending} onAssign={(e) => openAssignPicker(student.id, e)} />
                       ) : (
                         student.section
                       )}
@@ -1664,18 +1666,25 @@ export const PatientList = () => {
         const place = { left: assignPicker.left, top: assignPicker.top, bottom: assignPicker.bottom };
         const shell = 'fixed z-50 w-64 overflow-hidden rounded-xl border border-border bg-card py-1 shadow-lg';
         const head = 'px-3 pb-1 pt-1.5 text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground';
-        if (assignPicker.kind === 'grade') {
+        const stepTag = assignPicker.both ? <span>Step {assignPicker.step === 'grade' ? 1 : 2} of 2</span> : null;
+        if (assignPicker.step === 'grade') {
           // BTIS runs Kinder to Grade 10; the other two schools stop at Grade 6.
           const grades = /integrated/i.test(target.school) ? GRADES : GRADES.slice(0, 7);
+          // Neither value set: remember the grade and ask for the section. Only a
+          // grade missing (the student already has a section): save the pair now.
+          const pickGrade = (g: string) => {
+            if (assignPicker.both) { setAssignQuery(''); setAssignPicker({ ...assignPicker, step: 'section', grade: g }); }
+            else void saveAssign(target.id, g, target.section);
+          };
           return (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setAssignPicker(null)} />
               <div data-floating-menu role="listbox" aria-label={`Assign grade to ${target.name}`} style={place} className={`${shell} max-h-72 overflow-y-auto`}>
-                <p className={head}>Grade</p>
+                <p className={`${head} flex justify-between`}><span>Grade</span>{stepTag}</p>
                 {grades.map((g) => {
                   const gc = getGradeColor(g);
                   return (
-                    <button key={g} role="option" aria-selected={false} disabled={assignSaving} onClick={() => void saveAssign(target.id, 'grade', g)} className="flex w-full items-center px-3 py-1.5 text-left hover:bg-canvas disabled:opacity-50">
+                    <button key={g} role="option" aria-selected={false} disabled={assignSaving} onClick={() => pickGrade(g)} className="flex w-full items-center px-3 py-1.5 text-left hover:bg-canvas disabled:opacity-50">
                       <span className="rounded-full px-3 py-0.5 text-xs font-semibold" style={{ backgroundColor: gc.light, color: gc.solid }}>{g}</span>
                     </button>
                   );
@@ -1684,47 +1693,56 @@ export const PatientList = () => {
             </>
           );
         }
-        // Section: this school's existing names, the student's own grade first.
+        // Section step: this school's existing names, the student's own grade first.
+        const chosenGrade = assignPicker.grade ?? target.grade;
+        const gcol = getGradeColor(chosenGrade);
         const atSchool = allStudents.filter((x) => x.school === target.school && !x.isNotStudent && x.section);
-        const forGrade = target.grade ? [...new Set(atSchool.filter((x) => x.grade === target.grade).map((x) => x.section))].sort() : [];
+        const forGrade = [...new Set(atSchool.filter((x) => x.grade === chosenGrade).map((x) => x.section))].sort();
         const others = [...new Set(atSchool.map((x) => x.section))].filter((x) => !forGrade.includes(x)).sort();
         const q = assignQuery.trim().replace(/\s+/g, ' ');
         const match = (x: string) => !q || x.toLowerCase().includes(q.toLowerCase());
         const exact = [...forGrade, ...others].find((x) => x.toLowerCase() === q.toLowerCase());
         const row = 'flex w-full items-center px-3 py-1.5 text-left text-sm text-foreground hover:bg-canvas disabled:opacity-50';
+        const save = (section: string) => void saveAssign(target.id, chosenGrade, section);
         const list = (title: string, items: string[]) => items.length === 0 ? null : (
           <>
             <p className={head}>{title}</p>
-            {items.map((x) => <button key={x} disabled={assignSaving} onClick={() => void saveAssign(target.id, 'section', x)} className={row}>{x}</button>)}
+            {items.map((x) => <button key={x} disabled={assignSaving} onClick={() => save(x)} className={row}>{x}</button>)}
           </>
         );
         return (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setAssignPicker(null)} />
             <div data-floating-menu style={place} className={`${shell} max-h-80 overflow-y-auto`}>
-              <div className="px-2 pb-1 pt-1">
+              <p className={`${head} flex items-center justify-between gap-2`}>
+                <span className="flex items-center gap-1.5">Section for <span className="rounded-full px-2 py-0.5 text-[10.5px] font-semibold normal-case tracking-normal" style={{ backgroundColor: gcol.light, color: gcol.solid }}>{chosenGrade}</span></span>
+                {stepTag}
+              </p>
+              <div className="px-2 pb-1">
                 <input
                   autoFocus
                   value={assignQuery}
                   onChange={(e) => setAssignQuery(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && q) void saveAssign(target.id, 'section', exact ?? q); if (e.key === 'Escape') setAssignPicker(null); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && q) save(exact ?? q); if (e.key === 'Escape') setAssignPicker(null); }}
                   placeholder="Search or add a section"
                   aria-label={`Section for ${target.name}`}
                   className="w-full rounded-lg border border-primary px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
-              {target.grade ? (
-                <>
-                  {list(`${target.grade} sections`, forGrade.filter(match))}
-                  {list('Other sections', others.filter(match))}
-                </>
-              ) : list('Sections', others.filter(match))}
+              {list(`${chosenGrade} sections`, forGrade.filter(match))}
+              {list('Other sections', others.filter(match))}
               {q && !exact && (
-                <button disabled={assignSaving} onClick={() => void saveAssign(target.id, 'section', q)} className="flex w-full items-center px-3 py-2 text-left text-sm font-semibold text-primary hover:bg-canvas disabled:opacity-50">
+                <button disabled={assignSaving} onClick={() => save(q)} className="flex w-full items-center px-3 py-2 text-left text-sm font-semibold text-primary hover:bg-canvas disabled:opacity-50">
                   + Add "{q}"
                 </button>
               )}
-              {!q && <p className="px-3 py-2 text-xs text-muted-foreground">Type a name to add a new section.</p>}
+              {!q && <p className="px-3 py-1.5 text-xs text-muted-foreground">Type a name to add a new section.</p>}
+              <div className="flex items-center justify-between border-t border-border px-3 pt-1.5">
+                {assignPicker.both ? (
+                  <button onClick={() => setAssignPicker({ ...assignPicker, step: 'grade', grade: undefined })} className="rounded-full border border-border px-3 py-1 text-xs font-medium text-foreground hover:bg-canvas">‹ Back</button>
+                ) : <span />}
+                <span className="text-xs text-muted-foreground">Saves when you pick</span>
+              </div>
             </div>
           </>
         );
