@@ -280,14 +280,24 @@ export const BulkScanReview = () => {
       if (!el) return;
       const parent = el.parentElement;
       const cs = parent ? getComputedStyle(parent) : null;
-      const padB = cs ? parseFloat(cs.paddingBottom) || 0 : 0;
       const padR = cs ? parseFloat(cs.paddingRight) || 0 : 0;
-      setEdge({ r: padR, b: padB });
+      // Whatever space the layout leaves BELOW this page (its own bottom padding, however many
+      // wrappers it comes from) is measured, not assumed, and cancelled with a negative margin.
+      // Without that the document scrolls a little past the page, the pinned table is pushed up
+      // under the top bar, and a gap shows at the bottom of the screen.
+      const below = document.documentElement.scrollHeight - (el.getBoundingClientRect().bottom + window.scrollY);
+      setEdge((prev) => {
+        const b = Math.max(0, Math.round(prev.b + below));
+        return prev.r === padR && prev.b === b ? prev : { r: padR, b };
+      });
     };
     window.scrollTo(0, 0);
     fit();
+    const raf = requestAnimationFrame(fit);
     window.addEventListener('resize', fit);
-    return () => window.removeEventListener('resize', fit);
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(fit) : null;
+    if (shellRef.current) ro?.observe(shellRef.current);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', fit); ro?.disconnect(); };
   }, []);
 
   const rows: Row[] = useMemo(
