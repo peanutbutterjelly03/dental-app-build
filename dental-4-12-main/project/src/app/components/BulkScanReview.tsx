@@ -86,7 +86,7 @@ const Status = ({ r, saved, dup, decision, onCompare }: {
   // Wording (user, 2026-10-04): "records" = the system, "upload" = the
   // spreadsheet, so "file" never means both on one screen.
   if (decision === 'skip') {
-    const label = dup && !dup.onFile.length && dup.inFile.length ? 'Skipped: repeated row' : 'Skipped: already in records';
+    const label = dup && !dup.onFile.length && dup.inFile.length ? 'Skipped, repeated row' : 'Skipped, already in records';
     // Skipped goes GREY (it will not be saved) but stays clickable to change the decision.
     return dup
       ? <button type="button" onClick={(e) => { e.stopPropagation(); onCompare(); }} title="Compare side by side, or change the decision"
