@@ -160,16 +160,23 @@ export const ScanStudentForm = () => {
     setError(null);
     setProcessing(true);
     try {
-      // A spreadsheet holds many students, so it takes the bulk path whichever
-      // button opened this page (2026-10-04). Without ?bulk=1 a spreadsheet used
-      // to go through readOne, which keeps records[0] only: a 5-pupil file
-      // opened the single Verify screen for the first pupil and silently
-      // dropped the other four. A one-row spreadsheet still verifies singly.
+      // The bulk review page belongs to the top OCR button (?bulk=1) ONLY (user,
+      // 2026-10-05). Add Student > Scan Form is the one-student flow, so a file
+      // that holds many students is refused here with a pointer to the OCR
+      // button, rather than opening the bulk page. It must not fall through to
+      // readOne either: that keeps records[0] only and would silently drop the
+      // rest. A one-row spreadsheet still verifies singly.
       const sheetCount = files.filter((f) => isSpreadsheet(f.name)).length;
       const singleSheetRows = files.length === 1 && sheetCount === 1
         ? (await parseSpreadsheetRecords(files[0]).catch(() => [])).length
         : 0;
-      if (bulk || singleSheetRows > 1 || (files.length > 1 && sheetCount > 0)) {
+      if (!bulk && (singleSheetRows > 1 || (files.length > 1 && sheetCount > 0))) {
+        setError(singleSheetRows > 1
+          ? `This spreadsheet has ${singleSheetRows} students. Close this page and use the OCR button on Student Records to upload many students at once.`
+          : 'Spreadsheets with many students cannot be mixed in here. Close this page and use the OCR button on Student Records to upload many students at once.');
+        return;
+      }
+      if (bulk) {
         // Bulk: a spreadsheet gives one student PER ROW; an image or PDF gives one per file.
         const queue: ExtractedHandoff[] = [];
         for (const [i, file] of files.entries()) {
