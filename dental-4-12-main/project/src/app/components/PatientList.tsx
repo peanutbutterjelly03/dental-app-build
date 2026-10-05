@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Eye, FileText, X, School as SchoolIcon, List, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Users, Upload, CheckCircle, AlertCircle, ScanLine, CalendarClock, ListChecks, Archive as ArchiveIcon, Copy, ListPlus } from 'lucide-react';
+import { Plus, Check, Eye, FileText, X, School as SchoolIcon, List, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Users, Upload, CheckCircle, AlertCircle, ScanLine, CalendarClock, ListChecks, Archive as ArchiveIcon, Copy, ListPlus } from 'lucide-react';
 import { ConfirmDialog } from './ConfirmDialog';
 import { formatDate } from '../utils/localDate';
 import { OCR_CONFIDENCE_THRESHOLD, type IptrOcrFieldKey, type IptrCheckboxFinding } from '../utils/iptrOcrShared';
@@ -1499,7 +1499,22 @@ export const PatientList = () => {
               ) : duplicatesError ? (
                 <p className="text-sm text-destructive py-8 text-center">{duplicatesError}</p>
               ) : total === 0 ? (
-                <p className="text-sm text-muted-foreground py-8 text-center">No likely duplicates found.</p>
+                <div className="flex flex-col items-center gap-2 py-6 text-center">
+                  <span className="grid h-14 w-14 place-items-center rounded-full bg-green-100 text-green-700"><Check className="h-7 w-7" strokeWidth={2.2} /></span>
+                  <h3 className="text-base font-bold text-foreground">No duplicates found</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {schoolStudents.length} {schoolStudents.length === 1 ? 'record' : 'records'} scanned {selectedSchool ? 'at this school' : 'across all schools'}.
+                    <br />Compared on:
+                  </p>
+                  <ul className="mt-1 space-y-1.5 text-sm text-foreground">
+                    {['Same name', 'Same birthday', 'Same sex'].map((rule) => (
+                      <li key={rule} className="flex items-center gap-2">
+                        <span className="grid h-[18px] w-[18px] place-items-center rounded-full bg-green-100 text-green-700"><Check className="h-3 w-3" strokeWidth={3} /></span>
+                        {rule}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ) : (
                 <>
                   <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
@@ -1543,6 +1558,11 @@ export const PatientList = () => {
                 </>
               )}
             </div>
+            {!duplicatesLoading && !duplicatesError && total === 0 && (
+              <div className="flex justify-end border-t border-border px-6 py-4">
+                <button onClick={() => setShowDuplicates(false)} className="rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white hover:bg-primary-hover">Close</button>
+              </div>
+            )}
             {!duplicatesLoading && !duplicatesError && total > 0 && (
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-6 py-4">
                 <button
