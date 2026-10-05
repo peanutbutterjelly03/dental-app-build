@@ -448,14 +448,15 @@ export const DentalChartNav = () => {
   ];
 
   return (
-    <div ref={regionRef} className="space-y-4 overflow-y-auto no-scrollbar -mb-4 md:-mb-8" style={{ height: regionHeight ?? undefined }}>
+    <div ref={regionRef} className="space-y-4 overflow-y-auto no-scrollbar -mt-2 md:-mt-6 -mb-4 md:-mb-8" style={{ height: regionHeight ?? undefined }}>
+      {/* The region starts 0.5rem (1.5rem on laptop) above the page padding so the pinned queue card sits closer to the top bar; the header's own top padding gives that back at rest. */}
       {/* Page-level identity header, above the stat row and the queue itself
           (user, 2026-09-25). No card/border -- sits directly on the page.
           Generic module eyebrow ("Clinical Services") instead of the school
           name, which is already shown in the top bar; description is a
           fixed line about what the module does, not a live count (the
           queue card below already gives the real number). */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 pt-2 md:pt-6">
         <span style={{ backgroundColor: kickerColor.light }} className="w-12 h-12 rounded-2xl grid place-items-center flex-shrink-0">
           <Stethoscope style={{ color: kickerColor.solid }} className="w-6 h-6" />
         </span>
