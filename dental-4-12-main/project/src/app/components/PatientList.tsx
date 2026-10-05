@@ -1214,12 +1214,22 @@ export const PatientList = () => {
                 >
                   {allFilteredSelected && <Check className="h-3 w-3" strokeWidth={3} />} All
                 </button>
+                {/* Deselect all: drops every ticked student and every chosen
+                    grade/section chip, but stays in bulk mode. */}
+                {tickedIds.size > 0 && (
+                  <button
+                    onClick={() => { setTickedIds(new Set()); setActiveGradeCriteriaQ(new Set()); setActiveSectionCriteriaQ(new Set()); }}
+                    className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-[#ff6b6b]/60 px-[11px] py-1 text-xs text-red-300 hover:bg-white/10"
+                  >
+                    <X className="h-3 w-3" /> Deselect all
+                  </button>
+                )}
               </div>
               <div className="flex items-center gap-3">
                 <button
                   disabled={tickedIds.size === 0}
                   onClick={bulkQueueTicked}
-                  className={`rounded-full px-4 py-2 text-xs font-semibold ${
+                  className={`rounded-full px-4 py-2 text-xs font-bold ${
                     tickedIds.size === 0 ? 'cursor-not-allowed bg-white/10 text-white/40' : 'bg-[#3a54b4] text-white hover:brightness-110'
                   }`}
                 >
