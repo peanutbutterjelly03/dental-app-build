@@ -6,7 +6,11 @@ import { REQUIRED_STUDENT_FIELDS, type DuplicateCandidate } from './PatientList'
 import type { ExtractedHandoff } from './ScanStudentForm';
 import { calculateAge } from '../utils/age';
 import { TOPBAR_H } from '../utils/layout';
-import { apiClient } from '../api/client';
+import { apiClient, ApiError } from '../api/client';
+import type { ApiSchool } from '../api/types';
+import { useToast } from './Toast';
+import { schoolYearLabel } from '../utils/schoolYear';
+import { validateStudentValues } from '../../../shared/studentValidation';
 import { inFileDuplicates, type DupDecisions } from '../utils/bulkDuplicates';
 
 // Bulk upload review (user, 2026-10-01): the OCR button reads several forms or a
@@ -107,6 +111,11 @@ export const BulkScanReview = () => {
   const [compareIndex, setCompareIndex] = useState<number | null>(null);
   // Back asks first: leaving throws away the list that was read from the upload.
   const [confirmLeave, setConfirmLeave] = useState(false);
+  // Import: ask first, show progress, and list anything the server refused.
+  const toast = useToast();
+  const [confirmImport, setConfirmImport] = useState(false);
+  const [importing, setImporting] = useState<{ done: number; total: number } | null>(null);
+  const [importFailures, setImportFailures] = useState<string[] | null>(null);
   const keyRows = useMemo(
     () => (queue ?? []).map((h) => (h.readError ? null : {
       school: h.newPatient.school, birthdate: h.newPatient.birthdate, lastName: h.newPatient.lastName, firstName: h.newPatient.firstName,
@@ -361,6 +370,68 @@ export const BulkScanReview = () => {
   const dupCount = rows.filter(unresolvedDup).length;
   const shown = onlyFixes ? rows.filter(isFix) : rows;
 
+  // Everything that is ready and not skipped or already saved. Import is only offered when
+  // NOTHING is left needing a fix, so a half-checked list is never saved by accident.
+  const importable = () => rows.filter((r) => !saved.has(r.index) && dupDecisions[r.index] !== 'skip'
+    && !r.h.readError && r.missing.length === 0 && !unresolvedDup(r));
+  const skippedCount = rows.filter((r) => !saved.has(r.index) && dupDecisions[r.index] === 'skip').length;
+  const canImport = fixes > 0 ? false : ready > 0 && !importing;
+  const runImport = async () => {
+    const todo = importable();
+    setConfirmImport(false);
+    setImporting({ done: 0, total: todo.length });
+    let schools: ApiSchool[] = [];
+    try { schools = await apiClient.get<ApiSchool[]>('/schools'); } catch { /* every row then reports the school as not found */ }
+    const okIdx: number[] = [];
+    const failed: string[] = [];
+    for (const [n, r] of todo.entries()) {
+      const f = r.h.newPatient;
+      try {
+        const problems = validateStudentValues({
+          lastName: f.lastName, firstName: f.firstName, middleName: f.middleName,
+          birthdate: f.birthdate, contactNumber: f.contactNumber, guardianContact: f.guardianContact,
+        });
+        if (problems.length) throw new Error(problems.join(' '));
+        const school = schools.find((s) => s.school_name === f.school);
+        if (!school) throw new Error('School not found.');
+        const created = await apiClient.post<{ _id?: string }>('/students', {
+          school_id: school._id,
+          last_name: f.lastName, first_name: f.firstName, middle_name: f.middleName,
+          birthday: f.birthdate, sex: f.gender, address: f.address, contact_number: f.contactNumber,
+          grade_level: f.grade, section: f.section, is_not_student: f.isNotStudent,
+          not_student_role: f.isNotStudent ? f.notStudentRole.trim() : '',
+          place_of_birth: f.placeOfBirth, guardian_name: f.guardianName, guardian_contact: f.guardianContact,
+          guardian_occupation: f.guardianOccupation, philhealth_number: f.philhealthNumber,
+          philhealth_status: f.philhealthNumber.trim() ? f.philhealthStatus : 'None',
+          is_4ps: f.is4Ps, fourps_id: f.fourPsId,
+          ...(dupDecisions[r.index] === 'different' ? { confirm_duplicate: true } : {}),
+        });
+        if (created?._id) {
+          try {
+            await apiClient.post('/student-iptrs', {
+              student_id: created._id, school_year: schoolYearLabel(),
+              grade_level: f.isNotStudent ? null : f.grade, section: f.isNotStudent ? null : f.section,
+              consent_status: f.consentStatus,
+            });
+          } catch { /* best-effort: the chart's own "Add Year" still works */ }
+        }
+        okIdx.push(r.index);
+      } catch (err) {
+        failed.push(`${fullName(r.h, r.index)}: ${err instanceof ApiError || err instanceof Error ? err.message : 'could not be saved.'}`);
+      }
+      setImporting({ done: n + 1, total: todo.length });
+    }
+    setImporting(null);
+    if (okIdx.length) navigate(location.pathname, { replace: true, state: { ...state, saved: [...saved, ...okIdx], dupDecisions } });
+    if (failed.length) {
+      setImportFailures(failed);
+      if (okIdx.length) toast.success(`${okIdx.length} student${okIdx.length === 1 ? '' : 's'} imported.`);
+    } else {
+      toast.success(`${okIdx.length} student${okIdx.length === 1 ? '' : 's'} imported.`);
+      navigate('/patients');
+    }
+  };
+
   const openBtn = (r: Row) => (
     <button
       type="button"
@@ -407,11 +478,8 @@ export const BulkScanReview = () => {
           strip under the header, and the inline 3.5rem left padding pushed the page
           right. There, the page scrolls normally, the list pane is capped at 75% of
           the screen, and the side padding is 1rem. Wider screens unchanged. */}
-      <style>{'@supports not selector(::-webkit-scrollbar){.bulk-scroll{scrollbar-width:thin}}'
-        // No bar along the bottom: sideways is the corner tab, dragging, or the trackpad. Only the
-        // thin up-and-down bar stays.
-        + '.bulk-grid::-webkit-scrollbar:horizontal{display:none;height:0}'
-        + '.bulk-grid::-webkit-scrollbar{width:0.5rem}.bulk-grid::-webkit-scrollbar-thumb{background:#9aa5c0;border-radius:0.5rem}.bulk-grid::-webkit-scrollbar-track{background:#eef1f7}'
+      <style>{'.bulk-scroll{scrollbar-width:none;-ms-overflow-style:none}.bulk-scroll::-webkit-scrollbar{display:none;width:0;height:0}'
+        // No scroll bars at all on the table (user, 2026-10-05): wheel, trackpad, dragging and the edge tabs still move it.
         + '.bulk-grid{cursor:grab}.bulk-grid.dragging{cursor:grabbing;user-select:none}'
         // Slim tabs on the left and right edges of the table, at mid height (user pick 4, 2026-10-05).
         + '.bulk-edge{position:absolute;top:50%;transform:translateY(-50%);width:1.25rem;height:2.875rem;border:0;background:#273A78;color:#fff;font-size:1rem;font-weight:700;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0;opacity:.92;z-index:6;box-shadow:0 0.125rem 0.5rem rgba(15,23,42,0.25)}'
@@ -430,11 +498,20 @@ export const BulkScanReview = () => {
           <div style={{ fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: MUTED }}>Students &middot; OCR &middot; Bulk upload</div>
           <h1 style={{ margin: '0.125rem 0 0', fontSize: '1.625rem', fontWeight: 700 }}>Review Imported Students</h1>
           <p style={{ margin: '0.25rem 0 0', fontSize: '0.875rem', color: MUTED }}>
-            {rows.length} student{rows.length === 1 ? '' : 's'} found. Nothing is saved until you open each form and confirm it.
+            {rows.length} student{rows.length === 1 ? '' : 's'} found. Nothing is saved until you import them or open each form and confirm it.{fixes > 0 && <b style={{ color: '#B91C1C', fontWeight: 600 }}> Fix {fixes} student{fixes === 1 ? '' : 's'} before importing.</b>}
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <button type="button" onClick={() => open(firstOpen)} style={primaryBtn}>Review one by one</button>
+          <button
+            type="button"
+            onClick={() => setConfirmImport(true)}
+            disabled={!canImport}
+            title={fixes > 0 ? `Fix ${fixes} student${fixes === 1 ? '' : 's'} first (see the "need fixes" count)` : ready === 0 ? 'Nothing left to import' : undefined}
+            style={{ ...primaryBtn, ...(canImport ? {} : { opacity: 0.45, cursor: 'not-allowed' }) }}
+          >
+            {importing ? `Importing ${importing.done} of ${importing.total}...` : `Import ${ready} student${ready === 1 ? '' : 's'}`}
+          </button>
+          <button type="button" onClick={() => open(firstOpen)} disabled={!!importing} style={secondaryBtn}>Review one by one</button>
           <button type="button" onClick={() => setConfirmLeave(true)} style={secondaryBtn}>
             <svg width="12.8" height="12.8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
             Back
@@ -563,6 +640,36 @@ export const BulkScanReview = () => {
 
       {/* Side by side, like the offline conflict review: the row from the file next
           to the record it may duplicate, then a decision that Save & Next honours. */}
+      {confirmImport && (
+        <div role="dialog" aria-modal="true" aria-label="Import students" onClick={() => setConfirmImport(false)}
+          style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(15,23,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: '1rem', padding: '1.25rem', width: '100%', maxWidth: '28rem', boxSizing: 'border-box' }}>
+            <h2 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 700 }}>Import {ready} student{ready === 1 ? '' : 's'}?</h2>
+            <p style={{ margin: '0.5rem 0 0', fontSize: '0.875rem', color: MUTED, lineHeight: 1.5 }}>
+              Each one is saved to the student records and gets a {schoolYearLabel()} record. {skippedCount > 0 ? `${skippedCount} marked "same child, skip it" will not be saved. ` : ''}You can still open any student afterwards to complete their chart.
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', flexWrap: 'wrap', marginTop: '1.125rem' }}>
+              <button type="button" onClick={() => setConfirmImport(false)} style={secondaryBtn}>Cancel</button>
+              <button type="button" onClick={() => void runImport()} style={primaryBtn}>Import</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {importFailures && (
+        <div role="dialog" aria-modal="true" aria-label="Some students were not imported" onClick={() => setImportFailures(null)}
+          style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(15,23,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: '1rem', padding: '1.25rem', width: '100%', maxWidth: '34rem', maxHeight: '90vh', overflow: 'auto', boxSizing: 'border-box' }}>
+            <h2 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 700 }}>{importFailures.length} student{importFailures.length === 1 ? ' was' : 's were'} not imported</h2>
+            <p style={{ margin: '0.5rem 0 0.75rem', fontSize: '0.875rem', color: MUTED }}>The others were saved. Open these to correct them, then import again.</p>
+            <ul style={{ margin: 0, paddingLeft: '1.125rem', fontSize: '0.8125rem', lineHeight: 1.6 }}>
+              {importFailures.map((m) => <li key={m}>{m}</li>)}
+            </ul>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.125rem' }}>
+              <button type="button" onClick={() => setImportFailures(null)} style={primaryBtn}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
       {confirmLeave && (
         <div role="dialog" aria-modal="true" aria-label="Leave this review" onClick={() => setConfirmLeave(false)}
           style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(15,23,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
@@ -582,7 +689,7 @@ export const BulkScanReview = () => {
         const p = queue[compareIndex].newPatient;
         const d = dupOf(compareIndex);
         const existing = d?.onFile[0];
-        const otherRow = !existing && d?.inFile.length ? queue[d.inFile[0]].newPatient : null;
+        const otherRow = d?.inFile.length ? queue[d.inFile[0]].newPatient : null;
         const side = (title: string, lines: [string, string][], note?: string) => (
           <div style={{ flex: '1 1 14rem', minWidth: 0, border: `0.0625rem solid ${LINE}`, borderRadius: '0.75rem', padding: '0.875rem' }}>
             <div style={{ fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: MUTED, marginBottom: '0.5rem' }}>{title}</div>
@@ -595,25 +702,24 @@ export const BulkScanReview = () => {
         return (
           <div role="dialog" aria-modal="true" aria-label="Compare possible duplicate" onClick={() => setCompareIndex(null)}
             style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(15,23,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-            <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: '1rem', padding: '1.25rem', width: '100%', maxWidth: '44rem', maxHeight: '90vh', overflow: 'auto', boxSizing: 'border-box' }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: '1rem', padding: '1.25rem', width: '100%', maxWidth: existing && otherRow ? '62rem' : '44rem', maxHeight: '90vh', overflow: 'auto', boxSizing: 'border-box' }}>
               <h2 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 700 }}>Is this the same child?</h2>
               <p style={{ margin: '0.25rem 0 1rem', fontSize: '0.8125rem', color: MUTED }}>
-                Same school, same birthday and same name. Check the details before saving.
+                Same school, same birthday and same name. {existing ? 'This child is already in the student records' : ''}{existing && otherRow ? ' and appears again in this upload' : ''}{existing ? '. ' : ''}Check the details before saving.
               </p>
               <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                 {side('From the upload', [
                   ['Name', [p.lastName, p.firstName].filter(Boolean).join(', ') + (p.middleName ? ` ${p.middleName}` : '')],
                   ['Birthdate', p.birthdate], ['Sex', p.gender], ['Grade', [p.grade, p.section].filter(Boolean).join(' ')], ['School', p.school],
                 ])}
-                {existing
-                  ? side('Already in records', [
-                      ['Name', existing.full_name], ['Birthdate', String(existing.birthday ?? '').slice(0, 10)], ['Sex', existing.sex],
-                      ['Grade', [existing.grade_level, existing.section].filter(Boolean).join(' ')], ['School', p.school],
-                    ], d && d.onFile.length > 1 ? `${d.onFile.length - 1} more record(s) in the system also match.` : undefined)
-                  : otherRow && side(`Also in this upload (row ${(d?.inFile[0] ?? 0) + 1})`, [
-                      ['Name', [otherRow.lastName, otherRow.firstName].filter(Boolean).join(', ') + (otherRow.middleName ? ` ${otherRow.middleName}` : '')],
-                      ['Birthdate', otherRow.birthdate], ['Sex', otherRow.gender], ['Grade', [otherRow.grade, otherRow.section].filter(Boolean).join(' ')], ['School', otherRow.school],
-                    ])}
+                {existing && side('Already in student records', [
+                  ['Name', existing.full_name], ['Birthdate', String(existing.birthday ?? '').slice(0, 10)], ['Sex', existing.sex],
+                  ['Grade', [existing.grade_level, existing.section].filter(Boolean).join(' ')], ['School', p.school],
+                ], d && d.onFile.length > 1 ? `${d.onFile.length - 1} more record(s) in the system also match.` : undefined)}
+                {otherRow && side(`Also in this upload (row ${(d?.inFile[0] ?? 0) + 1})`, [
+                  ['Name', [otherRow.lastName, otherRow.firstName].filter(Boolean).join(', ') + (otherRow.middleName ? ` ${otherRow.middleName}` : '')],
+                  ['Birthdate', otherRow.birthdate], ['Sex', otherRow.gender], ['Grade', [otherRow.grade, otherRow.section].filter(Boolean).join(' ')], ['School', otherRow.school],
+                ])}
               </div>
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end', marginTop: '1.125rem' }}>
                 <button type="button" onClick={() => setCompareIndex(null)} style={secondaryBtn}>Cancel</button>
