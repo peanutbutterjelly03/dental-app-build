@@ -1206,7 +1206,7 @@ export const PatientList = () => {
           <div className="flex flex-wrap items-center gap-2">
             <ListSearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search student, grade, or section" />
             <FilterSelect value={gradeFilter} onChange={v => { setGradeFilter(v); setSectionFilter('all'); }} label="All Grades"
-              options={[{ value: OTHERS, label: 'Others' }, { value: NO_GRADE, label: 'No Grade' }, ...GRADES.map(g => ({ value: g, label: g }))]} />
+              options={[{ value: NO_GRADE, label: 'No Grade' }, ...GRADES.map(g => ({ value: g, label: g })), { value: OTHERS, label: 'Others' }]} />
             <FilterSelect value={sectionFilter} onChange={setSectionFilter} label="All Sections"
               options={[{ value: NO_SECTION, label: 'No Section' }, ...allSections.map(s => ({ value: s, label: s }))]} />
             <FilterSelect value={genderFilter} onChange={setGenderFilter} label="All Genders"
