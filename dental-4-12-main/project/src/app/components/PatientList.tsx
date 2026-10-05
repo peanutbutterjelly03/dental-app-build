@@ -1762,21 +1762,21 @@ export const PatientList = () => {
           <Modal onClose={() => setAssignConfirm(null)} maxWidth="max-w-md" closeDisabled={assignSaving}>
             <div className="space-y-3 p-6">
               <h2 className="text-lg font-bold text-foreground">Assign {target.name}?</h2>
-              <p className="text-sm text-muted-foreground">{target.school} · SY {year}</p>
+              <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">{target.school}<span className="rounded-full bg-green-100 px-2 py-0.5 text-[9px] font-bold text-green-800">SY {year}</span></p>
               <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-xl bg-canvas px-4 py-3">
-                <div className="grid justify-items-start gap-1.5">
+                <div className="grid justify-items-center gap-1.5">
                   <span className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">Now</span>
                   {now(target.grade, 'No grade', true)}
                   {now(target.section, 'No section', false)}
                 </div>
                 <span className="text-lg text-muted-foreground" aria-hidden="true">→</span>
-                <div className="grid justify-items-start gap-1.5">
+                <div className="grid justify-items-center gap-1.5">
                   <span className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">After</span>
                   <span className="rounded-full px-3 py-0.5 text-xs font-semibold" style={{ backgroundColor: gc.light, color: gc.solid }}>{assignConfirm.grade}</span>
                   <span className="rounded-full border border-border px-3 py-0.5 text-xs font-semibold text-foreground">{assignConfirm.section}</span>
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground">This updates the student's record and the SY {year} record.</p>
+              <p className="text-xs text-muted-foreground">This updates the student's record and the SY {year} record.</p>
               <div className="flex justify-end gap-2 pt-1">
                 <button onClick={() => setAssignConfirm(null)} disabled={assignSaving} className="rounded-full border border-border px-5 py-2 text-sm font-semibold text-foreground hover:bg-canvas disabled:opacity-50">Cancel</button>
                 <button
