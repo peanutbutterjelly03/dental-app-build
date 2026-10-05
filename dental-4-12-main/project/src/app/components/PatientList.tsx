@@ -24,6 +24,7 @@ import { usePagination, PAGE_SIZE_OPTIONS } from './Pagination';
 import { apiClient, ApiError, isQueuedResponse } from '../api/client';
 import type { ApiSchool } from '../api/types';
 import { schoolYearLabel } from '../utils/schoolYear';
+import { useSchoolYear } from '../hooks/useSchoolYear';
 import { calculateAge, getAgeGroup } from '../utils/age';
 import { Notice } from './Notice';
 // Re-applied on top of her file (Sprint 158). Sprints 120/121 added value
@@ -190,6 +191,23 @@ export const PatientList = () => {
   // the System Admin could save students on the API but the screen hid Add
   // Student and OCR from them).
   const canAddStudent = user?.role === 'dentist' || user?.role === 'dental_aide' || user?.role === 'system_admin';
+
+  // The school year these records belong to. A school that has STARTED the next
+  // year (Update School Year clears grade and section and reopens them for it)
+  // is now working in that year, so the label follows the rollover, not just
+  // the calendar. Several schools in view that disagree show both years. Falls
+  // back to the calendar year when the status cannot be read (offline, or a
+  // role that cannot see it).
+  const schoolYearInfo = useSchoolYear(canAddStudent);
+  const recordsYear = useMemo(() => {
+    const st = schoolYearInfo.status;
+    if (!st) return { label: schoolYearLabel(), mixed: false };
+    const inView = selectedSchool ? st.schools.filter((x) => x.name === selectedSchool) : st.schools;
+    const started = inView.filter((x) => x.status === 'started').length;
+    if (inView.length === 0 || started === 0) return { label: st.currentYear, mixed: false };
+    if (started === inView.length) return { label: st.nextYear, mixed: false };
+    return { label: `${st.currentYear} and ${st.nextYear}`, mixed: true };
+  }, [schoolYearInfo.status, selectedSchool]);
 
 
 
@@ -1060,8 +1078,8 @@ export const PatientList = () => {
                 <span style={{ backgroundColor: kickerColor.light, color: kickerColor.solid }} className="text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap">
                   {schoolStudents.length} {schoolStudents.length === 1 ? 'STUDENT' : 'STUDENTS'}{selectedSchool ? '' : ' ACROSS 3 SCHOOLS'}
                 </span>
-                <span className="-ml-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap bg-green-100 text-green-800">
-                  SY {schoolYearLabel()}
+                <span title={recordsYear.mixed ? 'Some schools have started the next school year and some have not.' : undefined} className="-ml-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap bg-green-100 text-green-800">
+                  SY {recordsYear.label}
                 </span>
               </div>
               <p className="mt-1 text-sm text-muted-foreground">
