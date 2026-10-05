@@ -1096,9 +1096,14 @@ export const PatientList = () => {
                   disabled={tickedIds.size === 0}
                   title={tickedIds.size === 0 ? 'Select students to archive' : 'Archive'}
                   aria-label={tickedIds.size === 0 ? 'Archive, select students first' : `Archive ${tickedIds.size} selected`}
-                  className="grid h-[38px] w-[38px] place-items-center rounded-[10px] bg-red-600 text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-red-600"
+                  className="relative grid h-[38px] w-[38px] place-items-center rounded-[10px] bg-red-600 text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-red-600"
                 >
                   <ArchiveIcon className="h-[19px] w-[19px]" strokeWidth={1.5} />
+                  {tickedIds.size > 0 && (
+                    <span className="absolute -right-1.5 -top-1.5 grid h-[18px] min-w-[18px] place-items-center rounded-full border-2 border-red-600 bg-white px-1 text-[11px] font-bold leading-none text-red-700">
+                      {tickedIds.size}
+                    </span>
+                  )}
                 </button>
               )}
               {/* Annual rollover (see UpdateSchoolYear.tsx): school-wide clear +
