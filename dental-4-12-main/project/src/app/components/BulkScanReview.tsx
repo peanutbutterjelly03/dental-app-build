@@ -29,6 +29,8 @@ const LINE = '#E2E8F0';
 const GRID_LINE = '#CBD5E1';
 // The last column keeps this much room on its right so its title ends before the corner tab.
 const LAST_COL_PAD = '6rem';
+// Breathing room between the pinned table and the top bar, in px.
+const TOP_GAP = 8;
 
 const missingOf = (h: ExtractedHandoff): string[] =>
   REQUIRED_STUDENT_FIELDS
@@ -186,7 +188,7 @@ export const BulkScanReview = () => {
     const onWheel = (e: WheelEvent) => {
       if (e.ctrlKey || e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
       if (getComputedStyle(wrap).position !== 'sticky') return;
-      const stuck = wrap.getBoundingClientRect().top <= TOPBAR_H + 1;
+      const stuck = wrap.getBoundingClientRect().top <= TOPBAR_H + TOP_GAP + 1;
       if (!stuck || (e.deltaY < 0 && el.scrollTop <= 0)) {
         window.scrollBy(0, e.deltaY);
         e.preventDefault();
@@ -454,7 +456,7 @@ export const BulkScanReview = () => {
         // column titles stay pinned and only the rows scroll down (user, 2026-10-05). It also
         // scrolls sideways, by bar, by the corner tab, or by grabbing and dragging. The Student
         // column stays pinned on the left.
-        <div className="bulk-pr bulk-sticky" style={{ position: 'sticky', top: TOPBAR_H, height: `calc(100vh - ${TOPBAR_H}px)`, width: '100%', boxSizing: 'border-box', paddingRight: '3.5rem', display: 'flex', flexDirection: 'column' }}>
+        <div className="bulk-pr bulk-sticky" style={{ position: 'sticky', top: TOPBAR_H + TOP_GAP, height: `calc(100vh - ${TOPBAR_H + TOP_GAP}px)`, width: '100%', boxSizing: 'border-box', paddingRight: '3.5rem', display: 'flex', flexDirection: 'column' }}>
           <div style={{ position: 'relative', flex: '1 1 0', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         <div ref={setGrid} className="bulk-scroll bulk-grid" style={{ flex: '1 1 0', minHeight: 0, width: 0, minWidth: '100%', maxWidth: '100%', overflow: 'auto', background: '#fff', border: `0.0625rem solid ${GRID_LINE}`, borderBottom: 'none', borderRadius: '0.75rem 0.75rem 0 0' }}>
           <table style={{ borderCollapse: 'separate', borderSpacing: 0, width: '100%' }}>
