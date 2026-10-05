@@ -22,7 +22,7 @@ import { useStudents } from '../hooks/useStudents';
 import { useRPCTracking } from '../hooks/useRPCTracking';
 import { usePagination, PAGE_SIZE_OPTIONS } from './Pagination';
 import { apiClient, ApiError, isQueuedResponse } from '../api/client';
-import type { ApiSchool } from '../api/types';
+import type { ApiSchool, ApiStudentIptr } from '../api/types';
 import { schoolYearLabel } from '../utils/schoolYear';
 import { useSchoolYear } from '../hooks/useSchoolYear';
 import { calculateAge, getAgeGroup } from '../utils/age';
@@ -78,16 +78,16 @@ const roleTone = (role: string | undefined) => {
   return { box: 'border-violet-300 bg-violet-100 text-violet-800', dot: 'bg-violet-600' };
 };
 
-// Empty Grade/Section cell (user pick D, 2026-10-05): a dashed "+ Assign" prompt
-// for people who can edit students, which opens Update School Year, the page
-// that assigns grade and section. Everyone else sees the same dashed pill as
-// plain text, so the empty cell is never blank.
-const AssignPrompt = ({ label, enabled, onAssign }: { label: 'grade' | 'section'; enabled: boolean; onAssign: () => void }) =>
+// Empty Grade/Section cell (user pick D, 2026-10-05): a dashed "+ Assign" prompt.
+// For people who can edit students it opens the picker for that ONE field
+// (grade and section are separate), anchored to the button. Everyone else sees
+// the same dashed pill as plain text, so the empty cell is never blank.
+const AssignPrompt = ({ label, enabled, onAssign }: { label: 'grade' | 'section'; enabled: boolean; onAssign: (e: React.MouseEvent<HTMLButtonElement>) => void }) =>
   enabled ? (
     <button
       type="button"
       onClick={onAssign}
-      title={`Assign ${label} in Update School Year`}
+      title={`Assign ${label}`}
       className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-dashed border-primary px-3 py-0.5 text-xs font-semibold capitalize text-primary hover:bg-primary-surface"
     >
       <Plus className="h-3 w-3" /> Assign {label}
@@ -384,6 +384,18 @@ export const PatientList = () => {
   // Row action menu (the arrow beside each Queue button). FIXED position taken
   // from the arrow's own rect, so the scrolling rows box cannot clip it.
   const [rowMenu, setRowMenu] = useState<{ id: string; top: number; right: number } | null>(null);
+  // Assign Grade / Assign Section picker: one field at a time, anchored to the
+  // prompt that opened it (FIXED, taken from the button's rect).
+  const [assignPicker, setAssignPicker] = useState<{ kind: 'grade' | 'section'; id: string; left: number; top?: number; bottom?: number } | null>(null);
+  const [assignQuery, setAssignQuery] = useState('');
+  const [assignSaving, setAssignSaving] = useState(false);
+  const openAssignPicker = (kind: 'grade' | 'section', id: string, e: React.MouseEvent<HTMLButtonElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - 264));
+    const above = r.bottom + 300 > window.innerHeight && r.top > 300;
+    setAssignQuery('');
+    setAssignPicker(above ? { kind, id, left, bottom: window.innerHeight - r.top + 4 } : { kind, id, left, top: r.bottom + 4 });
+  };
   const [tickedIds, setTickedIds] = useState<Set<string>>(new Set());
   const [confirmArchiveTicked, setConfirmArchiveTicked] = useState(false);
   const [archivingTicked, setArchivingTicked] = useState(false);
@@ -769,6 +781,56 @@ export const PatientList = () => {
   const schoolStudents = selectedSchool
     ? allStudents.filter(s => s.school === selectedSchool)
     : allStudents;
+
+  // The school year a student's records belong to: the next year once THEIR
+  // school has started it, otherwise the current one (same rule as the chip).
+  const yearForSchool = (schoolName: string) => {
+    const st = schoolYearInfo.status;
+    const sc = st?.schools.find((x) => x.name === schoolName);
+    return sc?.status === 'started' ? st!.nextYear : (st?.currentYear ?? schoolYearLabel());
+  };
+
+  // Saves ONE field (grade or section) for one student: the student's current
+  // value, then the same field on that school year's record, so this list and
+  // Update School Year agree. A school year that has started already has an
+  // empty record; otherwise one is opened for the year.
+  const saveAssign = async (studentId: string, kind: 'grade' | 'section', rawValue: string) => {
+    const student = allStudents.find((s) => s.id === studentId);
+    const value = rawValue.trim().replace(/\s+/g, ' ');
+    if (!student || !value || assignSaving) return;
+    const field = kind === 'grade' ? 'grade_level' : 'section';
+    setAssignSaving(true);
+    try {
+      await apiClient.put(`/students/${studentId}`, { [field]: value });
+      let yearSaved = true;
+      try {
+        const year = yearForSchool(student.school);
+        const iptrs = await apiClient.get<ApiStudentIptr[]>(`/student-iptrs?student_id=${studentId}`);
+        const mine = iptrs.find((i) => i.school_year === year);
+        if (mine) {
+          await apiClient.put(`/student-iptrs/${mine._id}`, { [field]: value });
+        } else {
+          await apiClient.post('/student-iptrs', {
+            student_id: studentId,
+            school_year: year,
+            grade_level: kind === 'grade' ? value : (student.grade || null),
+            section: kind === 'section' ? value : (student.section || null),
+            consent_status: 'pending',
+          });
+        }
+      } catch {
+        yearSaved = false;
+      }
+      setAssignPicker(null);
+      await reloadStudents();
+      if (yearSaved) toast.success(kind === 'grade' ? `${student.name} is now in ${value}.` : `${student.name} is now in section ${value}.`);
+      else toast.error(`${student.name}'s ${kind} is saved, but this school year's record could not be updated. Open Update School Year to check it.`);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : `Could not save the ${kind}.`);
+    } finally {
+      setAssignSaving(false);
+    }
+  };
 
   // Same signal UpdateSchoolYear.tsx already computes for its own roster
   // (unassignedCount/stillAssignedCount): once "Start New School Year" clears
@@ -1466,7 +1528,7 @@ export const PatientList = () => {
                           <GradePill grade={student.grade} />
                         </button>
                       ) : !student.grade ? (
-                        <AssignPrompt label="grade" enabled={canAddStudent && !student.pending} onAssign={() => navigate('/students/update-school-year')} />
+                        <AssignPrompt label="grade" enabled={canAddStudent && !student.pending} onAssign={(e) => openAssignPicker('grade', student.id, e)} />
                       ) : (
                         <GradePill grade={student.grade} />
                       )}
@@ -1483,7 +1545,7 @@ export const PatientList = () => {
                           {student.section}
                         </button>
                       ) : !student.section ? (
-                        <AssignPrompt label="section" enabled={canAddStudent && !student.pending} onAssign={() => navigate('/students/update-school-year')} />
+                        <AssignPrompt label="section" enabled={canAddStudent && !student.pending} onAssign={(e) => openAssignPicker('section', student.id, e)} />
                       ) : (
                         student.section
                       )}
@@ -1594,6 +1656,78 @@ export const PatientList = () => {
           </div>
         )}
       </div>
+
+      {assignPicker && (() => {
+        const target = allStudents.find((x) => x.id === assignPicker.id);
+        if (!target) return null;
+        const place = { left: assignPicker.left, top: assignPicker.top, bottom: assignPicker.bottom };
+        const shell = 'fixed z-50 w-64 overflow-hidden rounded-xl border border-border bg-card py-1 shadow-lg';
+        const head = 'px-3 pb-1 pt-1.5 text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground';
+        if (assignPicker.kind === 'grade') {
+          // BTIS runs Kinder to Grade 10; the other two schools stop at Grade 6.
+          const grades = /integrated/i.test(target.school) ? GRADES : GRADES.slice(0, 7);
+          return (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setAssignPicker(null)} />
+              <div role="listbox" aria-label={`Assign grade to ${target.name}`} style={place} className={`${shell} max-h-72 overflow-y-auto`}>
+                <p className={head}>Grade</p>
+                {grades.map((g) => {
+                  const gc = getGradeColor(g);
+                  return (
+                    <button key={g} role="option" aria-selected={false} disabled={assignSaving} onClick={() => void saveAssign(target.id, 'grade', g)} className="flex w-full items-center px-3 py-1.5 text-left hover:bg-canvas disabled:opacity-50">
+                      <span className="rounded-full px-3 py-0.5 text-xs font-semibold" style={{ backgroundColor: gc.light, color: gc.solid }}>{g}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          );
+        }
+        // Section: this school's existing names, the student's own grade first.
+        const atSchool = allStudents.filter((x) => x.school === target.school && !x.isNotStudent && x.section);
+        const forGrade = target.grade ? [...new Set(atSchool.filter((x) => x.grade === target.grade).map((x) => x.section))].sort() : [];
+        const others = [...new Set(atSchool.map((x) => x.section))].filter((x) => !forGrade.includes(x)).sort();
+        const q = assignQuery.trim().replace(/\s+/g, ' ');
+        const match = (x: string) => !q || x.toLowerCase().includes(q.toLowerCase());
+        const exact = [...forGrade, ...others].find((x) => x.toLowerCase() === q.toLowerCase());
+        const row = 'flex w-full items-center px-3 py-1.5 text-left text-sm text-foreground hover:bg-canvas disabled:opacity-50';
+        const list = (title: string, items: string[]) => items.length === 0 ? null : (
+          <>
+            <p className={head}>{title}</p>
+            {items.map((x) => <button key={x} disabled={assignSaving} onClick={() => void saveAssign(target.id, 'section', x)} className={row}>{x}</button>)}
+          </>
+        );
+        return (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setAssignPicker(null)} />
+            <div style={place} className={`${shell} max-h-80 overflow-y-auto`}>
+              <div className="px-2 pb-1 pt-1">
+                <input
+                  autoFocus
+                  value={assignQuery}
+                  onChange={(e) => setAssignQuery(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && q) void saveAssign(target.id, 'section', exact ?? q); if (e.key === 'Escape') setAssignPicker(null); }}
+                  placeholder="Search or add a section"
+                  aria-label={`Section for ${target.name}`}
+                  className="w-full rounded-lg border border-primary px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              {target.grade ? (
+                <>
+                  {list(`${target.grade} sections`, forGrade.filter(match))}
+                  {list('Other sections', others.filter(match))}
+                </>
+              ) : list('Sections', others.filter(match))}
+              {q && !exact && (
+                <button disabled={assignSaving} onClick={() => void saveAssign(target.id, 'section', q)} className="flex w-full items-center px-3 py-2 text-left text-sm font-semibold text-primary hover:bg-canvas disabled:opacity-50">
+                  + Add "{q}"
+                </button>
+              )}
+              {!q && <p className="px-3 py-2 text-xs text-muted-foreground">Type a name to add a new section.</p>}
+            </div>
+          </>
+        );
+      })()}
 
       {rowMenu && (() => {
         const target = filtered.find((x) => x.id === rowMenu.id);
