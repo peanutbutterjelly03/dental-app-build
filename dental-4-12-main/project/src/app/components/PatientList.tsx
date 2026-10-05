@@ -1,8 +1,8 @@
-import { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Check, Eye, FileText, X, School as SchoolIcon, List, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Users, Upload, CheckCircle, AlertCircle, ScanLine, CalendarClock, ListChecks, Archive as ArchiveIcon, Copy, ListPlus } from 'lucide-react';
+import { Plus, Check, Eye, FileText, X, School as SchoolIcon, List, ChevronLeft, ChevronRight, ChevronDown, Users, Upload, CheckCircle, AlertCircle, ScanLine, CalendarClock, ListChecks, Archive as ArchiveIcon, Copy, ListPlus } from 'lucide-react';
 import { ConfirmDialog } from './ConfirmDialog';
 import { formatDate } from '../utils/localDate';
 import { OCR_CONFIDENCE_THRESHOLD, type IptrOcrFieldKey, type IptrCheckboxFinding } from '../utils/iptrOcrShared';
@@ -867,34 +867,7 @@ export const PatientList = () => {
   // carries the page-size picker. Reset keys are the FILTER INPUTS, not
   // `filtered` — see the hook for why that distinction matters.
   const pager = usePagination(filtered, [gradeFilter, sectionFilter, genderFilter, ageGroupFilter, searchTerm, selectedSchool], 25);
-  // "Hide" (user, 2026-09-25, ported from RPC Monitoring): a local toggle
-  // layered on top of `pager`, not a value fed into it — `usePagination`
-  // slices by dividing into `pageSize`, and a 0 there would divide by zero.
-  // Hiding shows every filtered row and drops pager.pageSize entirely.
-  const [hidePagination, setHidePagination] = useState(false);
-  const paged = hidePagination ? filtered : pager.paged;
-  const HIDE_FOOTER = 0;
-  const PATIENT_PAGE_SIZE_OPTIONS = [...PAGE_SIZE_OPTIONS, HIDE_FOOTER] as const;
-
-  // Hide's bottom corners: rounded when the rows fit without scrolling (a
-  // short list, with blank card interior above the pinned reveal tab),
-  // square when the rows box is actually scrolling internally (a long list
-  // past the card's fixed height) — a curve right at the screen edge, with
-  // nothing beneath it, reads as a cut-off render glitch rather than a
-  // corner. `useLayoutEffect`, not `useEffect`: a passive effect runs after
-  // the browser paints, flashing the rounded corner for one frame first.
-  const rowsBoxRef = useRef<HTMLDivElement | null>(null);
-  const [hideAtEdge, setHideAtEdge] = useState(false);
-  useLayoutEffect(() => {
-    if (!hidePagination) { setHideAtEdge(false); return; }
-    const el = rowsBoxRef.current;
-    if (!el) return;
-    const check = () => setHideAtEdge(el.scrollHeight > el.clientHeight + 1);
-    check();
-    const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(check) : null;
-    resizeObserver?.observe(el);
-    return () => resizeObserver?.disconnect();
-  }, [hidePagination, filtered.length]);
+  const paged = pager.paged;
 
   const hasActiveFilters = gradeFilter !== 'all' || sectionFilter !== 'all' || genderFilter !== 'all' || ageGroupFilter !== 'all' || searchTerm !== '';
 
@@ -1072,7 +1045,7 @@ export const PatientList = () => {
           (see below) rather than as its own flush-bottom footer sibling --
           with the tab inside, a short list simply ends after it; a long
           list caps at `cardHeight` and scrolls internally, tab included. */}
-      <div className={`flex flex-col bg-card border border-border shadow-sm overflow-clip ${hideAtEdge ? 'rounded-t-2xl' : 'rounded-2xl'} ${hidePagination ? '-mb-4 md:-mb-8' : ''}`}>
+      <div className={`flex flex-col bg-card border border-border shadow-sm overflow-clip rounded-2xl`}>
         <div className="space-y-4 border-b border-border bg-card p-5 sm:p-6">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
@@ -1291,7 +1264,7 @@ export const PatientList = () => {
             the TOP OF THIS BOX via `sticky` on each `<th>`, not the `<tr>` —
             a sticky `<tr>` rendered as a visual duplicate mid-table in some
             browsers. */}
-        <div ref={rowsBoxRef} className="min-h-0 flex-1 overflow-auto">
+        <div className="min-h-0 flex-1 overflow-auto">
           <table className="w-full min-w-[1000px] table-fixed text-sm">
             {/* Fixed column widths (user, 2026-10-01): with auto layout the
                 spare width went mostly to Risk, leaving a wide gap before
@@ -1446,31 +1419,12 @@ export const PatientList = () => {
               })}
             </tbody>
           </table>
-
-          {/* Reveal tab back INSIDE the scrollable rows box (user, 2026-09-29,
-              overriding the "pinned as its own footer" version this
-              superseded — "it should NEVER be fixed in the page"): as a
-              flex/sticky-footer sibling of this box it stayed on screen at a
-              fixed spot while you scrolled the rows past it, which is
-              exactly the "fixed in the page" behaviour objected to. Inside
-              the scroll container, it scrolls WITH the rows and only comes
-              into view once you actually reach the true end of the list. */}
-          {hidePagination && (
-            <button
-              type="button"
-              onClick={() => setHidePagination(false)}
-              title="Show pagination controls"
-              className="flex w-full items-center justify-center gap-1.5 border-t border-gray-100 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-canvas hover:text-foreground"
-            >
-              <ChevronUp className="h-3 w-3" /> Show pagination controls
-            </button>
-          )}
         </div>
 
         {/* Footer / pagination — sits right after the bounded, scrollable
             row list above, so it is always in view without its own sticky
             positioning. */}
-        {!hidePagination && filtered.length > 0 && (
+        {filtered.length > 0 && (
           <div className="flex flex-shrink-0 flex-col gap-3 border-t border-border bg-card px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
               <span>
@@ -1490,12 +1444,11 @@ export const PatientList = () => {
                 value={pager.pageSize}
                 onChange={(e) => {
                   const n = Number(e.target.value);
-                  if (n === HIDE_FOOTER) { setHidePagination(true); return; }
                   pager.changePageSize(n);
                 }}
                 className="rounded-full border border-border bg-canvas px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
               >
-                {PATIENT_PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n === HIDE_FOOTER ? 'Hide' : n}</option>)}
+                {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
               </select>
             </div>
             {pager.pageCount > 1 && (
