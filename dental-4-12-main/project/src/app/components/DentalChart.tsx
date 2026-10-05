@@ -16,7 +16,7 @@ import { apiClient, ApiError, isQueuedResponse, QUEUED_SAVE_MESSAGE } from '../a
 import { subscribeSyncReport } from '../offline/syncReport';
 import { OfflineDataStatus } from './OfflineDataStatus';
 import { toLocalDateString, formatDate } from '../utils/localDate';
-import { ageOn } from '../utils/age';
+import { ageOn, calculateAge } from '../utils/age';
 import { schoolYearLabel } from '../utils/schoolYear';
 import { TOPBAR_H } from '../utils/layout';
 import { surnameFirst, surnameFirstWithInitial } from '../utils/studentName';
@@ -2399,7 +2399,18 @@ export const DentalChart = () => {
       )}
 
         {/* ── TAB 7: AI Risk ── */}
-        {activeTab === 'ai' && <AiRiskTab />}
+        {activeTab === 'ai' && student && (
+          <AiRiskTab
+            studentId={student._id}
+            studentName={surnameFirstWithInitial(student)}
+            gradeSection={[yearIptr?.grade_level ?? student.grade_level, yearIptr?.section ?? student.section].filter(Boolean).join(' · ')}
+            age={calculateAge(student.birthday)}
+            schoolYear={yearIptr?.school_year ?? schoolYearLabel()}
+            visits={currentYearData?.preventivesByVisitNumber ?? {}}
+            canReview={canEdit}
+            onOpenTab={setActiveTab}
+          />
+        )}
         </>
         )}
       </div>

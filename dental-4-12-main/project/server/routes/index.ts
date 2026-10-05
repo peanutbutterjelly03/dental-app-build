@@ -1598,6 +1598,8 @@ router.use("/preventive-care-records", createCrudRouter(PreventiveCareRecord, { 
 router.use("/risk-stratifications", createCrudRouter(RiskStratification, {
   readRoles: CLINICAL_READ_ROLES,
   writeRoles: ["dentist"],
+  // The Caries Risk Assessment tab reads one visit's rows (the model's level, the dentist's note and decisions).
+  filterable: ["preventive_id"],
   // ⚠ "dentist validated" ONLY when the row really is validated (2026-10-01).
   // Suggestions are now stored UNvalidated, and the old line said "dentist
   // validated: accepted AI suggestion" for any body carrying a model level,
