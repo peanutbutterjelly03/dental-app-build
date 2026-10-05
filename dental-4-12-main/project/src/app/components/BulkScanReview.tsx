@@ -37,7 +37,7 @@ const LAST_COL_PAD = '1.75rem';
 // Breathing room between the pinned table and the top bar, in px.
 const TOP_GAP = 8;
 // Pinned row-number column in front of Student; Student is pinned right after it.
-const NUM_W = '4.25rem';
+const NUM_W = '2.75rem';
 
 const missingOf = (h: ExtractedHandoff): string[] =>
   REQUIRED_STUDENT_FIELDS
@@ -622,7 +622,7 @@ export const BulkScanReview = () => {
           <table style={{ borderCollapse: 'separate', borderSpacing: 0, width: '100%' }}>
             <thead>
               <tr>
-                <th style={{ ...head, left: 0, zIndex: 6, width: NUM_W, minWidth: NUM_W, paddingLeft: LAST_COL_PAD, paddingRight: '0.5rem' }} title="Row in the upload">#</th>
+                <th style={{ ...head, left: 0, zIndex: 6, width: NUM_W, minWidth: NUM_W, padding: '0 0.25rem', textAlign: 'center' }} title="Row in the upload">#</th>
                 <th style={{ ...head, left: NUM_W, zIndex: 5 }}>Student</th>
                 {cols.map((c, ci) => <th key={c.label} style={ci === cols.length - 1 ? { ...head, paddingRight: LAST_COL_PAD } : head}>{c.label}</th>)}
               </tr>
@@ -632,7 +632,7 @@ export const BulkScanReview = () => {
                 const band = i % 2 ? '#F5F8FF' : '#fff';
                 return (
                   <tr key={r.index} onClick={() => open(r.index)} style={{ cursor: 'pointer', background: band }}>
-                    <td style={{ ...cell, position: 'sticky', left: 0, zIndex: 3, background: '#E8EEFB', color: MUTED, fontVariantNumeric: 'tabular-nums', width: NUM_W, minWidth: NUM_W, paddingLeft: LAST_COL_PAD, paddingRight: '0.5rem' }}>{r.index + 1}</td>
+                    <td style={{ ...cell, position: 'sticky', left: 0, zIndex: 3, background: '#E8EEFB', color: MUTED, fontVariantNumeric: 'tabular-nums', width: NUM_W, minWidth: NUM_W, padding: '0 0.25rem', textAlign: 'center', fontSize: '0.6875rem' }}>{r.index + 1}</td>
                     <td style={{ ...cell, position: 'sticky', left: NUM_W, zIndex: 2, background: '#E8EEFB', fontWeight: 700, color: NAVY, boxShadow: `1px 0 0 ${GRID_LINE}` }}>{fullName(r.h, r.index)}</td>
                     {cols.map((c, ci) => <td key={c.label} onClick={c.label === 'Status' ? (e) => e.stopPropagation() : undefined} style={ci === cols.length - 1 ? { ...cell, paddingRight: LAST_COL_PAD } : cell}>{c.cell(r)}</td>)}
                   </tr>
