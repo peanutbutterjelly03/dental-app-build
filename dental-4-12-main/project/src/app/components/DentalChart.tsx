@@ -2408,7 +2408,6 @@ export const DentalChart = () => {
             schoolYear={yearIptr?.school_year ?? schoolYearLabel()}
             visits={currentYearData?.preventivesByVisitNumber ?? {}}
             canReview={canEdit}
-            onOpenTab={setActiveTab}
           />
         )}
         </>

@@ -80,10 +80,9 @@ interface Props {
   visits: Partial<Record<1 | 2, ApiPreventiveCareRecord>>;
   /** Only the dentist reviews. */
   canReview: boolean;
-  onOpenTab: (tab: 'chart' | 'treatments') => void;
 }
 
-export function AiRiskTab({ studentId, studentName, gradeSection, age, schoolYear, visits, canReview, onOpenTab }: Props) {
+export function AiRiskTab({ studentId, studentName, gradeSection, age, schoolYear, visits, canReview }: Props) {
   const navigate = useNavigate();
   const { selectedSchool } = useAuth();
   const { candidates, loading, error } = useRiskClassification({ studentId, school: selectedSchool ?? '' });
@@ -345,14 +344,6 @@ export function AiRiskTab({ studentId, studentName, gradeSection, age, schoolYea
           </Panel>
         </div>
       </div>
-
-      <Panel title="Related records">
-        <div className="flex flex-wrap gap-1.5">
-          {([['Dental Chart tab', () => onOpenTab('chart')], ['Treatment tab', () => onOpenTab('treatments')], ['RPC Monitoring', () => navigate('/rpc')], ['Risk Classification page', toRisk]] as [string, () => void][]).map(([label, go]) => (
-            <button key={label} type="button" onClick={go} className="rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold text-primary hover:bg-muted">{label}</button>
-          ))}
-        </div>
-      </Panel>
 
       <p className="border-t border-border pt-3 text-xs text-muted-foreground">Computer-assisted screening, not a diagnosis. Nothing counts until the dentist reviews it. The model is trained on placeholder data until real IPTR records are available.</p>
     </div>
