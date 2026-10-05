@@ -1538,7 +1538,7 @@ export const PatientList = () => {
               {canAddStudent && (
                 <>
                   <div className="my-1 h-px bg-border" />
-                  <button role="menuitem" className={`${item} text-destructive`} onClick={() => { setRowMenu(null); archiveOneDuplicate(target.id); }}>
+                  <button role="menuitem" className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50" onClick={() => { setRowMenu(null); archiveOneDuplicate(target.id); }}>
                     <ArchiveIcon className="h-4 w-4" /> Archive Student
                   </button>
                 </>
