@@ -99,15 +99,9 @@ export const AIAnalytics = () => {
   const [gender, setGender] = useState('all');
   const [ageGroup, setAgeGroup] = useState('all');
   const [sort, setSort] = useState<'priority' | 'name'>('priority');
-  const [noticeOpen, setNoticeOpen] = useState(() => {
-    try { return localStorage.getItem('risk-notice-open') === 'true'; } catch { return false; }
-  });
-  const toggleNotice = () => {
-    setNoticeOpen((o) => {
-      try { localStorage.setItem('risk-notice-open', String(!o)); } catch { /* storage unavailable: still works for this visit */ }
-      return !o;
-    });
-  };
+  // Closed every time the page opens (user, 2026-10-05); the red button opens it for this visit only.
+  const [noticeOpen, setNoticeOpen] = useState(false);
+  const toggleNotice = () => setNoticeOpen((o) => !o);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
   const [moreOpen, setMoreOpen] = useState(false);
