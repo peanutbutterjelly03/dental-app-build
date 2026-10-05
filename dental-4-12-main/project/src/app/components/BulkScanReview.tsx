@@ -355,7 +355,11 @@ export const BulkScanReview = () => {
           strip under the header, and the inline 3.5rem left padding pushed the page
           right. There, the page scrolls normally, the list pane is capped at 75% of
           the screen, and the side padding is 1rem. Wider screens unchanged. */}
-      <style>{'.bulk-scroll{scrollbar-width:thin;scrollbar-color:#9aa5c0 #eef1f7}'
+      <style>{'@supports not selector(::-webkit-scrollbar){.bulk-scroll{scrollbar-width:thin}}'
+        // No bar along the bottom: sideways is the corner tab, dragging, or the trackpad. Only the
+        // thin up-and-down bar stays.
+        + '.bulk-grid::-webkit-scrollbar:horizontal{display:none;height:0}'
+        + '.bulk-grid::-webkit-scrollbar{width:0.5rem}.bulk-grid::-webkit-scrollbar-thumb{background:#9aa5c0;border-radius:0.5rem}.bulk-grid::-webkit-scrollbar-track{background:#eef1f7}'
         + '.bulk-grid{cursor:grab}.bulk-grid.dragging{cursor:grabbing;user-select:none}'
         + '.bulk-tab{position:absolute;top:0.0625rem;right:0.0625rem;display:flex;align-items:center;gap:0.25rem;padding:0 0.5rem;background:#273A78;border-left:0.0625rem solid rgba(255,255,255,0.18);border-top-right-radius:0.6875rem;z-index:6}'
         + '.bulk-tab button{width:1.75rem;height:1.75rem;border:0.0625rem solid rgba(255,255,255,0.45);border-radius:0.5rem;background:rgba(255,255,255,0.16);color:#fff;font-size:1.0625rem;font-weight:700;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0}'
@@ -423,7 +427,7 @@ export const BulkScanReview = () => {
         // column stays pinned on the left.
         <div className="bulk-pr" style={{ position: 'relative', width: '100%', boxSizing: 'border-box', paddingRight: '3.5rem', flex: '1 1 0', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
           <div style={{ position: 'relative', flex: '1 1 0', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        <div ref={setGrid} className="bulk-scroll bulk-grid" style={{ flex: '1 1 0', minHeight: 0, width: 0, minWidth: '100%', maxWidth: '100%', overflow: 'auto', background: '#fff', border: `0.0625rem solid ${GRID_LINE}`, borderRadius: '0.75rem' }}>
+        <div ref={setGrid} className="bulk-scroll bulk-grid" style={{ flex: '1 1 0', minHeight: 0, width: 0, minWidth: '100%', maxWidth: '100%', overflow: 'auto', background: '#fff', border: `0.0625rem solid ${GRID_LINE}`, borderBottom: 'none', borderRadius: '0.75rem 0.75rem 0 0' }}>
           <table style={{ borderCollapse: 'separate', borderSpacing: 0, width: '100%' }}>
             <thead>
               <tr>
