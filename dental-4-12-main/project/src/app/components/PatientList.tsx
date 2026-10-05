@@ -1421,7 +1421,7 @@ export const PatientList = () => {
                     <td className="px-4 py-1.5 sm:pr-6">
                       {!student.pending && (
                         <div className="inline-flex align-middle">
-                          {/* Fixed width (w-[76px]) so "+ Chart" and a queue number
+                          {/* Fixed width (w-16) so "+ Chart" and a queue number
                               occupy the same box. This list's Queue is the Dental
                               Chart queue, so the label says so. */}
                           <button
@@ -1435,7 +1435,7 @@ export const PatientList = () => {
                               }
                             }}
                             title={isQueued ? `Place ${queuePosition + 1} in the Dental Chart queue. Click to remove.` : 'Add to the Dental Chart queue'}
-                            className={`inline-flex h-8 w-[76px] items-center justify-center rounded-l-full border text-xs font-semibold tabular-nums transition-colors ${
+                            className={`inline-flex h-8 w-16 items-center justify-center rounded-l-full border text-xs font-semibold tabular-nums transition-colors ${
                               isQueued
                                 ? 'bg-success-surface text-success border-success/20 hover:bg-danger-surface hover:text-destructive hover:border-destructive/20'
                                 : 'bg-primary-surface text-primary border-primary/20 hover:bg-primary/10'
@@ -1451,7 +1451,7 @@ export const PatientList = () => {
                             }}
                             aria-label={`More actions for ${student.name}`}
                             aria-haspopup="menu"
-                            className={`ml-px inline-flex h-8 w-8 items-center justify-center rounded-r-full border text-[10px] transition-colors ${
+                            className={`ml-px inline-flex h-8 w-7 items-center justify-center rounded-r-full border text-[10px] transition-colors ${
                               isQueued
                                 ? 'bg-success-surface text-success border-success/20 hover:brightness-95'
                                 : 'bg-primary-surface text-primary border-primary/20 hover:bg-primary/10'
