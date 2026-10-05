@@ -222,7 +222,7 @@ export const DentalChart = () => {
     const scoped = selectedSchool ? allStudents.filter((s) => s.school === selectedSchool) : [...allStudents];
     // Opened from Student Records (iptrContext === 'default', no ?context=)
     // sorts the SAME way that module's own table does (compareStudentsDefault:
-    // surname, first name, then grade and section for equal names) (user,
+    // grade, section, then surname and first name) (user,
     // 2026-09-27: "the next student should be the next student in the
     // student list, not alphabetical"). risk context keeps the simple
     // alphabetical fallback, unaffected (dental-queue and treatment never
