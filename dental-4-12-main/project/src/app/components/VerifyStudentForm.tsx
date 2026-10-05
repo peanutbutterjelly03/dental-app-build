@@ -14,7 +14,7 @@ import {
 import type { IptrCheckboxFinding } from '../utils/iptrOcrShared';
 import { tickBodies, tickKind, tickKey, defaultTickYear } from '../utils/ocrTickFindings';
 import { batchSummary, type BatchOutcome } from '../utils/ocrBatch';
-import type { DupDecisions } from '../utils/bulkDuplicates';
+import { inFileDuplicates, type DupDecisions } from '../utils/bulkDuplicates';
 import type { ExtractedHandoff } from './ScanStudentForm';
 // Same shared value-format rules the manual Add Student form and the server use.
 import { validateStudentValues } from '../../../shared/studentValidation';
@@ -66,11 +66,15 @@ export const VerifyStudentForm = () => {
   const returnTo = nav?.returnTo ?? null;
   // Duplicate choices made on the bulk list (2026-10-04): 'skip' rows are passed
   // over by Save & Next; 'different' rows save without asking a second time.
-  const dupDecisions = nav?.dupDecisions ?? {};
+  const [dupDecisions, setDupDecisions] = useState<DupDecisions>(nav?.dupDecisions ?? {});
   const [index, setIndex] = useState(nav?.startIndex ?? 0);
   const [outcomes, setOutcomes] = useState<BatchOutcome[]>([]);
   const [savedIdx, setSavedIdx] = useState<number[]>(nav?.saved ?? []);
   const backToList = (saved: number[] = savedIdx) => navigate(returnTo ?? '/students/scan', returnTo ? { state: { queue, saved, dupDecisions } } : undefined);
+  // Other rows of THIS upload that look like the same child (a twin marked skip no longer counts).
+  const twins = useMemo(() => inFileDuplicates((queue ?? []).map((h) => ({
+    school: h.newPatient.school, birthdate: h.newPatient.birthdate, lastName: h.newPatient.lastName, firstName: h.newPatient.firstName,
+  }))), [queue]);
   // The next row Save & Next should show: not saved already, not marked "same child, skip".
   const nextIndex = (from: number, saved: number[]) => {
     for (let i = from + 1; i < (queue?.length ?? 0); i++) {
@@ -111,15 +115,22 @@ export const VerifyStudentForm = () => {
       position={queue.length > 1 ? { index, total: queue.length } : null}
       onDone={done}
       onBack={returnTo ? () => backToList() : null}
-      preConfirmedDuplicate={dupDecisions[index] === 'different'}
+      decision={dupDecisions[index] ?? null}
+      onDecide={(d) => setDupDecisions((m) => ({ ...m, [index]: d }))}
+      repeatedRows={(twins.get(index) ?? []).filter((j) => dupDecisions[j] !== 'skip').map((j) => j + 1)}
+      tally={{ saved: savedIdx.length, skipped: Object.values(dupDecisions).filter((d) => d === 'skip').length }}
     />
   );
 };
 
-const VerifyOne = ({ handoff, position, onDone, onBack, preConfirmedDuplicate = false }: {
-  /** Marked "different child" on the bulk list: send confirm_duplicate so the
-   *  server does not ask again. Required-field checks still run. */
-  preConfirmedDuplicate?: boolean;
+const VerifyOne = ({ handoff, position, onDone, onBack, decision, onDecide, repeatedRows, tally }: {
+  /** The choice made on the bulk list or here: 'different' sends confirm_duplicate
+   *  so the server does not ask again. Required-field checks still run. */
+  decision: 'skip' | 'different' | null;
+  onDecide: (d: 'skip' | 'different') => void;
+  /** Row numbers of other rows in this upload that look like the same child. */
+  repeatedRows: number[];
+  tally: { saved: number; skipped: number };
   handoff: ExtractedHandoff;
   /** Where this form sits in a batch; null for a single scan. */
   position: { index: number; total: number } | null;
@@ -137,6 +148,22 @@ const VerifyOne = ({ handoff, position, onDone, onBack, preConfirmedDuplicate = 
   const [error, setError] = useState<string | null>(null);
   const [missing, setMissing] = useState<Set<keyof NewPatientForm>>(new Set());
   const [duplicates, setDuplicates] = useState<DuplicateCandidate[] | null>(null);
+  // Students already in records that match this one (same school, birthday, first and last name).
+  // Checked as the key fields change, so the status is known before Save; a save refused by
+  // the server fills it too.
+  const dupSchool = form.school || selectedSchool || '';
+  useEffect(() => {
+    if (!dupSchool || !form.birthdate || !form.lastName.trim() || !form.firstName.trim()) { setDuplicates(null); return; }
+    let cancelled = false;
+    const t = setTimeout(() => {
+      apiClient.post<{ matches: DuplicateCandidate[][] }>('/students/duplicate-check', {
+        students: [{ school: dupSchool, birthday: form.birthdate, last_name: form.lastName, first_name: form.firstName }],
+      })
+        .then((r) => { if (!cancelled) setDuplicates(r.matches[0]?.length ? r.matches[0] : null); })
+        .catch(() => { /* every save is still checked by the server */ });
+    }, 400);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [dupSchool, form.birthdate, form.lastName, form.firstName]);
   const [showSourcePreview, setShowSourcePreview] = useState(false);
   // The original file for Download, and a full-size view for images and PDFs.
   const fileUrl = useMemo(() => (handoff.sourceFile ? URL.createObjectURL(handoff.sourceFile) : null), [handoff.sourceFile]);
@@ -174,7 +201,7 @@ const VerifyOne = ({ handoff, position, onDone, onBack, preConfirmedDuplicate = 
 
   const save = async (confirmDuplicate = false) => {
     setError(null);
-    if (!confirmDuplicate) {
+    {
       const missingFields = REQUIRED_STUDENT_FIELDS
         .filter(({ onlyIf }) => (onlyIf ? onlyIf(form) : true))
         .filter(({ key }) => !String(form[key] ?? '').trim());
@@ -203,7 +230,7 @@ const VerifyOne = ({ handoff, position, onDone, onBack, preConfirmedDuplicate = 
         guardian_occupation: form.guardianOccupation, philhealth_number: form.philhealthNumber,
         philhealth_status: form.philhealthNumber.trim() ? form.philhealthStatus : 'None',
         is_4ps: form.is4Ps, fourps_id: form.fourPsId,
-        ...(confirmDuplicate || preConfirmedDuplicate ? { confirm_duplicate: true } : {}),
+        ...(confirmDuplicate || decision === 'different' ? { confirm_duplicate: true } : {}),
       });
       let iptrId: string | null = null;
       try {
@@ -244,6 +271,26 @@ const VerifyOne = ({ handoff, position, onDone, onBack, preConfirmedDuplicate = 
     }
   };
 
+  // Status for the pill and the decision bar. Same colors as the bulk list.
+  const missingNow = REQUIRED_STUDENT_FIELDS
+    .filter(({ onlyIf }) => (onlyIf ? onlyIf(form) : true))
+    .filter(({ key }) => !String(form[key] ?? '').trim());
+  const onFileHit = duplicates?.[0] ?? null;
+  const isDup = !!onFileHit || repeatedRows.length > 0;
+  const pill = decision === 'skip'
+    ? { label: 'Skipped', bg: '#E2E8F0', fg: '#334155' }
+    : isDup && decision !== 'different'
+      ? (onFileHit ? { label: 'Possible duplicate', bg: '#FEE2E2', fg: '#B91C1C' } : { label: 'Repeated in this upload', bg: '#FEF9C3', fg: '#854D0E' })
+      : missingNow.length
+        ? { label: 'Needs fixes', bg: '#FEE2E2', fg: '#B91C1C' }
+        : { label: decision === 'different' ? 'Ready, different child' : 'Ready', bg: '#DCFCE7', fg: '#166534' };
+  const barRed = isDup && decision !== 'different' && !!onFileHit;
+  const hitStyle = isDup && decision !== 'different' ? { borderColor: '#F87171', background: '#FFF1F2' } : {};
+  const isLast = !position || position.index + 1 >= position.total;
+  const barBtn = { cursor: 'pointer', boxSizing: 'border-box', padding: '0.625rem 1.125rem', borderRadius: '0.625rem', fontSize: '0.8125rem', fontWeight: 600, color: '#141413', border: '0.0625rem solid #E2E8F0', background: '#fff' } as const;
+  const skipHere = () => { onDecide('skip'); onDone('skipped'); };
+  const saveDifferent = () => { onDecide('different'); void save(true); };
+
   return (
     <div className="verify-page" style={{ background: '#F6F9FC', minHeight: '100%', padding: '0.25rem 3rem 2rem', fontFamily: 'var(--font-sans)', color: '#141413' }}>
       {/* Phones (< 640 px), 2026-10-04: this page is styled inline, which cannot
@@ -269,7 +316,12 @@ const VerifyOne = ({ handoff, position, onDone, onBack, preConfirmedDuplicate = 
             <div style={{ fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#67687A' }}>
               Students &middot; OCR{position && <> &middot; Student {position.index + 1} of {position.total}</>}
             </div>
-            <h1 style={{ margin: '0.125rem 0 0', fontSize: '1.5rem', fontWeight: 700 }}>Verify Extracted Information</h1>
+            <h1 style={{ margin: '0.125rem 0 0', fontSize: '1.5rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.625rem', flexWrap: 'wrap' }}>
+              Verify Extracted Information
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem', padding: '0.1875rem 0.625rem', borderRadius: '62.4375rem', fontSize: '0.75rem', fontWeight: 700, background: pill.bg, color: pill.fg, whiteSpace: 'nowrap' }}>
+                <span style={{ width: '0.4375rem', height: '0.4375rem', borderRadius: '50%', background: 'currentColor' }} />{pill.label}
+              </span>
+            </h1>
           </div>
         </div>
         <button
@@ -278,26 +330,13 @@ const VerifyOne = ({ handoff, position, onDone, onBack, preConfirmedDuplicate = 
           style={{ cursor: 'pointer', boxSizing: 'border-box', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5625rem 1rem', borderRadius: '0.625rem', fontSize: '0.8125rem', fontWeight: 600, color: '#141413', border: '0.0625rem solid #E2E8F0', background: '#fff' }}
         >
           <svg width="12.8" height="12.8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
-          Back
+          {onBack ? 'Back to list' : 'Back'}
         </button>
       </div>
 
       {handoff.readError && (
         <div style={{ background: '#FFF7ED', border: '0.0625rem solid #FED7AA', borderRadius: '0.75rem', padding: '0.625rem 1rem', marginBottom: '1.125rem', fontSize: '0.78125rem', color: '#9A3412' }}>
-          {handoff.sourceFileName}: {handoff.readError} Type the details below, or skip this form.
-        </div>
-      )}
-
-      {duplicates && (
-        <div style={{ background: '#FFF1F2', border: '0.0625rem solid rgba(190,18,60,0.2)', borderRadius: '0.75rem', padding: '0.625rem 1rem', marginBottom: '1.125rem', fontSize: '0.78125rem', color: '#BE123C' }}>
-          <p style={{ margin: '0rem', fontWeight: 600 }}>Possible duplicate</p>
-          <p style={{ margin: '0.125rem 0 0.5rem' }}>
-            {duplicates[0].full_name} is already on file, born {duplicates[0].birthday} ({duplicates[0].grade_level} {duplicates[0].section}).
-          </p>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button type="button" onClick={() => setDuplicates(null)} style={{ cursor: 'pointer', padding: '0.375rem 0.75rem', borderRadius: '62.4375rem', fontSize: '0.75rem', fontWeight: 600, border: '0.0625rem solid rgba(190,18,60,0.3)', background: '#fff', color: '#BE123C' }}>Let me edit</button>
-            <button type="button" onClick={() => { setDuplicates(null); void save(true); }} style={{ cursor: 'pointer', padding: '0.375rem 0.75rem', borderRadius: '62.4375rem', fontSize: '0.75rem', fontWeight: 600, border: 'none', background: '#BE123C', color: '#fff' }}>Save anyway: different student</button>
-          </div>
+          {handoff.sourceFileName}: {handoff.readError} Type the details below, or skip this student.
         </div>
       )}
 
@@ -349,11 +388,11 @@ const VerifyOne = ({ handoff, position, onDone, onBack, preConfirmedDuplicate = 
           <div className="verify-row3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '1rem' }}>
             <div>
               <Label required extracted={isExtracted('lastName')}>Last Name</Label>
-              <input style={inputStyle} value={form.lastName} onChange={(e) => update('lastName', e.target.value)} />
+              <input style={{ ...inputStyle, ...hitStyle }} value={form.lastName} onChange={(e) => update('lastName', e.target.value)} />
             </div>
             <div>
               <Label required extracted={isExtracted('firstName')}>First Name</Label>
-              <input style={inputStyle} value={form.firstName} onChange={(e) => update('firstName', e.target.value)} />
+              <input style={{ ...inputStyle, ...hitStyle }} value={form.firstName} onChange={(e) => update('firstName', e.target.value)} />
             </div>
             <div>
               <Label extracted={isExtracted('middleName')}>Middle Name</Label>
@@ -364,7 +403,7 @@ const VerifyOne = ({ handoff, position, onDone, onBack, preConfirmedDuplicate = 
           <div className="verify-row3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '1rem' }}>
             <div>
               <Label required extracted={isExtracted('birthdate')}>Birthdate</Label>
-              <input type="date" style={inputStyle} value={form.birthdate} onChange={(e) => update('birthdate', e.target.value)} />
+              <input type="date" style={{ ...inputStyle, ...hitStyle }} value={form.birthdate} onChange={(e) => update('birthdate', e.target.value)} />
             </div>
             <div>
               <Label>Age <span style={{ fontSize: '0.59375rem', fontWeight: 700, letterSpacing: '0.03em', textTransform: 'uppercase', color: '#67687A', background: '#ECECF0', borderRadius: '62.4375rem', padding: '0.0625rem 0.4375rem' }}>Auto-calculated</span></Label>
@@ -518,34 +557,46 @@ const VerifyOne = ({ handoff, position, onDone, onBack, preConfirmedDuplicate = 
         </div>
       )}
 
-      {/* Footer actions */}
-      <div className="verify-foot" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.25rem' }}>
-        <button
-          type="button"
-          onClick={() => (onBack ? onBack() : navigate('/students/scan'))}
-          style={{ cursor: 'pointer', boxSizing: 'border-box', padding: '0.6875rem 1.25rem', borderRadius: '0.625rem', fontSize: '0.875rem', fontWeight: 600, color: '#141413', border: '0.0625rem solid #E2E8F0', background: '#fff' }}
-        >
-          {position ? 'Stop batch' : 'Cancel'}
-        </button>
-        {position && (
-          <button
-            type="button"
-            disabled={saving}
-            onClick={() => onDone('skipped')}
-            style={{ cursor: saving ? 'not-allowed' : 'pointer', boxSizing: 'border-box', padding: '0.6875rem 1.25rem', borderRadius: '0.625rem', fontSize: '0.875rem', fontWeight: 600, color: '#141413', border: '0.0625rem solid #E2E8F0', background: '#fff' }}
-          >
-            Skip this form
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={() => void save(false)}
-          disabled={saving}
-          style={{ cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1, boxSizing: 'border-box', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6875rem 1.375rem', borderRadius: '0.625rem', fontSize: '0.875rem', fontWeight: 700, background: '#273A78', color: '#fff', border: 'none' }}
-        >
-          <svg width="13.6" height="13.6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-          {saving ? 'Saving…' : position && position.index + 1 < position.total ? 'Save & Next' : 'Confirm & Save Student'}
-        </button>
+      {/* Decision bar: says what the row is and offers the choices that fit it. */}
+      <div className="verify-foot" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', marginTop: '1.25rem', background: '#fff', border: `0.0625rem solid ${barRed ? '#F87171' : '#E2E8F0'}`, borderRadius: '0.875rem', padding: '0.75rem 1rem', boxShadow: '0 -0.375rem 1rem -0.625rem rgba(0,0,0,0.25)' }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: '0.875rem', fontWeight: 700 }}>
+            {decision === 'skip' ? 'Marked as the same child. It will not be saved.'
+              : isDup && decision !== 'different'
+                ? (onFileHit ? `${onFileHit.full_name} is already in records.` : `This student also appears in row ${repeatedRows.join(', ')} of this upload.`)
+                : decision === 'different' ? 'Marked as a different child.'
+                  : missingNow.length ? `Fill in: ${missingNow.map((m) => m.label).join(', ')}.` : 'Ready to save'}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: '#67687A' }}>
+            {isDup && decision === null && onFileHit
+              ? `Born ${onFileHit.birthday}, ${onFileHit.grade_level} ${onFileHit.section}. Is this the same child?`
+              : isDup && decision === null ? 'Is this the same child?'
+                : position ? `${position.index + 1} of ${position.total} · ${tally.saved} saved, ${tally.skipped} skipped` : ' '}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          {isDup && decision !== 'different' ? (
+            <>
+              <button type="button" disabled={saving} onClick={skipHere} style={{ ...barBtn, background: '#E2E8F0', borderColor: '#E2E8F0', color: '#334155' }}>Same child, skip it.</button>
+              <button type="button" disabled={saving} onClick={saveDifferent} style={{ ...barBtn, background: '#273A78', borderColor: '#273A78', color: '#fff', fontWeight: 700 }}>
+                {saving ? 'Saving…' : 'Different child, save it'}
+              </button>
+            </>
+          ) : (
+            <>
+              {position && <button type="button" disabled={saving} onClick={skipHere} style={barBtn}>Skip this student</button>}
+              <button
+                type="button"
+                onClick={() => void save(false)}
+                disabled={saving}
+                style={{ ...barBtn, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#273A78', borderColor: '#273A78', color: '#fff', fontWeight: 700 }}
+              >
+                <svg width="13.6" height="13.6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                {saving ? 'Saving…' : isLast ? 'Save student' : 'Save and next student →'}
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       <PreviewModal
