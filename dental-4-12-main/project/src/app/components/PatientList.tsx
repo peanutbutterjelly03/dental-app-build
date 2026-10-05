@@ -82,7 +82,7 @@ const AssignPrompt = ({ label, enabled, onAssign }: { label: 'grade' | 'section'
       type="button"
       onClick={onAssign}
       title={`Assign ${label}`}
-      className="inline-flex items-center gap-0.5 whitespace-nowrap rounded-full border border-dashed border-primary px-2 py-px text-[11px] font-semibold capitalize leading-4 text-primary hover:bg-primary-surface"
+      className="inline-flex items-center gap-0.5 whitespace-nowrap rounded-full border border-dashed border-primary px-2 py-px text-[11px] font-normal capitalize leading-4 text-primary hover:bg-primary-surface"
     >
       <Plus className="h-2.5 w-2.5" /> Assign {label}
     </button>
@@ -1763,7 +1763,7 @@ export const PatientList = () => {
             <div className="space-y-3 p-6">
               <h2 className="text-lg font-bold text-foreground">Assign {target.name}?</h2>
               <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">{target.school}<span className="rounded-full bg-green-100 px-2 py-0.5 text-[9px] font-bold text-green-800">SY {year}</span></p>
-              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-xl bg-canvas px-4 py-3">
+              <div className="grid grid-cols-[8.5rem_auto_8.5rem] items-center justify-center gap-6 rounded-xl bg-canvas px-4 py-3">
                 <div className="grid justify-items-center gap-1.5">
                   <span className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">Now</span>
                   {now(target.grade, 'No grade', true)}
