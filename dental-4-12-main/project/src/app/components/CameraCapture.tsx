@@ -34,8 +34,13 @@ type Orientation = 'landscape' | 'portrait';
  *  never under them. */
 const GUIDE_SIDE: Record<Orientation, number> = { landscape: 0.07, portrait: 0.12 };
 /** Room kept clear for the toggle/close row on top and the hint + shutter row below. */
-const GUIDE_TOP = 60;
-const GUIDE_BOTTOM = 116;
+const GUIDE_TOP = 56;
+const GUIDE_BOTTOM = 108;
+
+/** `capture` only opens the camera app on touch devices (phones, tablets); a
+ *  laptop browser ignores it and shows a file picker, so the button is only
+ *  offered where it does what it says. */
+const canOpenCameraApp = () => typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
 
 const glass = 'bg-white/20 border border-white/40 text-white backdrop-blur-sm';
 
@@ -45,6 +50,7 @@ export const CameraCapture = ({ onCapture, onClose }: CameraCaptureProps) => {
   const guideRef = useRef<HTMLDivElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const appInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraApp = canOpenCameraApp();
   const [error, setError] = useState<string | null>(null);
   const [orientation, setOrientation] = useState<Orientation>('landscape');
   const [photo, setPhoto] = useState<{ url: string; blob: Blob; width: number; height: number } | null>(null);
@@ -61,7 +67,7 @@ export const CameraCapture = ({ onCapture, onClose }: CameraCaptureProps) => {
         streamRef.current = stream;
         if (videoRef.current) videoRef.current.srcObject = stream;
       })
-      .catch(() => setError('Could not access the camera. Check that this browser has camera permission, use the camera app, or upload a file instead.'));
+      .catch(() => setError('Could not access the camera. Check that this browser has camera permission, or upload a file instead.'));
     return () => {
       cancelled = true;
       streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -116,7 +122,7 @@ export const CameraCapture = ({ onCapture, onClose }: CameraCaptureProps) => {
   const guideStyle = { left: side, right: side, top: GUIDE_TOP, bottom: GUIDE_BOTTOM };
 
   return (
-    <Modal onClose={onClose} maxWidth={orientation === 'portrait' && !photo ? 'max-w-sm' : 'max-w-xl'}>
+    <Modal onClose={onClose} maxWidth={orientation === 'portrait' && !photo ? 'max-w-[min(22rem,calc(80vh*0.5625))]' : 'max-w-2xl'}>
       {/* The device's own camera app. Whatever it returns goes straight into the scan flow. */}
       <input
         ref={appInputRef}
@@ -153,12 +159,14 @@ export const CameraCapture = ({ onCapture, onClose }: CameraCaptureProps) => {
             <button onClick={onClose} aria-label="Close" className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
           </div>
           <p className="text-sm text-destructive">{error}</p>
-          <button type="button" onClick={() => appInputRef.current?.click()} className="flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">
-            <Smartphone className="h-4 w-4" /> Camera app
-          </button>
+          {cameraApp && (
+            <button type="button" onClick={() => appInputRef.current?.click()} className="flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">
+              <Smartphone className="h-4 w-4" /> Camera App
+            </button>
+          )}
         </div>
       ) : (
-        <div ref={frameRef} className="relative w-full overflow-hidden bg-card" style={{ aspectRatio: orientation === 'landscape' ? '4 / 3' : '3 / 4' }}>
+        <div ref={frameRef} className="relative w-full overflow-hidden bg-card" style={{ aspectRatio: orientation === 'landscape' ? '16 / 9' : '9 / 16' }}>
           <video
             // Callback ref: the <video> is unmounted while a captured photo is
             // shown, so after Retake the new element needs the live stream again.
@@ -192,9 +200,11 @@ export const CameraCapture = ({ onCapture, onClose }: CameraCaptureProps) => {
           <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 bg-gradient-to-t from-black/55 to-transparent p-3 pb-4">
             <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${glass}`}>Line the form up with the outline</span>
             <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center">
-              <button type="button" onClick={() => appInputRef.current?.click()} className={`inline-flex items-center gap-1.5 justify-self-start whitespace-nowrap rounded-full px-3 py-1.5 text-[11.5px] font-semibold ${glass}`}>
-                <Smartphone className="h-3.5 w-3.5" /> Camera app
-              </button>
+              {cameraApp ? (
+                <button type="button" onClick={() => appInputRef.current?.click()} className={`inline-flex items-center gap-1.5 justify-self-start whitespace-nowrap rounded-full px-3 py-1.5 text-[11.5px] font-semibold ${glass}`}>
+                  <Smartphone className="h-3.5 w-3.5" /> Camera App
+                </button>
+              ) : <span />}
               <button type="button" onClick={capture} aria-label="Capture" className="grid h-14 w-14 place-items-center rounded-full border-4 border-white/60 bg-white text-foreground shadow ring-2 ring-black/25 hover:bg-gray-100">
                 <Camera className="h-5 w-5" />
               </button>
