@@ -431,8 +431,11 @@ export const TreatmentRecords = () => {
         // No shadow (user, 2026-09-28: "remove the shadows for both the
         // bottom corner of the treatment queue") -- was toned down per
         // Hide/shown state earlier the same day, now removed outright.
-        className={`sticky top-0 z-30 flex flex-col bg-card border border-border overflow-clip ${hidePagination ? 'rounded-t-2xl' : 'rounded-2xl'}`}
-        style={hidePagination ? { maxHeight: regionHeight ?? undefined } : { height: regionHeight ?? undefined }}
+        className="sticky top-0 z-30 flex flex-col bg-card border border-border overflow-clip rounded-2xl"
+        // User, 2026-10-05: the card is no longer stretched to the screen's edges. It is as tall
+        // as its rows (capped at the screen), so a short list ends with the card instead of
+        // leaving a tall empty box. Supersedes the 2026-09-28 fixed-height-when-paginated rule above.
+        style={{ maxHeight: regionHeight ?? undefined }}
       >
         {/* Dark green top accent bar. */}
         <div className="h-1.5 bg-[#0F9D74] flex-shrink-0" />
