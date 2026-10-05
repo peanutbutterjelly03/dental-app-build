@@ -88,12 +88,12 @@ const AssignPrompt = ({ label, enabled, onAssign }: { label: 'grade' | 'section'
       type="button"
       onClick={onAssign}
       title={`Assign ${label}`}
-      className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-dashed border-primary px-3 py-0.5 text-xs font-semibold capitalize text-primary hover:bg-primary-surface"
+      className="inline-flex items-center gap-0.5 whitespace-nowrap rounded-full border border-dashed border-primary px-2 py-px text-[11px] font-semibold capitalize leading-4 text-primary hover:bg-primary-surface"
     >
-      <Plus className="h-3 w-3" /> Assign {label}
+      <Plus className="h-2.5 w-2.5" /> Assign {label}
     </button>
   ) : (
-    <span className="inline-flex items-center whitespace-nowrap rounded-full border border-dashed border-border px-3 py-0.5 text-xs capitalize text-muted-foreground">No {label}</span>
+    <span className="inline-flex items-center whitespace-nowrap rounded-full border border-dashed border-border px-2 py-px text-[11px] capitalize leading-4 text-muted-foreground">No {label}</span>
   );
 
 export const duplicatesFromError = (err: unknown): DuplicateCandidate[] | null => {
@@ -389,6 +389,19 @@ export const PatientList = () => {
   const [assignPicker, setAssignPicker] = useState<{ kind: 'grade' | 'section'; id: string; left: number; top?: number; bottom?: number } | null>(null);
   const [assignQuery, setAssignQuery] = useState('');
   const [assignSaving, setAssignSaving] = useState(false);
+  // A fixed popover does not move with the page, so scrolling or resizing closes
+  // it (its own scrolling, inside the list, is ignored).
+  useEffect(() => {
+    if (!assignPicker && !rowMenu) return;
+    const close = (e: Event) => {
+      if (e.target instanceof Element && e.target.closest('[data-floating-menu]')) return;
+      setAssignPicker(null);
+      setRowMenu(null);
+    };
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => { window.removeEventListener('scroll', close, true); window.removeEventListener('resize', close); };
+  }, [assignPicker, rowMenu]);
   const openAssignPicker = (kind: 'grade' | 'section', id: string, e: React.MouseEvent<HTMLButtonElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
     const left = Math.max(8, Math.min(r.left, window.innerWidth - 264));
@@ -1174,8 +1187,8 @@ export const PatientList = () => {
                 <button
                   onClick={() => { setArchivePassword(''); setArchivePasswordError(null); setConfirmArchiveTicked(true); }}
                   disabled={tickedIds.size === 0}
-                  title={tickedIds.size === 0 ? 'Select students to archive' : 'Archive'}
-                  aria-label={tickedIds.size === 0 ? 'Archive, select students first' : `Archive ${tickedIds.size} selected`}
+                  title={tickedIds.size === 0 ? 'Select records to archive' : 'Archive'}
+                  aria-label={tickedIds.size === 0 ? 'Archive, select records first' : `Archive ${tickedIds.size} selected`}
                   className="relative grid h-[38px] w-[38px] place-items-center rounded-[10px] bg-red-600 text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-red-600"
                 >
                   <ArchiveIcon className="h-[19px] w-[19px]" strokeWidth={1.5} />
@@ -1441,6 +1454,11 @@ export const PatientList = () => {
                     <div className="mx-auto flex max-w-md flex-col items-center gap-3">
                       <span className="grid h-12 w-12 place-items-center rounded-full bg-canvas text-primary">{noneYet ? <Users className="h-5 w-5" /> : <Search className="h-5 w-5" />}</span>
                       <h3 className="text-base font-bold text-foreground">{noneYet ? 'No non-student patients yet' : 'No students match'}</h3>
+                      <p className="text-sm">
+                        {noneYet
+                          ? 'Tick "Not a Student" when adding someone who is not enrolled, such as a teacher or staff member.'
+                          : 'Nobody in this list fits all of these filters. Remove a filter to widen the search, or clear them all.'}
+                      </p>
                       <div className="flex flex-wrap justify-center gap-2">
                         {chips.map((c) => (
                           <button key={c.key} onClick={c.clear} aria-label={`Remove filter ${c.label}`} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-canvas px-3 py-1 text-xs text-foreground hover:bg-muted">
@@ -1448,11 +1466,6 @@ export const PatientList = () => {
                           </button>
                         ))}
                       </div>
-                      <p className="text-sm">
-                        {noneYet
-                          ? 'Tick "Not a Student" when adding someone who is not enrolled, such as a teacher or staff member.'
-                          : 'Nobody in this list fits all of these filters. Remove a filter to widen the search, or clear them all.'}
-                      </p>
                       <div className="flex flex-wrap justify-center gap-2">
                         {noneYet && canAddStudent && (
                           <button
@@ -1669,7 +1682,7 @@ export const PatientList = () => {
           return (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setAssignPicker(null)} />
-              <div role="listbox" aria-label={`Assign grade to ${target.name}`} style={place} className={`${shell} max-h-72 overflow-y-auto`}>
+              <div data-floating-menu role="listbox" aria-label={`Assign grade to ${target.name}`} style={place} className={`${shell} max-h-72 overflow-y-auto`}>
                 <p className={head}>Grade</p>
                 {grades.map((g) => {
                   const gc = getGradeColor(g);
@@ -1700,7 +1713,7 @@ export const PatientList = () => {
         return (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setAssignPicker(null)} />
-            <div style={place} className={`${shell} max-h-80 overflow-y-auto`}>
+            <div data-floating-menu style={place} className={`${shell} max-h-80 overflow-y-auto`}>
               <div className="px-2 pb-1 pt-1">
                 <input
                   autoFocus
@@ -1737,7 +1750,7 @@ export const PatientList = () => {
         return (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setRowMenu(null)} />
-            <div role="menu" style={{ top: rowMenu.top, right: rowMenu.right }} className="fixed z-50 w-60 overflow-hidden rounded-xl border border-border bg-card py-1 shadow-lg">
+            <div data-floating-menu role="menu" style={{ top: rowMenu.top, right: rowMenu.right }} className="fixed z-50 w-60 overflow-hidden rounded-xl border border-border bg-card py-1 shadow-lg">
               <p className="px-3 pb-1 pt-1.5 text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">Open</p>
               <button role="menuitem" className={item} onClick={() => open('chart')}><Eye className="h-4 w-4 text-muted-foreground" /> Dental Chart</button>
               <button role="menuitem" className={item} onClick={() => open('treatments')}><FileText className="h-4 w-4 text-muted-foreground" /> Treatment Records</button>
@@ -2376,10 +2389,10 @@ export const PatientList = () => {
 
       <ConfirmDialog
         open={confirmArchiveTicked}
-        title={`Archive ${tickedIds.size} student${tickedIds.size === 1 ? '' : 's'}?`}
+        title={`Archive ${tickedIds.size} record${tickedIds.size === 1 ? '' : 's'}?`}
         message={
           <div className="space-y-3">
-            <p>Archived students are removed from active rosters and reports. A System Admin can restore them later from Archived Records.</p>
+            <p>Archived records are removed from active rosters and reports. A System Admin can restore them later from Archived Records.</p>
             {/* Isolated <form> on purpose — this was pairing with the page's
                 Search box as a "username" field once a saved-credential
                 suggestion was picked (browsers/password managers look for the

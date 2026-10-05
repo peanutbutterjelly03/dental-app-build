@@ -28,8 +28,14 @@ const studentSchema = new mongoose.Schema(
     // enrolled has no grade/section worth demanding on this form. Sex is NOT
     // included in this exemption (stays plain `required: true` above): it
     // applies to a non-enrolled person the same as anyone else.
-    grade_level: { type: String, required: [function (this: any) { return !this.is_not_student; }, "grade_level is required"] },
-    section: { type: String, required: [function (this: any) { return !this.is_not_student; }, "section is required"] },
+    //
+    // Required when a record is CREATED only (`isNew`), not on every later save
+    // (user, 2026-10-05). Starting a school year clears both on purpose, and
+    // Assign Grade / Assign Section on the Students list then fill them one at a
+    // time, so a save that touches one field must not fail on the other still
+    // being blank. The Add Student form and the import still demand both.
+    grade_level: { type: String, required: [function (this: any) { return !!this.isNew && !this.is_not_student; }, "grade_level is required"] },
+    section: { type: String, required: [function (this: any) { return !!this.isNew && !this.is_not_student; }, "section is required"] },
     // ERD DEVIATION, added 2026-09-25. A person entered through the Add
     // Student form who isn't actually enrolled at the school (e.g. a sibling
     // or community member treated at a Bayanihan mission) -- grade_level and
