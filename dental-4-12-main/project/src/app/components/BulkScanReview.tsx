@@ -26,6 +26,8 @@ const NAVY = '#273A78';
 const MUTED = '#67687A';
 const LINE = '#E2E8F0';
 const GRID_LINE = '#CBD5E1';
+// The last column keeps this much room on its right so its title ends before the corner tab.
+const LAST_COL_PAD = '6rem';
 
 const missingOf = (h: ExtractedHandoff): string[] =>
   REQUIRED_STUDENT_FIELDS
@@ -150,7 +152,7 @@ export const BulkScanReview = () => {
   // there is more to the left or right, and whether everything already fits.
   const [gridEl, setGridEl] = useState<HTMLDivElement | null>(null);
   const setGrid = (el: HTMLDivElement | null) => { gridRef.current = el; setGridEl(el); };
-  const [tab, setTab] = useState({ left: false, right: false, fits: true, headH: 36 });
+  const [tab, setTab] = useState({ left: false, right: false, fits: true, headH: 36, sbw: 0 });
   useEffect(() => {
     const el = gridEl;
     if (!el) return;
@@ -161,6 +163,7 @@ export const BulkScanReview = () => {
         right: el.scrollLeft + el.clientWidth < el.scrollWidth - 1,
         fits: el.scrollWidth <= el.clientWidth + 1,
         headH: th?.offsetHeight ?? 36,
+        sbw: Math.max(0, el.offsetWidth - el.clientWidth - 2),
       });
     };
     update();
@@ -170,6 +173,52 @@ export const BulkScanReview = () => {
     const table = el.querySelector('table');
     if (table) ro?.observe(table);
     return () => { el.removeEventListener('scroll', update); ro?.disconnect(); };
+  }, [gridEl]);
+  // Grab and drag with the mouse to pan the table (touch screens already do this natively).
+  // A drag must not count as a click on the row underneath, or it would open that student.
+  useEffect(() => {
+    const el = gridEl;
+    if (!el) return;
+    let down = false;
+    let moved = false;
+    let sx = 0, sy = 0, sl = 0, st = 0;
+    const onDown = (e: PointerEvent) => {
+      if (e.pointerType !== 'mouse' || e.button !== 0) return;
+      if ((e.target as Element).closest('button, a, input, select, textarea')) return;
+      down = true; moved = false; sx = e.clientX; sy = e.clientY; sl = el.scrollLeft; st = el.scrollTop;
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!down) return;
+      const dx = e.clientX - sx;
+      const dy = e.clientY - sy;
+      if (!moved && Math.abs(dx) + Math.abs(dy) < 5) return;
+      if (!moved) { moved = true; el.classList.add('dragging'); }
+      el.scrollLeft = sl - dx;
+      el.scrollTop = st - dy;
+    };
+    const end = () => {
+      if (!down) return;
+      down = false;
+      el.classList.remove('dragging');
+      if (moved) {
+        const stop = (ev: Event) => { ev.stopPropagation(); ev.preventDefault(); };
+        el.addEventListener('click', stop, { capture: true, once: true });
+        setTimeout(() => el.removeEventListener('click', stop, true), 0);
+      }
+    };
+    const noSelect = (e: Event) => { if (down && moved) e.preventDefault(); };
+    el.addEventListener('pointerdown', onDown);
+    el.addEventListener('selectstart', noSelect);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
+    return () => {
+      el.removeEventListener('pointerdown', onDown);
+      el.removeEventListener('selectstart', noSelect);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('pointercancel', end);
+    };
   }, [gridEl]);
   // One press moves about a screen of columns and always lands on a column edge, so a title is
   // never sliced. The Student column is pinned, so columns scroll under it.
@@ -181,8 +230,8 @@ export const BulkScanReview = () => {
     const box = el.getBoundingClientRect();
     const leftOf = (t: HTMLElement) => t.getBoundingClientRect().left - box.left + el.scrollLeft;
     const pinned = ths[0].offsetWidth;
-    const reserve = ths[ths.length - 1].offsetWidth;
-    const cols = ths.slice(1, -1);
+    const reserve = (el.parentElement?.querySelector('.bulk-tab') as HTMLElement | null)?.offsetWidth ?? 80;
+    const cols = ths.slice(1);
     if (dir === 1) {
       const viewRight = el.scrollLeft + el.clientWidth - reserve;
       const next = cols.find((c) => leftOf(c) + c.offsetWidth > viewRight + 1);
@@ -298,18 +347,15 @@ export const BulkScanReview = () => {
           strip under the header, and the inline 3.5rem left padding pushed the page
           right. There, the page scrolls normally, the list pane is capped at 75% of
           the screen, and the side padding is 1rem. Wider screens unchanged. */}
-      <style>{'.bulk-shell{height:auto !important;overflow:visible !important;margin-bottom:0 !important}'
-        // The page scrolls DOWN as normal; the table only scrolls SIDEWAYS, with a visible bar.
-        + '.bulk-scroll{flex:none !important;scrollbar-width:thin;scrollbar-color:#9aa5c0 #eef1f7}'
-        + '.bulk-scroll.bulk-grid{overflow-x:auto !important;overflow-y:hidden !important}'
+      <style>{'.bulk-scroll{scrollbar-width:thin;scrollbar-color:#9aa5c0 #eef1f7}'
+        + '.bulk-grid{cursor:grab}.bulk-grid.dragging{cursor:grabbing;user-select:none}'
         + '.bulk-tab{position:absolute;top:0.0625rem;right:0.0625rem;display:flex;align-items:center;gap:0.25rem;padding:0 0.5rem;background:#273A78;border-left:0.0625rem solid rgba(255,255,255,0.18);border-top-right-radius:0.6875rem;z-index:6}'
         + '.bulk-tab button{width:1.75rem;height:1.75rem;border:0.0625rem solid rgba(255,255,255,0.45);border-radius:0.5rem;background:rgba(255,255,255,0.16);color:#fff;font-size:1.0625rem;font-weight:700;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0}'
         + '.bulk-tab button:hover:not(:disabled){background:rgba(255,255,255,0.32)}.bulk-tab button:active:not(:disabled){background:rgba(255,255,255,0.45)}'
         + '.bulk-tab button:disabled{opacity:.4;cursor:default}.bulk-tab button:focus-visible{outline:0.125rem solid #7AA2FF;outline-offset:0.125rem}'
-        + '.bulk-spacer{width:5rem;min-width:5rem}'
-        + '@media (pointer: coarse){.bulk-tab button{width:2.75rem;height:2.75rem}.bulk-spacer{width:7rem;min-width:7rem}}'
-        + '@media (max-width: 639px){.bulk-shell{padding:0.25rem 0 1rem 1rem !important}'
-        + '.bulk-pr{padding-right:1rem !important}.bulk-scroll{max-height:75vh}.bulk-scroll.bulk-grid{max-height:none}}'}</style>
+        + '@media (pointer: coarse){.bulk-tab button{width:2.75rem;height:2.75rem}}'
+        + '@media (max-width: 639px){.bulk-shell{height:auto !important;overflow:visible !important;padding:0.25rem 0 1rem 1rem !important;margin-bottom:0 !important}'
+        + '.bulk-pr{padding-right:1rem !important}.bulk-scroll{flex:none !important;max-height:75vh}}'}</style>
       {/* Header, same shape as the Scan and Verify pages */}
       <div className="bulk-pr" style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem', flexShrink: 0, paddingRight: '3.5rem' }}>
         <div style={{ width: '3.5rem', height: '3.5rem', borderRadius: '1rem', background: '#F4F7FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -363,18 +409,18 @@ export const BulkScanReview = () => {
       {shown.length === 0 && <p style={{ fontSize: '0.875rem', color: MUTED, flexShrink: 0 }}>No student needs fixes.</p>}
 
       {shown.length > 0 && view === 'grid' && (
-        // The page scrolls down; this pane scrolls SIDEWAYS only (user, 2026-10-05), with a
-        // visible bar. The Student column stays pinned on the left. The arrow buttons float
-        // at the top of the screen, so sideways is reachable however far down you are.
-        <div className="bulk-pr" style={{ position: 'relative', width: '100%', boxSizing: 'border-box', paddingRight: '3.5rem' }}>
-          <div style={{ position: 'relative' }}>
+        // The pane fills the screen below the header (the page itself does not scroll), so the
+        // column titles stay pinned and only the rows scroll down (user, 2026-10-05). It also
+        // scrolls sideways, by bar, by the corner tab, or by grabbing and dragging. The Student
+        // column stays pinned on the left.
+        <div className="bulk-pr" style={{ position: 'relative', width: '100%', boxSizing: 'border-box', paddingRight: '3.5rem', flex: '1 1 0', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ position: 'relative', flex: '1 1 0', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         <div ref={setGrid} className="bulk-scroll bulk-grid" style={{ flex: '1 1 0', minHeight: 0, width: 0, minWidth: '100%', maxWidth: '100%', overflow: 'auto', background: '#fff', border: `0.0625rem solid ${GRID_LINE}`, borderRadius: '0.75rem' }}>
           <table style={{ borderCollapse: 'separate', borderSpacing: 0, width: '100%' }}>
             <thead>
               <tr>
                 <th style={{ ...head, left: 0, zIndex: 5 }}>Student</th>
-                {cols.map((c) => <th key={c.label} style={head}>{c.label}</th>)}
-                <th className="bulk-spacer" aria-hidden="true" style={{ ...head, padding: 0 }} />
+                {cols.map((c, ci) => <th key={c.label} style={ci === cols.length - 1 ? { ...head, paddingRight: LAST_COL_PAD } : head}>{c.label}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -383,8 +429,7 @@ export const BulkScanReview = () => {
                 return (
                   <tr key={r.index} onClick={() => open(r.index)} style={{ cursor: 'pointer', background: band }}>
                     <td style={{ ...cell, position: 'sticky', left: 0, zIndex: 2, background: '#E8EEFB', fontWeight: 700, color: NAVY, boxShadow: `1px 0 0 ${GRID_LINE}` }}>{fullName(r.h, r.index)}</td>
-                    {cols.map((c) => <td key={c.label} style={cell}>{c.cell(r)}</td>)}
-                    <td aria-hidden="true" style={{ ...cell, padding: 0 }} />
+                    {cols.map((c, ci) => <td key={c.label} style={ci === cols.length - 1 ? { ...cell, paddingRight: LAST_COL_PAD } : cell}>{c.cell(r)}</td>)}
                   </tr>
                 );
               })}
@@ -392,7 +437,7 @@ export const BulkScanReview = () => {
           </table>
         </div>
           {!tab.fits && (
-            <div className="bulk-tab" style={{ height: tab.headH }}>
+            <div className="bulk-tab" style={{ height: tab.headH, right: `calc(0.0625rem + ${tab.sbw}px)` }}>
               <button type="button" aria-label="Show previous columns" title="Show previous columns" disabled={!tab.left} onClick={() => stepColumns(-1)}>‹</button>
               <button type="button" aria-label="Show next columns" title="Show next columns" disabled={!tab.right} onClick={() => stepColumns(1)}>›</button>
             </div>
