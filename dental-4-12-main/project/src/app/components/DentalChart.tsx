@@ -1393,7 +1393,7 @@ export const DentalChart = () => {
     { key: 'first_name', label: 'First Name', on: true },
     { key: 'birthday', label: 'Birthdate', on: true },
     { key: 'sex', label: 'Sex', on: true },
-    { key: 'not_student_role', label: 'Relation to the school', on: !!d.is_not_student },
+    { key: 'not_student_role', label: 'Relation to the School', on: !!d.is_not_student },
     { key: 'grade_level', label: 'Grade', on: !d.is_not_student },
     { key: 'section', label: 'Section', on: !d.is_not_student },
     { key: 'fourps_id', label: '4Ps ID', on: !!d.is_4ps },
@@ -2469,14 +2469,14 @@ export const DentalChart = () => {
               className="h-4 w-4 rounded accent-primary" />
             <label htmlFor="edit-not-student" className="text-sm font-medium text-foreground">Not a Student</label>
           </div>
-          {draftInfo.is_not_student && (
-            <div className="mx-6 mt-3">
-              <label htmlFor="edit-not-student-role" className="block text-sm font-medium text-foreground mb-1">Relation to the school{infoReq('not_student_role')}</label>
-              <input id="edit-not-student-role" type="text" maxLength={40} value={draftInfo.not_student_role ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, not_student_role: e.target.value }))} placeholder="Teacher, Staff, Guard..." className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-              {infoMiss('not_student_role')}
-            </div>
-          )}
           <div className="space-y-4 p-6">
+            {draftInfo.is_not_student && (
+              <div>
+                <label htmlFor="edit-not-student-role" className="block text-sm font-medium text-foreground mb-1">Relation to the School{infoReq('not_student_role')}</label>
+                <input id="edit-not-student-role" type="text" maxLength={40} value={draftInfo.not_student_role ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, not_student_role: e.target.value }))} placeholder="Teacher, Guard, Staff, etc." className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                {infoMiss('not_student_role')}
+              </div>
+            )}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div><label className="block text-sm font-medium text-foreground mb-1">Last Name{infoReq('last_name')}</label><input type="text" value={draftInfo.last_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, last_name: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />{infoMiss('last_name')}</div>
               <div><label className="block text-sm font-medium text-foreground mb-1">First Name{infoReq('first_name')}</label><input type="text" value={draftInfo.first_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, first_name: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />{infoMiss('first_name')}</div>

@@ -68,6 +68,16 @@ export type DuplicateCandidate = {
 
 /** Pulls the candidate list off a 409, or null if this isn't a duplicate
  *  rejection. Keeps the type assertion in one place. */
+// Colour for a not-a-student patient's role pill (border, text and dot move
+// together). The three roles the clinic named get their own colour; anything
+// else typed keeps the violet default, so a non-student is always coloured.
+const roleTone = (role: string | undefined) => {
+  const r = (role ?? '').trim().toLowerCase();
+  if (r.includes('staff')) return { box: 'border-teal-300 text-teal-700', dot: 'bg-teal-600' };
+  if (r.includes('guard')) return { box: 'border-amber-300 text-amber-700', dot: 'bg-amber-500' };
+  return { box: 'border-violet-300 text-violet-700', dot: 'bg-violet-600' };
+};
+
 // Empty Grade/Section cell (user pick D, 2026-10-05): a dashed "+ Assign" prompt
 // for people who can edit students, which opens Update School Year, the page
 // that assigns grade and section. Everyone else sees the same dashed pill as
@@ -175,7 +185,7 @@ export const REQUIRED_STUDENT_FIELDS: {
   { key: 'firstName', label: 'First Name' },
   { key: 'birthdate', label: 'Birthdate' },
   { key: 'gender', label: 'Gender' },
-  { key: 'notStudentRole', label: 'Relation to the school', onlyIf: (f) => f.isNotStudent },
+  { key: 'notStudentRole', label: 'Relation to the School', onlyIf: (f) => f.isNotStudent },
   { key: 'grade', label: 'Grade', onlyIf: (f) => !f.isNotStudent },
   { key: 'section', label: 'Section', onlyIf: (f) => !f.isNotStudent },
   // Guardian Name/Contact are NOT required (2026-09-04, user decision) —
@@ -1363,10 +1373,12 @@ export const PatientList = () => {
                   if (genderFilter !== 'all') chips.push({ key: 'x', label: `Gender: ${genderFilter}`, clear: () => setGenderFilter('all') });
                   if (ageGroupFilter !== 'all') chips.push({ key: 'a', label: `Age: ${ageGroupFilter}`, clear: () => setAgeGroupFilter('all') });
                   const noOthers = gradeFilter === OTHERS;
+                  // Nobody is a non-student at all (not just filtered out): say so and offer to add one.
+                  const noneYet = noOthers && !schoolStudents.some((x) => x.isNotStudent);
                   return (
                     <div className="mx-auto flex max-w-md flex-col items-center gap-3">
-                      <span className="grid h-12 w-12 place-items-center rounded-full bg-canvas text-primary"><Search className="h-5 w-5" /></span>
-                      <h3 className="text-base font-bold text-foreground">No students match</h3>
+                      <span className="grid h-12 w-12 place-items-center rounded-full bg-canvas text-primary">{noneYet ? <Users className="h-5 w-5" /> : <Search className="h-5 w-5" />}</span>
+                      <h3 className="text-base font-bold text-foreground">{noneYet ? 'No non-student patients yet' : 'No students match'}</h3>
                       <div className="flex flex-wrap justify-center gap-2">
                         {chips.map((c) => (
                           <button key={c.key} onClick={c.clear} aria-label={`Remove filter ${c.label}`} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-canvas px-3 py-1 text-xs text-foreground hover:bg-muted">
@@ -1374,19 +1386,24 @@ export const PatientList = () => {
                           </button>
                         ))}
                       </div>
-                      {noOthers && (
+                      {noneYet && (
                         <p className="text-sm">Tick "Not a Student" when adding someone who is not enrolled, such as a teacher or staff member.</p>
                       )}
                       <div className="flex flex-wrap justify-center gap-2">
-                        <button onClick={clearFilters} className="rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white hover:bg-primary-hover">Clear all filters</button>
-                        {noOthers && canAddStudent && (
+                        {noneYet && canAddStudent && (
                           <button
                             onClick={() => { setOcrConfidences({}); setOcrFindings([]); setOcrFindingsNote(null); setOcrSourceLabel(null); setShowAddForm(true); }}
-                            className="inline-flex items-center gap-1.5 rounded-full border border-primary px-5 py-2 text-sm font-semibold text-primary hover:bg-primary-surface"
+                            className="inline-flex items-center gap-1.5 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white hover:bg-primary-hover"
                           >
                             <Plus className="h-4 w-4" /> Add Student
                           </button>
                         )}
+                        <button
+                          onClick={clearFilters}
+                          className={noneYet && canAddStudent ? 'rounded-full border border-primary px-5 py-2 text-sm font-semibold text-primary hover:bg-primary-surface' : 'rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white hover:bg-primary-hover'}
+                        >
+                          Clear all filters
+                        </button>
                       </div>
                     </div>
                   );
@@ -1437,7 +1454,7 @@ export const PatientList = () => {
                     </td>
                     <td className="px-4 py-1.5 text-muted-foreground" onClick={(e) => e.stopPropagation()}>
                       {student.isNotStudent ? (
-                        <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold leading-none text-foreground" title="Not a student"><span className="h-[7px] w-[7px] rounded-full bg-violet-600" />{student.notStudentRole || 'Not a student'}</span>
+                        <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border bg-card px-3 py-1 text-xs font-semibold leading-none ${roleTone(student.notStudentRole).box}`} title="Not a student"><span className={`h-[7px] w-[7px] rounded-full ${roleTone(student.notStudentRole).dot}`} />{student.notStudentRole || 'Not a student'}</span>
                       ) : bulkQueueMode && !student.pending ? (
                         <button
                           onClick={() => toggleGradeCriterionQ(student.grade)}
@@ -1779,21 +1796,6 @@ export const PatientList = () => {
               />
               <label htmlFor="isNotStudent" className="text-sm font-medium text-foreground">Not a Student</label>
             </div>
-            {newPatient.isNotStudent && (
-              <div className="mx-6 mt-3">
-                <label htmlFor="notStudentRole" className="block text-sm font-medium text-foreground mb-1">Relation to the school{req('notStudentRole')}</label>
-                <input
-                  id="notStudentRole"
-                  type="text"
-                  maxLength={40}
-                  value={newPatient.notStudentRole}
-                  onChange={e => updateField('notStudentRole', e.target.value)}
-                  placeholder="Teacher, Staff, Guard..."
-                  className={plainFieldClass}
-                />
-                {fieldError('notStudentRole')}
-              </div>
-            )}
             {/* Live check against the roster already loaded in the browser —
                 a heads-up before the form is even finished, not a
                 replacement for the server's 409 check on submit. Its own
@@ -1870,6 +1872,21 @@ export const PatientList = () => {
               )}
               {ocrFindingsNote && (
                 <p className="text-xs text-muted-foreground">{ocrFindingsNote}</p>
+              )}
+              {newPatient.isNotStudent && (
+                <div>
+                  <label htmlFor="notStudentRole" className="block text-sm font-medium text-foreground mb-1">Relation to the School{req('notStudentRole')}</label>
+                  <input
+                    id="notStudentRole"
+                    type="text"
+                    maxLength={40}
+                    value={newPatient.notStudentRole}
+                    onChange={e => updateField('notStudentRole', e.target.value)}
+                    placeholder="Teacher, Guard, Staff, etc."
+                    className={plainFieldClass}
+                  />
+                  {fieldError('notStudentRole')}
+                </div>
               )}
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="block text-sm font-medium text-foreground mb-1">Last Name{req('lastName')} {ocrHint('lastName')}</label><input type="text" value={newPatient.lastName} onChange={e => updateField('lastName', e.target.value.toUpperCase())} className={ocrFieldClass('lastName')} />{fieldError('lastName')}</div>
