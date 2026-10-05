@@ -1233,7 +1233,7 @@ export const PatientList = () => {
             >
               Queue
             </button>
-            <button onClick={exitBulkQueueMode} className="text-xs font-normal text-white/60 hover:text-white">
+            <button onClick={exitBulkQueueMode} className="text-xs font-normal text-red-400 hover:text-red-300">
               Cancel
             </button>
           </div>
