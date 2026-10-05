@@ -2273,6 +2273,8 @@ export const DentalChart = () => {
         {/* ── TAB 5: Treatment History ── */}
         {activeTab === 'treatments' && (
           <TreatmentHistoryTab
+            studentId={id ?? ''}
+            years={years}
             treatments={allTreatments}
             dentistNameById={dentistNameById}
             schoolYear={currentYearData?.iptr.school_year}
