@@ -329,12 +329,15 @@ export const DentalChart = () => {
   // browser clips the other too. An absolutely positioned dropdown opened
   // inside it rendered at full size and was cut off by the strip, which looked
   // exactly like the button doing nothing.
-  const yearMenuBtnRef = useRef<HTMLButtonElement | null>(null);
   const [yearMenuAt, setYearMenuAt] = useState<{ top: number; right: number } | null>(null);
-  const openYearMenu = () => {
-    const r = yearMenuBtnRef.current?.getBoundingClientRect();
-    if (r) setYearMenuAt({ top: r.bottom + 4, right: Math.max(8, window.innerWidth - r.right) });
-    setYearMenuOpen((v) => !v);
+  // Which year chip's ⋮ is open (user, 2026-10-05: the menu lives inside the chip, top right).
+  const [yearMenuIdx, setYearMenuIdx] = useState(0);
+  const openYearMenu = (e: React.MouseEvent<HTMLElement>, idx: number) => {
+    e.stopPropagation();
+    const r = e.currentTarget.getBoundingClientRect();
+    setYearMenuAt({ top: r.bottom + 4, right: Math.max(8, window.innerWidth - r.right) });
+    setYearMenuOpen((open) => !(open && yearMenuIdx === idx));
+    setYearMenuIdx(idx);
   };
   const headerRowRef = useRef<HTMLDivElement | null>(null);
   // Wraps the record body for the PDF export, excluding the sticky toolbar —
@@ -2023,8 +2026,8 @@ export const DentalChart = () => {
                 // viewed, distinct from the blue selected-tab styling above.
                 const isCurrentYear = y.iptr.school_year === schoolYearLabel();
                 return (
-                  <div key={y.iptr._id} className={`mr-1 flex flex-shrink-0 items-stretch border-b-2 ${isActive ? 'border-blue-700 bg-blue-50 text-blue-700' : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
-                    <button type="button" onClick={() => { setSelectedYear(idx); setSelectedChartId(null); setExplicitVisit(null); }} className="px-4 py-2.5 text-left text-xs font-medium transition-all">
+                  <div key={y.iptr._id} className={`relative mr-1 flex flex-shrink-0 items-stretch border-b-2 ${isActive ? 'border-blue-700 bg-blue-50 text-blue-700' : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
+                    <button type="button" onClick={() => { setSelectedYear(idx); setSelectedChartId(null); setExplicitVisit(null); }} className={`py-2.5 pl-4 text-left text-xs font-medium transition-all ${canEdit ? 'pr-9' : 'pr-4'}`}>
                       {isCurrentYear ? (
                         <span className="inline-block rounded-full bg-emerald-600 px-2 py-0.5 text-white">{y.iptr.school_year}</span>
                       ) : (
@@ -2037,6 +2040,13 @@ export const DentalChart = () => {
                         {formatDateStamp(examinedDate(y.oralCondition, y.dentalChart, y.toothRecords))}
                       </div>
                     </button>
+                    {canEdit && (
+                      <button type="button" onClick={(e) => openYearMenu(e, idx)}
+                        title="Record options" aria-label={`Options for ${y.iptr.school_year}`} aria-expanded={yearMenuOpen && yearMenuIdx === idx}
+                        className="absolute right-1.5 top-2 grid h-6 w-6 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-card hover:text-foreground">
+                        <MoreVertical className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                     {false && (
                       <button type="button" onClick={(e) => { e.stopPropagation(); setConfirmDeleteYear(idx); }} className="border-l border-border px-2 text-muted-foreground transition-colors hover:bg-card hover:text-destructive" title={`Remove ${y.iptr.school_year}`}>
                         <Trash2 className="h-3.5 w-3.5" />
@@ -2059,6 +2069,25 @@ export const DentalChart = () => {
                   `date_opened`, which her STUDENT_IPTR has and ours does not.
                   A menu item that saves nowhere is the placeholder CLAUDE.md
                   forbids, so it is left out rather than stubbed. */}
+              {canEdit && yearMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setYearMenuOpen(false)} />
+                  <div
+                    style={yearMenuAt ? { top: yearMenuAt.top, right: yearMenuAt.right } : undefined}
+                    className="fixed z-50 w-52 rounded-xl border border-border bg-card shadow-md py-1"
+                  >
+                    {years.length > 1 ? (
+                      <button type="button"
+                        onClick={() => { setYearMenuOpen(false); setConfirmDeleteYear(yearMenuIdx); }}
+                        className="block w-full text-left px-3 py-2 text-xs text-destructive hover:bg-danger-surface">
+                        Archive record
+                      </button>
+                    ) : (
+                      <div className="px-3 py-2 text-xs text-muted-foreground">The only school year cannot be archived.</div>
+                    )}
+                  </div>
+                </>
+              )}
               {/* Sprint 163 — Charting Mode and Legend sit at the right end of
                   the YEAR ROW, level with the year chips, which is where hers
                   are. They were below the charting picker, half a screen down
@@ -2083,36 +2112,6 @@ export const DentalChart = () => {
                   >
                     <FileText className="w-3.5 h-3.5" /> Legend
                   </button>
-                </div>
-              )}
-              {/* ⋮ menu (user, 2026-10-05): far right of the year row, one option. It archives the
-                  school year on screen. Adding a year is done from Update School Year. */}
-              {canEdit && (
-                <div className={`relative flex-shrink-0 py-2 ${activeTab === 'chart' ? 'pr-1' : 'ml-auto pr-1'}`}>
-                  <button type="button" ref={yearMenuBtnRef} onClick={openYearMenu}
-                    title="Record options" aria-label="Record options" aria-expanded={yearMenuOpen}
-                    className="grid h-8 w-8 place-items-center rounded-lg border border-border bg-card text-muted-foreground hover:bg-gray-50">
-                    <MoreVertical className="w-4 h-4" />
-                  </button>
-                  {yearMenuOpen && (
-                    <>
-                      <div className="fixed inset-0 z-10" onClick={() => setYearMenuOpen(false)} />
-                      <div
-                        style={yearMenuAt ? { top: yearMenuAt.top, right: yearMenuAt.right } : undefined}
-                        className="fixed z-50 w-52 rounded-xl border border-border bg-card shadow-md py-1"
-                      >
-                        {years.length > 1 ? (
-                          <button type="button"
-                            onClick={() => { setYearMenuOpen(false); setConfirmDeleteYear(selectedYear); }}
-                            className="block w-full text-left px-3 py-2 text-xs text-destructive hover:bg-danger-surface">
-                            Archive record
-                          </button>
-                        ) : (
-                          <div className="px-3 py-2 text-xs text-muted-foreground">The only school year cannot be archived.</div>
-                        )}
-                      </div>
-                    </>
-                  )}
                 </div>
               )}
               </div>
