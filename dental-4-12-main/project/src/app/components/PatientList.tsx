@@ -64,15 +64,13 @@ export type DuplicateCandidate = {
 
 /** Pulls the candidate list off a 409, or null if this isn't a duplicate
  *  rejection. Keeps the type assertion in one place. */
-// Colour for a not-a-student patient's role pill (border, text and dot move
-// together). The three roles the clinic named get their own colour; anything
-// else typed keeps the violet default, so a non-student is always coloured.
-const roleTone = (role: string | undefined) => {
-  const r = (role ?? '').trim().toLowerCase();
-  if (r.includes('staff')) return { box: 'border-teal-300 bg-teal-100 text-teal-800', dot: 'bg-teal-600' };
-  if (r.includes('guard')) return { box: 'border-amber-300 bg-amber-100 text-amber-800', dot: 'bg-amber-500' };
-  return { box: 'border-violet-300 bg-violet-100 text-violet-800', dot: 'bg-violet-600' };
-};
+// Colour for a not-a-student patient's role pill (border, fill, text and dot
+// move together). Every non-student is brown (user, 2026-10-05), whatever role
+// was typed, so "not enrolled" reads at a glance and never looks like a grade.
+const roleTone = (_role: string | undefined) => ({
+  box: 'border-[#c9a27e] bg-[#f3e6d8] text-[#6b4423]',
+  dot: 'bg-[#8b5a2b]',
+});
 
 // Empty Grade/Section cell (user pick D, 2026-10-05): a dashed "+ Assign" prompt.
 // For people who can edit students it opens the picker for that ONE field
@@ -2028,11 +2026,11 @@ export const PatientList = () => {
                 </div>
               )}
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium text-foreground mb-1">Last Name{req('lastName')} {ocrHint('lastName')}</label><input type="text" value={newPatient.lastName} onChange={e => updateField('lastName', e.target.value.toUpperCase())} className={ocrFieldClass('lastName')} />{fieldError('lastName')}</div>
-                <div><label className="block text-sm font-medium text-foreground mb-1">First Name{req('firstName')} {ocrHint('firstName')}</label><input type="text" value={newPatient.firstName} onChange={e => updateField('firstName', e.target.value.toUpperCase())} className={ocrFieldClass('firstName')} />{fieldError('firstName')}</div>
+                <div><label className="block text-sm font-medium text-foreground mb-1">Last Name{req('lastName')} {ocrHint('lastName')}</label><input type="text" value={newPatient.lastName} onChange={e => updateField('lastName', e.target.value)} className={ocrFieldClass('lastName')} />{fieldError('lastName')}</div>
+                <div><label className="block text-sm font-medium text-foreground mb-1">First Name{req('firstName')} {ocrHint('firstName')}</label><input type="text" value={newPatient.firstName} onChange={e => updateField('firstName', e.target.value)} className={ocrFieldClass('firstName')} />{fieldError('firstName')}</div>
               </div>
               <div className="grid grid-cols-3 gap-4">
-                <div><label className="block text-sm font-medium text-foreground mb-1">Middle Name {ocrHint('middleName')}</label><input type="text" value={newPatient.middleName} onChange={e => updateField('middleName', e.target.value.toUpperCase())} className={ocrFieldClass('middleName')} /></div>
+                <div><label className="block text-sm font-medium text-foreground mb-1">Middle Name {ocrHint('middleName')}</label><input type="text" value={newPatient.middleName} onChange={e => updateField('middleName', e.target.value)} className={ocrFieldClass('middleName')} /></div>
                 <div><label className="block text-sm font-medium text-foreground mb-1">Birthdate{req('birthdate')} {ocrHint('birthdate')}</label><input type="date" value={newPatient.birthdate} onChange={e => updateField('birthdate', e.target.value)} className={ocrFieldClass('birthdate')} />{fieldError('birthdate')}</div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Age</label>
