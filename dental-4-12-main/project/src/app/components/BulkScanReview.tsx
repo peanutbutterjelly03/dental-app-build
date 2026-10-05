@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { LayoutGrid, Table2 } from 'lucide-react';
 import type { CSSProperties, ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router';
@@ -23,6 +23,7 @@ import { inFileDuplicates, type DupDecisions } from '../utils/bulkDuplicates';
 // colours and rem values), so the three pages read as one flow.
 
 const VIEW_KEY = 'bulk-scan-view';
+const SCROLL_KEY = 'bulk-review-scroll';
 type View = 'grid' | 'cards';
 
 type Row = { index: number; h: ExtractedHandoff; missing: string[] };
@@ -59,25 +60,37 @@ const pill = (bg: string, fg: string): CSSProperties => ({
 // it may be a different child, so it asks for a look, not a fix.
 type Dup = { onFile: DuplicateCandidate[]; inFile: number[] };
 
+// Colour by where the other copy is: light RED when the child is already in the student records,
+// light YELLOW when the twin is in this same upload (red wins if both).
+const dupTone = (dup: Dup) => dup.onFile.length
+  ? { bg: '#FEE2E2', fg: '#B91C1C', line: '#F87171' }
+  : { bg: '#FEF9C3', fg: '#854D0E', line: '#EAB308' };
+
 const Status = ({ r, saved, dup, decision, onCompare }: {
   r: Row; saved: boolean; dup: Dup | null; decision?: 'skip' | 'different'; onCompare: () => void;
 }) => {
   if (saved) return <span style={pill('#DCFCE7', '#166534')}>Saved</span>;
+  // A decided duplicate stays clickable: the status column never opens the full form, it opens the
+  // comparison again so the decision can be changed.
+  const compareBtn = (label: string, dupInfo: Dup) => {
+    const t = dupTone(dupInfo);
+    return (
+      <button type="button" onClick={(e) => { e.stopPropagation(); onCompare(); }} title="Compare side by side"
+        style={{ ...pill(t.bg, t.fg), cursor: 'pointer', border: `0.0625rem solid ${t.line}` }}>
+        {label}
+      </button>
+    );
+  };
   // Wording (user, 2026-10-04): "records" = the system, "upload" = the
   // spreadsheet, so "file" never means both on one screen.
   if (decision === 'skip') {
-    return <span style={pill('#F1F5F9', '#475569')}>{dup && !dup.onFile.length && dup.inFile.length ? 'Skipped: repeated row' : 'Skipped: already in records'}</span>;
+    const label = dup && !dup.onFile.length && dup.inFile.length ? 'Skipped: repeated row' : 'Skipped: already in records';
+    return dup ? compareBtn(label, dup) : <span style={pill('#F1F5F9', '#475569')}>{label}</span>;
   }
   if (r.h.readError) return <span style={pill('#FEE2E2', '#B91C1C')}>Could not read</span>;
   if (r.missing.length) return <span style={pill('#FEE2E2', '#B91C1C')}>Missing {r.missing[0].toLowerCase()}{r.missing.length > 1 ? ` +${r.missing.length - 1}` : ''}</span>;
-  if (dup && !decision) {
-    return (
-      <button type="button" onClick={(e) => { e.stopPropagation(); onCompare(); }} title="Compare side by side"
-        style={{ ...pill('#FEF3C7', '#92400E'), cursor: 'pointer', border: '0.0625rem solid #F59E0B' }}>
-        {dup.onFile.length ? 'Already in records? Compare' : 'Repeated in this upload. Compare'}
-      </button>
-    );
-  }
+  if (dup && decision === 'different') return compareBtn('Different child, will save', dup);
+  if (dup && !decision) return compareBtn(dup.onFile.length ? 'Already in records? Compare.' : 'Repeated in this upload. Compare.', dup);
   return <span style={pill('#DCFCE7', '#166534')}>Ready</span>;
 };
 
@@ -163,7 +176,33 @@ export const BulkScanReview = () => {
   // The corner tab (‹ ›) at the right end of the table header: it needs to know whether
   // there is more to the left or right, and whether everything already fits.
   const [gridEl, setGridEl] = useState<HTMLDivElement | null>(null);
-  const setGrid = (el: HTMLDivElement | null) => { gridRef.current = el; setGridEl(el); };
+  const setGrid = useCallback((el: HTMLDivElement | null) => { gridRef.current = el; setGridEl(el); }, []);
+  // Where the person left the table (sideways, down, and the page itself), so coming back from a
+  // decision or from a student's form puts them on the same column and row. Kept for this visit
+  // only, and dropped when a fresh upload starts.
+  const returning = Array.isArray(state?.saved);
+  const scrollMemo = useRef<{ left: number; top: number; page: number }>((() => {
+    try {
+      if (returning) { const v = JSON.parse(sessionStorage.getItem(SCROLL_KEY) ?? 'null'); if (v) return v; }
+      else sessionStorage.removeItem(SCROLL_KEY);
+    } catch { /* storage unavailable: start at the top */ }
+    return { left: 0, top: 0, page: 0 };
+  })());
+  useEffect(() => {
+    const save = () => { try { sessionStorage.setItem(SCROLL_KEY, JSON.stringify(scrollMemo.current)); } catch { /* ignore */ } };
+    const onPage = () => { scrollMemo.current.page = window.scrollY; save(); };
+    window.addEventListener('scroll', onPage, { passive: true });
+    return () => window.removeEventListener('scroll', onPage);
+  }, []);
+  useEffect(() => {
+    const el = gridEl;
+    if (!el) return;
+    el.scrollLeft = scrollMemo.current.left;
+    el.scrollTop = scrollMemo.current.top;
+    const onScroll = () => { scrollMemo.current.left = el.scrollLeft; scrollMemo.current.top = el.scrollTop; try { sessionStorage.setItem(SCROLL_KEY, JSON.stringify(scrollMemo.current)); } catch { /* ignore */ } };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [gridEl]);
   const [tab, setTab] = useState({ left: false, right: false, fits: true, headH: 36, sbw: 0, fill: 0, rowH: 45, tail: 0 });
   // With only a few students the pane would show a big blank area. Empty rows (cells and
   // gridlines, no text) fill it down to the bottom, like a spreadsheet.
@@ -322,7 +361,7 @@ export const BulkScanReview = () => {
         return prev.r === padR && prev.b === b ? prev : { r: padR, b };
       });
     };
-    window.scrollTo(0, 0);
+    window.scrollTo(0, scrollMemo.current.page);
     fit();
     const raf = requestAnimationFrame(fit);
     window.addEventListener('resize', fit);
@@ -587,7 +626,7 @@ export const BulkScanReview = () => {
                 return (
                   <tr key={r.index} onClick={() => open(r.index)} style={{ cursor: 'pointer', background: band }}>
                     <td style={{ ...cell, position: 'sticky', left: 0, zIndex: 2, background: '#E8EEFB', fontWeight: 700, color: NAVY, boxShadow: `1px 0 0 ${GRID_LINE}`, paddingLeft: LAST_COL_PAD }}>{fullName(r.h, r.index)}</td>
-                    {cols.map((c, ci) => <td key={c.label} style={ci === cols.length - 1 ? { ...cell, paddingRight: LAST_COL_PAD } : cell}>{c.cell(r)}</td>)}
+                    {cols.map((c, ci) => <td key={c.label} onClick={c.label === 'Status' ? (e) => e.stopPropagation() : undefined} style={ci === cols.length - 1 ? { ...cell, paddingRight: LAST_COL_PAD } : cell}>{c.cell(r)}</td>)}
                   </tr>
                 );
               })}
@@ -690,8 +729,10 @@ export const BulkScanReview = () => {
         const d = dupOf(compareIndex);
         const existing = d?.onFile[0];
         const otherRow = d?.inFile.length ? queue[d.inFile[0]].newPatient : null;
-        const side = (title: string, lines: [string, string][], note?: string) => (
-          <div style={{ flex: '1 1 14rem', minWidth: 0, border: `0.0625rem solid ${LINE}`, borderRadius: '0.75rem', padding: '0.875rem' }}>
+        // Panels are tinted by where the other copy is: light red = already in the student records,
+        // light yellow = repeated in this same upload.
+        const side = (title: string, lines: [string, string][], note?: string, tint?: { bg: string; line: string }) => (
+          <div style={{ flex: '1 1 14rem', minWidth: 0, border: `0.0625rem solid ${tint?.line ?? LINE}`, background: tint?.bg ?? '#fff', borderRadius: '0.75rem', padding: '0.875rem' }}>
             <div style={{ fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: MUTED, marginBottom: '0.5rem' }}>{title}</div>
             <div style={{ display: 'grid', gridTemplateColumns: '5.5rem 1fr', gap: '0.25rem 0.5rem', fontSize: '0.8125rem' }}>
               {lines.map(([k, v]) => <Fragment key={k}><span style={{ color: MUTED }}>{k}</span><span style={{ fontWeight: 600, wordBreak: 'break-word' }}>{v || '(blank)'}</span></Fragment>)}
@@ -715,11 +756,11 @@ export const BulkScanReview = () => {
                 {existing && side('Already in student records', [
                   ['Name', existing.full_name], ['Birthdate', String(existing.birthday ?? '').slice(0, 10)], ['Sex', existing.sex],
                   ['Grade', [existing.grade_level, existing.section].filter(Boolean).join(' ')], ['School', p.school],
-                ], d && d.onFile.length > 1 ? `${d.onFile.length - 1} more record(s) in the system also match.` : undefined)}
+                ], d && d.onFile.length > 1 ? `${d.onFile.length - 1} more record(s) in the system also match.` : undefined, { bg: '#FEE2E2', line: '#F87171' })}
                 {otherRow && side(`Also in this upload (row ${(d?.inFile[0] ?? 0) + 1})`, [
                   ['Name', [otherRow.lastName, otherRow.firstName].filter(Boolean).join(', ') + (otherRow.middleName ? ` ${otherRow.middleName}` : '')],
                   ['Birthdate', otherRow.birthdate], ['Sex', otherRow.gender], ['Grade', [otherRow.grade, otherRow.section].filter(Boolean).join(' ')], ['School', otherRow.school],
-                ])}
+                ], undefined, { bg: '#FEF9C3', line: '#EAB308' })}
               </div>
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end', marginTop: '1.125rem' }}>
                 <button type="button" onClick={() => setCompareIndex(null)} style={secondaryBtn}>Cancel</button>
