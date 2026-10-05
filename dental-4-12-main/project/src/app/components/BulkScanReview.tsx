@@ -302,9 +302,14 @@ export const BulkScanReview = () => {
       // wrappers it comes from) is measured, not assumed, and cancelled with a negative margin.
       // Without that the document scrolls a little past the page, the pinned table is pushed up
       // under the top bar, and a gap shows at the bottom of the screen.
+      // Measured with this page's own negative margin taken off, so a stale or inflated reading
+      // can never stick: each pass starts from the layout's real gap.
+      const own = el.style.marginBottom;
+      el.style.marginBottom = '0px';
       const below = document.documentElement.scrollHeight - (el.getBoundingClientRect().bottom + window.scrollY);
+      el.style.marginBottom = own;
       setEdge((prev) => {
-        const b = Math.max(0, Math.round(prev.b + below));
+        const b = Math.max(0, Math.round(below));
         return prev.r === padR && prev.b === b ? prev : { r: padR, b };
       });
     };
@@ -314,6 +319,7 @@ export const BulkScanReview = () => {
     window.addEventListener('resize', fit);
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(fit) : null;
     if (shellRef.current) ro?.observe(shellRef.current);
+    ro?.observe(document.body);
     return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', fit); ro?.disconnect(); };
   }, []);
 
@@ -464,7 +470,23 @@ export const BulkScanReview = () => {
         </div>
       </div>
 
-      {shown.length === 0 && <p style={{ fontSize: '0.875rem', color: MUTED, flexShrink: 0 }}>No student needs fixes.</p>}
+      {shown.length === 0 && (
+        // The "needs fixes" filter is on and nothing matches: say why, say it is good news, and
+        // give the way back (same card shape as the Students list's empty states).
+        <div style={{ margin: '2.5rem auto', maxWidth: '28rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', textAlign: 'center' }}>
+          <span style={{ width: '3.5rem', height: '3.5rem', borderRadius: '50%', background: '#DCFCE7', color: '#15803D', display: 'grid', placeItems: 'center' }}>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+          </span>
+          <h2 style={{ margin: 0, fontSize: '1.0625rem', fontWeight: 700 }}>No students need fixes</h2>
+          <p style={{ margin: 0, fontSize: '0.875rem', color: MUTED, lineHeight: 1.5 }}>
+            Every student in this upload has the required details. Show all students to open each form and confirm it.
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '0.5rem' }}>
+            <span style={{ border: `0.0625rem solid ${LINE}`, background: '#fff', borderRadius: '999px', padding: '0.1875rem 0.75rem', fontSize: '0.75rem' }}>Showing: Needs fixes</span>
+          </div>
+          <button type="button" onClick={() => setOnlyFixes(false)} style={{ ...primaryBtn, padding: '0.5rem 1.125rem', fontSize: '0.8125rem' }}>Show all students</button>
+        </div>
+      )}
 
       {shown.length > 0 && view === 'grid' && (
         // The pane fills the screen below the header (the page itself does not scroll), so the
