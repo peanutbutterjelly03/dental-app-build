@@ -37,6 +37,11 @@ const studentSchema = new mongoose.Schema(
     // be missing (see the conditional `required` above). Defaults false:
     // every existing and newly-added real student is unaffected.
     is_not_student: { type: Boolean, default: false },
+    // Who a not-a-student patient is: "Teacher", "Staff", "Guard", anything the
+    // encoder types (user, 2026-10-05). Shown in the Grade column in place of a
+    // grade and offered as the "Others" filter. A role label, not PII, so it
+    // stays unencrypted and filterable. Left "" for enrolled students.
+    not_student_role: { type: String, default: "", trim: true, maxlength: 40 },
     // Not in the original ERD — added Sprint 14. Real DOH IPTR school
     // registration data, not UI-invented (same rationale as Sprint 11's
     // appointment_type addition).

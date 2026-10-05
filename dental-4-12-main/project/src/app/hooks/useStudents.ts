@@ -20,6 +20,9 @@ export interface StudentRow {
   gender: string;
   grade: string;
   section: string;
+  /** A patient who is not enrolled; `notStudentRole` says who (Teacher, Staff, Guard...). */
+  isNotStudent?: boolean;
+  notStudentRole?: string;
   school: string;
   lastVisit: string | null;
   oralStatus: string;
@@ -112,7 +115,7 @@ export function useStudents() {
   const studentsWithPending = useMemo(() => {
     const schoolNameById = new Map(schools.map((s) => [s._id, s.school_name]));
     const pendingRows: StudentRow[] = pendingWrites.map((w) => {
-      const body = w.body as Partial<{ full_name: string; last_name: string; first_name: string; middle_name: string; birthday: string; sex: string; grade_level: string; section: string; school_id: string }>;
+      const body = w.body as Partial<{ full_name: string; last_name: string; first_name: string; middle_name: string; birthday: string; sex: string; grade_level: string; section: string; is_not_student: boolean; not_student_role: string; school_id: string }>;
       return {
         id: `pending-${w.id}`,
         name: surnameFirst(body) || '(pending sync)',
@@ -123,6 +126,8 @@ export function useStudents() {
         gender: body.sex ?? '',
         grade: body.grade_level ?? '',
         section: body.section ?? '',
+        isNotStudent: !!body.is_not_student,
+        notStudentRole: body.not_student_role ?? '',
         school: schoolNameById.get(body.school_id ?? '') ?? 'Unknown School',
         lastVisit: null,
         oralStatus: 'Not Yet Screened',

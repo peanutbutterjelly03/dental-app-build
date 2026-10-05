@@ -42,6 +42,8 @@ const GRADES = ['Kinder','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grad
 // value on a <select> (which reads as unset) can never collide with these.
 const NO_GRADE = '__no_grade__';
 const NO_SECTION = '__no_section__';
+// Grade-filter value for patients who are not students (Teacher, Staff, Guard...).
+const OTHERS = '__others__';
 
 /** Male before Female in the default sort; anything else (data the intake
  *  form doesn't otherwise produce) sorts after both rather than being lost
@@ -136,6 +138,8 @@ export type NewPatientForm = {
    *  Section and Sex don't apply, so checking this clears and disables them
    *  instead of requiring values that don't exist. */
   isNotStudent: boolean;
+  /** Who a not-a-student patient is (Teacher, Staff, Guard...); shown in the Grade column. */
+  notStudentRole: string;
 };
 
 /** One source for "what a blank Add Student form looks like" — used on
@@ -144,7 +148,7 @@ export type NewPatientForm = {
 export const BLANK_NEW_PATIENT: NewPatientForm = {
   firstName:'', lastName:'', middleName:'', birthdate:'', gender:'', grade:'', section:'', school:'',
   placeOfBirth:'', guardianName:'', guardianContact:'', guardianOccupation:'', address:'', contactNumber:'', philhealthNumber:'',
-  philhealthStatus:'None', is4Ps:false, fourPsId:'', consentStatus:'pending', isNotStudent:false,
+  philhealthStatus:'None', is4Ps:false, fourPsId:'', consentStatus:'pending', isNotStudent:false, notStudentRole:'',
 };
 
 /** Fields the Add Student form requires, and the label each one shows.
@@ -171,6 +175,7 @@ export const REQUIRED_STUDENT_FIELDS: {
   { key: 'firstName', label: 'First Name' },
   { key: 'birthdate', label: 'Birthdate' },
   { key: 'gender', label: 'Gender' },
+  { key: 'notStudentRole', label: 'Others', onlyIf: (f) => f.isNotStudent },
   { key: 'grade', label: 'Grade', onlyIf: (f) => !f.isNotStudent },
   { key: 'section', label: 'Section', onlyIf: (f) => !f.isNotStudent },
   // Guardian Name/Contact are NOT required (2026-09-04, user decision) —
@@ -672,6 +677,7 @@ export const PatientList = () => {
         grade_level: newPatient.grade,
         section: newPatient.section,
         is_not_student: newPatient.isNotStudent,
+        not_student_role: newPatient.isNotStudent ? newPatient.notStudentRole.trim() : '',
         place_of_birth: newPatient.placeOfBirth,
         guardian_name: newPatient.guardianName,
         guardian_contact: newPatient.guardianContact,
@@ -760,7 +766,7 @@ export const PatientList = () => {
   // Bulk Transfer re-settles them into the new year. So "does anyone still
   // need a grade/section" doubles as "has this year's rollover been finished
   // yet" — no separate open/closed flag needed anywhere in the data model.
-  const schoolYearPendingCount = schoolStudents.filter(s => !s.pending && (!s.grade || !s.section)).length;
+  const schoolYearPendingCount = schoolStudents.filter(s => !s.pending && !s.isNotStudent && (!s.grade || !s.section)).length;
   const schoolYearNeedsUpdate = schoolYearPendingCount > 0;
 
   // Every section name already in use anywhere in the school being entered
@@ -823,7 +829,8 @@ export const PatientList = () => {
 
   // List view filtered
   const allSections = useMemo(() => {
-    let base = gradeFilter === NO_GRADE ? schoolStudents.filter(s => !s.grade)
+    let base = gradeFilter === OTHERS ? schoolStudents.filter(s => s.isNotStudent)
+      : gradeFilter === NO_GRADE ? schoolStudents.filter(s => !s.grade && !s.isNotStudent)
       : gradeFilter !== 'all' ? schoolStudents.filter(s => s.grade === gradeFilter)
       : schoolStudents;
     // The blank grade/section itself never renders as a real option here --
@@ -835,16 +842,17 @@ export const PatientList = () => {
   const filtered = useMemo(() => schoolStudents.filter(s => {
     const age = calculateAge(s.birthdate);
     const ag = getAgeGroup(age);
-    if (gradeFilter === NO_GRADE) { if (s.grade) return false; }
+    if (gradeFilter === OTHERS) { if (!s.isNotStudent) return false; }
+    else if (gradeFilter === NO_GRADE) { if (s.grade || s.isNotStudent) return false; }
     else if (gradeFilter !== 'all' && s.grade !== gradeFilter) return false;
-    if (sectionFilter === NO_SECTION) { if (s.section) return false; }
+    if (sectionFilter === NO_SECTION) { if (s.section || s.isNotStudent) return false; }
     else if (sectionFilter !== 'all' && s.section !== sectionFilter) return false;
     if (genderFilter !== 'all' && s.gender !== genderFilter) return false;
     if (ageGroupFilter !== 'all' && ag !== ageGroupFilter) return false;
     if (searchTerm) {
       const query = searchTerm.toLowerCase();
       const formattedName = s.name.toLowerCase();
-      if (!formattedName.includes(query) && !s.grade.toLowerCase().includes(query) && !s.section.toLowerCase().includes(query)) return false;
+      if (!formattedName.includes(query) && !s.grade.toLowerCase().includes(query) && !(s.notStudentRole ?? '').toLowerCase().includes(query) && !s.section.toLowerCase().includes(query)) return false;
     }
     return true;
   // schoolStudents was missing from this dependency array -- filtered went
@@ -1198,7 +1206,7 @@ export const PatientList = () => {
           <div className="flex flex-wrap items-center gap-2">
             <ListSearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search student, grade, or section" />
             <FilterSelect value={gradeFilter} onChange={v => { setGradeFilter(v); setSectionFilter('all'); }} label="All Grades"
-              options={[{ value: NO_GRADE, label: 'No Grade' }, ...GRADES.map(g => ({ value: g, label: g }))]} />
+              options={[{ value: OTHERS, label: 'Others' }, { value: NO_GRADE, label: 'No Grade' }, ...GRADES.map(g => ({ value: g, label: g }))]} />
             <FilterSelect value={sectionFilter} onChange={setSectionFilter} label="All Sections"
               options={[{ value: NO_SECTION, label: 'No Section' }, ...allSections.map(s => ({ value: s, label: s }))]} />
             <FilterSelect value={genderFilter} onChange={setGenderFilter} label="All Genders"
@@ -1391,7 +1399,9 @@ export const PatientList = () => {
                       )}
                     </td>
                     <td className="px-4 py-1.5 text-muted-foreground" onClick={(e) => e.stopPropagation()}>
-                      {bulkQueueMode && !student.pending ? (
+                      {student.isNotStudent ? (
+                        <span className="inline-flex items-center whitespace-nowrap rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold leading-none text-foreground" title="Not a student">{student.notStudentRole || 'Others'}</span>
+                      ) : bulkQueueMode && !student.pending ? (
                         <button
                           onClick={() => toggleGradeCriterionQ(student.grade)}
                           title={activeGradeCriteriaQ.has(student.grade) ? `Deselect all of ${student.grade}` : `Select all of ${student.grade}`}
@@ -1406,7 +1416,9 @@ export const PatientList = () => {
                       )}
                     </td>
                     <td className="px-4 py-1.5 text-muted-foreground" onClick={(e) => e.stopPropagation()}>
-                      {bulkQueueMode && !student.pending ? (
+                      {student.isNotStudent ? (
+                        <span className="text-muted-foreground">-</span>
+                      ) : bulkQueueMode && !student.pending ? (
                         <button
                           onClick={() => toggleSectionCriterionQ(student.section)}
                           title={activeSectionCriteriaQ.has(student.section) ? `Deselect ${student.section} section` : `Select all of ${student.section} section`}
@@ -1718,7 +1730,7 @@ export const PatientList = () => {
                 checked={newPatient.isNotStudent}
                 onChange={e => {
                   const checked = e.target.checked;
-                  setNewPatient(p => ({ ...p, isNotStudent: checked, grade: checked ? '' : p.grade, section: checked ? '' : p.section }));
+                  setNewPatient(p => ({ ...p, isNotStudent: checked, grade: checked ? '' : p.grade, section: checked ? '' : p.section, notStudentRole: checked ? p.notStudentRole : '' }));
                   setMissingFields(prev => {
                     if (!checked) return prev;
                     const next = new Set(prev);
@@ -1730,6 +1742,21 @@ export const PatientList = () => {
               />
               <label htmlFor="isNotStudent" className="text-sm font-medium text-foreground">Not a Student</label>
             </div>
+            {newPatient.isNotStudent && (
+              <div className="mx-6 mt-3">
+                <label htmlFor="notStudentRole" className="block text-sm font-medium text-foreground mb-1">Others{req('notStudentRole')} <span className="text-muted-foreground font-normal">(Teacher, Staff, Guard, etc.)</span></label>
+                <input
+                  id="notStudentRole"
+                  type="text"
+                  maxLength={40}
+                  value={newPatient.notStudentRole}
+                  onChange={e => updateField('notStudentRole', e.target.value)}
+                  placeholder="Who is this person?"
+                  className={plainFieldClass}
+                />
+                {fieldError('notStudentRole')}
+              </div>
+            )}
             {/* Live check against the roster already loaded in the browser —
                 a heads-up before the form is even finished, not a
                 replacement for the server's 409 check on submit. Its own

@@ -59,6 +59,8 @@ export interface ApiStudent {
    *  sex/grade_level/section are absent for these. Optional since records
    *  created before this field existed have no value. */
   is_not_student?: boolean;
+  /** Teacher, Staff, Guard...: who a not-a-student patient is. */
+  not_student_role?: string;
   place_of_birth?: string;
   guardian_occupation?: string;
   guardian_name?: string;

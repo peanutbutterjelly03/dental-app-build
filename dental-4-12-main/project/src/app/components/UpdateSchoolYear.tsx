@@ -215,7 +215,7 @@ export const UpdateSchoolYear = () => {
     () => allStudents.filter((s) => !s.pending && s.school === selectedSchool),
     [allStudents, selectedSchool],
   );
-  const unassignedCount = useMemo(() => roster.filter((s) => !s.grade || !s.section).length, [roster]);
+  const unassignedCount = useMemo(() => roster.filter((s) => !s.isNotStudent && (!s.grade || !s.section)).length, [roster]);
 
   // ── Starting the year (server-side) ──────────────────────────────────────
   const [dialog, setDialog] = useState<Dialog | null>(null);

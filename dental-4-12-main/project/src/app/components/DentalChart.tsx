@@ -1393,6 +1393,7 @@ export const DentalChart = () => {
     { key: 'first_name', label: 'First Name', on: true },
     { key: 'birthday', label: 'Birthdate', on: true },
     { key: 'sex', label: 'Sex', on: true },
+    { key: 'not_student_role', label: 'Others', on: !!d.is_not_student },
     { key: 'grade_level', label: 'Grade', on: !d.is_not_student },
     { key: 'section', label: 'Section', on: !d.is_not_student },
     { key: 'fourps_id', label: '4Ps ID', on: !!d.is_4ps },
@@ -2462,12 +2463,19 @@ export const DentalChart = () => {
             <input type="checkbox" id="edit-not-student" checked={!!draftInfo.is_not_student}
               onChange={(e) => {
                 const checked = e.target.checked;
-                setDraftInfo((p) => ({ ...p, is_not_student: checked, ...(checked ? { grade_level: '', section: '' } : {}) }));
+                setDraftInfo((p) => ({ ...p, is_not_student: checked, ...(checked ? { grade_level: '', section: '' } : { not_student_role: '' }) }));
                 if (checked) setDraftYear((p) => ({ ...p, grade_level: '', section: '' }));
               }}
               className="h-4 w-4 rounded accent-primary" />
             <label htmlFor="edit-not-student" className="text-sm font-medium text-foreground">Not a Student</label>
           </div>
+          {draftInfo.is_not_student && (
+            <div className="mx-6 mt-3">
+              <label htmlFor="edit-not-student-role" className="block text-sm font-medium text-foreground mb-1">Others{infoReq('not_student_role')} <span className="text-muted-foreground font-normal">(Teacher, Staff, Guard, etc.)</span></label>
+              <input id="edit-not-student-role" type="text" maxLength={40} value={draftInfo.not_student_role ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, not_student_role: e.target.value }))} placeholder="Who is this person?" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              {infoMiss('not_student_role')}
+            </div>
+          )}
           <div className="space-y-4 p-6">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div><label className="block text-sm font-medium text-foreground mb-1">Last Name{infoReq('last_name')}</label><input type="text" value={draftInfo.last_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, last_name: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />{infoMiss('last_name')}</div>
