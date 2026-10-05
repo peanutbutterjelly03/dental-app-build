@@ -320,7 +320,7 @@ export const TreatmentRecords = () => {
       // so the region (and the pinned card inside it) always reaches the
       // true bottom of the viewport once scrolled all the way, same as
       // Charting Queue's own region.
-      className="space-y-4 overflow-y-auto no-scrollbar -mb-4 md:-mb-8 pb-6 md:pb-10"
+      className="space-y-4 overflow-y-auto no-scrollbar -mb-4 md:-mb-8 pb-6 md:pb-10 -mx-1 px-1"
       style={{ height: regionHeight ?? undefined }}
     >
       {/* Same header pattern as Dental Charts' own page title (user,
@@ -431,7 +431,7 @@ export const TreatmentRecords = () => {
         // No shadow (user, 2026-09-28: "remove the shadows for both the
         // bottom corner of the treatment queue") -- was toned down per
         // Hide/shown state earlier the same day, now removed outright.
-        className="flex flex-col bg-card border border-border overflow-clip rounded-2xl"
+        className="flex flex-col bg-card border border-border overflow-clip rounded-2xl shadow-[0_4px_16px_-4px_rgba(15,23,42,0.18)]"
         // User, 2026-10-05: nothing on the card is pinned. Its header, tabs, rows and pagination all
         // scroll together with the page, and it is as tall as its rows. Supersedes the 2026-09-28
         // pinned, fixed-height rule above.
