@@ -1072,14 +1072,15 @@ export const PatientList = () => {
               </div>
                           </div>
             <div className="flex flex-shrink-0 items-center gap-2">
-              {selectMode && tickedIds.size > 0 && (
+              {selectMode && (
                 <button
                   onClick={() => { setArchivePassword(''); setArchivePasswordError(null); setConfirmArchiveTicked(true); }}
-                  title="Archive"
-                  aria-label={`Archive ${tickedIds.size} selected`}
-                  className="p-2 rounded-full border border-destructive text-destructive hover:bg-danger-surface"
+                  disabled={tickedIds.size === 0}
+                  title={tickedIds.size === 0 ? 'Select students to archive' : 'Archive'}
+                  aria-label={tickedIds.size === 0 ? 'Archive, select students first' : `Archive ${tickedIds.size} selected`}
+                  className="grid h-[38px] w-[38px] place-items-center rounded-[10px] bg-red-600 text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-red-600"
                 >
-                  <ArchiveIcon className="w-4 h-4" />
+                  <ArchiveIcon className="h-[19px] w-[19px]" strokeWidth={1.5} />
                 </button>
               )}
               {/* Annual rollover (see UpdateSchoolYear.tsx): school-wide clear +
