@@ -1666,7 +1666,7 @@ export const PatientList = () => {
         const place = { left: assignPicker.left, top: assignPicker.top, bottom: assignPicker.bottom };
         const shell = 'fixed z-50 w-64 overflow-hidden rounded-xl border border-border bg-card py-1 shadow-lg';
         const head = 'px-3 pb-1 pt-1.5 text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground';
-        const stepTag = assignPicker.both ? <span>Step {assignPicker.step === 'grade' ? 1 : 2} of 2</span> : null;
+        const stepTag = assignPicker.both ? <span className="mt-0.5 block text-[10.5px] font-medium normal-case tracking-normal text-muted-foreground">Step {assignPicker.step === 'grade' ? 1 : 2} of 2</span> : null;
         if (assignPicker.step === 'grade') {
           // BTIS runs Kinder to Grade 10; the other two schools stop at Grade 6.
           const grades = /integrated/i.test(target.school) ? GRADES : GRADES.slice(0, 7);
@@ -1680,7 +1680,7 @@ export const PatientList = () => {
             <>
               <div className="fixed inset-0 z-40" onClick={() => setAssignPicker(null)} />
               <div data-floating-menu role="listbox" aria-label={`Assign grade to ${target.name}`} style={place} className={`${shell} max-h-72 overflow-y-auto`}>
-                <p className={`${head} flex justify-between`}><span>Grade</span>{stepTag}</p>
+                <div className={head}><span className="block">Grade</span>{stepTag}</div>
                 {grades.map((g) => {
                   const gc = getGradeColor(g);
                   return (
@@ -1714,10 +1714,10 @@ export const PatientList = () => {
           <>
             <div className="fixed inset-0 z-40" onClick={() => setAssignPicker(null)} />
             <div data-floating-menu style={place} className={`${shell} max-h-80 overflow-y-auto`}>
-              <p className={`${head} flex items-center justify-between gap-2`}>
-                <span className="flex items-center gap-1.5">Section for <span className="rounded-full px-2 py-0.5 text-[10.5px] font-semibold normal-case tracking-normal" style={{ backgroundColor: gcol.light, color: gcol.solid }}>{chosenGrade}</span></span>
+              <div className={head}>
+                <span className="flex items-center gap-1.5 whitespace-nowrap">Section for <span className="whitespace-nowrap rounded-full px-2 py-0.5 text-[10.5px] font-semibold normal-case tracking-normal" style={{ backgroundColor: gcol.light, color: gcol.solid }}>{chosenGrade}</span></span>
                 {stepTag}
-              </p>
+              </div>
               <div className="px-2 pb-1">
                 <input
                   autoFocus
