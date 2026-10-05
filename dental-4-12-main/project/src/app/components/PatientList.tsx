@@ -385,6 +385,8 @@ export const PatientList = () => {
   // is never saved with only one of them). `grade` holds the grade picked in step 1.
   const [assignPicker, setAssignPicker] = useState<{ id: string; step: 'grade' | 'section'; both: boolean; grade?: string; left: number; top?: number; bottom?: number } | null>(null);
   const [assignQuery, setAssignQuery] = useState('');
+  // The pair waiting for the person to press Assign (nothing is written before that).
+  const [assignConfirm, setAssignConfirm] = useState<{ id: string; grade: string; section: string } | null>(null);
   const [assignSaving, setAssignSaving] = useState(false);
   // A fixed popover does not move with the page, so scrolling or resizing closes
   // it (its own scrolling, inside the list, is ignored).
@@ -1674,7 +1676,7 @@ export const PatientList = () => {
           // grade missing (the student already has a section): save the pair now.
           const pickGrade = (g: string) => {
             if (assignPicker.both) { setAssignQuery(''); setAssignPicker({ ...assignPicker, step: 'section', grade: g }); }
-            else void saveAssign(target.id, g, target.section);
+            else { setAssignPicker(null); setAssignConfirm({ id: target.id, grade: g, section: target.section }); }
           };
           return (
             <>
@@ -1703,7 +1705,7 @@ export const PatientList = () => {
         const match = (x: string) => !q || x.toLowerCase().includes(q.toLowerCase());
         const exact = [...forGrade, ...others].find((x) => x.toLowerCase() === q.toLowerCase());
         const row = 'flex w-full items-center px-3 py-1 text-left text-xs text-foreground hover:bg-canvas disabled:opacity-50';
-        const save = (section: string) => void saveAssign(target.id, chosenGrade, section);
+        const save = (section: string) => { setAssignPicker(null); setAssignConfirm({ id: target.id, grade: chosenGrade, section: section.trim().replace(/\s+/g, ' ') }); };
         const list = (title: string, items: string[]) => items.length === 0 ? null : (
           <>
             <p className={head}>{title}</p>
@@ -1743,6 +1745,50 @@ export const PatientList = () => {
               )}
             </div>
           </>
+        );
+      })()}
+
+      {assignConfirm && (() => {
+        const target = allStudents.find((x) => x.id === assignConfirm.id);
+        if (!target) return null;
+        const year = yearForSchool(target.school);
+        const gc = getGradeColor(assignConfirm.grade);
+        const now = (value: string, label: string, isGrade: boolean) => value
+          ? (isGrade
+              ? <span className="rounded-full px-3 py-0.5 text-xs font-semibold" style={{ backgroundColor: getGradeColor(value).light, color: getGradeColor(value).solid }}>{value}</span>
+              : <span className="rounded-full border border-border px-3 py-0.5 text-xs font-semibold text-foreground">{value}</span>)
+          : <span className="text-xs italic text-muted-foreground">{label}</span>;
+        return (
+          <Modal onClose={() => setAssignConfirm(null)} maxWidth="max-w-md" closeDisabled={assignSaving}>
+            <div className="space-y-3 p-6">
+              <h2 className="text-lg font-bold text-foreground">Assign {target.name}?</h2>
+              <p className="text-sm text-muted-foreground">{target.school} · SY {year}</p>
+              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-xl bg-canvas px-4 py-3">
+                <div className="grid justify-items-start gap-1.5">
+                  <span className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">Now</span>
+                  {now(target.grade, 'No grade', true)}
+                  {now(target.section, 'No section', false)}
+                </div>
+                <span className="text-lg text-muted-foreground" aria-hidden="true">→</span>
+                <div className="grid justify-items-start gap-1.5">
+                  <span className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">After</span>
+                  <span className="rounded-full px-3 py-0.5 text-xs font-semibold" style={{ backgroundColor: gc.light, color: gc.solid }}>{assignConfirm.grade}</span>
+                  <span className="rounded-full border border-border px-3 py-0.5 text-xs font-semibold text-foreground">{assignConfirm.section}</span>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground">This updates the student's record and the SY {year} record.</p>
+              <div className="flex justify-end gap-2 pt-1">
+                <button onClick={() => setAssignConfirm(null)} disabled={assignSaving} className="rounded-full border border-border px-5 py-2 text-sm font-semibold text-foreground hover:bg-canvas disabled:opacity-50">Cancel</button>
+                <button
+                  onClick={async () => { await saveAssign(assignConfirm.id, assignConfirm.grade, assignConfirm.section); setAssignConfirm(null); }}
+                  disabled={assignSaving}
+                  className="rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-60"
+                >
+                  {assignSaving ? 'Assigning...' : 'Assign'}
+                </button>
+              </div>
+            </div>
+          </Modal>
         );
       })()}
 
