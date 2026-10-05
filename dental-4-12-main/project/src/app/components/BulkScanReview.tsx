@@ -232,14 +232,22 @@ export const BulkScanReview = () => {
     const pinned = ths[0].offsetWidth;
     const reserve = (el.parentElement?.querySelector('.bulk-tab') as HTMLElement | null)?.offsetWidth ?? 80;
     const cols = ths.slice(1);
+    const max = el.scrollWidth - el.clientWidth;
     if (dir === 1) {
       const viewRight = el.scrollLeft + el.clientWidth - reserve;
       const next = cols.find((c) => leftOf(c) + c.offsetWidth > viewRight + 1);
-      el.scrollTo({ left: next ? leftOf(next) - pinned : el.scrollWidth, behavior: 'smooth' });
+      let to = next ? leftOf(next) - pinned : max;
+      // A step must always make progress, and the last one must reach the very end, so the
+      // final column touches the right edge instead of stopping short of it.
+      if (to <= el.scrollLeft + 1 || to > max - 8) to = max;
+      el.scrollTo({ left: to, behavior: 'smooth' });
     } else {
       const target = Math.max(0, el.scrollLeft - (el.clientWidth - pinned - reserve));
       const snap = target <= 0 ? undefined : cols.find((c) => leftOf(c) - pinned >= target - 1);
-      el.scrollTo({ left: snap ? leftOf(snap) - pinned : 0, behavior: 'smooth' });
+      let to = snap ? leftOf(snap) - pinned : 0;
+      if (to >= el.scrollLeft - 1) to = target;
+      if (to < 8) to = 0;
+      el.scrollTo({ left: to, behavior: 'smooth' });
     }
   };
   const [fitHeight, setFitHeight] = useState<number | null>(null);
