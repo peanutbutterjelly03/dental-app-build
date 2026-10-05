@@ -1083,18 +1083,18 @@ export const PatientList = () => {
               )}
               {/* Annual rollover (see UpdateSchoolYear.tsx): school-wide clear +
                   reassign + archive. Solid navy icon button beside the more-options
-                  button; turns amber with a count while students still lack a grade or
+                  button; turns green with a count while students still lack a grade or
                   section (the same check that doubles as "rollover not finished"). */}
               {canAddStudent && !selectMode && !bulkQueueMode && (
                 <button
                   onClick={() => navigate('/students/update-school-year')}
                   title={schoolYearNeedsUpdate ? `Update School Year: ${schoolYearPendingCount} ${schoolYearPendingCount === 1 ? 'student needs' : 'students need'} a grade or section` : 'Update School Year'}
                   aria-label={schoolYearNeedsUpdate ? `Update School Year Information, ${schoolYearPendingCount} need a grade or section` : 'Update School Year Information'}
-                  className={`relative grid h-[38px] w-[38px] place-items-center rounded-[10px] text-white transition-colors hover:brightness-110 ${schoolYearNeedsUpdate ? 'bg-amber-500' : 'bg-primary'}`}
+                  className={`relative grid h-[38px] w-[38px] place-items-center rounded-[10px] text-white transition-colors hover:brightness-110 ${schoolYearNeedsUpdate ? 'bg-green-600' : 'bg-primary'}`}
                 >
                   <CalendarClock className="h-[19px] w-[19px]" strokeWidth={1.5} />
                   {schoolYearNeedsUpdate && (
-                    <span className="absolute -right-1.5 -top-1.5 grid h-[18px] min-w-[18px] place-items-center rounded-full border-2 border-amber-500 bg-white px-1 text-[11px] font-bold leading-none text-amber-700">
+                    <span className="absolute -right-1.5 -top-1.5 grid h-[18px] min-w-[18px] place-items-center rounded-full border-2 border-green-600 bg-white px-1 text-[11px] font-bold leading-none text-green-700">
                       {schoolYearPendingCount}
                     </span>
                   )}
