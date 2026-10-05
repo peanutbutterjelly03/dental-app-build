@@ -348,6 +348,7 @@ export const PatientList = () => {
   // on every list load.
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [duplicateGroups, setDuplicateGroups] = useState<DuplicateCandidate[][]>([]);
+  const [dupIndex, setDupIndex] = useState(0);
   const [duplicatesLoading, setDuplicatesLoading] = useState(false);
   const [duplicatesError, setDuplicatesError] = useState<string | null>(null);
 
@@ -1142,7 +1143,7 @@ export const PatientList = () => {
                           <ListChecks className="w-3.5 h-3.5" /> Archive Students
                         </button>
                         <button
-                          onClick={() => { setShowListMenu(false); setShowDuplicates(true); void loadDuplicates(); }}
+                          onClick={() => { setShowListMenu(false); setShowDuplicates(true); setDupIndex(0); void loadDuplicates(); }}
                           className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-canvas flex items-center gap-2"
                         >
                           <Copy className="w-3.5 h-3.5" /> Find Duplicates
@@ -1474,64 +1475,101 @@ export const PatientList = () => {
       {/* Find Duplicates — a housekeeping scan over already-saved records,
           separate from the create-time 409 check above. Grouped by
           normalized name + birthday + sex; see studentDuplicates.ts. */}
-      {showDuplicates && (
-        <Modal onClose={() => setShowDuplicates(false)} maxWidth="max-w-2xl">
-          <div className="flex items-center justify-between p-6 border-b">
-            <h2 className="text-lg font-bold text-foreground">Possible Duplicate Records</h2>
-            <button onClick={() => setShowDuplicates(false)} className="text-muted-foreground hover:text-muted-foreground"><X className="w-5 h-5" /></button>
-          </div>
-          <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-            <p className="text-xs text-muted-foreground">
-              Matched on name, birthday and sex{selectedSchool ? ` at ${getSchoolShortName(selectedSchool)}` : ' across all schools'}. Review each group before archiving — a false match here just wastes a click, but archiving the wrong record does not.
-            </p>
-            {duplicatesLoading ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">Scanning records…</p>
-            ) : duplicatesError ? (
-              <p className="text-sm text-destructive py-8 text-center">{duplicatesError}</p>
-            ) : duplicateGroups.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">No likely duplicates found.</p>
-            ) : (
-              <div className="space-y-4">
-                {duplicateGroups.map((group) => (
-                  <div key={group.map((s) => s._id).join('-')} className="border border-border rounded-xl overflow-hidden">
-                    <div className="bg-warning-surface text-warning text-xs font-semibold px-3 py-1.5">
-                      {group.length} records look like the same child
-                    </div>
-                    <div className="divide-y divide-border">
-                      {group.map((s) => (
-                        <div key={s._id} className="flex items-center justify-between gap-3 px-3 py-2.5">
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-foreground truncate">{s.full_name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {s.grade_level} · {s.section} · {s.sex} · {formatDate(s.birthday)}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <button
-                              onClick={() => navigate(`/dental-chart/${s._id}?tab=history`)}
-                              title="View chart"
-                              className="p-2 rounded-full border border-border text-muted-foreground hover:bg-canvas hover:text-foreground"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => archiveOneDuplicate(s._id)}
-                              title="Archive"
-                              className="p-2 rounded-full border border-destructive text-destructive hover:bg-danger-surface"
-                            >
-                              <ArchiveIcon className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+      {showDuplicates && (() => {
+        const total = duplicateGroups.length;
+        const gi = Math.min(dupIndex, Math.max(total - 1, 0));
+        const group = duplicateGroups[gi] ?? [];
+        // A field that differs between the records of this group gets a
+        // highlight, so the encoder can see which record is the better one.
+        const differs = (pick: (s: DuplicateCandidate) => string) => new Set(group.map(pick)).size > 1;
+        const fields: { label: string; pick: (s: DuplicateCandidate) => string }[] = [
+          { label: 'Grade', pick: (s) => String(s.grade_level ?? '') },
+          { label: 'Section', pick: (s) => String(s.section ?? '') },
+          { label: 'Birthday', pick: (s) => formatDate(s.birthday) },
+        ];
+        return (
+          <Modal onClose={() => setShowDuplicates(false)} maxWidth="max-w-2xl">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h2 className="text-lg font-bold text-foreground">Possible Duplicate Records</h2>
+              <button onClick={() => setShowDuplicates(false)} aria-label="Close" className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+              {duplicatesLoading ? (
+                <p className="text-sm text-muted-foreground py-8 text-center">Scanning records…</p>
+              ) : duplicatesError ? (
+                <p className="text-sm text-destructive py-8 text-center">{duplicatesError}</p>
+              ) : total === 0 ? (
+                <p className="text-sm text-muted-foreground py-8 text-center">No likely duplicates found.</p>
+              ) : (
+                <>
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                    <span className="text-sm font-bold text-foreground">Group {gi + 1} of {total}</span>
+                    <span className="text-xs text-destructive">Matched on name, birthday and sex. Review each group before archiving.</span>
                   </div>
-                ))}
+                  <div className="h-1.5 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuemin={1} aria-valuemax={total} aria-valuenow={gi + 1}>
+                    <div className="h-full bg-primary" style={{ width: `${((gi + 1) / total) * 100}%` }} />
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {group.map((s) => (
+                      <div key={s._id} className="min-w-0 space-y-3 rounded-xl border border-border p-4">
+                        <p className="truncate text-sm font-bold text-foreground">{s.full_name}</p>
+                        <dl className="grid grid-cols-[72px_1fr] gap-y-1 text-xs">
+                          {fields.map((f) => (
+                            <div key={f.label} className="contents">
+                              <dt className="text-muted-foreground">{f.label}</dt>
+                              <dd className="min-w-0 break-words text-foreground">
+                                <span className={differs(f.pick) ? 'rounded bg-amber-100 px-1 font-semibold text-amber-900' : ''}>{f.pick(s)}</span>
+                              </dd>
+                            </div>
+                          ))}
+                        </dl>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => navigate(`/dental-chart/${s._id}?tab=history`)}
+                            className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-canvas"
+                          >
+                            <Eye className="h-3.5 w-3.5" /> View chart
+                          </button>
+                          <button
+                            onClick={() => archiveOneDuplicate(s._id)}
+                            className="rounded-full border border-destructive px-3 py-1.5 text-xs font-semibold text-destructive hover:bg-danger-surface"
+                          >
+                            Archive this
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+            {!duplicatesLoading && !duplicatesError && total > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-6 py-4">
+                <button
+                  onClick={() => setDupIndex(Math.max(gi - 1, 0))}
+                  disabled={gi === 0}
+                  className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-canvas disabled:opacity-40"
+                >
+                  <ChevronLeft className="h-4 w-4" /> Previous
+                </button>
+                <button
+                  onClick={() => (gi < total - 1 ? setDupIndex(gi + 1) : setShowDuplicates(false))}
+                  className="rounded-full border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-canvas"
+                >
+                  Not duplicates, skip
+                </button>
+                <button
+                  onClick={() => setDupIndex(Math.min(gi + 1, total - 1))}
+                  disabled={gi >= total - 1}
+                  className="inline-flex items-center gap-1 rounded-full bg-primary px-4 py-1.5 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-40"
+                >
+                  Next <ChevronRight className="h-4 w-4" />
+                </button>
               </div>
             )}
-          </div>
-        </Modal>
-      )}
+          </Modal>
+        );
+      })()}
 
       {/* Scan Form (OCR) is a full page now, not a modal (2026-09-29, user:
           "restructure everything... make it a page") -- see
