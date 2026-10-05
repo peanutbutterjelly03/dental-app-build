@@ -101,6 +101,8 @@ export const BulkScanReview = () => {
   const [dupDecisions, setDupDecisions] = useState<DupDecisions>(state?.dupDecisions ?? {});
   const [onFile, setOnFile] = useState<DuplicateCandidate[][] | null>(null);
   const [compareIndex, setCompareIndex] = useState<number | null>(null);
+  // Back asks first: leaving throws away the list that was read from the upload.
+  const [confirmLeave, setConfirmLeave] = useState(false);
   const keyRows = useMemo(
     () => (queue ?? []).map((h) => (h.readError ? null : {
       school: h.newPatient.school, birthdate: h.newPatient.birthdate, lastName: h.newPatient.lastName, firstName: h.newPatient.firstName,
@@ -270,7 +272,7 @@ export const BulkScanReview = () => {
         </div>
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
           <button type="button" onClick={() => open(firstOpen)} style={primaryBtn}>Review one by one</button>
-          <button type="button" onClick={() => navigate('/students/scan?bulk=1')} style={secondaryBtn}>
+          <button type="button" onClick={() => setConfirmLeave(true)} style={secondaryBtn}>
             <svg width="12.8" height="12.8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
             Back
           </button>
@@ -312,7 +314,7 @@ export const BulkScanReview = () => {
         // The page scrolls down; this pane scrolls SIDEWAYS only (user, 2026-10-05), with a
         // visible bar. The Student column stays pinned on the left. The arrow buttons float
         // at the top of the screen, so sideways is reachable however far down you are.
-        <div style={{ position: 'relative', width: '100%' }}>
+        <div className="bulk-pr" style={{ position: 'relative', width: '100%', boxSizing: 'border-box', paddingRight: '3.5rem' }}>
           <div style={{ position: 'sticky', top: TOPBAR_H + 8, zIndex: 6, height: 0, display: 'flex', justifyContent: 'flex-end', gap: '0.375rem', paddingRight: '0.5rem', pointerEvents: 'none' }}>
             {(['‹', '›'] as const).map((arrow, k) => (
               <button
@@ -324,7 +326,7 @@ export const BulkScanReview = () => {
               >{arrow}</button>
             ))}
           </div>
-        <div ref={gridRef} className="bulk-scroll bulk-grid" style={{ flex: '1 1 0', minHeight: 0, width: 0, minWidth: '100%', maxWidth: '100%', overflow: 'auto', background: '#fff', borderTop: `0.0625rem solid ${GRID_LINE}`, borderLeft: `0.0625rem solid ${GRID_LINE}`, borderTopLeftRadius: '0.75rem' }}>
+        <div ref={gridRef} className="bulk-scroll bulk-grid" style={{ flex: '1 1 0', minHeight: 0, width: 0, minWidth: '100%', maxWidth: '100%', overflow: 'auto', background: '#fff', border: `0.0625rem solid ${GRID_LINE}`, borderRadius: '0.75rem' }}>
           <table style={{ borderCollapse: 'separate', borderSpacing: 0, width: '100%' }}>
             <thead>
               <tr>
@@ -375,6 +377,21 @@ export const BulkScanReview = () => {
 
       {/* Side by side, like the offline conflict review: the row from the file next
           to the record it may duplicate, then a decision that Save & Next honours. */}
+      {confirmLeave && (
+        <div role="dialog" aria-modal="true" aria-label="Leave this review" onClick={() => setConfirmLeave(false)}
+          style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(15,23,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: '1rem', padding: '1.25rem', width: '100%', maxWidth: '26rem', boxSizing: 'border-box' }}>
+            <h2 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 700 }}>Leave this review?</h2>
+            <p style={{ margin: '0.5rem 0 1.125rem', fontSize: '0.875rem', color: MUTED, lineHeight: 1.5 }}>
+              The {rows.length} student{rows.length === 1 ? '' : 's'} read from this upload have not been saved. If you go back, this list is discarded and you will need to upload the file again.
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+              <button type="button" onClick={() => setConfirmLeave(false)} style={secondaryBtn}>Stay</button>
+              <button type="button" onClick={() => navigate('/students/scan?bulk=1')} style={{ ...primaryBtn, background: '#C8102E' }}>Leave and discard</button>
+            </div>
+          </div>
+        </div>
+      )}
       {compareIndex !== null && queue[compareIndex] && (() => {
         const p = queue[compareIndex].newPatient;
         const d = dupOf(compareIndex);
