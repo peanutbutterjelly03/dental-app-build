@@ -65,6 +65,24 @@ export type DuplicateCandidate = {
 
 /** Pulls the candidate list off a 409, or null if this isn't a duplicate
  *  rejection. Keeps the type assertion in one place. */
+// Empty Grade/Section cell (user pick D, 2026-10-05): a dashed "+ Assign" prompt
+// for people who can edit students, which opens Update School Year, the page
+// that assigns grade and section. Everyone else sees the same dashed pill as
+// plain text, so the empty cell is never blank.
+const AssignPrompt = ({ label, enabled, onAssign }: { label: 'grade' | 'section'; enabled: boolean; onAssign: () => void }) =>
+  enabled ? (
+    <button
+      type="button"
+      onClick={onAssign}
+      title={`Assign ${label} in Update School Year`}
+      className="inline-flex items-center gap-1 rounded-full border border-dashed border-primary px-3 py-0.5 text-xs font-semibold text-primary hover:bg-primary-surface"
+    >
+      <Plus className="h-3 w-3" /> Assign {label}
+    </button>
+  ) : (
+    <span className="inline-flex items-center rounded-full border border-dashed border-border px-3 py-0.5 text-xs text-muted-foreground">No {label}</span>
+  );
+
 export const duplicatesFromError = (err: unknown): DuplicateCandidate[] | null => {
   if (!(err instanceof ApiError) || err.status !== 409) return null;
   const list = err.body?.duplicates;
@@ -1376,6 +1394,8 @@ export const PatientList = () => {
                         >
                           <GradePill grade={student.grade} />
                         </button>
+                      ) : !student.grade ? (
+                        <AssignPrompt label="grade" enabled={canAddStudent && !student.pending} onAssign={() => navigate('/students/update-school-year')} />
                       ) : (
                         <GradePill grade={student.grade} />
                       )}
@@ -1389,6 +1409,8 @@ export const PatientList = () => {
                         >
                           {student.section}
                         </button>
+                      ) : !student.section ? (
+                        <AssignPrompt label="section" enabled={canAddStudent && !student.pending} onAssign={() => navigate('/students/update-school-year')} />
                       ) : (
                         student.section
                       )}
