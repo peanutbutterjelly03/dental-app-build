@@ -302,12 +302,12 @@ export const BulkScanReview = () => {
         // The page scrolls DOWN as normal; the table only scrolls SIDEWAYS, with a visible bar.
         + '.bulk-scroll{flex:none !important;scrollbar-width:thin;scrollbar-color:#9aa5c0 #eef1f7}'
         + '.bulk-scroll.bulk-grid{overflow-x:auto !important;overflow-y:hidden !important}'
-        + '.bulk-tab button{width:2rem;height:100%;border:0;background:transparent;color:#fff;font-size:1.125rem;font-weight:700;line-height:1;cursor:pointer}'
-        + '.bulk-tab button+button{border-left:0.0625rem solid rgba(255,255,255,0.18)}'
-        + '.bulk-tab button:hover:not(:disabled){background:#31458C}.bulk-tab button:active:not(:disabled){background:#101A3D}'
-        + '.bulk-tab button:disabled{opacity:.35;cursor:default}.bulk-tab button:focus-visible{outline:0.125rem solid #7AA2FF;outline-offset:-0.1875rem}'
-        + '.bulk-spacer{width:4rem;min-width:4rem}'
-        + '@media (pointer: coarse){.bulk-tab button{width:2.75rem}.bulk-spacer{width:5.5rem;min-width:5.5rem}}'
+        + '.bulk-tab{position:absolute;top:0.0625rem;right:0.0625rem;display:flex;align-items:center;gap:0.25rem;padding:0 0.5rem 0 1.5rem;background:linear-gradient(90deg,rgba(39,58,120,0),#273A78 1.25rem);border-top-right-radius:0.6875rem;z-index:6}'
+        + '.bulk-tab button{width:1.75rem;height:1.75rem;border:0.0625rem solid rgba(255,255,255,0.45);border-radius:0.5rem;background:rgba(255,255,255,0.16);color:#fff;font-size:1.0625rem;font-weight:700;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0}'
+        + '.bulk-tab button:hover:not(:disabled){background:rgba(255,255,255,0.32)}.bulk-tab button:active:not(:disabled){background:rgba(255,255,255,0.45)}'
+        + '.bulk-tab button:disabled{opacity:.4;cursor:default}.bulk-tab button:focus-visible{outline:0.125rem solid #7AA2FF;outline-offset:0.125rem}'
+        + '.bulk-spacer{width:6rem;min-width:6rem}'
+        + '@media (pointer: coarse){.bulk-tab button{width:2.75rem;height:2.75rem}.bulk-spacer{width:9rem;min-width:9rem}}'
         + '@media (max-width: 639px){.bulk-shell{padding:0.25rem 0 1rem 1rem !important}'
         + '.bulk-pr{padding-right:1rem !important}.bulk-scroll{max-height:75vh}.bulk-scroll.bulk-grid{max-height:none}}'}</style>
       {/* Header, same shape as the Scan and Verify pages */}
@@ -392,7 +392,7 @@ export const BulkScanReview = () => {
           </table>
         </div>
           {!tab.fits && (
-            <div className="bulk-tab" style={{ position: 'absolute', top: '0.0625rem', right: '0.0625rem', height: tab.headH, display: 'flex', background: '#1C2A5A', borderTopRightRadius: '0.6875rem', overflow: 'hidden', boxShadow: '-0.625rem 0 0.75rem -0.375rem rgba(0,0,0,0.4)', zIndex: 6 }}>
+            <div className="bulk-tab" style={{ height: tab.headH }}>
               <button type="button" aria-label="Show previous columns" title="Show previous columns" disabled={!tab.left} onClick={() => stepColumns(-1)}>‹</button>
               <button type="button" aria-label="Show next columns" title="Show next columns" disabled={!tab.right} onClick={() => stepColumns(1)}>›</button>
             </div>
