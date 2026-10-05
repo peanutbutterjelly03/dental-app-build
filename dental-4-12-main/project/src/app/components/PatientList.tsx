@@ -1762,14 +1762,14 @@ export const PatientList = () => {
           <Modal onClose={() => setAssignConfirm(null)} maxWidth="max-w-md" closeDisabled={assignSaving}>
             <div className="space-y-3 p-6">
               <h2 className="text-lg font-bold text-foreground">Assign {target.name}?</h2>
-              <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">{target.school}<span className="rounded-full bg-green-100 px-2 py-0.5 text-[9px] font-bold text-green-800">SY {year}</span></p>
-              <div className="grid grid-cols-[auto_auto_auto] items-center justify-center gap-10 rounded-xl bg-canvas px-4 py-3">
+              <p className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">{target.school}<span className="rounded-full bg-green-100 px-2 py-0.5 text-[9px] font-bold text-green-800">SY {year}</span></p>
+              <div className="grid grid-cols-[auto_1fr_auto] items-center gap-4 rounded-xl bg-canvas px-5 py-3">
                 <div className="grid min-w-[5.5rem] justify-items-start gap-1.5">
                   <span className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">Now</span>
                   {now(target.grade, 'No grade', true)}
                   {now(target.section, 'No section', false)}
                 </div>
-                <span className="text-lg text-muted-foreground" aria-hidden="true">→</span>
+                <span className="text-center text-3xl leading-none text-muted-foreground" aria-hidden="true">→</span>
                 <div className="grid min-w-[5.5rem] justify-items-start gap-1.5">
                   <span className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">After</span>
                   <span className="rounded-full px-3 py-0.5 text-xs font-semibold" style={{ backgroundColor: gc.light, color: gc.solid }}>{assignConfirm.grade}</span>
