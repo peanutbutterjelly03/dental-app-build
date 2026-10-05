@@ -182,12 +182,12 @@ export const AIAnalytics = () => {
     setBulk((b) => (b && b.failed ? b : null));
   };
 
-  const cards: { label: string; value: number; note?: string; tone: string; icon: LucideIcon; bg: string; fg: string }[] = [
-    { label: 'Needs your review', value: statusCounts.needs_review, note: 'waiting for the dentist', tone: 'text-primary', icon: ClipboardList, bg: '#E8ECF6', fg: '#273A78' },
-    { label: 'High risk', value: counts.High, tone: 'text-red-600', icon: TriangleAlert, bg: '#FEE2E2', fg: '#DC2626' },
-    { label: 'Medium risk', value: counts.Medium, tone: 'text-amber-700', icon: ShieldAlert, bg: '#FEF3C7', fg: '#B45309' },
-    { label: 'Low risk', value: counts.Low, tone: 'text-green-700', icon: ShieldCheck, bg: '#DCFCE7', fg: '#15803D' },
-    { label: 'Not checked yet', value: statusCounts.not_checked, note: 'no result yet', tone: 'text-muted-foreground', icon: CircleDashed, bg: '#F1F5F9', fg: '#64748B' },
+  const cards: { label: string; value: number; pick: { tab: Tab; risk: string }; note?: string; tone: string; icon: LucideIcon; bg: string; fg: string }[] = [
+    { label: 'Needs your review', pick: { tab: 'needs_review', risk: 'all' }, value: statusCounts.needs_review, note: 'waiting for the dentist', tone: 'text-primary', icon: ClipboardList, bg: '#E8ECF6', fg: '#273A78' },
+    { label: 'High risk', pick: { tab: 'all', risk: 'High' }, value: counts.High, tone: 'text-red-600', icon: TriangleAlert, bg: '#FEE2E2', fg: '#DC2626' },
+    { label: 'Medium risk', pick: { tab: 'all', risk: 'Medium' }, value: counts.Medium, tone: 'text-amber-700', icon: ShieldAlert, bg: '#FEF3C7', fg: '#B45309' },
+    { label: 'Low risk', pick: { tab: 'all', risk: 'Low' }, value: counts.Low, tone: 'text-green-700', icon: ShieldCheck, bg: '#DCFCE7', fg: '#15803D' },
+    { label: 'Not checked yet', pick: { tab: 'not_checked', risk: 'all' }, value: statusCounts.not_checked, note: 'no result yet', tone: 'text-muted-foreground', icon: CircleDashed, bg: '#F1F5F9', fg: '#64748B' },
   ];
 
   const selectCls = 'rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring';
@@ -263,8 +263,13 @@ export const AIAnalytics = () => {
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
             {cards.map((c) => {
               const Icon = c.icon;
+              // A card is a filter: it sets the tab and risk level the table below shows. Click it again to go back to the default view.
+              const on = tab === c.pick.tab && risk === c.pick.risk;
+              const choose = () => { if (on) { setTab('needs_review'); setRisk('all'); } else { setTab(c.pick.tab); setRisk(c.pick.risk); } };
               return (
-                <div key={c.label} title={c.note} className="flex flex-col rounded-xl border border-border bg-card p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+                <button key={c.label} type="button" onClick={choose} aria-pressed={on} title={c.note ?? `Show ${c.label.toLowerCase()}`}
+                  style={on ? { borderColor: c.fg, boxShadow: `0 0 0 0.0625rem ${c.fg}` } : undefined}
+                  className="flex cursor-pointer flex-col rounded-xl border border-border bg-card p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   <span style={{ backgroundColor: c.bg, color: c.fg }} className="mb-4 grid h-8 w-8 flex-shrink-0 place-items-center rounded-xl">
                     <Icon className="h-4 w-4" />
                   </span>
@@ -273,7 +278,7 @@ export const AIAnalytics = () => {
                     <div className={`mt-1 text-[22px] font-extrabold leading-none tabular-nums ${c.tone}`}>{c.value}</div>
                     <div className="mt-0.5 text-[10px] font-thin text-muted-foreground">{c.value === 1 ? 'student' : 'students'}</div>
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
