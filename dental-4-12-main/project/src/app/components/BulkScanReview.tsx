@@ -36,6 +36,8 @@ const GRID_LINE = '#CBD5E1';
 const LAST_COL_PAD = '1.75rem';
 // Breathing room between the pinned table and the top bar, in px.
 const TOP_GAP = 8;
+// Pinned row-number column in front of Student; Student is pinned right after it.
+const NUM_W = '4.25rem';
 
 const missingOf = (h: ExtractedHandoff): string[] =>
   REQUIRED_STUDENT_FIELDS
@@ -85,7 +87,11 @@ const Status = ({ r, saved, dup, decision, onCompare }: {
   // spreadsheet, so "file" never means both on one screen.
   if (decision === 'skip') {
     const label = dup && !dup.onFile.length && dup.inFile.length ? 'Skipped: repeated row' : 'Skipped: already in records';
-    return dup ? compareBtn(label, dup) : <span style={pill('#F1F5F9', '#475569')}>{label}</span>;
+    // Skipped goes GREY (it will not be saved) but stays clickable to change the decision.
+    return dup
+      ? <button type="button" onClick={(e) => { e.stopPropagation(); onCompare(); }} title="Compare side by side, or change the decision"
+          style={{ ...pill('#F1F5F9', '#475569'), cursor: 'pointer', border: '0.0625rem solid #CBD5E1' }}>{label}</button>
+      : <span style={pill('#F1F5F9', '#475569')}>{label}</span>;
   }
   if (r.h.readError) return <span style={pill('#FEE2E2', '#B91C1C')}>Could not read</span>;
   if (r.missing.length) return <span style={pill('#FEE2E2', '#B91C1C')}>Missing {r.missing[0].toLowerCase()}{r.missing.length > 1 ? ` +${r.missing.length - 1}` : ''}</span>;
@@ -312,12 +318,12 @@ export const BulkScanReview = () => {
     const el = gridRef.current;
     if (!el) return;
     const ths = Array.from(el.querySelectorAll('thead th')) as HTMLElement[];
-    if (ths.length < 3) return;
+    if (ths.length < 4) return;
     const box = el.getBoundingClientRect();
     const leftOf = (t: HTMLElement) => t.getBoundingClientRect().left - box.left + el.scrollLeft;
-    const pinned = ths[0].offsetWidth;
+    const pinned = ths[0].offsetWidth + ths[1].offsetWidth;
     const reserve = 28;
-    const cols = ths.slice(1);
+    const cols = ths.slice(2);
     const max = el.scrollWidth - el.clientWidth;
     if (dir === 1) {
       const viewRight = el.scrollLeft + el.clientWidth - reserve;
@@ -616,7 +622,8 @@ export const BulkScanReview = () => {
           <table style={{ borderCollapse: 'separate', borderSpacing: 0, width: '100%' }}>
             <thead>
               <tr>
-                <th style={{ ...head, left: 0, zIndex: 5, paddingLeft: LAST_COL_PAD }}>Student</th>
+                <th style={{ ...head, left: 0, zIndex: 6, width: NUM_W, minWidth: NUM_W, paddingLeft: LAST_COL_PAD, paddingRight: '0.5rem' }} title="Row in the upload">#</th>
+                <th style={{ ...head, left: NUM_W, zIndex: 5 }}>Student</th>
                 {cols.map((c, ci) => <th key={c.label} style={ci === cols.length - 1 ? { ...head, paddingRight: LAST_COL_PAD } : head}>{c.label}</th>)}
               </tr>
             </thead>
@@ -625,7 +632,8 @@ export const BulkScanReview = () => {
                 const band = i % 2 ? '#F5F8FF' : '#fff';
                 return (
                   <tr key={r.index} onClick={() => open(r.index)} style={{ cursor: 'pointer', background: band }}>
-                    <td style={{ ...cell, position: 'sticky', left: 0, zIndex: 2, background: '#E8EEFB', fontWeight: 700, color: NAVY, boxShadow: `1px 0 0 ${GRID_LINE}`, paddingLeft: LAST_COL_PAD }}>{fullName(r.h, r.index)}</td>
+                    <td style={{ ...cell, position: 'sticky', left: 0, zIndex: 3, background: '#E8EEFB', color: MUTED, fontVariantNumeric: 'tabular-nums', width: NUM_W, minWidth: NUM_W, paddingLeft: LAST_COL_PAD, paddingRight: '0.5rem' }}>{r.index + 1}</td>
+                    <td style={{ ...cell, position: 'sticky', left: NUM_W, zIndex: 2, background: '#E8EEFB', fontWeight: 700, color: NAVY, boxShadow: `1px 0 0 ${GRID_LINE}` }}>{fullName(r.h, r.index)}</td>
                     {cols.map((c, ci) => <td key={c.label} onClick={c.label === 'Status' ? (e) => e.stopPropagation() : undefined} style={ci === cols.length - 1 ? { ...cell, paddingRight: LAST_COL_PAD } : cell}>{c.cell(r)}</td>)}
                   </tr>
                 );
@@ -634,7 +642,8 @@ export const BulkScanReview = () => {
                 const band = (shown.length + k) % 2 ? '#F5F8FF' : '#fff';
                 return (
                   <tr key={`fill-${k}`} className="bulk-fill" aria-hidden="true" style={{ background: band, height: k < tab.fill ? tab.rowH : tab.tail }}>
-                    <td style={{ ...cell, position: 'sticky', left: 0, zIndex: 2, background: '#E8EEFB', boxShadow: `1px 0 0 ${GRID_LINE}` }} />
+                    <td style={{ ...cell, position: 'sticky', left: 0, zIndex: 3, background: '#E8EEFB', width: NUM_W, minWidth: NUM_W }} />
+                    <td style={{ ...cell, position: 'sticky', left: NUM_W, zIndex: 2, background: '#E8EEFB', boxShadow: `1px 0 0 ${GRID_LINE}` }} />
                     {cols.map((c) => <td key={c.label} style={cell} />)}
                   </tr>
                 );
