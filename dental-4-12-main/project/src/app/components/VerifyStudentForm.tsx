@@ -278,13 +278,12 @@ const VerifyOne = ({ handoff, position, onDone, onBack, decision, onDecide, repe
   const onFileHit = duplicates?.[0] ?? null;
   const isDup = !!onFileHit || repeatedRows.length > 0;
   const pill = decision === 'skip'
-    ? { label: 'Skipped', bg: '#E2E8F0', fg: '#334155' }
+    ? { label: 'Skipped', bg: '#E2E8F0', fg: '#334155', line: '#94A3B8' }
     : isDup && decision !== 'different'
-      ? (onFileHit ? { label: 'Possible duplicate', bg: '#FEE2E2', fg: '#B91C1C' } : { label: 'Repeated in this upload', bg: '#FEF9C3', fg: '#854D0E' })
+      ? (onFileHit ? { label: 'Possible duplicate', bg: '#FEE2E2', fg: '#B91C1C', line: '#F87171' } : { label: 'Repeated in this upload', bg: '#FEF9C3', fg: '#854D0E', line: '#EAB308' })
       : missingNow.length
-        ? { label: 'Needs fixes', bg: '#FEE2E2', fg: '#B91C1C' }
-        : { label: decision === 'different' ? 'Ready, different child' : 'Ready', bg: '#DCFCE7', fg: '#166534' };
-  const barRed = isDup && decision !== 'different' && !!onFileHit;
+        ? { label: 'Needs fixes', bg: '#FEE2E2', fg: '#B91C1C', line: '#F87171' }
+        : { label: decision === 'different' ? 'Ready, different child' : 'Ready', bg: '#DCFCE7', fg: '#166534', line: '#4ADE80' };
   const hitStyle = isDup && decision !== 'different' ? { borderColor: '#F87171', background: '#FFF1F2' } : {};
   const isLast = !position || position.index + 1 >= position.total;
   const barBtn = { cursor: 'pointer', boxSizing: 'border-box', padding: '0.625rem 1.125rem', borderRadius: '0.625rem', fontSize: '0.8125rem', fontWeight: 600, color: '#141413', border: '0.0625rem solid #E2E8F0', background: '#fff' } as const;
@@ -558,7 +557,7 @@ const VerifyOne = ({ handoff, position, onDone, onBack, decision, onDecide, repe
       )}
 
       {/* Decision bar: says what the row is and offers the choices that fit it. */}
-      <div className="verify-foot" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', marginTop: '1.25rem', background: '#fff', border: `0.0625rem solid ${barRed ? '#F87171' : '#E2E8F0'}`, borderRadius: '0.875rem', padding: '0.75rem 1rem', boxShadow: '0 -0.375rem 1rem -0.625rem rgba(0,0,0,0.25)' }}>
+      <div className="verify-foot" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', marginTop: '1.25rem', background: '#fff', border: `0.0625rem solid ${pill.line}`, borderRadius: '0.875rem', padding: '0.75rem 1rem', boxShadow: '0 -0.375rem 1rem -0.625rem rgba(0,0,0,0.25)' }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: '0.875rem', fontWeight: 700 }}>
             {decision === 'skip' ? 'Marked as the same child. It will not be saved.'
