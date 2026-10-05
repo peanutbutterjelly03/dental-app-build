@@ -366,6 +366,9 @@ export const PatientList = () => {
     if (r) setListMenuAt({ top: r.bottom + 4, right: Math.max(8, window.innerWidth - r.right) });
     setShowListMenu((v) => !v);
   };
+  // Row action menu (the arrow beside each Queue button). FIXED position taken
+  // from the arrow's own rect, so the scrolling rows box cannot clip it.
+  const [rowMenu, setRowMenu] = useState<{ id: string; top: number; right: number } | null>(null);
   const [tickedIds, setTickedIds] = useState<Set<string>>(new Set());
   const [confirmArchiveTicked, setConfirmArchiveTicked] = useState(false);
   const [archivingTicked, setArchivingTicked] = useState(false);
@@ -1417,25 +1420,46 @@ export const PatientList = () => {
                     <td className="px-4 py-1.5">{!student.pending && <PipelineStatusPill status={student.pipelineStatus} isRpcDueThisMonth={rpcDueThisMonthIds.has(student.id)} />}</td>
                     <td className="px-4 py-1.5 sm:pr-6">
                       {!student.pending && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (isQueued) {
-                              setDequeueTarget({ id: student.id, name: student.name });
-                            } else {
-                              setQueuedStudentIds(addQueuedStudentId(student.id));
-                              toast.success(`${student.name} is queued.`);
-                            }
-                          }}
-                          title="Queue"
-                          className={`inline-flex items-center justify-center w-16 h-8 rounded-full text-xs font-semibold border transition-colors ${
-                            isQueued
-                              ? 'bg-success-surface text-success border-success/20 hover:bg-danger-surface hover:text-destructive hover:border-destructive/20'
-                              : 'bg-primary-surface text-primary border-primary/20 hover:bg-primary/10'
-                          }`}
-                        >
-                          {isQueued ? queuePosition + 1 : 'Queue'}
-                        </button>
+                        <div className="inline-flex align-middle">
+                          {/* Fixed width (w-[76px]) so "+ Chart" and a queue number
+                              occupy the same box. This list's Queue is the Dental
+                              Chart queue, so the label says so. */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (isQueued) {
+                                setDequeueTarget({ id: student.id, name: student.name });
+                              } else {
+                                setQueuedStudentIds(addQueuedStudentId(student.id));
+                                toast.success(`${student.name} is added to the Dental Chart queue.`);
+                              }
+                            }}
+                            title={isQueued ? `Place ${queuePosition + 1} in the Dental Chart queue. Click to remove.` : 'Add to the Dental Chart queue'}
+                            className={`inline-flex h-8 w-[76px] items-center justify-center rounded-l-full border text-xs font-semibold tabular-nums transition-colors ${
+                              isQueued
+                                ? 'bg-success-surface text-success border-success/20 hover:bg-danger-surface hover:text-destructive hover:border-destructive/20'
+                                : 'bg-primary-surface text-primary border-primary/20 hover:bg-primary/10'
+                            }`}
+                          >
+                            {isQueued ? queuePosition + 1 : '+ Chart'}
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const r = e.currentTarget.getBoundingClientRect();
+                              setRowMenu((m) => (m?.id === student.id ? null : { id: student.id, top: r.bottom + 4, right: Math.max(8, window.innerWidth - r.right) }));
+                            }}
+                            aria-label={`More actions for ${student.name}`}
+                            aria-haspopup="menu"
+                            className={`ml-px inline-flex h-8 w-8 items-center justify-center rounded-r-full border text-[10px] transition-colors ${
+                              isQueued
+                                ? 'bg-success-surface text-success border-success/20 hover:brightness-95'
+                                : 'bg-primary-surface text-primary border-primary/20 hover:bg-primary/10'
+                            }`}
+                          >
+                            <ChevronDown className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -1497,6 +1521,32 @@ export const PatientList = () => {
           </div>
         )}
       </div>
+
+      {rowMenu && (() => {
+        const target = filtered.find((x) => x.id === rowMenu.id);
+        if (!target) return null;
+        const open = (tab: string) => { setRowMenu(null); navigate(`/dental-chart/${target.id}?tab=${tab}`); };
+        const item = 'flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-foreground hover:bg-canvas';
+        return (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setRowMenu(null)} />
+            <div role="menu" style={{ top: rowMenu.top, right: rowMenu.right }} className="fixed z-50 w-60 overflow-hidden rounded-xl border border-border bg-card py-1 shadow-lg">
+              <p className="px-3 pb-1 pt-1.5 text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">Open</p>
+              <button role="menuitem" className={item} onClick={() => open('chart')}><Eye className="h-4 w-4 text-muted-foreground" /> Dental Chart</button>
+              <button role="menuitem" className={item} onClick={() => open('treatments')}><FileText className="h-4 w-4 text-muted-foreground" /> Treatment Records</button>
+              <button role="menuitem" className={item} onClick={() => open('ai')}><ListChecks className="h-4 w-4 text-muted-foreground" /> Caries Risk Assessment</button>
+              {canAddStudent && (
+                <>
+                  <div className="my-1 h-px bg-border" />
+                  <button role="menuitem" className={`${item} text-destructive`} onClick={() => { setRowMenu(null); archiveOneDuplicate(target.id); }}>
+                    <ArchiveIcon className="h-4 w-4" /> Archive Student
+                  </button>
+                </>
+              )}
+            </div>
+          </>
+        );
+      })()}
 
       {/* Find Duplicates — a housekeeping scan over already-saved records,
           separate from the create-time 409 check above. Grouped by
