@@ -22,12 +22,10 @@ import { useStudents } from '../hooks/useStudents';
 import { useRPCTracking } from '../hooks/useRPCTracking';
 import { usePagination, PAGE_SIZE_OPTIONS } from './Pagination';
 import { apiClient, ApiError, isQueuedResponse } from '../api/client';
-import { OfflineDataStatus } from './OfflineDataStatus';
 import type { ApiSchool } from '../api/types';
 import { schoolYearLabel } from '../utils/schoolYear';
 import { calculateAge, getAgeGroup } from '../utils/age';
 import { Notice } from './Notice';
-import { TOPBAR_H } from '../utils/layout';
 // Re-applied on top of her file (Sprint 158). Sprints 120/121 added value
 // checks here and the SAME shared rules to the server and the bulk importer,
 // so the three cannot disagree about what a valid birthday is. Taking her
@@ -510,39 +508,6 @@ export const PatientList = () => {
     apiClient.get<ApiSchool[]>('/schools').then(setSchools).catch(() => {});
   }, []);
 
-  // Pins the toolbar and the card's header/filter block at the top, stacked
-  // below TOPBAR_H (the fixed status strip — see DentalChart.tsx for the same
-  // pattern). Heights are measured rather than hardcoded because the filter
-  // row wraps to more than one line at narrow widths.
-  const toolbarRef = useRef<HTMLDivElement | null>(null);
-  const cardHeaderRef = useRef<HTMLDivElement | null>(null);
-  const [stickyTop, setStickyTop] = useState({ toolbar: TOPBAR_H, cardHeader: TOPBAR_H });
-
-  useEffect(() => {
-    const measure = () => {
-      const toolbarH = toolbarRef.current?.offsetHeight ?? 0;
-      setStickyTop({ toolbar: TOPBAR_H, cardHeader: TOPBAR_H + toolbarH });
-    };
-    measure();
-    let resizeObserver: ResizeObserver | null = null;
-    if (typeof ResizeObserver !== 'undefined') {
-      resizeObserver = new ResizeObserver(measure);
-      if (toolbarRef.current) resizeObserver.observe(toolbarRef.current);
-    }
-    window.addEventListener('resize', measure);
-    return () => {
-      resizeObserver?.disconnect();
-      window.removeEventListener('resize', measure);
-    };
-    // ⚠ `studentsLoading` added (user, 2026-09-25, same bug class found and
-    // fixed on RPC Monitoring): with `[canAddStudent]` alone, this ran once
-    // on the very first render -- while studentsLoading is still true and
-    // the skeleton renders instead of the real toolbar -- so toolbarRef was
-    // null and cardHeader's sticky offset stuck at TOPBAR_H forever, same as
-    // the toolbar's own offset. Once both stuck on scroll, the search/filter
-    // block would overlap and cover the bottom of the toolbar.
-  }, [canAddStudent, studentsLoading]);
-
   // The Add Student form no longer has its own School field — it always adds
   // to whichever school is currently in view, set the moment the form opens
   // rather than left for the encoder to pick (and possibly get wrong).
@@ -892,78 +857,6 @@ export const PatientList = () => {
   const HIDE_FOOTER = 0;
   const PATIENT_PAGE_SIZE_OPTIONS = [...PAGE_SIZE_OPTIONS, HIDE_FOOTER] as const;
 
-  // ⚠ ADAPTIVE, not JS pixel math for the footer (ported from RPC Monitoring,
-  // user 2026-09-25, after three failed attempts THERE at computing an exact
-  // height for the rows box AND the footer separately): the CARD itself is
-  // measured ONCE (its own `top` — the one thing genuine CSS can't express
-  // here, since it depends on the toolbar's rendered height) and given that
-  // much of the viewport as a real `height`. Everything below
-  // that split is plain CSS flexbox on the card: the sticky search/filter
-  // header, the rows box (`flex-1 min-h-0 overflow-auto`), and the footer
-  // (an ordinary flex item sized by its own content). The browser recomputes
-  // that split on every layout pass — nothing to remeasure, nothing to fall
-  // out of sync.
-  const cardRef = useRef<HTMLDivElement | null>(null);
-  const [cardHeight, setCardHeight] = useState<number | null>(null);
-
-  useEffect(() => {
-    // Target the sidebar's OWN rendered bottom edge, not window.innerHeight
-    // (user, 2026-09-28, found on the Treatment Queue's twin of this card --
-    // a taskbar screenshot showed the sidebar itself stops 20px short of the
-    // true viewport edge: Root.tsx's <aside> is `md:top-5 md:bottom-5`, a
-    // floating card inset from the screen at desktop widths, not flush to
-    // it. Reading #main-nav's real getBoundingClientRect().bottom tracks
-    // whatever that inset is (or isn't, below md where the aside is an
-    // off-canvas h-screen drawer and its bottom IS window.innerHeight)
-    // instead of hardcoding 20px.
-    const measure = () => {
-      if (!cardRef.current) return;
-      // Phones (< 640 px, 2026-10-04): no fixed card height. Locked to the
-      // screen, the header, search and filters filled it and left room for
-      // about two rows; the card now grows with its rows and the page scrolls.
-      if (window.innerWidth < 640) { setCardHeight(null); return; }
-      const top = cardRef.current.getBoundingClientRect().top;
-      const sidebar = document.getElementById('main-nav');
-      // Hide wants the card to actually reach the screen's true bottom edge
-      // (user, 2026-09-29), not just match the sidebar's own inset -- the
-      // sidebar's `md:bottom-5` floating look is a deliberate 20px gap for
-      // the DEFAULT view, but the negative margin below only cancels
-      // `<main>`'s padding, it doesn't add back that 20px, so matching the
-      // sidebar here left Hide 20px short of the edge it's supposed to flow to.
-      const bottomTarget = !hidePagination && sidebar ? sidebar.getBoundingClientRect().bottom : window.innerHeight;
-      setCardHeight(Math.max(bottomTarget - top, 160));
-    };
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-    // studentsLoading: same reason as the stickyTop effect above. hidePagination
-    // (missed when this was first ported -- RPC Monitoring's own measure
-    // effect has the equivalent `pageSize`): without it, toggling Hide never
-    // re-measures a fresh baseline, so the card kept the DEFAULT view's
-    // already-shrunk cardHeight (correction only ever shrinks, never grows
-    // it back), and the negative margin that should let it reach the true
-    // edge had nothing left to cancel.
-  }, [canAddStudent, studentsLoading, hidePagination]);
-
-  // The estimate above can leave a few stray pixels of page scroll (e.g.
-  // `<main>`'s own bottom padding, which this component has no clean way to
-  // read). Trim exactly that much, synchronously before paint, so the page
-  // itself never scrolls — only the bounded row list above does.
-  //
-  // ⚠ `hidePagination` is ALSO a dep, not just `cardHeight` (same bug class
-  // found and fixed on RPC Monitoring): toggling Hide can remeasure to the
-  // EXACT SAME cardHeight value (both are `window.innerHeight - top`, and
-  // `top` doesn't move between states) — React bails out the resulting
-  // setCardHeight as a no-op, so this effect would never get a second look
-  // at the real footer's overflow once Hide's negative margin is gone.
-  useLayoutEffect(() => {
-    if (cardHeight == null) return;
-    const overflow = document.documentElement.scrollHeight - window.innerHeight;
-    if (overflow > 0) {
-      setCardHeight((h) => (h == null ? h : Math.max(h - overflow, 160)));
-    }
-  }, [cardHeight, hidePagination]);
-
   // Hide's bottom corners: rounded when the rows fit without scrolling (a
   // short list, with blank card interior above the pinned reveal tab),
   // square when the rows box is actually scrolling internally (a long list
@@ -982,7 +875,7 @@ export const PatientList = () => {
     const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(check) : null;
     resizeObserver?.observe(el);
     return () => resizeObserver?.disconnect();
-  }, [hidePagination, cardHeight, filtered.length]);
+  }, [hidePagination, filtered.length]);
 
   const hasActiveFilters = gradeFilter !== 'all' || sectionFilter !== 'all' || genderFilter !== 'all' || ageGroupFilter !== 'all' || searchTerm !== '';
 
@@ -1077,7 +970,7 @@ export const PatientList = () => {
           DOH report on Reports, which is aggregate counts and carries no
           names. */}
       {canAddStudent && (
-        <div ref={toolbarRef} className="sticky z-40 -mt-3 flex flex-wrap items-center justify-end gap-3 bg-gray-50 pb-2" style={{ top: stickyTop.toolbar }}>
+        <div className="-mt-3 flex flex-wrap items-center justify-end gap-3 pb-2">
           {/* "Upload", not "Scan": this opens a file picker, and a scan icon
               + the verb "scan" both promised a camera the app does not have
               (backlog 0e). The OCR extraction is still described inside the
@@ -1160,8 +1053,8 @@ export const PatientList = () => {
           (see below) rather than as its own flush-bottom footer sibling --
           with the tab inside, a short list simply ends after it; a long
           list caps at `cardHeight` and scrolls internally, tab included. */}
-      <div ref={cardRef} className={`flex flex-col bg-card border border-border shadow-sm overflow-clip ${hideAtEdge ? 'rounded-t-2xl' : 'rounded-2xl'} ${hidePagination ? '-mb-4 md:-mb-8' : ''}`} style={{ [hidePagination ? 'maxHeight' : 'height']: cardHeight ?? undefined }}>
-        <div ref={cardHeaderRef} className="sticky z-40 space-y-4 border-b border-border bg-card p-5 sm:p-6" style={{ top: stickyTop.cardHeader }}>
+      <div className={`flex flex-col bg-card border border-border shadow-sm overflow-clip ${hideAtEdge ? 'rounded-t-2xl' : 'rounded-2xl'} ${hidePagination ? '-mb-4 md:-mb-8' : ''}`}>
+        <div className="space-y-4 border-b border-border bg-card p-5 sm:p-6">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 mb-2">
@@ -1176,8 +1069,7 @@ export const PatientList = () => {
                   {schoolStudents.length} {schoolStudents.length === 1 ? 'STUDENT' : 'STUDENTS'}{selectedSchool ? '' : ' ACROSS 3 SCHOOLS'}
                 </span>
               </div>
-              <OfflineDataStatus />
-            </div>
+                          </div>
             <div className="flex flex-shrink-0 items-center gap-2">
               {selectMode && tickedIds.size > 0 && (
                 <button
@@ -1371,7 +1263,7 @@ export const PatientList = () => {
             </colgroup>
             <thead>
               <tr className="border-b border-border">
-                <th className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 sm:pl-6 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <th className="bg-gray-100 text-left px-4 py-3 sm:pl-6 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   {/* The row-number column doubles as "select all" once select
                       mode is on — same swap as each row's own cell, scoped to
                       the current page: now that the table paginates, ticking
@@ -1390,14 +1282,14 @@ export const PatientList = () => {
                     />
                   ) : '#'}
                 </th>
-                <th className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Student</th>
-                <th className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Risk</th>
-                <th className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Grade</th>
-                <th className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Section</th>
-                <th className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Gender</th>
-                <th className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Age</th>
-                <th className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Status</th>
-                <th className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground sm:pr-6">Actions</th>
+                <th className="bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Student</th>
+                <th className="bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Risk</th>
+                <th className="bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Grade</th>
+                <th className="bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Section</th>
+                <th className="bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Gender</th>
+                <th className="bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Age</th>
+                <th className="bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Status</th>
+                <th className="bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground sm:pr-6">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
