@@ -86,12 +86,12 @@ const Status = ({ r, saved, dup, decision, onCompare }: {
   // Wording (user, 2026-10-04): "records" = the system, "upload" = the
   // spreadsheet, so "file" never means both on one screen.
   if (decision === 'skip') {
-    const label = dup && !dup.onFile.length && dup.inFile.length ? 'Skipped, repeated row' : 'Skipped, already in records';
+    const label = dup && !dup.onFile.length && dup.inFile.length ? 'Skipped, repeated row.' : 'Skipped, already in records.';
     // Skipped goes GREY (it will not be saved) but stays clickable to change the decision.
     return dup
       ? <button type="button" onClick={(e) => { e.stopPropagation(); onCompare(); }} title="Compare side by side, or change the decision"
-          style={{ ...pill('#F1F5F9', '#475569'), cursor: 'pointer', border: '0.0625rem solid #CBD5E1' }}>{label}</button>
-      : <span style={pill('#F1F5F9', '#475569')}>{label}</span>;
+          style={{ ...pill('#64748B', '#FFFFFF'), cursor: 'pointer', border: '0.0625rem solid #64748B' }}>{label}</button>
+      : <span style={pill('#64748B', '#FFFFFF')}>{label}</span>;
   }
   if (r.h.readError) return <span style={pill('#FEE2E2', '#B91C1C')}>Could not read</span>;
   if (r.missing.length) return <span style={pill('#FEE2E2', '#B91C1C')}>Missing {r.missing[0].toLowerCase()}{r.missing.length > 1 ? ` +${r.missing.length - 1}` : ''}</span>;
