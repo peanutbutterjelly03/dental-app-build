@@ -1182,7 +1182,7 @@ export const PatientList = () => {
                           onClick={() => { setSelectMode(true); setShowListMenu(false); }}
                           className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-canvas flex items-center gap-2"
                         >
-                          <ListChecks className="w-3.5 h-3.5" /> Archive Students
+                          <ListChecks className="w-3.5 h-3.5" /> Archive Records
                         </button>
                         <button
                           onClick={() => { setShowListMenu(false); setShowDuplicates(true); setDupIndex(0); void loadDuplicates(); }}
@@ -1612,7 +1612,7 @@ export const PatientList = () => {
                 <>
                   <div className="my-1 h-px bg-border" />
                   <button role="menuitem" className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50" onClick={() => { setRowMenu(null); archiveOneDuplicate(target.id); }}>
-                    <ArchiveIcon className="h-4 w-4" /> Archive Student
+                    <ArchiveIcon className="h-4 w-4" /> Archive Record
                   </button>
                 </>
               )}
