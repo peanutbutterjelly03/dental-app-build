@@ -6,6 +6,7 @@ import { Plus, Search, Check, Eye, FileText, X, School as SchoolIcon, List, Chev
 import { ConfirmDialog } from './ConfirmDialog';
 import { formatDate } from '../utils/localDate';
 import { OCR_CONFIDENCE_THRESHOLD, type IptrOcrFieldKey, type IptrCheckboxFinding } from '../utils/iptrOcrShared';
+import { compareStudentsDefault } from '../utils/studentSort';
 import { getGradeColor } from '../utils/gradeColors';
 import { getSchoolColor, getSchoolShortName } from '../utils/schoolColors';
 import { GradePill } from './GradePill';
@@ -44,11 +45,6 @@ const NO_GRADE = '__no_grade__';
 const NO_SECTION = '__no_section__';
 // Grade-filter value for patients who are not students (Teacher, Staff, Guard...).
 const OTHERS = '__others__';
-
-/** Male before Female in the default sort; anything else (data the intake
- *  form doesn't otherwise produce) sorts after both rather than being lost
- *  at the front or crashing the comparator. */
-const GENDER_SORT_ORDER: Record<string, number> = { Male: 0, Female: 1 };
 
 /** The add-form's default input styling — the baseline `ocrFieldClass` falls
  *  back to, and what fields that can never be scanned use outright. */
@@ -950,13 +946,7 @@ export const PatientList = () => {
   // what the DOH forms already group by. Client-side only: /stats/student-
   // rows itself stays surname-only, since other consumers of that same
   // endpoint (Reports, the dashboard) rely on that order.
-  }).sort((a, b) =>
-    (GRADES.indexOf(a.grade) - GRADES.indexOf(b.grade)) ||
-    a.section.localeCompare(b.section) ||
-    ((GENDER_SORT_ORDER[a.gender] ?? 2) - (GENDER_SORT_ORDER[b.gender] ?? 2)) ||
-    a.lastName.localeCompare(b.lastName) ||
-    a.firstName.localeCompare(b.firstName)
-  ), [schoolStudents, gradeFilter, sectionFilter, genderFilter, ageGroupFilter, searchTerm]);
+  }).sort(compareStudentsDefault), [schoolStudents, gradeFilter, sectionFilter, genderFilter, ageGroupFilter, searchTerm]);
 
   // Bulk Queue's "All" shortcut + select-all state -- see bulkQueueMode
   // above. Placed here, not with the rest of that block, because it reads
