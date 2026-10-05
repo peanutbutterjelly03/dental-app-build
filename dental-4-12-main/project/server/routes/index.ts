@@ -1093,8 +1093,6 @@ router.get("/stats/student-nav", requireAuth, requireRole(...CLINICAL_READ_ROLES
       gender: s.sex,
       grade: s.grade_level,
       section: s.section,
-      isNotStudent: !!s.is_not_student,
-      notStudentRole: s.not_student_role ?? "",
       school: schoolNameById.get(String(s.school_id)) ?? "Unknown School",
     };
   });
@@ -1442,6 +1440,8 @@ router.get("/stats/student-rows", requireAuth, asyncHandler(async (req, res) => 
       gender: s.sex,
       grade: s.grade_level,
       section: s.section,
+      isNotStudent: !!s.is_not_student,
+      notStudentRole: s.not_student_role ?? "",
       school: schoolNameById.get(String(s.school_id)) ?? "Unknown School",
       lastVisit: chartDates.length
         ? new Date(Math.max(...chartDates.map((d) => d.getTime()))).toISOString()
