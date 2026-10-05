@@ -1,5 +1,3 @@
-import { downloadBlob } from './exportCsv';
-
 // The DOH Consolidated Report is a 77-column cross-tab that never fit a PDF
 // page legibly. Excel is its natural home: a real .xlsx with a frozen
 // Indicator column + header rows, and print titles so Excel bands the columns
@@ -23,7 +21,6 @@ export interface DohXlsxParams {
   getCell: (grade: string, age: string, sex: 'M' | 'F', field: string) => number;
   school: string;
   monthYear: string;
-  filename: string;
 }
 
 // exceljs ships no exported Cell type we can name without importing it eagerly;
@@ -48,8 +45,8 @@ function setNum(cell: XlsxCell, v: number, bold = false) {
   cell.font = { size: 9, ...(bold ? { bold: true } : {}) };
 }
 
-export async function exportDohReportToXlsx(params: DohXlsxParams): Promise<void> {
-  const { grades, gradeBrackets, summaryBrackets, rows, getCell, school, monthYear, filename } = params;
+export async function buildDohReportXlsx(params: DohXlsxParams): Promise<Blob> {
+  const { grades, gradeBrackets, summaryBrackets, rows, getCell, school, monthYear } = params;
 
   const ExcelJS = (await import('exceljs')).default ?? (await import('exceljs'));
   const workbook = new ExcelJS.Workbook();
@@ -217,8 +214,5 @@ export async function exportDohReportToXlsx(params: DohXlsxParams): Promise<void
   };
 
   const buffer = await workbook.xlsx.writeBuffer();
-  downloadBlob(
-    new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
-    filename,
-  );
+  return new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }

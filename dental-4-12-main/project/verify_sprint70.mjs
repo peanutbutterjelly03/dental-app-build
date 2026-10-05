@@ -2,7 +2,7 @@
 //
 // From the dentist's handwritten notes, where "IPTR must be editable" appears
 // twice, with the case that motivates it: "paano pag naretain ang student?" —
-// a retained pupil repeats a grade, so the year record has to be correctable.
+// a retained student repeats a grade, so the year record has to be correctable.
 //
 // Sprint 57a put grade/section on the IPTR but only ever WROTE them at
 // creation (Add Year, or Sprint 69's student intake). Nothing could fix a
@@ -10,7 +10,7 @@
 //
 // Two grades now exist on purpose and the test asserts they stay independent:
 // STUDENT carries current enrolment (rosters, the appointment picker), each
-// IPTR carries the grade that pupil was actually in that year.
+// IPTR carries the grade that student was actually in that year.
 //
 // Usage: node verify_sprint70.mjs [apiBase]
 import 'dotenv/config';
@@ -67,11 +67,11 @@ const run = async () => {
   check('editing the YEAR does not change the student\'s current enrolment',
     studentAfter.grade_level === studentBefore.grade && studentAfter.section === studentBefore.section,
     JSON.stringify({ was: studentBefore, now: { grade: studentAfter.grade_level, section: studentAfter.section } }));
-  check('the two can genuinely differ (a retained pupil is expressible)',
+  check('the two can genuinely differ (a retained student is expressible)',
     retained.body.grade_level !== studentAfter.grade_level,
     `${retained.body.grade_level} vs ${studentAfter.grade_level}`);
 
-  // Other years of the same pupil are untouched.
+  // Other years of the same student are untouched.
   const siblings = iptrs.filter((i) => i.student_id === target.student_id && i._id !== target._id);
   if (siblings.length) {
     const after = (await api('/student-iptrs')).body;

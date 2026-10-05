@@ -4,14 +4,17 @@ type ListSearchInputProps = {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  /** Sizing of the wrapper; defaults to the standard toolbar width. */
+  className?: string;
 };
 
 export const ListSearchInput = ({
   value,
   onChange,
   placeholder = 'Search student, grade, or section...',
+  className = 'min-w-[320px] flex-1 sm:flex-none',
 }: ListSearchInputProps) => (
-  <label className="relative min-w-[320px] flex-1 sm:flex-none">
+  <label className={`relative ${className}`}>
     <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
     <input
       type="text"

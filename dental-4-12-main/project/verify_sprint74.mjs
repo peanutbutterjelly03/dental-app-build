@@ -60,25 +60,25 @@ const run = async () => {
   check('the Promote / Assign screen opens', await modal.locator('text=Promote / Assign').count() > 0);
   check('it names the target school year', (await modal.innerText()).includes(TO));
 
-  // Pick a grade with pupils in it.
+  // Pick a grade with students in it.
   await modal.locator('select[aria-label="Grade"]').selectOption('Grade 1');
   await page.waitForTimeout(3000);
   const rowCount = await modal.locator('tbody tr').count();
-  console.log(`        Grade 1 roster: ${rowCount} pupil(s)`);
+  console.log(`        Grade 1 roster: ${rowCount} student(s)`);
   check('the roster loads for the chosen grade', rowCount > 0);
   check('it says what will happen before doing it',
     (await modal.innerText()).includes(`will get a ${TO} record`));
 
   if (rowCount === 0) { await browser.close(); process.exit(1); }
 
-  // Retain the first pupil — the case the dentist raised — and promote the
+  // Retain the first student — the case the dentist raised — and promote the
   // rest. Waits first: the roster and the existing-year lookup arrive in two
   // requests, and choosing before both land used to have the choice wiped.
   await page.waitForTimeout(2500);
   await modal.locator('tbody tr').first().locator('select').selectOption('retain');
   await page.waitForTimeout(1500);
   const chosen = await modal.locator('tbody tr').first().locator('select').inputValue();
-  check('a per-pupil choice survives the roster refresh', chosen === 'retain', chosen);
+  check('a per-student choice survives the roster refresh', chosen === 'retain', chosen);
 
   await modal.locator(`button:has-text("Open ${TO} for")`).click();
   await page.waitForTimeout(6000);
@@ -105,19 +105,19 @@ const run = async () => {
   check('NO pre-existing school year was modified', changed.length === 0,
     JSON.stringify(changed.map((c) => ({ sy: c.school_year, was: beforeById.get(c._id).grade_level, now: c.grade_level }))));
 
-  // A retained pupil kept their grade; a promoted one moved up exactly one.
+  // A retained student kept their grade; a promoted one moved up exactly one.
   const retained = newOnes.filter((i) => i.grade_level === 'Grade 1');
   const promoted = newOnes.filter((i) => i.grade_level === 'Grade 2');
   console.log(`        ${promoted.length} promoted to Grade 2, ${retained.length} retained in Grade 1`);
-  check('retained pupils repeat their grade', retained.length === 1, `${retained.length}`);
-  check('promoted pupils move up exactly one grade', promoted.length === newOnes.length - retained.length);
+  check('retained students repeat their grade', retained.length === 1, `${retained.length}`);
+  check('promoted students move up exactly one grade', promoted.length === newOnes.length - retained.length);
 
   // Re-running must not double-create — uniqueBy guards it server-side.
   const dup = await api('/student-iptrs', {
     method: 'POST',
     body: JSON.stringify({ student_id: newOnes[0].student_id, school_year: TO, grade_level: 'Grade 2', section: 'X' }),
   });
-  check('a second record for the same pupil+year is refused (409)', dup.status === 409, `got ${dup.status}`);
+  check('a second record for the same student+year is refused (409)', dup.status === 409, `got ${dup.status}`);
 
   // ── Clean up: archive everything created, as admin ──────────────────────
   const adminLogin = await fetch(`${API}/api/auth/login`, {

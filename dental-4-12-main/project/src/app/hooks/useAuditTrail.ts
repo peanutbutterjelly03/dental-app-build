@@ -2,14 +2,19 @@ import { useCallback, useEffect, useState } from 'react';
 import { useLoadPhase } from './useLoadPhase';
 import { apiClient } from '../api/client';
 import type { ApiAuditTrail, ApiUser } from '../api/types';
+import { ROLE_LABELS } from './useUsers';
 
 export interface AuditLogRow {
   id: string;
   timestamp: string; // ISO, formatted for display in the component
   user: string;
+  /** Human label of the user's role, '' when the account is unknown. */
+  userRole: string;
   action: string;
   module: string; // affected_model, e.g. "Student", "Appointment"
   affectedRecordId: string;
+  /** Student whose record the entry touched, '' when it is not patient-linked. */
+  subject: string;
 }
 
 /** Default window, in days. The audit trail has no natural boundary the way
@@ -48,20 +53,26 @@ export function useAuditTrail(from: Date | null = windowStart()) {
     beginLoad();
     try {
       const query = fromKey ? `?from=${encodeURIComponent(fromKey)}` : '';
-      const [entries, users] = await Promise.all([
+      const [entries, users, subjects] = await Promise.all([
         apiClient.get<ApiAuditTrail[]>(`/audit-trails${query}`),
         apiClient.get<ApiUser[]>('/users'),
+        // Whose record each entry touched. Optional: the trail still renders
+        // without names if this call fails.
+        apiClient.get<Record<string, string>>(`/audit-subjects${query}`).catch(() => ({} as Record<string, string>)),
       ]);
       const userNameById = new Map(users.map((u) => [u._id, u.full_name]));
+      const userRoleById = new Map(users.map((u) => [u._id, ROLE_LABELS[u.role] ?? u.role]));
 
       const rows: AuditLogRow[] = entries
         .map((e) => ({
           id: e._id,
           timestamp: e.timestamp,
           user: userNameById.get(e.user_id) ?? 'Unknown User',
+          userRole: userRoleById.get(e.user_id) ?? '',
           action: e.action,
           module: e.affected_model,
           affectedRecordId: e.affected_record_id,
+          subject: subjects[e.affected_record_id] ?? '',
         }))
         .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 

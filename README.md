@@ -41,7 +41,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 
 Three things decide whether the app will actually start and stay correct:
 
-- **`MONGODB_URI`** — ask a teammate for the shared cluster string, or point at your own free Atlas cluster.
+- **`MONGODB_URI`** — your own free Atlas cluster, seeded (below). **Do NOT point a dev machine at production**; they are separate databases since Sprint 126, and Atlas's one-free-cluster limit is per PROJECT, so a new project gets you another free tier.
 - **⚠ `FIELD_ENCRYPTION_SECRET` — if the database already has records, this MUST be the key they were encrypted with.** A wrong value does not fail at startup; it surfaces later as garbled names or decrypt errors when reading students, and the data cannot be recovered afterwards. Only generate a fresh one for an empty database. This is the single most destructive value in the project.
 - **`ALLOWED_ORIGINS`** — keep `http://localhost:5173` for local dev, or every login returns `403 "Origin not allowed"`.
 
@@ -53,7 +53,8 @@ Full reference:
 
 | Var | Purpose |
 |---|---|
-| `MONGODB_URI` | Atlas connection string |
+| `MONGODB_URI` | Atlas connection string — the DEV cluster locally; production's lives only in Vercel |
+| `PRODUCTION_DB_HOST` | the host maintenance scripts treat as production, so they can shout before touching it |
 | `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` | token signing (15 min access / 7 day refresh) |
 | `FIELD_ENCRYPTION_SECRET` | AES key for encrypted patient fields — **must match the key existing records were encrypted with**, a wrong value only surfaces as decrypt errors on read |
 | `ALLOWED_ORIGINS` | CORS allowlist for production origins (login 403s without it) |
@@ -72,6 +73,8 @@ npm install
 
 Everything (frontend, Express backend, seed and verification scripts) lives in that **one** `package.json` — there is no separate install for the server.
 
+**Rehearsed from a genuine fresh clone on 2026-09-04** (Windows, Node 24.18, npm 11.11) so the numbers below are measured, not estimated: clone ≈ 40 s / 130 MB, `npm install` **≈ 5 min for 819 packages** (many `npm warn deprecated` lines — all benign, none are failures), `npx tsc --noEmit` and `npx tsc -p tsconfig.server.json --noEmit` both exit 0, `npm run build` ≈ 70 s ending in `precache 16 entries`. If `npm install` looks stalled at four minutes, it is not — wait it out.
+
 Optional, depending on what you are doing:
 
 ```bash
@@ -80,7 +83,36 @@ npx playwright install chromium              # only for the verification scripts
 cd ../../ml-service && pip install -r requirements.txt   # only for Risk Classification
 ```
 
-Then create your `.env` as described above — the app will not start without `MONGODB_URI`.
+Then create your `.env` as described above.
+
+> ⚠ **A wrong or placeholder `MONGODB_URI` does NOT stop the server from starting** — verified by fresh-clone rehearsal 2026-09-04. `server/local.ts` calls `app.listen()` without connecting to Mongo first; the connection is lazy, on the first request. So the boot looks completely healthy:
+>
+> ```
+> Server running on http://localhost:4000
+> ```
+>
+> and then **every** API call returns `500 {"error":"Internal server error"}`, with the real cause visible only in the server console (`querySrv ENOTFOUND _mongodb._tcp.CLUSTER.mongodb.net` if you left the `.env.example` placeholder in). If the app loads but nothing works and login 500s, check `MONGODB_URI` first — a successful "Server running" line proves nothing about the database.
+>
+> **The one-command check** — `curl -s http://localhost:4000/api/health` — answers this directly: `{"status":"ok","db":"connected"}` when the database is reachable, `500 {"error":"Internal server error"}` when it is not. Run it before debugging anything else.
+
+### Dev and production are SEPARATE databases (Sprint 126)
+
+**Local `.env` points at a DEV Atlas cluster. Production's `MONGODB_URI` lives only in Vercel.** Before this, one cluster served both, so every maintenance script run from a laptop hit live patient records — and on 2026-09-04 three did, all recoverable, none of which should have been possible inattentively.
+
+- **Each database has its OWN `FIELD_ENCRYPTION_SECRET`, and they are not interchangeable.** Pointing `.env` back at production while holding the dev key makes every patient record read as garbage. **Restore the whole `.env` from its dated backup — never swap one line.** The previous config is saved as `.env.production.bak-<timestamp>` (gitignored).
+- **`PRODUCTION_DB_HOST`** in `.env` names the host that counts as production. Every maintenance script prints its target before doing anything, and shouts when that target is production:
+
+  ```
+  ----------------------------------------------------------------
+    script   : purgeDemoData
+    cluster  : ac-gpvngtp-shard-00-00.o7e3c5o.mongodb.net
+    database : floral
+  ----------------------------------------------------------------
+  ```
+
+  Leave `PRODUCTION_DB_HOST` unset and the target is still printed — it just cannot tell you which cluster it is.
+- **Seed the dev database after switching:** `seed:admin` → `seed:demo` → `seed:students` → `seed:rpc-visit2` → `seed:iptr-details` → `seed:treatments`, then **`apply:seed-passwords -- --confirm`** if the accounts predate your `.env` (`seed:admin`/`seed:demo` skip accounts that already exist, so their passwords stay whatever created them — this is exactly what a 401 on a freshly seeded database means).
+- ⚠ **Dev data is seeded, never a copy of real records.** Copying production into dev would put patient PII on a laptop, which is the thing this separation exists to stop.
 
 ### What a new collaborator cannot get from this repo
 
@@ -118,6 +150,14 @@ Notes:
 
 ### Seeding
 
+> ⚠ **Set the five `SEED_*_PASSWORD` values in `.env` before seeding — the seeders now refuse to run without them.** `.env.example` ships them as the literal `choose-a-password`, and until Sprint 113 `seed:demo` hashed that string and created four working accounts with it, silently. It now refuses, naming the variable and exiting non-zero:
+>
+> ```
+> SEED_DENTIST_PASSWORD is still the .env.example placeholder ("choose-a-password") — refusing to seed.
+> ```
+>
+> The check runs **before** the database connection, so a bad value can no longer leave a half-seeded database. It rejects a missing value, any `.env.example` placeholder, and anything under 8 characters. `seed:admin` is guarded the same way. **If you seeded before this existed**, fix it with `npm run apply:seed-passwords` (below) — `seed:demo` skips accounts that already exist, so editing `.env` alone will not reach them.
+
 Run in this order on an empty database:
 
 ```bash
@@ -139,7 +179,17 @@ npm run apply:seed-passwords # push changed SEED_* passwords onto EXISTING accou
                              # editing .env alone never reaches them)
 npm run restore:admin        # un-archive / re-enable the admin account
 npm run backup:raw           # dump every collection to backups/<timestamp>/
-npm run purge:demo           # remove the demo data set before real deployment
+npm run backfill:is-demo     # one-off: set STUDENT.is_demo on records that
+                             # predate the flag. purge:demo REFUSES to run
+                             # until this has been done. Dry run by default.
+npm run purge:demo           # remove the demo data set before real deployment.
+                             # DRY RUN by default; pass -- --confirm to delete.
+                             # Deletes on STUDENT.is_demo, which only seeders
+                             # set — anything a person encoded is untouchable.
+                             # Never deletes the three real schools (reference
+                             # data), never an unarchived account, and skips any
+                             # school a surviving student still points at.
+                             # Take `npm run backup:raw` first.
 npm run verify:indexes       # assert the DB indexes exist AND the planner uses them
 npm run migrate:iptr-grades  # one-off: backfill grade/section onto IPTRs
 npm run fix:duplicate-iptr   # one-off: remove empty duplicate (student, year) IPTRs
@@ -147,6 +197,8 @@ npm run backfill:soft-delete # one-off: add soft-delete fields to old records
 ```
 
 ⚠ **Every seeder writes to whatever `MONGODB_URI` points at, and there is currently only ONE database** — no separate dev instance. Take `npm run backup:raw` before seeding anything you cannot recreate.
+
+**Rehearsed end-to-end on a genuinely empty Atlas cluster, 2026-09-04** — all six seeders in the order above, no failures, no manual fixes needed between steps: `seed:admin` 1 account · `seed:demo` 3 schools + 4 accounts · `seed:students` **26 students** · `seed:rpc-visit2` backdates Visit 1 and adds Visit 2 · `seed:iptr-details` 26 each of MedicalHistory / DietarySocialHabits / OralHealthCondition · `seed:treatments` 31 charts, 148 tooth records. Then `/api/health` → `{"status":"ok","db":"connected"}`, login 200, and `/api/students` returned all 26 with names and addresses **decrypting correctly against a freshly generated `FIELD_ENCRYPTION_SECRET`** — so the empty-cluster path needs no secrets from anyone, as claimed. Tip: if you want an empty cluster without disturbing an existing one, Atlas's one-free-M0 limit is **per project** — make a new project and you get another free tier.
 
 Gotcha: encrypted fields (`full_name`, `address`, `contact_number`, `allergies`, `others`, `diagnosis`, `treatment_done`, guardian/PhilHealth fields) **cannot be queried by value** — fetch and filter in JS after Mongoose decrypts on read.
 
@@ -158,14 +210,27 @@ No unit-test suite; the project standard is **end-to-end verification against re
 npx tsc --noEmit                            # frontend typecheck
 npx tsc -p tsconfig.server.json --noEmit    # backend typecheck
 npm run build                               # production build (+ SW precache report)
-npm audit                                   # must stay at 0 vulnerabilities
+npm audit                                   # 4 remaining, all express@4 — see the note below
 
-# Playwright verification scripts (project root; read SEED_* passwords from .env):
+# Playwright verification scripts — all live in dental-4-12-main/project/, NOT the
+# repo root (there are no .mjs files there); they read SEED_* passwords from .env:
 node verify_risk_ui.mjs                # risk classification E2E (needs all 3 local servers)
 node verify_decision_support_ui.mjs    # dentist decision support E2E (BASE_URL env to target prod)
 node verify_pwa_toast.mjs              # SW update-toast flow + offline queue regression (needs :4000 + vite preview :4173)
 node panel_tour.mjs / probe_strict.mjs # read-only production tours/probes (screenshots via SHOTS_DIR env)
 ```
+
+> **`npm audit` stands at 4 (3 moderate, 1 high) as of 2026-09-04** — down from 13 (9 high) after `npm audit fix`. Do not treat 0 as the invariant this file once claimed: advisories are published against versions already pinned in `package-lock.json`, so the count rises on its own with nobody touching the repo. **Re-run it and record the current number before defense rather than quoting this one.**
+>
+> The 4 that remain are deliberate:
+> - **3 are one chain** — `express@4` → `body-parser` → `qs`. The only fix is **express@5, a breaking major**, on a deployed and working build. Not taken.
+> - **1 is `brace-expansion`**, pinned deep under `exceljs → archiver → glob@7 → minimatch@3`. npm reports it fixable but cannot reach it without breaking exceljs's tree. It is a DoS via glob-pattern expansion, and the patterns come from library internals, not user input.
+>
+> **The one with a real attack path in this app is fixed:** `pdfjs-dist` (arbitrary JS execution on opening a malicious PDF — and the OCR upload accepts PDFs) went 6.1.200 → 6.3.289. `dompurify`, `react-router`, `tar`, `postcss`, `nanoid`, `browserslist`, `fast-uri` and `ip-address` were patched in the same pass. `package.json` did not change — every fix fell inside the declared semver ranges, so only `package-lock.json` moved.
+>
+> Two traps worth knowing:
+> - `npm audit` can hit `audit endpoint returned an error` (registry network timeout) and succeed on retry — if it hangs, retry before believing it.
+> - ⚠ **`npm audit fix` can update `package-lock.json` AND npm's hidden `node_modules/.package-lock.json` without actually writing the package files.** Every tool then reports the new version while the build still uses the old one — `npm ls` included. If you fix advisories, confirm with `cat node_modules/<pkg>/package.json` and run **`npm ci`** to force the tree to match the lock.
 
 Verification lessons that keep paying off: wait on real selectors, not fixed sleeps (cold start >5s); full-page screenshots restart recharts animations — count SVG marks in the DOM instead; after changing Vercel env vars, smoke-test an encrypted-model read (`/api/students`), not just login.
 

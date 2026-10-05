@@ -78,7 +78,7 @@ that powers it and the exact click path to see it working.
 | Page navigation, URL routing | **react-router 7** | Any sidebar click; the URL changes without a full page reload | `src/app/routes.tsx` |
 | All dashboard and report charts | **recharts 2.15.2** | Sidebar → **Dashboard** (KPI charts) · **Reports** · **RPC Tracking** | `Dashboard.tsx`, `Reports.tsx`, `RPCTracking.tsx` |
 | Every icon in the interface | **lucide-react** | Everywhere — sidebar glyphs, buttons, status chips | 24 component files |
-| **OCR of paper DOH IPTR forms** | **tesseract.js 7** + **pdfjs-dist 6** | Students → **Add Student** → upload a scanned IPTR form; extracted fields populate the form with per-field confidence tints | `src/app/utils/iptrOcr.ts` |
+| **OCR of paper DOH IPTR forms** | **tesseract.js 7** + **pdfjs-dist 6**; English model from **@tesseract.js-data/eng 1.0.0** (pinned, build-time) | Students → **Add Student** → upload a scanned IPTR form; extracted fields populate the form with per-field confidence tints. The OCR engine (worker, LSTM WebAssembly cores, `eng` data) is **self-hosted under `/ocr/`**, copied from the pinned packages by `scripts/copy-ocr-assets.mjs` before `dev`/`build` (2026-10-04, SEC-36); nothing is fetched from a CDN | `src/app/utils/iptrOcr.ts`, `scripts/copy-ocr-assets.mjs` |
 | Excel export | **exceljs 4.4** | **Reports** → Export → Excel · also Students list export | `exportXlsx.ts`, `exportDohXlsx.ts` |
 | PDF export (DOH report) | **jspdf 4.2** + **html2canvas-pro 2.2** | **Reports** → Export → PDF (~1.7 MB download) | `src/app/utils/exportPdf.ts` |
 | CSV export | plain TypeScript (no library) | Audit Trail, Appointments, Students, RPC Tracking → Export → CSV | `src/app/utils/exportCsv.ts` |
@@ -168,13 +168,16 @@ Passwords come from `.env` and are never printed or committed.
 ## 7. Declared but unused dependencies
 
 **Finding: of 73 runtime dependencies in `package.json`, only 22 are imported
-anywhere in the codebase. 51 are never imported.**
+anywhere in the codebase. 51 are never imported.** (`react-day-picker` was
+imported 2026-09-24 for the School year "Edit date" window and became unused
+again 2026-09-25 when that window was removed: the date stamp now follows
+Oral Conditions "Date examined".)
 
 These are residue from the original Figma Make prototype, which shipped a full
 component library that the rebuilt application does not use. The unused set
 includes all 26 `@radix-ui/*` packages, `@mui/material` and `@mui/icons-material`
 with their `@emotion` peers, and `sonner`, `motion`, `vaul`, `cmdk`,
-`react-hook-form`, `next-themes`, `react-day-picker`, `react-dnd`,
+`react-hook-form`, `next-themes`, `react-dnd`,
 `canvas-confetti`, `embla-carousel-react`, `react-slick`, `input-otp`,
 `clsx`, `tailwind-merge`, `class-variance-authority`, and others.
 

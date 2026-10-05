@@ -1,6 +1,7 @@
 import "dotenv/config";
 import "../dnsFix.js"; // this machine's Node 24 + Atlas SRV workaround
 import { connectDB } from "../config/db.js";
+import { announceTarget } from "./announceTarget.js";
 import { splitFullName } from "./splitStudentNames.js";
 import { School, Student, StudentIptr, DentalChart, Dentist, PreventiveCareRecord, RiskStratification } from "../models/index.js";
 import mongoose from "mongoose";
@@ -9,6 +10,7 @@ import { DEMO_STUDENTS as STUDENTS } from "./demoStudents.js";
 
 async function main() {
   await connectDB();
+  announceTarget("seedStudents");
 
   const schools: Record<string, any> = {};
   for (const s of await School.find({})) schools[s.school_name] = s;
@@ -58,6 +60,9 @@ async function main() {
       address: "Barangay Tanyag, Taguig City",
       grade_level: s.grade_level,
       section: s.section,
+      // Marks this as seeded, not encoded by a person. purgeDemoData.ts deletes
+      // on this flag alone — see Student.ts.
+      is_demo: true,
     });
 
     const iptr = await StudentIptr.create({ student_id: student._id, school_year: "2025-2026" });
@@ -79,7 +84,7 @@ async function main() {
         dmf_score: s.risk === "High" ? 5 : s.risk === "Medium" ? 2 : 0,
         // Secondary rows carry "DMF" (permanent dentition); elementary rows
         // default to "dmf" as before. The DOH table counts the two on
-        // separate lines, so getting this wrong puts high school pupils on
+        // separate lines, so getting this wrong puts high school students on
         // the primary-teeth row.
         dmf_index: (s as { dmf_index?: string }).dmf_index ?? "dmf",
       });

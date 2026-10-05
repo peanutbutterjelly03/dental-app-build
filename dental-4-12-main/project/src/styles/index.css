@@ -2,12 +2,49 @@
 @import './tailwind.css';
 @import './theme.css';
 
+/* Shared field borders, outside Tailwind's layers so individual form utility
+   classes cannot override the system-wide appearance. An inset outline makes
+   focus bolder without resizing the field or shifting the surrounding layout.
+   Keep native toggles, buttons, disabled fields and validation errors distinct. */
+@media screen {
+  :is(
+    input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="hidden"], [type="submit"], [type="reset"], [type="button"], [type="image"]),
+    textarea,
+    select,
+    [role="combobox"]
+  ):not(:disabled, [aria-disabled="true"], [aria-invalid="true"]) {
+    border: 1px solid #9CA3AF;
+  }
+
+  :is(
+    input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="hidden"], [type="submit"], [type="reset"], [type="button"], [type="image"]),
+    textarea,
+    select,
+    [role="combobox"]
+  ):not(:disabled, [aria-disabled="true"], [aria-invalid="true"]):focus {
+    border-color: var(--primary-hover);
+    outline: 2px solid var(--primary-hover);
+    outline-offset: -1px;
+    box-shadow: none;
+  }
+}
+
 /* Edge/IE add their own built-in reveal/clear icons inside <input
    type="password">, which visually stacks on top of our custom show/hide
    toggle (Login.tsx). Suppress the native ones so only ours shows. */
 input::-ms-reveal,
 input::-ms-clear {
   display: none;
+}
+
+/* Scrollable but no visible scrollbar track/thumb -- the element still
+   scrolls via wheel/touch/keyboard, only the OS-drawn bar is hidden. */
+.no-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* old Edge/IE */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome/Safari/new Edge */
 }
 
 /* ── Dashboard entrance motion (Sprint 23j / audit X4-lite) ──────────────
@@ -82,8 +119,15 @@ input::-ms-clear {
      overflow: visible on BOTH the scrollable inner div AND its overflow-
      hidden outer wrapper is required — fixing only the inner one still left
      the outer div clipping the content. */
+  /* DEFAULT paper. Forms that know their own shape override this at runtime
+     via usePrintOrientation() — `@page` cannot be selected by a class, so one
+     static rule here used to force LANDSCAPE on every printable in the app,
+     including the portrait ones (the IPTR and the consent letter printed on a
+     landscape sheet with half of it blank).
+     8.5 × 13in is Philippine long bond, what these DOH forms are run on. */
   @page {
-    size: landscape;
+    size: 8.5in 13in landscape;
+    margin: 6mm;
   }
 
   .overflow-x-auto,
@@ -121,6 +165,117 @@ input::-ms-clear {
   body {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+
+  /* ── PRINT BY INCLUSION (Sprint 130) ─────────────────────────────────────
+     A printout IS the form and nothing else: no page title, tab strip, filter
+     label, live-updated stamp or on-screen explanatory caption may reach paper.
+     The sheet filed with the City Health Office must be indistinguishable from
+     the official form.
+
+     ⚠ THIS IS A STRATEGY CHANGE, not another selector. The rules below used to
+     ENUMERATE chrome to hide (aside, header, nav, button, .doh-report-controls)
+     — and every element that was not on that list printed. That is how the page
+     heading, the "School:" / "School year:" labels beside the hidden dropdowns,
+     and every explanatory caption ("Every column of the paper form is shown…",
+     "Covering school year …") kept reaching paper as the UI grew. Whitelisting
+     cannot leak the same way: anything OUTSIDE the marked form is hidden by
+     default, so a new caption added tomorrow does not silently appear on a DOH
+     return.
+
+     `visibility` rather than `display` on purpose — collapsing every ancestor
+     with display:none removes the form itself; visibility hides painted output
+     while the marked subtree stays laid out inside it, which is what keeps the
+     wide tables' column widths intact.
+
+     Anything that genuinely belongs on paper goes INSIDE the .form-print root.
+     Roots today: DOH Consolidated (#doh-report-printable), Program Report,
+     FHSIS, School Summary, Target Client List, Consent Form. */
+  body * {
+    visibility: hidden !important;
+  }
+
+  .form-print,
+  .form-print * {
+    visibility: visible !important;
+  }
+
+  /* Explanatory text that lives INSIDE a printable root because it belongs
+     beside the form on screen, but is not on the paper form and must not
+     reach it (Sprint 133). Use this rather than moving such notes out of
+     the root — on screen they belong with the table they describe. */
+  .print-hide {
+    display: none !important;
+  }
+
+  .form-print {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    border: 0 !important;
+  }
+
+  /* ⚠ A FORM FILLS ITS SHEET.
+     A table sizes to its content, so a 4-client Target Client List printed as
+     a block in the corner with the rest of the paper blank — which is not what
+     the form looks like; its ruled grid runs to the edges whether or not there
+     is anything in it. The columns share the full printable width instead. */
+  .form-print table {
+    width: 100% !important;
+  }
+
+  /* …and FITS it, both ways. Measured, not guessed: a long-bond sheet in
+     landscape less 6mm margins is 1203 × 771px at 96dpi, and the Target Client
+     List's 30- and 31-column pages came to 1540px wide and ~1000px tall at
+     screen sizes — so page 1 would have been cut off at the right edge and both
+     would have spilled onto extra sheets.
+     With the rules below the two pages measure 1201 × 686 and 1201 × 729.
+     Every value here is what made those numbers fit; changing one means
+     re-measuring, not eyeballing. */
+  .tcl-table {
+    table-layout: fixed;
+  }
+
+  .tcl-table th,
+  .tcl-table td {
+    padding: 0 1px !important;
+    line-height: 1.05 !important;
+  }
+
+  .tcl-table th {
+    font-size: 6pt !important;
+  }
+
+  /* nowrap is load-bearing: letting a long address wrap made every row in the
+     sheet 50px tall and pushed the form onto a second page. */
+  .tcl-table td {
+    font-size: 6.5pt !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis;
+    max-width: none !important;
+    height: 20px !important;
+  }
+
+  .tcl-table tbody tr {
+    height: 20px !important;
+  }
+
+  /* The rotated captions' fixed 2rem column width is a screen affordance; on
+     paper the columns share the sheet. */
+  .tcl-table .w-8 {
+    width: auto !important;
+  }
+
+  /* A form that is TWO PAGES on paper starts its second page on a new sheet
+     (Sprint 185, Target Client List). Without this the two tables print one
+     after the other on whatever sheet they land on, which is the same wrong
+     document the single long table was. */
+  .form-page-break {
+    break-before: page;
+    page-break-before: always;
   }
 
   /* Hide navigation and UI chrome */

@@ -1,27 +1,48 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Eye, FileText, X, School as SchoolIcon, List, ChevronLeft, ChevronRight, Users, Upload, CheckCircle, AlertCircle, ScanLine, GraduationCap, MoreVertical, ListChecks, Archive as ArchiveIcon, Copy } from 'lucide-react';
+import { Plus, Eye, FileText, X, School as SchoolIcon, List, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Users, Upload, CheckCircle, AlertCircle, ScanLine, CalendarClock, MoreVertical, ListChecks, Archive as ArchiveIcon, Copy, ListPlus } from 'lucide-react';
 import { ConfirmDialog } from './ConfirmDialog';
 import { formatDate } from '../utils/localDate';
 import { OCR_CONFIDENCE_THRESHOLD, type IptrOcrFieldKey, type IptrCheckboxFinding } from '../utils/iptrOcrShared';
 import { getGradeColor } from '../utils/gradeColors';
 import { getSchoolColor, getSchoolShortName } from '../utils/schoolColors';
 import { GradePill } from './GradePill';
+import { PipelineStatusPill } from './PipelineStatusPill';
+import { StudentRiskChip } from './risk/StudentRiskChip';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
 import { useToast } from './Toast';
 import { Modal } from './Modal';
 import { activatable } from '../utils/a11y';
+import { parseSpreadsheetRecords, normalizeSex, normalizeGrade } from '../utils/studentImport';
 import { ListSearchInput } from './ListSearchInput';
-import { addQueuedStudentId, getQueuedStudentIds, removeQueuedStudentId } from '../utils/queueStorage';
+import { addQueuedStudentId, getQueuedStudentIds, removeQueuedStudentId, setQueuedStudentIds as persistQueuedStudentIds } from '../utils/queueStorage';
 import { useStudents } from '../hooks/useStudents';
+import { useRPCTracking } from '../hooks/useRPCTracking';
 import { usePagination, PAGE_SIZE_OPTIONS } from './Pagination';
-import { apiClient, ApiError } from '../api/client';
+import { apiClient, ApiError, isQueuedResponse } from '../api/client';
+import { OfflineDataStatus } from './OfflineDataStatus';
 import type { ApiSchool } from '../api/types';
 import { schoolYearLabel } from '../utils/schoolYear';
+import { calculateAge, getAgeGroup } from '../utils/age';
 import { Notice } from './Notice';
+import { TOPBAR_H } from '../utils/layout';
+// Re-applied on top of her file (Sprint 158). Sprints 120/121 added value
+// checks here and the SAME shared rules to the server and the bulk importer,
+// so the three cannot disagree about what a valid birthday is. Taking her
+// layout must not quietly drop the client half of that.
+import { validateStudentValues } from '../../../shared/studentValidation';
 
 const GRADES = ['Kinder','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10'];
+
+// Sentinels for "not assigned yet" (user, 2026-09-28) -- a new school year's
+// promotion leaves a student's grade/section blank until re-assigned, and
+// that population needs to be findable, not just invisible among "All
+// Grades"/"All Sections". Distinct from '' itself so a literal empty string
+// value on a <select> (which reads as unset) can never collide with these.
+const NO_GRADE = '__no_grade__';
+const NO_SECTION = '__no_section__';
 
 /** Male before Female in the default sort; anything else (data the intake
  *  form doesn't otherwise produce) sorts after both rather than being lost
@@ -35,7 +56,7 @@ const plainFieldClass = 'w-full border border-border rounded-lg px-3 py-2 text-s
 // Shape of the candidates the server returns with a 409 from POST /students
 // (see server/utils/studentDuplicates.ts) — enough to recognise the child, not
 // the whole record.
-type DuplicateCandidate = {
+export type DuplicateCandidate = {
   _id: string;
   full_name: string;
   grade_level: string;
@@ -46,7 +67,7 @@ type DuplicateCandidate = {
 
 /** Pulls the candidate list off a 409, or null if this isn't a duplicate
  *  rejection. Keeps the type assertion in one place. */
-const duplicatesFromError = (err: unknown): DuplicateCandidate[] | null => {
+export const duplicatesFromError = (err: unknown): DuplicateCandidate[] | null => {
   if (!(err instanceof ApiError) || err.status !== 409) return null;
   const list = err.body?.duplicates;
   return Array.isArray(list) && list.length > 0 ? (list as DuplicateCandidate[]) : null;
@@ -61,43 +82,6 @@ type BulkRow = {
   lastName: string; firstName: string; middleName: string; sex: string;
   grade: string; section: string; birthday: string; address: string;
   contactNumber: string; error: string | null;
-};
-
-// minimal CSV field splitter that honors double-quoted fields
-const parseCsvLine = (line: string): string[] => {
-  const out: string[] = []; let cur = ''; let inQ = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (inQ) {
-      if (ch === '"') { if (line[i + 1] === '"') { cur += '"'; i++; } else inQ = false; }
-      else cur += ch;
-    } else if (ch === '"') inQ = true;
-    else if (ch === ',') { out.push(cur); cur = ''; }
-    else cur += ch;
-  }
-  out.push(cur);
-  return out.map((s) => s.trim());
-};
-
-const normalizeHeader = (h: string) => h.toLowerCase().trim().replace(/\s+/g, '_');
-
-const normalizeSex = (s: string): string | null => {
-  const t = s.trim().toLowerCase();
-  if (t === 'm' || t === 'male') return 'Male';
-  if (t === 'f' || t === 'female') return 'Female';
-  return null;
-};
-
-const normalizeGrade = (g: string): string | null => {
-  const t = g.trim().toLowerCase();
-  if (!t) return null;
-  if (t === 'k' || t.startsWith('kinder')) return 'Kinder';
-  const m = t.match(/(\d{1,2})/);
-  if (m) {
-    const cand = `Grade ${parseInt(m[1], 10)}`;
-    return GRADES.includes(cand) ? cand : null;
-  }
-  return null;
 };
 
 const buildBulkRow = (rec: Record<string, string>): BulkRow => {
@@ -125,20 +109,25 @@ const buildBulkRow = (rec: Record<string, string>): BulkRow => {
 };
 
 
-type NewPatientForm = {
+export type NewPatientForm = {
   firstName: string; lastName: string; middleName: string; birthdate: string; gender: string;
   grade: string; section: string; school: string; placeOfBirth: string; guardianName: string; guardianContact: string;
   guardianOccupation: string; address: string; contactNumber: string; philhealthNumber: string; philhealthStatus: string;
   is4Ps: boolean; fourPsId: string; consentStatus: string;
+  /** A person entered through this form who isn't actually enrolled (e.g. a
+   *  sibling or community member treated at a Bayanihan mission) -- Grade,
+   *  Section and Sex don't apply, so checking this clears and disables them
+   *  instead of requiring values that don't exist. */
+  isNotStudent: boolean;
 };
 
 /** One source for "what a blank Add Student form looks like" — used on
  *  mount, after a successful save, and when the form is closed via the
  *  header X (closing no longer leaves stale values for next time). */
-const BLANK_NEW_PATIENT: NewPatientForm = {
+export const BLANK_NEW_PATIENT: NewPatientForm = {
   firstName:'', lastName:'', middleName:'', birthdate:'', gender:'', grade:'', section:'', school:'',
   placeOfBirth:'', guardianName:'', guardianContact:'', guardianOccupation:'', address:'', contactNumber:'', philhealthNumber:'',
-  philhealthStatus:'None', is4Ps:false, fourPsId:'', consentStatus:'pending',
+  philhealthStatus:'None', is4Ps:false, fourPsId:'', consentStatus:'pending', isNotStudent:false,
 };
 
 /** Fields the Add Student form requires, and the label each one shows.
@@ -156,7 +145,7 @@ const BLANK_NEW_PATIENT: NewPatientForm = {
  *  · contactNumber — not schema-required either (2026-09-04, user decision).
  *  · philhealthNumber — the user's explicit exception.
  *  · philhealthStatus — always has a value ("None"). */
-const REQUIRED_STUDENT_FIELDS: {
+export const REQUIRED_STUDENT_FIELDS: {
   key: keyof NewPatientForm;
   label: string;
   onlyIf?: (f: NewPatientForm) => boolean;
@@ -165,8 +154,8 @@ const REQUIRED_STUDENT_FIELDS: {
   { key: 'firstName', label: 'First Name' },
   { key: 'birthdate', label: 'Birthdate' },
   { key: 'gender', label: 'Gender' },
-  { key: 'grade', label: 'Grade' },
-  { key: 'section', label: 'Section' },
+  { key: 'grade', label: 'Grade', onlyIf: (f) => !f.isNotStudent },
+  { key: 'section', label: 'Section', onlyIf: (f) => !f.isNotStudent },
   // Guardian Name/Contact are NOT required (2026-09-04, user decision) —
   // marked "(Optional)" on their labels instead of an asterisk.
   // Only meaningful for a 4Ps household — required unconditionally it would
@@ -174,9 +163,6 @@ const REQUIRED_STUDENT_FIELDS: {
   { key: 'fourPsId', label: '4Ps ID', onlyIf: (f) => f.is4Ps },
 ];
 
-const REQUIRED_KEYS = new Set(REQUIRED_STUDENT_FIELDS.map((f) => f.key));
-/** Red " *" when the field is required, so labels read from the same list. */
-const req = (key: keyof NewPatientForm) => (REQUIRED_KEYS.has(key) ? <span className="text-destructive"> *</span> : null);
 /** Gray "(Optional)" for the two fields that used to carry a (wrong) asterisk. */
 const optionalTag = <span className="text-muted-foreground font-normal"> (Optional)</span>;
 
@@ -184,7 +170,10 @@ export const PatientList = () => {
   const navigate = useNavigate();
   const { user, selectedSchool } = useAuth();
   const toast = useToast();
-  const canAddStudent = user?.role === 'dentist' || user?.role === 'dental_aide';
+  // Matches the server's CLINICAL_WRITE_ROLES for /students (O1, 2026-10-01:
+  // the System Admin could save students on the API but the screen hid Add
+  // Student and OCR from them).
+  const canAddStudent = user?.role === 'dentist' || user?.role === 'dental_aide' || user?.role === 'system_admin';
 
 
 
@@ -223,13 +212,25 @@ export const PatientList = () => {
   // and the person encoding has to decide (Sprint 47).
   const [duplicateWarning, setDuplicateWarning] = useState<DuplicateCandidate[] | null>(null);
   const [schools, setSchools] = useState<ApiSchool[]>([]);
-  const [showOcrUpload, setShowOcrUpload] = useState(false);
-  const [ocrProcessing, setOcrProcessing] = useState(false);
-  const [ocrProgress, setOcrProgress] = useState(0);
-  const [ocrError, setOcrError] = useState<string | null>(null);
+  // Add Student's dropdown (user, 2026-09-29: merges the separate OCR button
+  // into "Add Student" as a second choice) — same fixed-position-from-rect
+  // pattern as the three-dot list menu below, so the card's overflow-clip
+  // can't cut it off.
+  const [showAddMenu, setShowAddMenu] = useState(false);
+  const addMenuBtnRef = useRef<HTMLButtonElement | null>(null);
+  const [addMenuAt, setAddMenuAt] = useState<{ top: number; right: number } | null>(null);
+  const toggleAddMenu = () => {
+    const r = addMenuBtnRef.current?.getBoundingClientRect();
+    if (r) setAddMenuAt({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
+    setShowAddMenu((v) => !v);
+  };
   const [ocrConfidences, setOcrConfidences] = useState<Partial<Record<IptrOcrFieldKey, number>>>({});
   const [ocrFindings, setOcrFindings] = useState<IptrCheckboxFinding[]>([]);
   const [ocrFindingsNote, setOcrFindingsNote] = useState<string | null>(null);
+  // Which OCR entry point pre-filled the form -- drives the review banner's
+  // wording ("scanned form" vs "uploaded file") since a spreadsheet read has
+  // no scan confidence to caveat the way an image/PDF read does.
+  const [ocrSourceLabel, setOcrSourceLabel] = useState<'scanned form' | 'uploaded file' | null>(null);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [bulkFile, setBulkFile] = useState<File | null>(null);
   const [bulkPreview, setBulkPreview] = useState<BulkRow[]>([]);
@@ -253,37 +254,7 @@ export const PatientList = () => {
     if (!bulkFile) return;
     setBulkParseError(null);
     try {
-      let records: Record<string, string>[] = [];
-      if (/\.(xlsx|xls)$/i.test(bulkFile.name)) {
-        // same dynamic-import bundle protection as exportToXlsx
-        const ExcelJS = (await import('exceljs')).default ?? (await import('exceljs'));
-        const wb = new ExcelJS.Workbook();
-        await wb.xlsx.load(await bulkFile.arrayBuffer());
-        const ws = wb.worksheets[0];
-        if (!ws) throw new Error('No worksheet found in the file.');
-        const headers: string[] = [];
-        ws.getRow(1).eachCell((cell, col) => { headers[col] = normalizeHeader(String(cell.value ?? '')); });
-        ws.eachRow((row, rowNumber) => {
-          if (rowNumber === 1) return;
-          const rec: Record<string, string> = {};
-          row.eachCell((cell, col) => {
-            if (headers[col]) rec[headers[col]] = (cell.text ? String(cell.text) : String(cell.value ?? '')).trim();
-          });
-          if (Object.values(rec).some((v) => v)) records.push(rec);
-        });
-      } else {
-        const text = await bulkFile.text();
-        const lines = text.split(/\r?\n/).filter((l) => l.trim());
-        if (lines.length < 2) throw new Error('The file has a header but no data rows.');
-        const headers = parseCsvLine(lines[0]).map(normalizeHeader);
-        records = lines.slice(1).map((line) => {
-          const vals = parseCsvLine(line);
-          const rec: Record<string, string> = {};
-          headers.forEach((h, i) => { rec[h] = vals[i] ?? ''; });
-          return rec;
-        });
-      }
-      if (records.length === 0) throw new Error('No data rows found in the file.');
+      const records = await parseSpreadsheetRecords(bulkFile);
       setBulkPreview(records.map(buildBulkRow));
       setBulkStep('preview');
     } catch (err) {
@@ -354,6 +325,13 @@ export const PatientList = () => {
   // dense, and it leaves the toolbar room for whatever gets added next.
   const [selectMode, setSelectMode] = useState(false);
   const [showListMenu, setShowListMenu] = useState(false);
+  const listMenuBtnRef = useRef<HTMLButtonElement | null>(null);
+  const [listMenuAt, setListMenuAt] = useState<{ top: number; right: number } | null>(null);
+  const toggleListMenu = () => {
+    const r = listMenuBtnRef.current?.getBoundingClientRect();
+    if (r) setListMenuAt({ top: r.bottom + 4, right: Math.max(8, window.innerWidth - r.right) });
+    setShowListMenu((v) => !v);
+  };
   const [tickedIds, setTickedIds] = useState<Set<string>>(new Set());
   const [confirmArchiveTicked, setConfirmArchiveTicked] = useState(false);
   const [archivingTicked, setArchivingTicked] = useState(false);
@@ -406,6 +384,60 @@ export const PatientList = () => {
     setTickedIds(new Set());
   };
 
+  // Bulk Queue (user, 2026-09-27): a SEPARATE mode from the plain
+  // Select-Students/Archive one above -- not just another action inside it.
+  // Mirrors Dental Charts' own bulk Dequeue exactly: entering it (via
+  // "Queue" in the "⋮" menu) reveals checkboxes AND makes each row's
+  // Grade/Section clickable as selection criteria, and a dark bar (count,
+  // "All", removable criteria pills, Queue, Cancel) appears below the
+  // header instead of the plain toolbar's Archive icon.
+  const [bulkQueueMode, setBulkQueueMode] = useState(false);
+  const [activeGradeCriteriaQ, setActiveGradeCriteriaQ] = useState<Set<string>>(new Set());
+  const [activeSectionCriteriaQ, setActiveSectionCriteriaQ] = useState<Set<string>>(new Set());
+  const exitBulkQueueMode = () => {
+    setBulkQueueMode(false);
+    setTickedIds(new Set());
+    setActiveGradeCriteriaQ(new Set());
+    setActiveSectionCriteriaQ(new Set());
+  };
+  // Criteria match against `filtered` (every student matching the current
+  // search/grade/section/etc. filters), not just the current page -- same
+  // reasoning as Dental Charts' `queuedInView`: selecting shouldn't reach
+  // past what the filters already narrowed to, but SHOULD reach past
+  // whatever page happens to be showing.
+  const toggleGradeCriterionQ = (grade: string) => {
+    const matching = filtered.filter(s => !s.pending && s.grade === grade).map(s => s.id);
+    const turningOn = !activeGradeCriteriaQ.has(grade);
+    setActiveGradeCriteriaQ(prev => {
+      const next = new Set(prev);
+      if (turningOn) next.add(grade); else next.delete(grade);
+      return next;
+    });
+    setTickedIds(prev => {
+      const next = new Set(prev);
+      matching.forEach(id => (turningOn ? next.add(id) : next.delete(id)));
+      return next;
+    });
+  };
+  const toggleSectionCriterionQ = (section: string) => {
+    const matching = filtered.filter(s => !s.pending && s.section === section).map(s => s.id);
+    const turningOn = !activeSectionCriteriaQ.has(section);
+    setActiveSectionCriteriaQ(prev => {
+      const next = new Set(prev);
+      if (turningOn) next.add(section); else next.delete(section);
+      return next;
+    });
+    setTickedIds(prev => {
+      const next = new Set(prev);
+      matching.forEach(id => (turningOn ? next.add(id) : next.delete(id)));
+      return next;
+    });
+  };
+  // `selectableFiltered`/`allFilteredSelected`/`toggleSelectAllFilteredQ` are
+  // defined further down, right after `filtered` itself -- a useMemo here
+  // would read `filtered` before its own declaration runs (TDZ), same bug
+  // class Dental Charts hit with `queuedInView`.
+
   const archiveTicked = async () => {
     if (!archivePassword) {
       setArchivePasswordError('Enter your password to confirm.');
@@ -420,12 +452,14 @@ export const PatientList = () => {
       return;
     }
     let archived = 0;
+    let lastArchivedName = '';
     const failed: string[] = [];
     for (const id of tickedIds) {
       const student = schoolStudents.find(s => s.id === id);
       try {
         await apiClient.patch(`/students/${id}/archive`);
         archived += 1;
+        lastArchivedName = student?.name ?? '';
       } catch (err) {
         failed.push(`${student?.name ?? id} — ${err instanceof ApiError ? err.message : 'failed'}`);
       }
@@ -438,7 +472,7 @@ export const PatientList = () => {
     // Archived students no longer belong in the duplicates list — refresh it
     // so an archived-from-there row doesn't linger until the modal reopens.
     if (showDuplicates) await loadDuplicates();
-    if (archived > 0) toast.success(`${archived} student${archived === 1 ? '' : 's'} archived.`);
+    if (archived > 0) toast.success(archived === 1 && lastArchivedName ? `${lastArchivedName} is archived.` : `${archived} student${archived === 1 ? ' is' : 's are'} archived.`);
     if (failed.length > 0) toast.error(`${failed.length} could not be archived — see console.`);
   };
 
@@ -451,29 +485,63 @@ export const PatientList = () => {
     });
   };
 
-  const calculateAge = (birthdate: string) => {
-    const today = new Date(); const birth = new Date(birthdate);
-    if (isNaN(birth.getTime())) return null;
-    let age = today.getFullYear() - birth.getFullYear();
-    const m = today.getMonth() - birth.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
-    return age;
+  // Executes the actual Bulk Queue, from bulkQueueMode's dark bar. Not
+  // destructive, so no password confirmation like Archive needs.
+  const bulkQueueTicked = () => {
+    const ids = Array.from(tickedIds);
+    const merged = Array.from(new Set([...queuedStudentIds, ...ids]));
+    persistQueuedStudentIds(merged);
+    setQueuedStudentIds(merged);
+    exitBulkQueueMode();
+    const onlyName = ids.length === 1 ? schoolStudents.find(s => s.id === ids[0])?.name : undefined;
+    toast.success(onlyName ? `${onlyName} is queued.` : `${ids.length} student${ids.length === 1 ? ' is' : 's are'} queued.`);
   };
 
-  const getAgeGroup = (age: number | null) => {
-    if (age === null) return 'Unknown';
-    if (age <= 4) return '4 & below';
-    if (age <= 9) return '5-9';
-    if (age <= 14) return '10-14';
-    if (age <= 19) return '15-19';
-    return '20 & above';
-  };
+  // calculateAge / getAgeGroup are the shared ones (BUG-02).
 
   const { students: allStudents, loading: studentsLoading, reload: reloadStudents } = useStudents();
+  // For the Status column's RPC chip (user, 2026-09-28: "the RPC should
+  // only show if they are due this month") -- same 'due_this_month' rule
+  // Treatment Queue's own auto-enqueue and RPC Monitoring's sort/filter use.
+  const { records: rpcDueThisMonth } = useRPCTracking({ school: selectedSchool ?? undefined, sort: 'due_this_month', limit: 1000 });
+  const rpcDueThisMonthIds = useMemo(() => new Set(rpcDueThisMonth.map((r) => r.id)), [rpcDueThisMonth]);
 
   useEffect(() => {
     apiClient.get<ApiSchool[]>('/schools').then(setSchools).catch(() => {});
   }, []);
+
+  // Pins the toolbar and the card's header/filter block at the top, stacked
+  // below TOPBAR_H (the fixed status strip — see DentalChart.tsx for the same
+  // pattern). Heights are measured rather than hardcoded because the filter
+  // row wraps to more than one line at narrow widths.
+  const toolbarRef = useRef<HTMLDivElement | null>(null);
+  const cardHeaderRef = useRef<HTMLDivElement | null>(null);
+  const [stickyTop, setStickyTop] = useState({ toolbar: TOPBAR_H, cardHeader: TOPBAR_H });
+
+  useEffect(() => {
+    const measure = () => {
+      const toolbarH = toolbarRef.current?.offsetHeight ?? 0;
+      setStickyTop({ toolbar: TOPBAR_H, cardHeader: TOPBAR_H + toolbarH });
+    };
+    measure();
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(measure);
+      if (toolbarRef.current) resizeObserver.observe(toolbarRef.current);
+    }
+    window.addEventListener('resize', measure);
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+    // ⚠ `studentsLoading` added (user, 2026-09-25, same bug class found and
+    // fixed on RPC Monitoring): with `[canAddStudent]` alone, this ran once
+    // on the very first render -- while studentsLoading is still true and
+    // the skeleton renders instead of the real toolbar -- so toolbarRef was
+    // null and cardHeader's sticky offset stuck at TOPBAR_H forever, same as
+    // the toolbar's own offset. Once both stuck on scroll, the search/filter
+    // block would overlap and cover the bottom of the toolbar.
+  }, [canAddStudent, studentsLoading]);
 
   // The Add Student form no longer has its own School field — it always adds
   // to whichever school is currently in view, set the moment the form opens
@@ -500,6 +568,16 @@ export const PatientList = () => {
     });
   };
 
+  // Red " *" when the field is CURRENTLY required — reads onlyIf against the
+  // live form, not just the field's key, so Grade/Section/Sex lose their
+  // asterisk the moment "Not a Student" is checked instead of staying
+  // required-looking while actually disabled.
+  const req = (key: keyof NewPatientForm) => {
+    const field = REQUIRED_STUDENT_FIELDS.find((f) => f.key === key);
+    if (!field) return null;
+    return (field.onlyIf ? field.onlyIf(newPatient) : true) ? <span className="text-destructive"> *</span> : null;
+  };
+
   const fieldError = (key: keyof NewPatientForm) =>
     missingFields.has(key) ? <p className="mt-1 text-xs text-destructive">This field is required.</p> : null;
 
@@ -517,6 +595,7 @@ export const PatientList = () => {
     setOcrConfidences({});
     setOcrFindings([]);
     setOcrFindingsNote(null);
+    setOcrSourceLabel(null);
   };
 
   // Gate between "form looks valid" and actually saving. birthdate/gender/
@@ -543,6 +622,21 @@ export const PatientList = () => {
       return;
     }
     setMissingFields(new Set());
+    // Values, not just presence (Sprint 120). ⚠ ALL problems at once — fixing
+    // them one save at a time is the thing that makes an encoder give up and
+    // type whatever passes.
+    const valueProblems = validateStudentValues({
+      lastName: newPatient.lastName,
+      firstName: newPatient.firstName,
+      middleName: newPatient.middleName,
+      birthdate: newPatient.birthdate,
+      contactNumber: newPatient.contactNumber,
+      guardianContact: newPatient.guardianContact,
+    });
+    if (valueProblems.length) {
+      setAddPatientError(valueProblems.join(' '));
+      return;
+    }
     setShowAddConfirm(true);
   };
 
@@ -572,12 +666,13 @@ export const PatientList = () => {
         contact_number: newPatient.contactNumber,
         grade_level: newPatient.grade,
         section: newPatient.section,
+        is_not_student: newPatient.isNotStudent,
         place_of_birth: newPatient.placeOfBirth,
         guardian_name: newPatient.guardianName,
         guardian_contact: newPatient.guardianContact,
         guardian_occupation: newPatient.guardianOccupation,
         philhealth_number: newPatient.philhealthNumber,
-        philhealth_status: newPatient.philhealthStatus,
+        philhealth_status: newPatient.philhealthNumber.trim() ? newPatient.philhealthStatus : 'None',
         is_4ps: newPatient.is4Ps,
         fourps_id: newPatient.fourPsId,
         ...(confirmDuplicate ? { confirm_duplicate: true } : {}),
@@ -598,8 +693,8 @@ export const PatientList = () => {
         await apiClient.post('/student-iptrs', {
           student_id: created._id,
           school_year: schoolYearLabel(),
-          grade_level: newPatient.grade,
-          section: newPatient.section,
+          grade_level: newPatient.isNotStudent ? null : newPatient.grade,
+          section: newPatient.isNotStudent ? null : newPatient.section,
           consent_status: newPatient.consentStatus,
         });
       } catch {
@@ -607,14 +702,18 @@ export const PatientList = () => {
       }
       await reloadStudents();
       setDuplicateWarning(null);
+      // No connection: the student and their year record are queued on this
+      // device. The chart opens anyway: it is built from the queued records.
       toast.success(
-        yearOpened
+        isQueuedResponse(created)
+          ? `Student saved on this device: ${newPatient.lastName}, ${newPatient.firstName}. It will sync when you're back online.`
+          : yearOpened
           ? `Student added: ${newPatient.lastName}, ${newPatient.firstName} · ${schoolYearLabel()} record opened`
           : `Student added: ${newPatient.lastName}, ${newPatient.firstName} — but the ${schoolYearLabel()} record could not be opened. Add it from the chart.`,
       );
       setShowAddForm(false);
       setNewPatient(BLANK_NEW_PATIENT);
-      setOcrConfidences({}); setOcrFindings([]); setOcrFindingsNote(null);
+      setOcrConfidences({}); setOcrFindings([]); setOcrFindingsNote(null); setOcrSourceLabel(null);
       // Straight into the new record rather than back to the list — the next
       // thing anyone does after adding a student is open their chart.
       navigate(`/dental-chart/${created._id}?tab=history`);
@@ -626,56 +725,6 @@ export const PatientList = () => {
       else setAddPatientError(err instanceof ApiError ? err.message : 'Failed to add student');
     } finally {
       setAddingPatient(false);
-    }
-  };
-
-  const handleOcrFile = async (file: File) => {
-    setOcrError(null);
-    setOcrProcessing(true);
-    setOcrProgress(0);
-    try {
-      // Dynamic import keeps tesseract.js + pdfjs-dist (~1.5MB) out of the
-      // main bundle — only staff who actually scan a form download them
-      const { extractIptrFields } = await import('../utils/iptrOcr');
-      const result = await extractIptrFields(file, setOcrProgress);
-      setNewPatient((prev) => ({
-        ...prev,
-        firstName: result.fields.firstName ?? prev.firstName,
-        middleName: result.fields.middleName ?? prev.middleName,
-        lastName: result.fields.lastName ?? prev.lastName,
-        birthdate: result.fields.birthdate ?? prev.birthdate,
-        gender: result.fields.gender ?? prev.gender,
-        address: result.fields.address ?? prev.address,
-        contactNumber: result.fields.contactNumber ?? prev.contactNumber,
-        // Grade and section are NOT scanned — the DOH IPTR prints neither
-        // field, so there is nothing on the page to read. They stay typed.
-        philhealthNumber: result.fields.philhealthNumber ?? prev.philhealthNumber,
-        fourPsId: result.fields.fourPsId ?? prev.fourPsId,
-        // Reading a 4Ps ID off the form is what membership MEANS on this form,
-        // so the box follows the ID. Ticking it never hides anything: the ID
-        // field it reveals is the one that was just filled, and both are
-        // editable before save.
-        is4Ps: result.fields.fourPsId ? true : prev.is4Ps,
-      }));
-      setOcrConfidences(result.confidences);
-      // Findings from the Year 1-5 tick grid are SHOWN, never applied. They are
-      // clinical history, the scan is a tick detector, and CLAUDE.md is explicit
-      // that OCR assists rather than decides — so they are surfaced for the
-      // encoder to carry into the dental chart deliberately.
-      setOcrFindings(result.checkboxes);
-      setOcrFindingsNote(
-        result.checkboxConfidence === 0
-          ? result.checkboxReason ?? null
-          : result.unstorableFindings.length
-            ? `${result.unstorableFindings.length} ticked row${result.unstorableFindings.length === 1 ? '' : 's'} cannot be stored by this system: ${result.unstorableFindings.join(', ')}.`
-            : null,
-      );
-      setShowOcrUpload(false);
-      setShowAddForm(true);
-    } catch {
-      setOcrError('Could not read the image. Try a clearer photo or enter details manually.');
-    } finally {
-      setOcrProcessing(false);
     }
   };
 
@@ -706,7 +755,8 @@ export const PatientList = () => {
   // Bulk Transfer re-settles them into the new year. So "does anyone still
   // need a grade/section" doubles as "has this year's rollover been finished
   // yet" — no separate open/closed flag needed anywhere in the data model.
-  const schoolYearNeedsUpdate = schoolStudents.some(s => !s.pending && (!s.grade || !s.section));
+  const schoolYearPendingCount = schoolStudents.filter(s => !s.pending && (!s.grade || !s.section)).length;
+  const schoolYearNeedsUpdate = schoolYearPendingCount > 0;
 
   // Every section name already in use anywhere in the school being entered
   // on the Add Student form — real sections come from the whole roster, not
@@ -768,15 +818,22 @@ export const PatientList = () => {
 
   // List view filtered
   const allSections = useMemo(() => {
-    let base = gradeFilter !== 'all' ? schoolStudents.filter(s => s.grade === gradeFilter) : schoolStudents;
-    return [...new Set(base.map(s => s.section))].sort();
+    let base = gradeFilter === NO_GRADE ? schoolStudents.filter(s => !s.grade)
+      : gradeFilter !== 'all' ? schoolStudents.filter(s => s.grade === gradeFilter)
+      : schoolStudents;
+    // The blank grade/section itself never renders as a real option here --
+    // it gets its own labeled "No Section" entry instead (see FilterSelect
+    // below), not a nameless blank row in the dropdown.
+    return [...new Set(base.map(s => s.section))].filter(Boolean).sort();
   }, [gradeFilter]);
 
   const filtered = useMemo(() => schoolStudents.filter(s => {
     const age = calculateAge(s.birthdate);
     const ag = getAgeGroup(age);
-    if (gradeFilter !== 'all' && s.grade !== gradeFilter) return false;
-    if (sectionFilter !== 'all' && s.section !== sectionFilter) return false;
+    if (gradeFilter === NO_GRADE) { if (s.grade) return false; }
+    else if (gradeFilter !== 'all' && s.grade !== gradeFilter) return false;
+    if (sectionFilter === NO_SECTION) { if (s.section) return false; }
+    else if (sectionFilter !== 'all' && s.section !== sectionFilter) return false;
     if (genderFilter !== 'all' && s.gender !== genderFilter) return false;
     if (ageGroupFilter !== 'all' && ag !== ageGroupFilter) return false;
     if (searchTerm) {
@@ -803,6 +860,17 @@ export const PatientList = () => {
     a.firstName.localeCompare(b.firstName)
   ), [schoolStudents, gradeFilter, sectionFilter, genderFilter, ageGroupFilter, searchTerm]);
 
+  // Bulk Queue's "All" shortcut + select-all state -- see bulkQueueMode
+  // above. Placed here, not with the rest of that block, because it reads
+  // `filtered`, which isn't declared until this point in the render.
+  const selectableFiltered = useMemo(() => filtered.filter(s => !s.pending), [filtered]);
+  const allFilteredSelected = selectableFiltered.length > 0 && selectableFiltered.every(s => tickedIds.has(s.id));
+  const toggleSelectAllFilteredQ = () => {
+    setActiveGradeCriteriaQ(new Set());
+    setActiveSectionCriteriaQ(new Set());
+    setTickedIds(allFilteredSelected ? new Set() : new Set(selectableFiltered.map(s => s.id)));
+  };
+
   // ── Pagination (client-side, Sprint 53) ──────────────────────────────────
   // Deliberately paginates the ALREADY-LOADED rows rather than the fetch. The
   // table rendered every row, which is unusable at the ~8,000-student scale in
@@ -814,8 +882,107 @@ export const PatientList = () => {
   // Paging now lives in the shared hook (see Pagination.tsx), which also
   // carries the page-size picker. Reset keys are the FILTER INPUTS, not
   // `filtered` — see the hook for why that distinction matters.
-  const pager = usePagination(filtered, [gradeFilter, sectionFilter, genderFilter, ageGroupFilter, searchTerm, selectedSchool], 10);
-  const paged = pager.paged;
+  const pager = usePagination(filtered, [gradeFilter, sectionFilter, genderFilter, ageGroupFilter, searchTerm, selectedSchool], 25);
+  // "Hide" (user, 2026-09-25, ported from RPC Monitoring): a local toggle
+  // layered on top of `pager`, not a value fed into it — `usePagination`
+  // slices by dividing into `pageSize`, and a 0 there would divide by zero.
+  // Hiding shows every filtered row and drops pager.pageSize entirely.
+  const [hidePagination, setHidePagination] = useState(false);
+  const paged = hidePagination ? filtered : pager.paged;
+  const HIDE_FOOTER = 0;
+  const PATIENT_PAGE_SIZE_OPTIONS = [...PAGE_SIZE_OPTIONS, HIDE_FOOTER] as const;
+
+  // ⚠ ADAPTIVE, not JS pixel math for the footer (ported from RPC Monitoring,
+  // user 2026-09-25, after three failed attempts THERE at computing an exact
+  // height for the rows box AND the footer separately): the CARD itself is
+  // measured ONCE (its own `top` — the one thing genuine CSS can't express
+  // here, since it depends on the toolbar's rendered height) and given that
+  // much of the viewport as a real `height`. Everything below
+  // that split is plain CSS flexbox on the card: the sticky search/filter
+  // header, the rows box (`flex-1 min-h-0 overflow-auto`), and the footer
+  // (an ordinary flex item sized by its own content). The browser recomputes
+  // that split on every layout pass — nothing to remeasure, nothing to fall
+  // out of sync.
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const [cardHeight, setCardHeight] = useState<number | null>(null);
+
+  useEffect(() => {
+    // Target the sidebar's OWN rendered bottom edge, not window.innerHeight
+    // (user, 2026-09-28, found on the Treatment Queue's twin of this card --
+    // a taskbar screenshot showed the sidebar itself stops 20px short of the
+    // true viewport edge: Root.tsx's <aside> is `md:top-5 md:bottom-5`, a
+    // floating card inset from the screen at desktop widths, not flush to
+    // it. Reading #main-nav's real getBoundingClientRect().bottom tracks
+    // whatever that inset is (or isn't, below md where the aside is an
+    // off-canvas h-screen drawer and its bottom IS window.innerHeight)
+    // instead of hardcoding 20px.
+    const measure = () => {
+      if (!cardRef.current) return;
+      // Phones (< 640 px, 2026-10-04): no fixed card height. Locked to the
+      // screen, the header, search and filters filled it and left room for
+      // about two rows; the card now grows with its rows and the page scrolls.
+      if (window.innerWidth < 640) { setCardHeight(null); return; }
+      const top = cardRef.current.getBoundingClientRect().top;
+      const sidebar = document.getElementById('main-nav');
+      // Hide wants the card to actually reach the screen's true bottom edge
+      // (user, 2026-09-29), not just match the sidebar's own inset -- the
+      // sidebar's `md:bottom-5` floating look is a deliberate 20px gap for
+      // the DEFAULT view, but the negative margin below only cancels
+      // `<main>`'s padding, it doesn't add back that 20px, so matching the
+      // sidebar here left Hide 20px short of the edge it's supposed to flow to.
+      const bottomTarget = !hidePagination && sidebar ? sidebar.getBoundingClientRect().bottom : window.innerHeight;
+      setCardHeight(Math.max(bottomTarget - top, 160));
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+    // studentsLoading: same reason as the stickyTop effect above. hidePagination
+    // (missed when this was first ported -- RPC Monitoring's own measure
+    // effect has the equivalent `pageSize`): without it, toggling Hide never
+    // re-measures a fresh baseline, so the card kept the DEFAULT view's
+    // already-shrunk cardHeight (correction only ever shrinks, never grows
+    // it back), and the negative margin that should let it reach the true
+    // edge had nothing left to cancel.
+  }, [canAddStudent, studentsLoading, hidePagination]);
+
+  // The estimate above can leave a few stray pixels of page scroll (e.g.
+  // `<main>`'s own bottom padding, which this component has no clean way to
+  // read). Trim exactly that much, synchronously before paint, so the page
+  // itself never scrolls — only the bounded row list above does.
+  //
+  // ⚠ `hidePagination` is ALSO a dep, not just `cardHeight` (same bug class
+  // found and fixed on RPC Monitoring): toggling Hide can remeasure to the
+  // EXACT SAME cardHeight value (both are `window.innerHeight - top`, and
+  // `top` doesn't move between states) — React bails out the resulting
+  // setCardHeight as a no-op, so this effect would never get a second look
+  // at the real footer's overflow once Hide's negative margin is gone.
+  useLayoutEffect(() => {
+    if (cardHeight == null) return;
+    const overflow = document.documentElement.scrollHeight - window.innerHeight;
+    if (overflow > 0) {
+      setCardHeight((h) => (h == null ? h : Math.max(h - overflow, 160)));
+    }
+  }, [cardHeight, hidePagination]);
+
+  // Hide's bottom corners: rounded when the rows fit without scrolling (a
+  // short list, with blank card interior above the pinned reveal tab),
+  // square when the rows box is actually scrolling internally (a long list
+  // past the card's fixed height) — a curve right at the screen edge, with
+  // nothing beneath it, reads as a cut-off render glitch rather than a
+  // corner. `useLayoutEffect`, not `useEffect`: a passive effect runs after
+  // the browser paints, flashing the rounded corner for one frame first.
+  const rowsBoxRef = useRef<HTMLDivElement | null>(null);
+  const [hideAtEdge, setHideAtEdge] = useState(false);
+  useLayoutEffect(() => {
+    if (!hidePagination) { setHideAtEdge(false); return; }
+    const el = rowsBoxRef.current;
+    if (!el) return;
+    const check = () => setHideAtEdge(el.scrollHeight > el.clientHeight + 1);
+    check();
+    const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(check) : null;
+    resizeObserver?.observe(el);
+    return () => resizeObserver?.disconnect();
+  }, [hidePagination, cardHeight, filtered.length]);
 
   const hasActiveFilters = gradeFilter !== 'all' || sectionFilter !== 'all' || genderFilter !== 'all' || ageGroupFilter !== 'all' || searchTerm !== '';
 
@@ -902,7 +1069,7 @@ export const PatientList = () => {
     name.split(/[\s,]+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* No export here by design (2026-09-02): this list is raw patient
           PII — names, birthdays, addresses, guardians — and a CSV of it
           would leave the encrypted database as plaintext on someone's
@@ -910,25 +1077,91 @@ export const PatientList = () => {
           DOH report on Reports, which is aggregate counts and carries no
           names. */}
       {canAddStudent && (
-        <div className="flex flex-wrap items-center justify-end gap-3">
+        <div ref={toolbarRef} className="sticky z-40 -mt-3 flex flex-wrap items-center justify-end gap-3 bg-gray-50 pb-2" style={{ top: stickyTop.toolbar }}>
           {/* "Upload", not "Scan": this opens a file picker, and a scan icon
               + the verb "scan" both promised a camera the app does not have
               (backlog 0e). The OCR extraction is still described inside the
               modal — only the entry point stops over-promising. Rename this
-              back if 0e ever ships. */}
-          <button onClick={() => { setOcrError(null); setShowOcrUpload(true); }} className="flex items-center gap-2 px-4 py-2 border border-primary text-primary rounded-full hover:bg-primary-surface text-sm font-medium">
+              back if 0e ever ships. Kept standalone (user, 2026-09-29: "I
+              never said delete, I just said add") alongside Add Student's
+              own OCR option below, not replaced by it. */}
+          <button onClick={() => navigate('/students/scan?bulk=1')} className="flex items-center gap-2 px-4 py-2 border border-primary text-primary rounded-full hover:bg-primary-surface text-sm font-medium">
             <Upload className="w-4 h-4" /> OCR
           </button>
-          <button onClick={() => { setOcrConfidences({}); setOcrFindings([]); setOcrFindingsNote(null); setShowAddForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-full hover:bg-primary-hover text-sm font-medium">
-            <Plus className="w-4 h-4" /> Add Student
-          </button>
+          {/* Add Student also offers OCR as a second entry point (designed on
+              the OCR Student Intake canvas). Portaled to document.body, not
+              rendered in place: this toolbar is itself `sticky z-40`, which
+              opens its OWN stacking context, so a `fixed` menu nested inside
+              it is scoped to THAT context — it then loses the paint-order
+              tie against the results card's `sticky z-40` header (same
+              z-index, later in the DOM) and renders visually underneath the
+              card instead of on top of it. A portal escapes that entirely. */}
+          <div className="relative">
+            <button
+              ref={addMenuBtnRef}
+              onClick={toggleAddMenu}
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-full hover:bg-primary-hover text-sm font-medium"
+            >
+              <Plus className="w-4 h-4" /> Add Student
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showAddMenu ? 'rotate-180' : ''}`} />
+            </button>
+            {showAddMenu && createPortal(
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowAddMenu(false)} />
+                <div
+                  style={addMenuAt ? { top: addMenuAt.top, right: addMenuAt.right } : undefined}
+                  className="fixed z-50 w-64 overflow-hidden rounded-2xl border border-border bg-card shadow-lg"
+                >
+                  <button
+                    onClick={() => { setShowAddMenu(false); setOcrConfidences({}); setOcrFindings([]); setOcrFindingsNote(null); setOcrSourceLabel(null); setShowAddForm(true); }}
+                    className="flex w-full items-start gap-3 px-3.5 py-3 text-left hover:bg-canvas"
+                  >
+                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-surface text-primary">
+                      <Plus className="w-4 h-4" />
+                    </span>
+                    <span>
+                      <span className="block text-sm font-semibold text-foreground">Add Manually</span>
+                      <span className="block text-xs text-muted-foreground">Fill in a blank student form</span>
+                    </span>
+                  </button>
+                  <div className="mx-3.5 border-t border-border" />
+                  <button
+                    onClick={() => { setShowAddMenu(false); navigate('/students/scan'); }}
+                    className="flex w-full items-start gap-3 px-3.5 py-3 text-left hover:bg-canvas"
+                  >
+                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-surface text-primary">
+                      <Upload className="w-4 h-4" />
+                    </span>
+                    <span>
+                      <span className="block text-sm font-semibold text-foreground">Scan Form (OCR)</span>
+                      <span className="block text-xs text-muted-foreground">Take a photo or upload a file</span>
+                    </span>
+                  </button>
+                </div>
+              </>,
+              document.body,
+            )}
+          </div>
         </div>
       )}
 
       {/* LIST VIEW — one elevated card housing header, filters, table and
           pagination, in place of the previous stack of separate boxes. */}
-      <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
-        <div className="p-5 sm:p-6 space-y-4 border-b border-border">
+      {/* `overflow-clip`, not `overflow-hidden` (see Root.tsx's own note on the
+          same distinction) — `hidden` makes this div a scroll container, which
+          is what `position: sticky` pins its descendants against, so the
+          header block, table headings and footer below would stick to THIS
+          div instead of the viewport and never visibly move. */}
+      {/* Hide uses `maxHeight`, not `height` (user, 2026-09-29: "when there
+          is only two [students], the container would end in that" -- a
+          short filtered list must shrink-wrap to its real content, not
+          stretch to fill the screen with blank interior). This only works
+          now that the reveal tab lives INSIDE the scrollable rows box
+          (see below) rather than as its own flush-bottom footer sibling --
+          with the tab inside, a short list simply ends after it; a long
+          list caps at `cardHeight` and scrolls internally, tab included. */}
+      <div ref={cardRef} className={`flex flex-col bg-card border border-border shadow-sm overflow-clip ${hideAtEdge ? 'rounded-t-2xl' : 'rounded-2xl'} ${hidePagination ? '-mb-4 md:-mb-8' : ''}`} style={{ [hidePagination ? 'maxHeight' : 'height']: cardHeight ?? undefined }}>
+        <div ref={cardHeaderRef} className="sticky z-40 space-y-4 border-b border-border bg-card p-5 sm:p-6" style={{ top: stickyTop.cardHeader }}>
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 mb-2">
@@ -937,44 +1170,15 @@ export const PatientList = () => {
                 </span>
                 <span style={{ color: kickerColor.solid }} className="text-xs font-bold uppercase tracking-wider">{kickerLabel}</span>
               </div>
-              <h1 className="text-2xl font-bold text-foreground">Student Records</h1>
-              <p className="text-sm text-muted-foreground mt-0.5">{schoolStudents.length} students{selectedSchool ? '' : ' across 3 schools'}</p>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <h1 className="text-2xl font-bold text-foreground">Student Records</h1>
+                <span style={{ backgroundColor: kickerColor.light, color: kickerColor.solid }} className="text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                  {schoolStudents.length} {schoolStudents.length === 1 ? 'STUDENT' : 'STUDENTS'}{selectedSchool ? '' : ' ACROSS 3 SCHOOLS'}
+                </span>
+              </div>
+              <OfflineDataStatus />
             </div>
-            {/* Annual rollover — was "Promote / Assign" (a modal, one grade
-                at a time). Now a full page: school-wide clear + reassign +
-                archive, see UpdateSchoolYear.tsx. Sits top-right of this card,
-                level with the school kicker, because it acts on THIS roster. */}
-            {canAddStudent && (
-              <button
-                onClick={() => navigate('/students/update-school-year')}
-                title="Update School Year Information"
-                aria-label="Update School Year Information"
-                className={`shrink-0 p-2 rounded-full text-white shadow-sm transition-colors hover:brightness-110 ${
-                  schoolYearNeedsUpdate ? 'bg-gray-400' : 'bg-primary'
-                }`}
-              >
-                <GraduationCap className="w-6 h-6 text-white/90" strokeWidth={1.25} />
-              </button>
-            )}
-          </div>
-
-          {/* Filters */}
-          <div className="flex flex-wrap items-center gap-2">
-            <ListSearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search student, grade, or section" />
-            <FilterSelect value={gradeFilter} onChange={v => { setGradeFilter(v); setSectionFilter('all'); }} label="All Grades"
-              options={GRADES.map(g => ({ value: g, label: g }))} />
-            <FilterSelect value={sectionFilter} onChange={setSectionFilter} label="All Sections"
-              options={allSections.map(s => ({ value: s, label: s }))} />
-            <FilterSelect value={genderFilter} onChange={setGenderFilter} label="All Genders"
-              options={[{ value:'Male', label:'Male' }, { value:'Female', label:'Female' }]} />
-            <FilterSelect value={ageGroupFilter} onChange={setAgeGroupFilter} label="All Age Groups"
-              options={[{ value:'4 & below', label:'4 & below' }, { value:'5-9', label:'5-9' }, { value:'10-14', label:'10-14' }, { value:'15-19', label:'15-19' }, { value:'20 & above', label:'20 & above' }]} />
-            {hasActiveFilters && (
-              <button onClick={clearFilters} className="flex items-center gap-1 px-3 py-2 text-sm text-destructive border border-destructive/20 rounded-full hover:bg-danger-surface">
-                <X className="w-3 h-3" /> Clear All
-              </button>
-            )}
-            <div className="ml-auto flex items-center gap-2">
+            <div className="flex flex-shrink-0 items-center gap-2">
               {selectMode && tickedIds.size > 0 && (
                 <button
                   onClick={() => { setArchivePassword(''); setArchivePasswordError(null); setConfirmArchiveTicked(true); }}
@@ -985,6 +1189,25 @@ export const PatientList = () => {
                   <ArchiveIcon className="w-4 h-4" />
                 </button>
               )}
+              {/* Annual rollover (see UpdateSchoolYear.tsx): school-wide clear +
+                  reassign + archive. Solid navy icon button beside the more-options
+                  button; turns amber with a count while students still lack a grade or
+                  section (the same check that doubles as "rollover not finished"). */}
+              {canAddStudent && !selectMode && !bulkQueueMode && (
+                <button
+                  onClick={() => navigate('/students/update-school-year')}
+                  title={schoolYearNeedsUpdate ? `Update School Year: ${schoolYearPendingCount} ${schoolYearPendingCount === 1 ? 'student needs' : 'students need'} a grade or section` : 'Update School Year'}
+                  aria-label={schoolYearNeedsUpdate ? `Update School Year Information, ${schoolYearPendingCount} need a grade or section` : 'Update School Year Information'}
+                  className={`relative grid h-[38px] w-[38px] place-items-center rounded-[10px] text-white transition-colors hover:brightness-110 ${schoolYearNeedsUpdate ? 'bg-amber-500' : 'bg-primary'}`}
+                >
+                  <CalendarClock className="h-[19px] w-[19px]" strokeWidth={1.5} />
+                  {schoolYearNeedsUpdate && (
+                    <span className="absolute -right-1.5 -top-1.5 grid h-[18px] min-w-[18px] place-items-center rounded-full border-2 border-amber-500 bg-white px-1 text-[11px] font-bold leading-none text-amber-700">
+                      {schoolYearPendingCount}
+                    </span>
+                  )}
+                </button>
+              )}
               {selectMode ? (
                 <button onClick={exitSelectMode}
                   className="text-sm font-medium text-foreground border border-border rounded-full px-3 py-2 hover:bg-canvas">
@@ -993,27 +1216,58 @@ export const PatientList = () => {
               ) : (
                 <div className="relative">
                   <button
-                    onClick={() => setShowListMenu(v => !v)}
-                    className="p-2 rounded-full text-muted-foreground hover:bg-canvas hover:text-foreground"
+                    ref={listMenuBtnRef}
+                    onClick={toggleListMenu}
+                    disabled={bulkQueueMode}
+                    className={`flex items-center justify-center h-[38px] w-[38px] rounded-[10px] bg-primary text-white ${bulkQueueMode ? 'opacity-40 cursor-not-allowed' : 'hover:brightness-110'}`}
                     title="More options"
                   >
                     <MoreVertical className="w-4 h-4" />
                   </button>
-                  {showListMenu && (
+                  {showListMenu && !bulkQueueMode && (
                     <>
                       <div className="fixed inset-0 z-10" onClick={() => setShowListMenu(false)} />
-                      <div className="absolute right-0 top-full mt-1 z-20 bg-card border border-border rounded-xl shadow-md py-1 w-44">
+                      {/* ⚠ FIXED, not absolute. This card is `overflow-hidden`,
+                          and a clipping ancestor cuts an absolutely positioned
+                          menu off at its edge — the school-year menu looked like
+                          a dead button for exactly that reason. Positioned from
+                          the trigger's own rect so no ancestor can clip it. */}
+                      {/* Hugs its content width (user, 2026-09-27) -- was a
+                          fixed w-44 wider than any of these three labels
+                          need. Title Case, no trailing ellipsis. Order:
+                          Archive Students, Find Duplicates, Queue (user,
+                          2026-09-27 -- Queue moved last; "Select Students"
+                          renamed to "Archive Students" since that's the
+                          only thing this mode's select-then-act flow does). */}
+                      <div
+                        style={listMenuAt ? { top: listMenuAt.top, right: listMenuAt.right } : undefined}
+                        className="fixed z-50 bg-card border border-border rounded-xl shadow-md py-1 w-max"
+                      >
                         <button
                           onClick={() => { setSelectMode(true); setShowListMenu(false); }}
                           className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-canvas flex items-center gap-2"
                         >
-                          <ListChecks className="w-3.5 h-3.5" /> Select students…
+                          <ListChecks className="w-3.5 h-3.5" /> Archive Students
                         </button>
                         <button
                           onClick={() => { setShowListMenu(false); setShowDuplicates(true); void loadDuplicates(); }}
                           className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-canvas flex items-center gap-2"
                         >
-                          <Copy className="w-3.5 h-3.5" /> Find duplicates…
+                          <Copy className="w-3.5 h-3.5" /> Find Duplicates
+                        </button>
+                        {/* Queue (user, 2026-09-27): the Bulk Queue
+                            counterpart to Dental Charts' own Dequeue flow --
+                            a SEPARATE mode from "Archive Students" above, not
+                            another action inside it. Turns on bulkQueueMode,
+                            which reveals checkboxes AND makes each row's
+                            Grade/Section clickable, plus the dark bar below
+                            the header (see bulkQueueMode block after the
+                            table). */}
+                        <button
+                          onClick={() => { setBulkQueueMode(true); setShowListMenu(false); }}
+                          className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-canvas flex items-center gap-2"
+                        >
+                          <ListPlus className="w-3.5 h-3.5" /> Bulk Queue
                         </button>
                       </div>
                     </>
@@ -1022,20 +1276,108 @@ export const PatientList = () => {
               )}
             </div>
           </div>
+
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-2">
+            <ListSearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search student, grade, or section" />
+            <FilterSelect value={gradeFilter} onChange={v => { setGradeFilter(v); setSectionFilter('all'); }} label="All Grades"
+              options={[{ value: NO_GRADE, label: 'No Grade' }, ...GRADES.map(g => ({ value: g, label: g }))]} />
+            <FilterSelect value={sectionFilter} onChange={setSectionFilter} label="All Sections"
+              options={[{ value: NO_SECTION, label: 'No Section' }, ...allSections.map(s => ({ value: s, label: s }))]} />
+            <FilterSelect value={genderFilter} onChange={setGenderFilter} label="All Genders"
+              options={[{ value:'Male', label:'Male' }, { value:'Female', label:'Female' }]} />
+            <FilterSelect value={ageGroupFilter} onChange={setAgeGroupFilter} label="All Age Groups"
+              options={[{ value:'4 & below', label:'4 & below' }, { value:'5-9', label:'5-9' }, { value:'10-14', label:'10-14' }, { value:'15-19', label:'15-19' }, { value:'20 & above', label:'20 & above' }]} />
+            {hasActiveFilters && (
+              <button onClick={clearFilters} className="flex items-center gap-1 px-3 py-2 text-sm text-destructive border border-destructive/20 rounded-full hover:bg-danger-surface">
+                <X className="w-3 h-3" /> Clear All
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        {/* Bulk Queue's dark selection bar (user, 2026-09-27): only while
+            bulkQueueMode is on. Same shape as Dental Charts' own bar --
+            count/instructions, "All", removable Grade/Section criteria
+            pills, Queue, Cancel. */}
+        {bulkQueueMode && (
+          <div className="px-5 sm:px-6 py-2.5 bg-foreground flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-xs font-normal text-white">
+              {tickedIds.size > 0 ? `${tickedIds.size} selected` : 'Check rows or click a Grade/Section badge to select'}
+            </span>
+            <button
+              onClick={toggleSelectAllFilteredQ}
+              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-normal ${
+                allFilteredSelected ? 'bg-white text-foreground' : 'bg-white/10 text-white hover:bg-white/20'
+              }`}
+            >
+              All
+            </button>
+            {Array.from(activeGradeCriteriaQ).map((g) => (
+              <button
+                key={`g-${g}`}
+                onClick={() => toggleGradeCriterionQ(g)}
+                className="inline-flex items-center gap-1.5 rounded-full bg-white/10 text-white px-2.5 py-1 text-xs font-normal hover:bg-white/20"
+              >
+                {g} <X className="w-3 h-3" />
+              </button>
+            ))}
+            {Array.from(activeSectionCriteriaQ).map((s) => (
+              <button
+                key={`s-${s}`}
+                onClick={() => toggleSectionCriterionQ(s)}
+                className="inline-flex items-center gap-1.5 rounded-full bg-white/10 text-white px-2.5 py-1 text-xs font-normal hover:bg-white/20"
+              >
+                {s} section <X className="w-3 h-3" />
+              </button>
+            ))}
+            <div className="flex-1" />
+            <button
+              disabled={tickedIds.size === 0}
+              onClick={bulkQueueTicked}
+              className={`rounded-lg px-3 py-1.5 text-xs font-normal ${
+                tickedIds.size === 0 ? 'bg-white/10 text-white/40 cursor-not-allowed' : 'bg-primary text-white hover:opacity-90'
+              }`}
+            >
+              Queue
+            </button>
+            <button onClick={exitBulkQueueMode} className="text-xs font-normal text-white/60 hover:text-white">
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {/* flex-1 fills whatever the card (see cardRef above) doesn't give
+            to the header/footer — this box (not the page) is what scrolls,
+            even when there are only a few rows. The column headings stick to
+            the TOP OF THIS BOX via `sticky` on each `<th>`, not the `<tr>` —
+            a sticky `<tr>` rendered as a visual duplicate mid-table in some
+            browsers. */}
+        <div ref={rowsBoxRef} className="min-h-0 flex-1 overflow-auto">
+          <table className="w-full min-w-[1000px] table-fixed text-sm">
+            {/* Fixed column widths (user, 2026-10-01): with auto layout the
+                spare width went mostly to Risk, leaving a wide gap before
+                Grade. Student takes the largest share; the rest sit close. */}
+            <colgroup>
+              <col className="w-16" />
+              <col style={{ width: '21%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '13%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '6%' }} />
+              <col style={{ width: '13%' }} />
+              <col className="w-[120px]" />
+            </colgroup>
             <thead>
               <tr className="border-b border-border">
-                <th className="text-left px-4 py-3 sm:pl-6 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <th className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 sm:pl-6 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   {/* The row-number column doubles as "select all" once select
                       mode is on — same swap as each row's own cell, scoped to
                       the current page: now that the table paginates, ticking
                       everything in the filtered set would tick rows the user
                       cannot see. */}
-                  {selectMode ? (
+                  {selectMode || bulkQueueMode ? (
                     <input
                       type="checkbox"
                       aria-label="Select all students on this page"
@@ -1048,26 +1390,28 @@ export const PatientList = () => {
                     />
                   ) : '#'}
                 </th>
-                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Student</th>
-                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Grade</th>
-                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Section</th>
-                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Gender</th>
-                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Age</th>
-                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground sm:pr-6">Actions</th>
+                <th className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Student</th>
+                <th className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Risk</th>
+                <th className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Grade</th>
+                <th className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Section</th>
+                <th className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Gender</th>
+                <th className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Age</th>
+                <th className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Status</th>
+                <th className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground sm:pr-6">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
               {filtered.length === 0 ? (
-                <tr><td colSpan={7} className="text-center py-14 text-muted-foreground">{hasActiveFilters ? <>No students match your filters. <button onClick={clearFilters} className="text-primary hover:underline font-medium">Clear filters</button></> : 'No students at this school yet — use Add Student to register one.'}</td></tr>
+                <tr><td colSpan={9}className="text-center py-14 text-muted-foreground">{hasActiveFilters ? <>No students match your filters. <button onClick={clearFilters} className="text-primary hover:underline font-medium">Clear filters</button></> : 'No students at this school yet — use Add Student to register one.'}</td></tr>
               ) : paged.map((student, i) => {
                 const age = calculateAge(student.birthdate);
                 const queuePosition = queuedStudentIds.indexOf(student.id);
                 const isQueued = queuePosition !== -1;
                 const gc = getGradeColor(student.grade);
                 return (
-                  <tr key={student.id} {...activatable(() => { if (!student.pending) navigate(`/dental-chart/${student.id}?tab=history`); })} className={`hover:bg-canvas transition-colors cursor-pointer ${student.pending ? 'opacity-70' : ''}`}>
-                    <td className="px-4 py-2.5 sm:pl-6 text-xs text-muted-foreground tabular-nums" onClick={(e) => e.stopPropagation()}>
-                      {selectMode ? (
+                  <tr key={student.id} {...activatable(() => { if (!student.pending) navigate(`/dental-chart/${student.id}?tab=history`); })} className={`h-14 hover:bg-canvas transition-colors cursor-pointer ${student.pending ? 'opacity-70' : ''}`}>
+                    <td className="px-4 py-1.5 sm:pl-6 text-xs text-muted-foreground tabular-nums" onClick={(e) => e.stopPropagation()}>
+                      {selectMode || bulkQueueMode ? (
                         !student.pending && (
                           <input
                             type="checkbox"
@@ -1077,9 +1421,11 @@ export const PatientList = () => {
                             className="w-4 h-4 accent-primary align-middle"
                           />
                         )
-                      ) : pager.from + i}
+                      ) : (
+                        <span className="grid h-7 w-7 place-items-center rounded-full bg-slate-200/70 text-xs text-slate-600">{pager.from + i}</span>
+                      )}
                     </td>
-                    <td className="px-4 py-2.5 font-medium text-foreground">
+                    <td className="px-4 py-1.5 font-medium text-foreground">
                       <div className="flex items-center gap-3">
                         <span style={{ backgroundColor: gc.light, color: gc.solid }} className="w-8 h-8 shrink-0 rounded-full grid place-items-center text-xs font-bold">
                           {initials(student.name)}
@@ -1092,11 +1438,45 @@ export const PatientList = () => {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-2.5 text-muted-foreground"><GradePill grade={student.grade} /></td>
-                    <td className="px-4 py-2.5 text-muted-foreground">{student.section}</td>
-                    <td className="px-4 py-2.5 text-muted-foreground">{student.gender}</td>
-                    <td className="px-4 py-2.5 text-muted-foreground">{age ?? '—'}</td>
-                    <td className="px-4 py-2.5 sm:pr-6">
+                    {/* The row opens the chart on click AND on Enter/Space
+                        (activatable). The chip's card and review dialog render
+                        inside this cell, so both must stop here, or typing a
+                        space in the review notes would navigate away. */}
+                    <td className="px-4 py-1.5" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                      {!student.pending && (
+                        <StudentRiskChip studentId={student.id} review={student.riskReview} canSave={user?.role === 'dentist'} onSaved={reloadStudents} />
+                      )}
+                    </td>
+                    <td className="px-4 py-1.5 text-muted-foreground" onClick={(e) => e.stopPropagation()}>
+                      {bulkQueueMode && !student.pending ? (
+                        <button
+                          onClick={() => toggleGradeCriterionQ(student.grade)}
+                          title={activeGradeCriteriaQ.has(student.grade) ? `Deselect all of ${student.grade}` : `Select all of ${student.grade}`}
+                          className={`rounded-full ${activeGradeCriteriaQ.has(student.grade) ? 'ring-2 ring-primary' : 'hover:ring-2 hover:ring-primary/30'}`}
+                        >
+                          <GradePill grade={student.grade} />
+                        </button>
+                      ) : (
+                        <GradePill grade={student.grade} />
+                      )}
+                    </td>
+                    <td className="px-4 py-1.5 text-muted-foreground" onClick={(e) => e.stopPropagation()}>
+                      {bulkQueueMode && !student.pending ? (
+                        <button
+                          onClick={() => toggleSectionCriterionQ(student.section)}
+                          title={activeSectionCriteriaQ.has(student.section) ? `Deselect ${student.section} section` : `Select all of ${student.section} section`}
+                          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${activeSectionCriteriaQ.has(student.section) ? 'bg-foreground text-white' : 'bg-gray-100 text-foreground hover:bg-gray-200'}`}
+                        >
+                          {student.section}
+                        </button>
+                      ) : (
+                        student.section
+                      )}
+                    </td>
+                    <td className="px-4 py-1.5 text-muted-foreground">{student.gender}</td>
+                    <td className="px-4 py-1.5 text-muted-foreground">{age ?? '—'}</td>
+                    <td className="px-4 py-1.5">{!student.pending && <PipelineStatusPill status={student.pipelineStatus} isRpcDueThisMonth={rpcDueThisMonthIds.has(student.id)} />}</td>
+                    <td className="px-4 py-1.5 sm:pr-6">
                       {!student.pending && (
                         <button
                           onClick={(e) => {
@@ -1105,7 +1485,7 @@ export const PatientList = () => {
                               setDequeueTarget({ id: student.id, name: student.name });
                             } else {
                               setQueuedStudentIds(addQueuedStudentId(student.id));
-                              toast.success(`${student.name} queued.`);
+                              toast.success(`${student.name} is queued.`);
                             }
                           }}
                           title="Queue"
@@ -1124,26 +1504,56 @@ export const PatientList = () => {
               })}
             </tbody>
           </table>
+
+          {/* Reveal tab back INSIDE the scrollable rows box (user, 2026-09-29,
+              overriding the "pinned as its own footer" version this
+              superseded — "it should NEVER be fixed in the page"): as a
+              flex/sticky-footer sibling of this box it stayed on screen at a
+              fixed spot while you scrolled the rows past it, which is
+              exactly the "fixed in the page" behaviour objected to. Inside
+              the scroll container, it scrolls WITH the rows and only comes
+              into view once you actually reach the true end of the list. */}
+          {hidePagination && (
+            <button
+              type="button"
+              onClick={() => setHidePagination(false)}
+              title="Show pagination controls"
+              className="flex w-full items-center justify-center gap-1.5 border-t border-gray-100 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-canvas hover:text-foreground"
+            >
+              <ChevronUp className="h-3 w-3" /> Show pagination controls
+            </button>
+          )}
         </div>
 
-        {/* Footer / pagination */}
-        {filtered.length > 0 && (
-          <div className="flex flex-col gap-3 border-t border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+        {/* Footer / pagination — sits right after the bounded, scrollable
+            row list above, so it is always in view without its own sticky
+            positioning. */}
+        {!hidePagination && filtered.length > 0 && (
+          <div className="flex flex-shrink-0 flex-col gap-3 border-t border-border bg-card px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
               <span>
                 Showing <span className="font-semibold text-foreground">{pager.from}</span> to{' '}
                 <span className="font-semibold text-foreground">{pager.to}</span> of{' '}
                 <span className="font-semibold text-foreground">{pager.total}</span> students
                 {filtered.length !== schoolStudents.length ? ` (filtered from ${schoolStudents.length})` : ''}
-                {selectedSchool ? ` at ${getSchoolShortName(selectedSchool)}` : ''}
+                {selectedSchool ? ` at ${selectedSchool}` : ''}
               </span>
+              {/* Literal glyph, not a CSS-drawn bar (2026-09-25: user wants
+                  "like a normal |" -- thinner than any solid bar reads). */}
+              <span aria-hidden="true" className="hidden text-3xl font-thin leading-none align-middle text-gray-300 sm:inline-block">|</span>
+              <label htmlFor="patients-page-size" className="whitespace-nowrap text-sm font-normal">Items per page</label>
               <select
+                id="patients-page-size"
                 aria-label="Items per page"
                 value={pager.pageSize}
-                onChange={(e) => pager.changePageSize(Number(e.target.value))}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  if (n === HIDE_FOOTER) { setHidePagination(true); return; }
+                  pager.changePageSize(n);
+                }}
                 className="rounded-full border border-border bg-canvas px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
               >
-                {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}/page</option>)}
+                {PATIENT_PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n === HIDE_FOOTER ? 'Hide' : n}</option>)}
               </select>
             </div>
             {pager.pageCount > 1 && (
@@ -1231,41 +1641,11 @@ export const PatientList = () => {
         </Modal>
       )}
 
-      {/* Upload IPTR Form Modal (upload → OCR; no camera, see backlog 0e) */}
-      {showOcrUpload && (
-        <Modal onClose={() => setShowOcrUpload(false)} closeDisabled={ocrProcessing}>
-            <div className="flex items-center justify-between p-6 border-b">
-              <h2 className="text-lg font-bold text-foreground">Upload IPTR Form</h2>
-              <button onClick={() => setShowOcrUpload(false)} className="text-muted-foreground hover:text-muted-foreground"><X className="w-5 h-5" /></button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
-                <FileText className="w-3.5 h-3.5 inline mr-1" />
-                Upload a clear photo, scan (JPG/PNG), or PDF of the paper IPTR form. Name, birthday, age, sex, address, contact number, grade level, and section will be extracted automatically — you'll review and correct before saving.
-              </div>
-              {!ocrProcessing ? (
-                <div
-                  className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-blue-400 transition-colors cursor-pointer"
-                  onClick={() => document.getElementById('ocr-file-input')?.click()}
-                  onDragOver={e => e.preventDefault()}
-                  onDrop={e => { e.preventDefault(); const file = e.dataTransfer.files[0]; if (file) handleOcrFile(file); }}
-                >
-                  <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
-                  <p className="text-sm text-muted-foreground font-medium">Drop IPTR image here</p>
-                  <p className="text-xs text-muted-foreground mt-1">or click to browse</p>
-                  <input id="ocr-file-input" type="file" accept="image/png,image/jpeg,image/jpg,application/pdf" className="hidden"
-                    onChange={e => { if (e.target.files?.[0]) handleOcrFile(e.target.files[0]); }} />
-                </div>
-              ) : (
-                <div className="p-8 text-center">
-                  <div className="w-10 h-10 border-4 border-blue-200 border-t-primary rounded-full animate-spin mx-auto mb-3" />
-                  <p className="text-sm text-muted-foreground font-medium">Scanning form… {ocrProgress}%</p>
-                </div>
-              )}
-              {ocrError && <p className="text-sm text-destructive">{ocrError}</p>}
-            </div>
-        </Modal>
-      )}
+      {/* Scan Form (OCR) is a full page now, not a modal (2026-09-29, user:
+          "restructure everything... make it a page") -- see
+          ScanStudentForm.tsx / VerifyStudentForm.tsx at /students/scan and
+          /students/scan/review, an exact build of the approved canvas
+          design. Both toolbar entry points above navigate there. */}
 
       {/* Add Student Modal. maxWidth is max-w-4xl, not max-w-2xl — the
           request was "50-60% of the screen on web/tablet, so there's less
@@ -1278,7 +1658,12 @@ export const PatientList = () => {
           desktop range specifically. */}
       {showAddForm && (
         <Modal onClose={closeAddForm} maxWidth="max-w-4xl" closeDisabled>
-            <div className="flex items-start justify-between gap-3 p-6 border-b">
+            {/* sticky, not just fixed at the top of the flow -- the dialog
+                itself (Modal.tsx) is the scrolling container (overflow-y-auto
+                directly on it), so `sticky top-0` pins this against ITS
+                scroll, not the page's. bg-card keeps scrolled-past content
+                from showing through underneath. */}
+            <div className="sticky top-0 z-10 flex items-start justify-between gap-3 p-6 border-b bg-card">
               <div>
                 <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-primary mb-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-primary" /> Basic Information
@@ -1288,6 +1673,31 @@ export const PatientList = () => {
               <div className="flex items-center gap-2 shrink-0">
                 <button onClick={closeAddForm} className="text-muted-foreground hover:text-muted-foreground"><X className="w-5 h-5" /></button>
               </div>
+            </div>
+            {/* "Not a Student" -- e.g. a sibling or community member treated
+                at a Bayanihan mission, not actually enrolled. Grade and
+                Section don't apply to that person, so checking this clears
+                and disables those two. Sex still applies regardless and stays
+                enabled/required either way. Placed at the very top, above
+                every field, so it's seen before Grade is ever filled in. */}
+            <div className="mx-6 mt-4 flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="isNotStudent"
+                checked={newPatient.isNotStudent}
+                onChange={e => {
+                  const checked = e.target.checked;
+                  setNewPatient(p => ({ ...p, isNotStudent: checked, grade: checked ? '' : p.grade, section: checked ? '' : p.section }));
+                  setMissingFields(prev => {
+                    if (!checked) return prev;
+                    const next = new Set(prev);
+                    next.delete('grade'); next.delete('section');
+                    return next;
+                  });
+                }}
+                className="w-4 h-4 rounded accent-primary"
+              />
+              <label htmlFor="isNotStudent" className="text-sm font-medium text-foreground">Not a Student</label>
             </div>
             {/* Live check against the roster already loaded in the browser —
                 a heads-up before the form is even finished, not a
@@ -1326,7 +1736,17 @@ export const PatientList = () => {
               {Object.keys(ocrConfidences).length > 0 && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700 flex items-start gap-2">
                   <ScanLine className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-                  <span>Pre-filled from scanned IPTR form. Fields outlined in yellow had low scan confidence — double-check them before saving.</span>
+                  <span>Pre-filled from a scanned form. Fields outlined in yellow had low scan confidence — double-check them before saving.</span>
+                </div>
+              )}
+              {/* Spreadsheet path has no scan confidence to caveat — it's a
+                  direct read of typed text, not a probabilistic OCR guess —
+                  so it gets its own banner instead of piggybacking on the
+                  yellow/green field-confidence one above. */}
+              {ocrSourceLabel === 'uploaded file' && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700 flex items-start gap-2">
+                  <ScanLine className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                  <span>Pre-filled from the uploaded file's columns. Compare against the source and correct anything before saving.</span>
                 </div>
               )}
               {/* Medical / dietary / oral findings read off the form's Year 1-5
@@ -1376,9 +1796,9 @@ export const PatientList = () => {
                       key={g}
                       type="button"
                       onClick={() => updateField('gender', g)}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                      className={`px-3 py-2 rounded-lg text-sm font-medium border-2 transition-colors ${
                         newPatient.gender === g
-                          ? 'bg-primary text-white border-primary'
+                          ? 'bg-primary text-white border-primary-hover'
                           : 'border-border text-foreground hover:bg-canvas'
                       }`}
                     >
@@ -1395,7 +1815,8 @@ export const PatientList = () => {
                     that isn't on the paper. */}
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Grade{req('grade')}</label>
-                  <select value={newPatient.grade} onChange={e => updateField('grade', e.target.value)} className={plainFieldClass}>
+                  <select value={newPatient.grade} disabled={newPatient.isNotStudent} onChange={e => updateField('grade', e.target.value)}
+                    className={`${plainFieldClass} ${newPatient.isNotStudent ? 'bg-muted text-muted-foreground cursor-not-allowed' : ''}`}>
                     <option value="">Select Grade</option>{GRADES.map(g => <option key={g}>{g}</option>)}
                   </select>
                   {fieldError('grade')}
@@ -1412,14 +1833,15 @@ export const PatientList = () => {
                   <input
                     type="text"
                     value={newPatient.section}
+                    disabled={newPatient.isNotStudent}
                     onChange={e => { updateField('section', e.target.value); setSectionMenuOpen(true); }}
                     onFocus={() => setSectionMenuOpen(true)}
                     onBlur={() => setSectionMenuOpen(false)}
                     placeholder="Search or add a section"
                     autoComplete="off"
-                    className={plainFieldClass}
+                    className={`${plainFieldClass} ${newPatient.isNotStudent ? 'bg-muted text-muted-foreground cursor-not-allowed' : ''}`}
                   />
-                  {sectionMenuOpen && (
+                  {!newPatient.isNotStudent && sectionMenuOpen && (
                     <div className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto rounded-lg border border-border bg-card shadow-md">
                       {filteredSectionOptions.map(s => (
                         <button
@@ -1458,8 +1880,9 @@ export const PatientList = () => {
               </div>
               <div><label className="block text-sm font-medium text-foreground mb-1">Occupation{optionalTag}</label><input type="text" value={newPatient.guardianOccupation} onChange={e => setNewPatient({...newPatient, guardianOccupation: e.target.value})} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium text-foreground mb-1">PhilHealth Number{optionalTag} {ocrHint('philhealthNumber')}</label><input type="text" value={newPatient.philhealthNumber} onChange={e => setNewPatient({...newPatient, philhealthNumber: e.target.value})} placeholder="XX-XXXXXXXXX-X" className={ocrFieldClass('philhealthNumber')} /></div>
-                <div><label className="block text-sm font-medium text-foreground mb-1">PhilHealth Status</label><select value={newPatient.philhealthStatus} onChange={e => setNewPatient({...newPatient, philhealthStatus: e.target.value})} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"><option value="None">None</option><option value="Principal">Principal</option><option value="Dependent">Dependent</option></select></div>
+                <div><label className="block text-sm font-medium text-foreground mb-1">PhilHealth Number{optionalTag} {ocrHint('philhealthNumber')}</label><input type="text" value={newPatient.philhealthNumber} onChange={e => setNewPatient({...newPatient, philhealthNumber: e.target.value, ...(e.target.value.trim() === '' ? { philhealthStatus: 'None' } : {})})} placeholder="XX-XXXXXXXXX-X" className={ocrFieldClass('philhealthNumber')} /></div>
+                {/* Only meaningful with a number (user, 2026-09-24): disabled and held at None until one is typed. */}
+                <div><label className="block text-sm font-medium text-foreground mb-1">PhilHealth Status</label><select value={newPatient.philhealthNumber.trim() ? newPatient.philhealthStatus : 'None'} disabled={!newPatient.philhealthNumber.trim()} title={newPatient.philhealthNumber.trim() ? undefined : 'Enter a PhilHealth number first'} onChange={e => setNewPatient({...newPatient, philhealthStatus: e.target.value})} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"><option value="None">None</option><option value="Principal">Principal</option><option value="Dependent">Dependent</option></select></div>
               </div>
               <div><label className="block text-sm font-medium text-foreground mb-1">Address{optionalTag} {ocrHint('address')}</label><input type="text" value={newPatient.address} onChange={e => updateField('address', e.target.value)} className={ocrFieldClass('address')} />{fieldError('address')}</div>
               <div className="flex items-center gap-3"><input type="checkbox" id="is4ps" checked={newPatient.is4Ps} onChange={e => setNewPatient({...newPatient, is4Ps: e.target.checked})} className="w-4 h-4 rounded accent-primary" /><label htmlFor="is4ps" className="text-sm font-medium text-foreground">4Ps / NHTS Member</label></div>
@@ -1469,7 +1892,10 @@ export const PatientList = () => {
                   user staring at an unchanged form. */}
               {addPatientError && <Notice variant="error">{addPatientError}</Notice>}
             </div>
-            <div className="flex gap-3 p-6 border-t">
+            {/* sticky bottom-0, same reasoning as the header -- pins against
+                the dialog's own scroll so Cancel/Add Student stay reachable
+                without scrolling all the way down a long form. */}
+            <div className="sticky bottom-0 z-10 flex gap-3 p-6 border-t bg-card">
               <button onClick={closeAddForm} className="flex-1 px-4 py-2 border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium">Cancel</button>
               <button onClick={handleAddStudentClick} disabled={addingPatient} className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-60 text-sm font-medium">Add Student</button>
             </div>

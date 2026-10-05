@@ -1,6 +1,7 @@
 import "dotenv/config";
 import "../dnsFix.js"; // this machine's Node 24 + Atlas SRV workaround
 import { connectDB } from "../config/db.js";
+import { announceTarget } from "./announceTarget.js";
 import { StudentIptr, MedicalHistory, DietarySocialHabits, OralHealthCondition, RiskStratification, PreventiveCareRecord } from "../models/index.js";
 import mongoose from "mongoose";
 
@@ -14,6 +15,7 @@ function hashIndex(seed: string, mod: number) {
 
 async function main() {
   await connectDB();
+  announceTarget("seedIptrDetails");
 
   const iptrs = await StudentIptr.find({});
   let medicalCreated = 0;

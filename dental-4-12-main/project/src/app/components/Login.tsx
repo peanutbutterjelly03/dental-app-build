@@ -94,50 +94,65 @@ export const Login = () => {
     'w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1E40AF] focus:border-transparent text-sm';
 
   return (
-    // Two panes on a laptop, one column on phone and tablet. The brand pane is
-    // `hidden lg:flex` rather than reflowed: on a 390px screen a full-height
-    // brand block would push the password field below the fold, so small
-    // screens keep the compact header they already had.
-    <div className="min-h-screen lg:grid lg:grid-cols-2">
-      {/* ── Identity ─────────────────────────────────────────────────────── */}
-      {/* The divider is a gradient hairline that fades out at both ends rather
-          than a flat border — it separates the two panes without drawing a hard
-          box around them. Only rendered at lg+, where the panes sit side by
-          side; stacked, a vertical rule would mean nothing. */}
-      <aside
-        className="relative hidden lg:flex flex-col justify-center gap-6 px-14 xl:px-20
-                   bg-gradient-to-br from-blue-50 via-white to-cyan-50
-                   after:absolute after:right-0 after:top-[10%] after:h-[80%] after:w-px
-                   after:bg-gradient-to-b after:from-transparent after:via-[#1E40AF]/60 after:to-transparent"
-      >
-        <img src="/logo.svg" alt="" aria-hidden="true" className="w-16 h-16 object-contain" />
-        <div>
-          <h1 className="text-4xl font-bold text-[#1E40AF] tracking-tight">FLORAL</h1>
-          <p className="text-base text-foreground mt-2">Dental Health Record Management System</p>
-        </div>
-        <p className="text-sm text-muted-foreground max-w-sm leading-relaxed">
-          Dental records, two-visit preventive-care monitoring and caries-risk analytics
-          for the three public schools of Barangay Tanyag, Taguig City.
-        </p>
-        <p className="text-xs text-muted-foreground mt-2">
-          For clinic staff. Every record access is logged.
-        </p>
-      </aside>
+    // RAMHIS-derived layout (their real AuthLayout.jsx: dark navy ground,
+    // glass branding panel, a light card for the form) -- content is
+    // FLORAL's own, not copied. No background photo: their layout uses one,
+    // FLORAL has no equivalent asset to use in its place, so this is a plain
+    // gradient instead of inventing a stock image.
+    <div
+      className="relative min-h-screen overflow-x-hidden"
+      style={{ background: 'linear-gradient(135deg, #17234D 0%, #131c42 55%, #0d1633 100%)' }}
+    >
+      <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-white/[0.03]" />
 
-      {/* ── Sign in ──────────────────────────────────────────────────────── */}
-      <main className="flex items-center justify-center p-4 lg:p-8">
+      <div className="relative z-10 flex min-h-screen w-full flex-col justify-center gap-8 px-6 py-12 sm:px-10 lg:flex-row lg:items-center lg:justify-between lg:gap-0 lg:px-16 xl:px-20">
+        {/* ── Identity ───────────────────────────────────────────────────── */}
+        <div className="hidden w-full max-w-2xl lg:block lg:w-[46%] lg:-translate-y-4">
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-8 backdrop-blur-md">
+            <div className="flex items-center gap-5">
+              <img src="/logo.svg" alt="" aria-hidden="true" className="w-20 h-20 object-contain drop-shadow-2xl" />
+              <div className="h-16 w-px bg-gradient-to-b from-transparent via-white/20 to-transparent" />
+              <div>
+                <h1 className="text-4xl font-extrabold tracking-tight text-white">FLORAL</h1>
+                <p className="mt-1.5 text-sm font-medium leading-snug text-white/70">
+                  Dental Health Record
+                  <br />
+                  Management System
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 border-t border-white/10 pt-6">
+              <span className="inline-flex items-center rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-wide text-blue-300">
+                BARANGAY TANYAG · TAGUIG CITY
+              </span>
+              <h2 className="mt-3 text-2xl font-light leading-snug text-white/95">
+                Built for the barangay's{' '}
+                <span className="font-semibold text-white">three public schools</span>,
+                offline-first and always ready.
+              </h2>
+              <p className="mt-4 max-w-sm text-sm leading-relaxed text-white/60">
+                Dental records, two-visit preventive-care monitoring and caries-risk analytics
+                for clinic staff only. Every record access is logged.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Sign in ────────────────────────────────────────────────────── */}
+        <div className="flex w-full items-center justify-center lg:w-[42%] lg:justify-end">
       <div className="w-full max-w-md">
         {/* Compact identity for screens without the brand pane. */}
         <div className="text-center mb-4 lg:hidden">
           <div className="flex justify-center mb-2">
             <img src="/logo.svg" alt="FLORAL" className="w-14 h-14 object-contain" />
           </div>
-          <h1 className="text-2xl font-bold text-[#1E40AF] mb-1">FLORAL</h1>
-          <p className="text-sm text-muted-foreground">Dental Health Record Management System</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Barangay Tanyag, Taguig City</p>
+          <h1 className="text-2xl font-bold text-white mb-1">FLORAL</h1>
+          <p className="text-sm text-white/70">Dental Health Record Management System</p>
+          <p className="text-xs text-white/50 mt-0.5">Barangay Tanyag, Taguig City</p>
         </div>
 
-        <h2 className="hidden lg:block text-lg font-bold text-foreground mb-3">Sign in</h2>
+        <h2 className="hidden lg:block text-lg font-bold text-white mb-3">Sign in</h2>
 
         {/* Signing in is the one action that genuinely cannot work offline —
             it needs the server to issue a token — so a failed attempt would
@@ -152,7 +167,7 @@ export const Login = () => {
           </div>
         )}
 
-        <div className="bg-white rounded-2xl shadow-xl p-5 border border-gray-100">
+        <div className="bg-white rounded-3xl shadow-[0_25px_80px_rgba(0,0,0,0.35)] p-5 sm:p-7 border border-white/10">
           {step === 'credentials' && (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
@@ -345,11 +360,12 @@ export const Login = () => {
           )}
         </div>
 
-        <p className="text-center text-xs text-muted-foreground mt-3">
+        <p className="text-center text-xs text-white/50 mt-3">
           © 2026 Barangay Tanyag Health Office. All rights reserved.
         </p>
       </div>
-      </main>
+        </div>
+      </div>
     </div>
   );
 };

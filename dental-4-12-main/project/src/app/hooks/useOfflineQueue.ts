@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { getQueue, type QueuedWrite } from '../offline/db';
 import { subscribeQueueChange } from '../offline/queueEvents';
 
@@ -39,5 +39,7 @@ export function useOfflineQueue() {
 // into their displayed lists as optimistic entries.
 export function usePendingWritesFor(endpoint: string) {
   const { queue } = useOfflineQueue();
-  return queue.filter((w) => w.endpoint === endpoint && w.method === 'POST');
+  // Memoised so the array keeps its identity between queue changes — callers
+  // put it in dependency arrays (BUG-09).
+  return useMemo(() => queue.filter((w) => w.endpoint === endpoint && w.method === 'POST'), [queue, endpoint]);
 }

@@ -34,3 +34,18 @@ export const removeQueuedStudentId = (id: string) => {
   setQueuedStudentIds(next);
   return next;
 };
+
+// The actual "Queue #" every queued student is given (user, 2026-09-27):
+// appointments-today students bypass raw queue position entirely and get
+// renumbered 1, 2, 3… ahead of everyone else, who then continue after them
+// in their existing relative order. Shared here, not duplicated per screen
+// (Dental Charts' own queue table AND the Dental Chart page's Prev/Next nav
+// both need the exact same order, or "Next" from one screen can disagree
+// with the number shown on the other).
+export const getEffectiveQueueOrder = (queuedIds: string[], appointmentsTodayIds: Set<string>): string[] =>
+  [...queuedIds].sort((a, b) => {
+    const apptA = appointmentsTodayIds.has(a) ? 0 : 1;
+    const apptB = appointmentsTodayIds.has(b) ? 0 : 1;
+    if (apptA !== apptB) return apptA - apptB;
+    return queuedIds.indexOf(a) - queuedIds.indexOf(b);
+  });

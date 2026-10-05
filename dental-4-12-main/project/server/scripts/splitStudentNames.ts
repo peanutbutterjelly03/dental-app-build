@@ -2,6 +2,7 @@ import "dotenv/config";
 import "../dnsFix.js"; // this machine's Node 24 + Atlas SRV workaround
 import mongoose from "mongoose";
 import { connectDB } from "../config/db.js";
+import { announceTarget } from "./announceTarget.js";
 import Student from "../models/Student.js";
 
 // One-off migration: split each STUDENT's single `full_name` into
@@ -76,6 +77,7 @@ async function main() {
   const confirm = process.argv.includes("--confirm");
   if (!process.env.MONGODB_URI) throw new Error("MONGODB_URI is not set");
   await connectDB();
+  announceTarget("splitStudentNames");
 
   // Includes archived students on purpose: an archived record still has a name
   // and a System Admin can restore it, so it must not be left unmigrated.

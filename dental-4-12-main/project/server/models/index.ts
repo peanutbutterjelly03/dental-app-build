@@ -15,3 +15,8 @@ export { default as RiskStratification } from "./RiskStratification.js";
 export { default as Appointment } from "./Appointment.js";
 export { default as AuditTrail } from "./AuditTrail.js";
 export { default as DentistRotation } from "./DentistRotation.js";
+export { default as DayNote } from "./DayNote.js";
+export { default as Referral } from "./Referral.js";
+export { default as SchoolYearRollover } from "./SchoolYearRollover.js";
+export { default as SyncConflict } from "./SyncConflict.js";
+export { default as SyncOperation } from "./SyncOperation.js";

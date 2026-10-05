@@ -38,6 +38,10 @@ COLUMN_SYNONYMS: dict[str, str] = {
     # student name — mapped only so we can consciously DROP it (privacy)
     "nameofpupil": "__name__", "studentname": "__name__", "pupilsname": "__name__",
     "name": "__name__", "learnersname": "__name__", "nameoflearner": "__name__",
+    # the clinic's own encoding template ("Raw Copy of Manual Encoded", the
+    # classmate's workbook, 2026-10-04): names are split across four columns
+    "fullname": "__name__", "surname": "__name__", "lastname": "__name__",
+    "firstname": "__name__", "middleinitial": "__name__", "middlename": "__name__",
     # identity / demographics
     "dateofbirth": "birthday", "birthday": "birthday", "birthdate": "birthday",
     "dob": "birthday", "birthdate2": "birthday",
@@ -54,8 +58,22 @@ COLUMN_SYNONYMS: dict[str, str] = {
     "nooffilledteeth": "filled_count", "filledcount": "filled_count",
     "dmfscore": "dmf_score", "dmft": "dmf_score", "dmf": "dmf_score",
     "dmfindex": "dmf_score", "dmfscore2": "dmf_score",
+    # the clinic's template counts permanent (D/M/F) and temporary (d/m/f)
+    # teeth in separate columns. Both map to the same field and are SUMMED,
+    # because the app sends the model decayed = D + d, missing = M + m,
+    # filled = F + f (shared/riskCandidates.ts). Its "TOTAL DMFX+dmfx" and
+    # "Number of Permanent DMFX Teeth" are deliberately NOT mapped: they include
+    # X (indicated for extraction), which the app's DMF does not, so dmf_score
+    # is derived as D + M + F instead (see clean_file).
+    "numberofpermanentdecayedteethd": "decayed_count",
+    "numberoftemporarydecayedteethd": "decayed_count",
+    "numberofpermanentmissingteethm": "missing_count",
+    "numberoftemporarymissingteethm": "missing_count",
+    "numberofpermanentfilledteethf": "filled_count",
+    "numberoftemporaryteethforfilledf": "filled_count",
     # oral health conditions
     "gingivitis": "gingivitis", "gingvitis": "gingivitis",  # common misspelling
+    "gingivities": "gingivitis",  # the clinic template's spelling
     "periodontaldisease": "periodontal_disease", "periodontal": "periodontal_disease",
     "periodontitis": "periodontal_disease", "periodontaldse": "periodontal_disease",
     "debris": "debris",
@@ -64,11 +82,13 @@ COLUMN_SYNONYMS: dict[str, str] = {
     # dietary / social habits
     "sugarydrinks": "sugar_beverages", "sugarbeverages": "sugar_beverages",
     "sugarybev": "sugar_beverages",
+    "sugarsweetenedbeveragesfooddrinkereater": "sugar_beverages",
     "tobaccouse": "tobacco_user", "tobacco": "tobacco_user",
     "tobaccouser": "tobacco_user",
     # risk assessment (dentist-recorded, when present)
     "risklevel": "risk_level", "cariesrisk": "risk_level", "risk": "risk_level",
     "cariesriskassessment": "risk_level",
+    "riskclassification": "risk_level",  # the clinic template: the dentist's label
     # visit date
     "dateoforalexamination": "visit_date", "examdate": "visit_date",
     "visitdate": "visit_date", "dateexamined": "visit_date",
@@ -88,6 +108,10 @@ FALSE_TOKENS = {"no", "n", "false", "0"}
 MISSING_TOKENS = {"", "na", "n/a", "-", "none", "null"}
 
 DATE_FORMATS = ["%m/%d/%Y", "%d-%b-%Y", "%Y-%m-%d", "%m/%d/%y", "%B %d, %Y"]
+# Used for a column whose heading says "dd/mm" (the clinic template's
+# "Date of Birth (dd/mm/yyyy)"): month-first would silently turn 05/03 into
+# May 3 instead of March 5.
+DATE_FORMATS_DAY_FIRST = ["%d/%m/%Y", "%d-%b-%Y", "%Y-%m-%d", "%d/%m/%y", "%B %d, %Y"]
 
 RISK_MAP = {
     "high": "High", "highrisk": "High", "h": "High",
@@ -105,7 +129,10 @@ OUTPUT_COLUMNS = ["student_id", "school", "source_file", "birthday", "sex",
 
 
 def norm_header(h) -> str:
-    s = unicodedata.normalize("NFKD", str(h)).lower()
+    # pandas renames a repeated heading "X", "X.1", "X.2"; the clinic template
+    # has "Date of Birth (dd/mm//yyyy)" twice, so drop that suffix first
+    s = re.sub(r"\.\d+$", "", str(h))
+    s = unicodedata.normalize("NFKD", s).lower()
     s = re.sub(r"\(.*?\)", "", s)          # strip "(1/0)", "(M/F)" qualifiers
     return re.sub(r"[^a-z0-9]", "", s)
 
@@ -120,13 +147,13 @@ def find_header_row(raw: pd.DataFrame) -> int:
     raise ValueError("no header row found in first 10 rows")
 
 
-def parse_date(value, issues: list[str]) -> str | None:
+def parse_date(value, issues: list[str], day_first: bool = False) -> str | None:
     if pd.isna(value) or str(value).strip().lower() in MISSING_TOKENS:
         return None
     if isinstance(value, (datetime, pd.Timestamp)):
         return value.strftime("%Y-%m-%d")
     s = str(value).strip()
-    for fmt in DATE_FORMATS:
+    for fmt in (DATE_FORMATS_DAY_FIRST if day_first else DATE_FORMATS):
         try:
             return datetime.strptime(s, fmt).strftime("%Y-%m-%d")
         except ValueError:
@@ -206,6 +233,8 @@ def clean_file(path: Path, report: dict) -> pd.DataFrame:
         else:
             unmapped.append(str(col))
 
+    has_dmf_column = "dmf_score" in mapping.values()
+
     school = next((name for key, name in SCHOOL_FROM_FILENAME
                    if key in path.name.lower()), "UNKNOWN")
 
@@ -213,11 +242,15 @@ def clean_file(path: Path, report: dict) -> pd.DataFrame:
     junk_rows = 0
     for _, row in df.iterrows():
         rec: dict = {"school": school, "source_file": path.name}
-        name_val = None
+        # every name column's text, joined: used only to spot duplicates. A
+        # template that splits names into four columns must not collapse to
+        # its last one (the middle initial), or different pupils would match.
+        name_parts: list[str] = []
         for col, canon in mapping.items():
             v = row[col]
             if canon == "__name__":
-                name_val = None if pd.isna(v) else str(v).strip()
+                if pd.notna(v) and str(v).strip():
+                    name_parts.append(str(v).strip())
             elif canon == "__grade_section__":
                 if pd.notna(v) and "-" in str(v):
                     g, _, sec = str(v).partition("-")
@@ -226,7 +259,11 @@ def clean_file(path: Path, report: dict) -> pd.DataFrame:
             elif canon == "__drop__":
                 continue
             elif canon == "birthday" or canon == "visit_date":
-                rec[canon] = parse_date(v, issues)
+                parsed = parse_date(v, issues, day_first="dd/mm" in str(col).lower())
+                # a template can carry the same date twice (a real date and a
+                # typed copy): keep the first that reads, never overwrite with None
+                if parsed is not None or canon not in rec:
+                    rec[canon] = rec.get(canon) or parsed
             elif canon == "sex":
                 rec[canon] = parse_sex(v, issues)
             elif canon == "grade":
@@ -234,11 +271,24 @@ def clean_file(path: Path, report: dict) -> pd.DataFrame:
             elif canon == "section":
                 rec[canon] = None if pd.isna(v) else str(v).strip().title()
             elif canon in NUM_FIELDS:
-                rec[canon] = parse_num(v)
+                # several columns may feed one count (permanent + temporary): sum
+                n = parse_num(v)
+                if n is not None:
+                    rec[canon] = (rec.get(canon) or 0) + n
+                else:
+                    rec.setdefault(canon, None)
             elif canon in BOOL_FIELDS:
                 rec[canon] = parse_bool(v, issues)
             elif canon == "risk_level":
                 rec[canon] = parse_risk(v)
+
+        # A file with NO DMF column of its own (the clinic template): D + M + F,
+        # the same sum the app sends the model, when at least one count was
+        # given. A file that HAS a DMF column keeps a blank cell blank, as before.
+        if not has_dmf_column:
+            parts = [rec.get(k) for k in ("decayed_count", "missing_count", "filled_count")]
+            if any(p is not None for p in parts):
+                rec["dmf_score"] = sum(p or 0 for p in parts)
 
         # junk/summary rows (e.g. a "TOTAL" footer): no birthday, no sex, and
         # no per-tooth counts → not a student record
@@ -246,7 +296,8 @@ def clean_file(path: Path, report: dict) -> pd.DataFrame:
                 and rec.get("decayed_count") is None:
             junk_rows += 1
             continue
-        rec["_dedupe_name"] = name_val  # used only for duplicate detection, then dropped
+        # used only for duplicate detection, then dropped
+        rec["_dedupe_name"] = " ".join(name_parts) or None
         out_rows.append(rec)
 
     report[path.name] = {

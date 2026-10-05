@@ -34,5 +34,11 @@ jobs:
       - name: Typecheck server
         run: npx tsc -p tsconfig.server.json --noEmit
 
+      # Characterization tests over the pure logic the filed DOH figures rest
+      # on (Sprint 158). Pure functions only — no component or database tests —
+      # so this needs no services and no secrets.
+      - name: Test
+        run: npm test
+
       - name: Build
         run: npm run build

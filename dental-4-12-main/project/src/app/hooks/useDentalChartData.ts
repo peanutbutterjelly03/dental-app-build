@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLoadPhase } from './useLoadPhase';
 import { apiClient } from '../api/client';
+import { dmftRecordsForYear } from '../utils/dentalChartCodes';
 import type {
   ApiStudent,
   ApiSchool,
@@ -11,7 +12,9 @@ import type {
   ApiDentalChart,
   ApiToothRecord,
   ApiTreatment,
+  ApiReferral,
   ApiDentist,
+  ApiPreventiveCareRecord,
 } from '../api/types';
 
 export interface IptrYearData {
@@ -19,9 +22,68 @@ export interface IptrYearData {
   medicalHistory: ApiMedicalHistory | null;
   dietaryHabits: ApiDietarySocialHabits | null;
   oralCondition: ApiOralHealthCondition | null;
+  /** EVERY charting recorded for this school year, oldest first (Sprint 148).
+   *
+   *  ⚠ There is usually more than one: measured on dev 2026-09-05, **22 of 26
+   *  IPTRs have two or more**, one has three. The screen used to render
+   *  `charts[0]` and silently hide the rest — a student with three chartings
+   *  showed 3 of their 4 tooth records.
+   *
+   *  The dentist screens and treats at the SAME visit (user, 2026-09-05), so
+   *  each charting is self-contained: that visit's findings and the treatments
+   *  done at it. They are read one at a time, never merged. */
+  charts: ApiDentalChart[];
+  /** Visit number of each charting, keyed by chart id (Sprint 149). Absent
+   *  means the charting is attached to no visit — every chart made before that
+   *  sprint, and any charting saved from this screen with no service ticked
+   *  (2026-09-25: a service ticked here now creates and links the visit on
+   *  save, so this only stays absent for tooth-only charting work). */
+  visitNumberByChart: Record<string, 1 | 2>;
+  /** The RPC visit each charting is attached to, keyed by chart id (Sprint 154).
+   *  The chart screen needs the record itself, not only its ordinal, because
+   *  the services given at a visit — screening, prophylaxis, varnish, hygiene
+   *  instruction — live on it and are edited there. Same absence rule as
+   *  `visitNumberByChart`: no entry means the charting has no visit attached
+   *  YET -- ticking a service on this charting and saving creates one. */
+  preventiveByChart: Record<string, ApiPreventiveCareRecord>;
+  /** Added 2026-09-25. Visit 1 and Visit 2 now share ONE dental chart instead
+   *  of each getting its own (see visit_number on TOOTH_RECORD), so a visit's
+   *  services can no longer be found by walking through the chart's own
+   *  preventive_id -- this is the direct lookup: THIS iptr's own Visit 1/2
+   *  record, looked up by visit_number alone, independent of which (or
+   *  whether any) chart happens to be linked to it. */
+  preventivesByVisitNumber: Partial<Record<1 | 2, ApiPreventiveCareRecord>>;
+  /** The charting currently being viewed — **the LATEST by date**, which is
+   *  the current state of the mouth. It used to be the OLDEST, which is what
+   *  made later work invisible. */
   dentalChart: ApiDentalChart | null;
+  /** Tooth records of `dentalChart` alone — one charting is one visit. */
   toothRecords: ApiToothRecord[];
+  /** Tooth records of EVERY charting, keyed by chart id, so the screen can
+   *  switch between chartings without another round trip. */
+  toothRecordsByChart: Record<string, ApiToothRecord[]>;
+  /** Tooth records of the latest charting that actually HAS any — or `null`
+   *  when no charting this year recorded a single tooth (BUG-12).
+   *
+   *  ⚠ THIS IS NOT `toothRecords`, AND THE DIFFERENCE IS THE BUG. `toothRecords`
+   *  is the charting being VIEWED, which is right for the editor: open a fresh
+   *  charting and you must see it empty, because you are about to fill it in.
+   *  It is wrong for a YEAR SUMMARY. Measured 2026-09-11: a student with 14
+   *  decayed permanent teeth on a Sep 6 charting and an empty Sep 7 charting
+   *  after it had the year reported as `DMFT: 0`, Trend "Stable" — a clinical
+   *  screen stating there is no disease.
+   *
+   *  `null` means NOT RECORDED and must render as such, never as 0 (user,
+   *  2026-09-14). The distinction is the whole point: **0 means examined and
+   *  no decay found; `null` means nothing was charted.** A charting whose teeth
+   *  are all sound therefore still gives 0, correctly — it has records.
+   *
+   *  Derived here rather than in each screen so the year strip and the DMFT
+   *  History table cannot drift apart, which is the failure BUG-02 and BUG-11
+   *  both record. */
+  dmftToothRecords: ApiToothRecord[] | null;
   treatments: ApiTreatment[];
+  referrals: ApiReferral[];
 }
 
 export function useDentalChartData(studentId: string | undefined) {
@@ -31,8 +93,22 @@ export function useDentalChartData(studentId: string | undefined) {
   const [dentists, setDentists] = useState<ApiDentist[]>([]);
   const { loading, beginLoad, endLoad } = useLoadPhase();
   const [error, setError] = useState<string | null>(null);
+  // BUG-07. Only the most recently started run may commit. The same guard
+  // useDohReportData uses — this hook simply never had it, while useStudentNav,
+  // which drives the prev/next buttons on the very same screen, did.
+  //
+  // ⚠ THIS HOOK NEEDS THE CHECK IN TWO PLACES, WHICH IS WHY THE BUG WAS WORSE
+  // THAN ORDINARY STALENESS. It commits identity (student, school, dentists)
+  // after the FIRST round of requests and the chart years after the SECOND, so
+  // with two runs in flight the interleaving A-first, B-first, A-second left
+  // student B's name and school sitting above student A's chart years — a
+  // clinically wrong record with no error and no empty state to give it away.
+  // Guarding only the last commit would still allow exactly that.
+  const runIdRef = useRef(0);
 
   const reload = useCallback(async () => {
+    const runId = ++runIdRef.current;
+    const isStale = () => runId !== runIdRef.current;
     if (!studentId) {
       endLoad();
       return;
@@ -52,6 +128,10 @@ export function useDentalChartData(studentId: string | undefined) {
         apiClient.get<ApiDentist[]>('/dentists'),
       ]);
 
+      // COMMIT POINT 1 of 2 — identity. A newer run has started, so this one
+      // must not put its student's name on screen, and must not fall through to
+      // the second round either.
+      if (isStale()) return;
       setStudent(studentDoc);
       setSchoolName(schools.find((s) => s._id === studentDoc.school_id)?.school_name ?? 'Unknown School');
       setDentists(dentistList);
@@ -62,15 +142,19 @@ export function useDentalChartData(studentId: string | undefined) {
       // A student with no IPTR years has nothing to join to — skip five
       // round-trips that could only return empty.
       const iptrQuery = myIptrs.map((i) => i._id).join(',');
-      const [allMedical, allDiet, allOral, allCharts, allTreatments] = iptrQuery
+      const [allMedical, allDiet, allOral, allCharts, allTreatments, allReferrals, allPreventives] = iptrQuery
         ? await Promise.all([
             apiClient.get<ApiMedicalHistory[]>(`/medical-histories?iptr_id=${iptrQuery}`),
             apiClient.get<ApiDietarySocialHabits[]>(`/dietary-social-habits?iptr_id=${iptrQuery}`),
             apiClient.get<ApiOralHealthCondition[]>(`/oral-health-conditions?iptr_id=${iptrQuery}`),
             apiClient.get<ApiDentalChart[]>(`/dental-charts?iptr_id=${iptrQuery}`),
             apiClient.get<ApiTreatment[]>(`/treatments?iptr_id=${iptrQuery}`),
+            apiClient.get<ApiReferral[]>(`/referrals?iptr_id=${iptrQuery}`),
+            // One more filtered read, and a deliberate one: it is what lets a
+            // charting say "Visit 1" instead of only a date (Sprint 149).
+            apiClient.get<ApiPreventiveCareRecord[]>(`/preventive-care-records?iptr_id=${iptrQuery}`),
           ])
-        : [[], [], [], [], []];
+        : [[], [], [], [], [], [], []];
 
       const myCharts = allCharts.filter((c) => iptrIds.has(c.iptr_id));
       const chartIds = myCharts.map((c) => c._id);
@@ -79,29 +163,76 @@ export function useDentalChartData(studentId: string | undefined) {
         : [];
 
       const yearData: IptrYearData[] = myIptrs.map((iptr) => {
-        const dentalChart = myCharts.find((c) => c.iptr_id === iptr._id) ?? null;
+        // ⚠ ALL of them, oldest first — `.find()` here is what hid every
+        // charting after the first (Sprint 148).
+        const charts = myCharts
+          .filter((c) => c.iptr_id === iptr._id)
+          .sort((a, b) => a.date_charted.localeCompare(b.date_charted));
+        // The latest is the current state of the mouth. The old code took the
+        // first, so a student charted again in January showed August's findings.
+        const dentalChart = charts.length ? charts[charts.length - 1] : null;
+        const visitNumberByChart: Record<string, 1 | 2> = {};
+        const preventiveByChart: Record<string, ApiPreventiveCareRecord> = {};
+        for (const c of charts) {
+          const visit = c.preventive_id
+            ? allPreventives.find((v) => v._id === c.preventive_id)
+            : undefined;
+          if (visit) {
+            visitNumberByChart[c._id] = visit.visit_number;
+            preventiveByChart[c._id] = visit;
+          }
+        }
+        const preventivesByVisitNumber: Partial<Record<1 | 2, ApiPreventiveCareRecord>> = {};
+        for (const v of allPreventives) {
+          if (v.iptr_id === iptr._id) preventivesByVisitNumber[v.visit_number] = v;
+        }
         return {
+          visitNumberByChart,
+          preventiveByChart,
+          preventivesByVisitNumber,
+          charts,
           iptr,
           medicalHistory: allMedical.find((m) => m.iptr_id === iptr._id) ?? null,
           dietaryHabits: allDiet.find((d) => d.iptr_id === iptr._id) ?? null,
           oralCondition: allOral.find((o) => o.iptr_id === iptr._id) ?? null,
           dentalChart,
           toothRecords: dentalChart ? allToothRecords.filter((t) => t.chart_id === dentalChart._id) : [],
+          toothRecordsByChart: Object.fromEntries(
+            charts.map((c) => [c._id, allToothRecords.filter((t) => t.chart_id === c._id)]),
+          ),
+          // BUG-12 — `charts` is sorted oldest-first, and the rule lives in a
+          // pure function so it is testable and cannot drift between the year
+          // strip and the DMFT History table.
+          dmftToothRecords: dmftRecordsForYear(
+            charts.map((c) => allToothRecords.filter((t) => t.chart_id === c._id)),
+          ),
           treatments: allTreatments.filter((t) => t.iptr_id === iptr._id),
+          referrals: allReferrals.filter((r) => r.iptr_id === iptr._id),
         };
       });
 
+      // COMMIT POINT 2 of 2 — the chart years.
+      if (isStale()) return;
       setYears(yearData);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load dental chart data');
+      // A superseded run's failure is not this screen's failure: showing "Failed
+      // to load" for a student the user already navigated away from would be a
+      // second way to mislead.
+      if (!isStale()) setError(err instanceof Error ? err.message : 'Failed to load dental chart data');
     } finally {
-      endLoad();
+      // ⚠ Only the newest run may clear the spinner. Without this an abandoned
+      // run finishing first would report the screen ready while the run whose
+      // data is actually wanted is still in flight.
+      if (!isStale()) endLoad();
     }
   }, [studentId]);
 
   useEffect(() => {
     reload();
+    // Bump the run id on unmount so an in-flight fetch can never commit —
+    // matching useDohReportData.
+    return () => { runIdRef.current++; };
   }, [reload]);
 
   return { student, schoolName, years, dentists, loading, error, reload };

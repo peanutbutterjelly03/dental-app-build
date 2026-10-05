@@ -1,6 +1,7 @@
 import "dotenv/config";
 import "../dnsFix.js"; // this machine's Node 24 + Atlas SRV workaround
 import { connectDB } from "../config/db.js";
+import { announceTarget } from "./announceTarget.js";
 import { StudentIptr, DentalChart, ToothRecord, Dentist } from "../models/index.js";
 import mongoose from "mongoose";
 
@@ -47,6 +48,7 @@ const RESTORABLE = [55, 65, 75, 85, 54, 64];
 
 async function main() {
   await connectDB();
+  announceTarget("seedTreatments");
   console.log(`db: ${mongoose.connection.name}\n`);
 
   const dentist = await Dentist.findOne({ isArchived: false }).select("_id").lean<{ _id: unknown } | null>();

@@ -1,14 +1,20 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { usePrintOrientation } from '../hooks/usePrintOrientation';
 import { useAuth } from '../context/AuthContext';
 import { apiClient } from '../api/client';
-import type { ApiStudent, ApiAppointment, ApiOralHealthCondition, ApiStudentIptr } from '../api/types';
+import type { ApiStudent, ApiOralHealthCondition, ApiStudentIptr } from '../api/types';
 import { useStudents } from '../hooks/useStudents';
 import { useRPCTracking, SOUND_TEMPORARY, SOUND_PERMANENT } from '../hooks/useRPCTracking';
+import type { VisitServices } from '../../../shared/rpcTracking';
 import { SkeletonTable } from './Skeleton';
 import { formatDate, toLocalDateString } from '../utils/localDate';
 import { FORM_SECTION_BAND } from '../utils/dohFormStyle';
-import { exportToXlsx } from '../utils/exportXlsx';
+import { buildSheetsXlsx } from '../utils/exportXlsx';
+import { usePreviewModal } from '../hooks/usePreviewModal';
+import { PreviewModal } from './PreviewModal';
 import { FileSpreadsheet } from 'lucide-react';
+import { ageOn, ageBracketIndex, DOH_AGE_BRACKETS } from '../../../shared/age';
+import { cariesStatus } from '../../../shared/cariesStatus';
 
 // ─── Target Client List for Oral Health Care and Services ────────────────────
 // Transcribed from the manuscript's APPENDIX E (not D — Appendix D is the DMFX
@@ -51,7 +57,8 @@ import { FileSpreadsheet } from 'lucide-react';
 // session that DID read the file. Re-check the count against the workbook
 // before treating this table as complete.
 
-const AGE_GROUPS = ['4 yrs & below', '5-9 yrs', '10-14 yrs', '15-19 yrs', '20 yrs & above'];
+// The form's printed bracket labels — the shared DOH set (BUG-02), not a copy.
+const AGE_GROUPS: readonly string[] = DOH_AGE_BRACKETS;
 
 type Period = 'daily' | 'monthly' | 'quarterly' | 'annual';
 const PERIODS: { v: Period; l: string }[] = [
@@ -97,24 +104,14 @@ function periodRange(anchor: string, period: Period): { start: Date; end: Date; 
  *  only for a client with no recorded consultation — who is filtered out of
  *  every period anyway. */
 const ageFrom = (birthdate: string, on: string | null = null) => {
-  if (!birthdate) return null;
-  const b = new Date(birthdate);
-  if (Number.isNaN(b.getTime())) return null;
   const t = on ? new Date(on) : new Date();
   if (Number.isNaN(t.getTime())) return null;
-  let a = t.getFullYear() - b.getFullYear();
-  const m = t.getMonth() - b.getMonth();
-  if (m < 0 || (m === 0 && t.getDate() < b.getDate())) a--;
-  return a;
+  return ageOn(birthdate, t); // BUG-02: the one age rule
 };
 
 const ageGroupOf = (age: number | null) => {
-  if (age === null) return '';
-  if (age <= 4) return AGE_GROUPS[0];
-  if (age <= 9) return AGE_GROUPS[1];
-  if (age <= 14) return AGE_GROUPS[2];
-  if (age <= 19) return AGE_GROUPS[3];
-  return AGE_GROUPS[4];
+  const i = ageBracketIndex(age);
+  return i === null ? '' : AGE_GROUPS[i];
 };
 
 /** A column that exists on the paper form but has no data behind it yet. */
@@ -131,7 +128,11 @@ const NO_SOURCE = '—';
  *  (PREVENTIVE_CARE_RECORD stores only iptr_id, visit_date and visit_number, so
  *  no per-visit service is recorded anywhere) and renders "—".
  *
- *  ⚠ `unverified` marks a caption that is still a GUESS. Most were resolved on
+ *  ⚠ `unverified` NOW FLAGS NOTHING — every caption in this list is verified
+ *  (Sprint 103). The mechanism is kept because the next form transcribed from a
+ *  scan will need it, and both the dotted underline and the note above the table
+ *  self-hide at zero. Do NOT re-add a flag without saying which source settled
+ *  it. History: most were resolved on
  *  2026-09-02 against the machine-readable DOH workbook the user supplied
  *  (TCLForm2andFHSISReport.xlsx, sheet "6-9 Y.O (M)" row 4) -- the authoritative
  *  source that replaced the low-resolution Appendix E scan. Corrections made:
@@ -151,7 +152,14 @@ const NO_SOURCE = '—';
  *  Original note follows.
  *  ⚠ `unverified` marks a caption read off the low-resolution Appendix E scan
  *  that could not be made out with confidence. Shown with a dotted underline
- *  and counted in the note above the table. CHECK AGAINST THE PAPER FORM. */
+ *  and counted in the note above the table. CHECK AGAINST THE PAPER FORM.
+ *
+ *  ⚠ STILL UNCHECKED, and NOT checkable on this machine: the 1st-visit caption
+ *  says "Routine Preventative Care" while the 2nd says "Routine Preventive
+ *  Care". One of those spellings is likely wrong, but settling it needs
+ *  TCLForm2andFHSISReport.xlsx, which lives in the gitignored per-device
+ *  `data/` folder and is on the OTHER laptop. Left exactly as transcribed
+ *  rather than "corrected" by guess. */
 type Row = {
   id: string;
   name: string;
@@ -166,6 +174,11 @@ type Row = {
   risk: string | null;
   visit1Done: boolean;
   visit2Done: boolean;
+  /** What was recorded AS DONE at each visit (Sprint 147), or null when the
+   *  visit does not exist. ⚠ A null FIELD inside these means "not recorded" —
+   *  the cell stays blank, it does not become a "no". */
+  visit1Services: VisitServices | null;
+  visit2Services: VisitServices | null;
   treatments: string[];
   /** Tooth counts per treatment code, for the form's tooth-count columns. */
   toothCounts: Record<string, number>;
@@ -174,40 +187,74 @@ type Row = {
   conditions: Record<string, number>;
   /** Any permanent tooth charted, for the form's "5 Year Old with Permanent
    *  Dentition" column. FDI: permanent 11-48, primary 51-85. */
-  hasPermanentTooth: boolean;
   /** ORAL_HEALTH_CONDITION for this student, or null when none is recorded —
    *  null renders "—" rather than "0", which would claim a negative finding
    *  where there was simply no examination. */
   oral: { gum: boolean; debris: boolean; calculus: boolean; anomaly: boolean } | null;
   /** Sprint 81's facility_based on the first visit. Null = not recorded. */
-  facilityBased: boolean | null;
   /** Orally fit on examination — `useStudents`' own oralStatus, the same
    *  source the dashboard and the Program Report's OFC row read. */
-  orallyFit: boolean;
   /** Most recent PAST and next FUTURE appointment, from APPOINTMENT. */
-  lastVisit: string | null;
-  nextVisit: string | null;
 };
 type ServiceCol = {
-  group: 'ORAL HEALTH STATUS' | 'FIRST' | 'SECOND' | 'OTHER SERVICES' | 'ORALLY FIT CHILD' | 'DENTAL VISIT';
+  group: 'ORAL HEALTH STATUS' | 'FIRST' | 'SECOND' | 'OTHER SERVICES' | 'ORALLY FIT CHILD';
   label: string;
   value?: (r: Row) => string;
   unverified?: boolean;
 };
 
-// ⚠ 'Oral Hygiene Instruction' was REMOVED 2026-09-03: the workbook's FIRST
-// block is columns AH-AO, eight columns, and no Oral Hygiene Instruction is
-// among them. It was read into the app off the illegible Appendix E scan.
-const PREVENTIVE_SET = (visitDone: (r: Row) => boolean, isSecond: boolean): Omit<ServiceCol, 'group'>[] => [
-  { label: 'Oral screening', value: (r) => (visitDone(r) ? '✓' : '') },
-  { label: 'Caries Risk assessment - Low', value: (r) => (!isSecond && r.risk === 'Low' ? '✓' : '') },
-  { label: 'Caries Risk assessment - Moderate', value: (r) => (!isSecond && r.risk === 'Medium' ? '✓' : '') },
-  { label: 'Caries Risk assessment - High', value: (r) => (!isSecond && r.risk === 'High' ? '✓' : '') },
-  { label: 'Counseling' },
-  { label: 'Oral Prophylaxis', value: (r) => (!isSecond && r.treatments.includes('OP') ? '✓' : '') },
-  { label: 'Fluoride Varnish App', value: (r) => (r.treatments.includes('FV') ? '✓' : '') },
-  { label: isSecond ? 'Complete RPC for 2nd Visit Routine Preventive Care' : 'Complete RPC for 1st Visit Routine Preventative Care', unverified: isSecond },
-];
+// ⚠ 'Oral Hygiene Instruction' is BACK (2026-09-06). It was removed on
+// 2026-09-03 because the workbook's FIRST block is eight columns and has no
+// such column — but the FILED SAMPLE the user supplied carries BOTH "Oral
+// hygiene Instruction" AND "Counselling", in both FIRST and SECOND. The
+// removal also quietly made "Counseling" print the oral-hygiene-instruction
+// answer, so one recorded service was appearing under another service's name.
+// PREVENTIVE_CARE_RECORD stores `oral_hygiene_instruction` and nothing for
+// counselling, so instruction gets its data back and counselling renders blank
+// — a column with no source, which is what the form's blank cell means.
+/** ⚠ SPRINT 147 CHANGED WHERE THESE COLUMNS GET THEIR ANSWER.
+ *
+ *  They used to read the DENTAL CHART: "has this student ever had fluoride
+ *  varnish?" — where the form asks "was fluoride varnish done AT THIS VISIT?".
+ *  `PREVENTIVE_CARE_RECORD` stored no services at all, so there was nothing
+ *  better to read, and `useRPCTracking` said so in its own comment. The visit
+ *  now records what was done, so these read the visit.
+ *
+ *  ⚠ THREE STATES, NOT TWO. `null` on a service means NOT RECORDED — every
+ *  visit created before Sprint 147, and anything the dentist left unanswered —
+ *  and the cell stays BLANK. Only an explicit `false` is a "no", and the form
+ *  prints a blank for that too (it is a tick-if-done column). A tick is only
+ *  ever an explicit yes. */
+const svcMark = (v: boolean | null | undefined) => (v === true ? '✓' : '');
+
+const PREVENTIVE_SET = (visitDone: (r: Row) => boolean, isSecond: boolean): Omit<ServiceCol, 'group'>[] => {
+  const svc = (r: Row): VisitServices | null => (isSecond ? r.visit2Services : r.visit1Services);
+  return [
+  // Falls back to "the visit happened" for records that predate the service
+  // fields — an RPC visit always included a screening, and that is the one
+  // service the visit's own existence evidences.
+  { label: 'Oral screening', value: (r) => (svc(r)?.oralScreening === true || (svc(r)?.oralScreening == null && visitDone(r)) ? '✓' : '') },
+  // ⚠ The form says "Moderate" where RISK_STRATIFICATION says "Medium"; the
+  // visit stores the form's word. The `r.risk` fallback is the predictive
+  // module's latest assessment, used only where the visit recorded none, and
+  // only on the 1st visit as before.
+  { label: 'Caries Risk assessment - Low', value: (r) => (svc(r)?.cariesRisk === 'Low' || (svc(r)?.cariesRisk == null && !isSecond && r.risk === 'Low') ? '✓' : '') },
+  { label: 'Caries Risk assessment - Moderate', value: (r) => (svc(r)?.cariesRisk === 'Moderate' || (svc(r)?.cariesRisk == null && !isSecond && r.risk === 'Medium') ? '✓' : '') },
+  { label: 'Caries Risk assessment - High', value: (r) => (svc(r)?.cariesRisk === 'High' || (svc(r)?.cariesRisk == null && !isSecond && r.risk === 'High') ? '✓' : '') },
+  { label: 'Oral hygiene Instruction', value: (r) => svcMark(svc(r)?.oralHygieneInstruction) },
+  // On the form, no source in Floral: PREVENTIVE_CARE_RECORD records the
+  // instruction, not a separate counselling session.
+  { label: 'Counselling' },
+  { label: 'Oral Prophylaxis', value: (r) => (svc(r)?.oralProphylaxis === true || (svc(r)?.oralProphylaxis == null && !isSecond && r.treatments.includes('OP')) ? '✓' : '') },
+  { label: 'Fluoride Varnish App', value: (r) => (svc(r)?.fluorideVarnish === true || (svc(r)?.fluorideVarnish == null && r.treatments.includes('FV')) ? '✓' : '') },
+  // Sprint 103: the `unverified` flag on the 2nd-visit caption is REMOVED. The
+  // FILLED PAPER SCAN settles it — "Complete RPC for 2nd Visit" is correct, and
+  // the duplicated "1st" is a typo in the WORKBOOK (sheet "0-8 Months (M)" is
+  // the only one of 27 carrying the right text). The workbook stays
+  // authoritative on the column SET, but not on this one label.
+  { label: isSecond ? 'Complete RPC for 2nd Visit Routine Preventive Care' : 'Complete RPC for 1st Visit Routine Preventative Care' },
+  ];
+};
 
 /** The left-hand identity columns. Data-driven so they can be hidden like the
  *  service ones — the dentist's note was "Column - puede mahide", and half a
@@ -233,20 +280,17 @@ type IdentityCol = {
  *  Caries EXPERIENCE means decayed, missing or filled — a treated tooth still
  *  counts. Caries ACTIVE means currently decayed. They are different questions
  *  and the form asks both. */
-const dmftPerm = (r: Row) => (r.conditions['D'] ?? 0) + (r.conditions['M'] ?? 0) + (r.conditions['F'] ?? 0);
-const dftTemp = (r: Row) => (r.conditions['d'] ?? 0) + (r.conditions['f'] ?? 0);
 const yesNo = (b: boolean) => (b ? '1' : '0');
 
+// The first four come from `shared/cariesStatus.ts` (2026-10-01), the ONE
+// definition the Risk Classification screen also uses, so the two can never
+// disagree about the same child. This form still prints them as 1/0.
 const STATUS_COLUMNS: ServiceCol[] = [
-  { group: 'ORAL HEALTH STATUS', label: 'With Caries experience', value: (r) => yesNo(dmftPerm(r) + dftTemp(r) > 0) },
-  { group: 'ORAL HEALTH STATUS', label: 'With Caries experience in Temporary Dentition', value: (r) => yesNo(dftTemp(r) > 0) },
-  { group: 'ORAL HEALTH STATUS', label: 'With Caries experience in Permanent Dentition', value: (r) => yesNo(dmftPerm(r) > 0) },
-  // Age 5 AND any permanent tooth charted — the form asks this of five-year-olds
-  // only, so it stays blank at every other age rather than printing a "0" that
-  // reads as an answer.
-  { group: 'ORAL HEALTH STATUS', label: '5 Year Old with Permanent Dentition', value: (r) => (r.age === 5 ? yesNo(r.hasPermanentTooth) : '') },
-  { group: 'ORAL HEALTH STATUS', label: 'With Active Dental Caries', value: (r) => yesNo((r.conditions['D'] ?? 0) + (r.conditions['d'] ?? 0) > 0) },
-  { group: 'ORAL HEALTH STATUS', label: 'Gum/Perio Disease', value: (r) => (r.oral === null ? NO_SOURCE : yesNo(r.oral.gum)) },
+  { group: 'ORAL HEALTH STATUS', label: 'With Caries experience', value: (r) => yesNo(cariesStatus(r.conditions).withCariesExperience) },
+  { group: 'ORAL HEALTH STATUS', label: 'With Caries experience in Temporary Teeth', value: (r) => yesNo(cariesStatus(r.conditions).inTemporaryTeeth) },
+  { group: 'ORAL HEALTH STATUS', label: 'With Caries experience in Permanent Dentition', value: (r) => yesNo(cariesStatus(r.conditions).inPermanentDentition) },
+  { group: 'ORAL HEALTH STATUS', label: 'With Active Dental Caries', value: (r) => yesNo(cariesStatus(r.conditions).withActiveCaries) },
+  { group: 'ORAL HEALTH STATUS', label: 'Gingivitis / Periodontal Disease', value: (r) => (r.oral === null ? NO_SOURCE : yesNo(r.oral.gum)) },
   { group: 'ORAL HEALTH STATUS', label: 'Oral Debris', value: (r) => (r.oral === null ? NO_SOURCE : yesNo(r.oral.debris)) },
   { group: 'ORAL HEALTH STATUS', label: 'Calcular Deposits', value: (r) => (r.oral === null ? NO_SOURCE : yesNo(r.oral.calculus)) },
   { group: 'ORAL HEALTH STATUS', label: 'Dento-Facial Anomaly', value: (r) => (r.oral === null ? NO_SOURCE : yesNo(r.oral.anomaly)) },
@@ -255,13 +299,13 @@ const STATUS_COLUMNS: ServiceCol[] = [
   { group: 'ORAL HEALTH STATUS', label: 'd', value: (r) => String(r.conditions['d'] ?? '') },
   { group: 'ORAL HEALTH STATUS', label: 'f', value: (r) => String(r.conditions['f'] ?? '') },
   { group: 'ORAL HEALTH STATUS', label: 'x', value: (r) => String(r.conditions['x'] ?? '') },
-  { group: 'ORAL HEALTH STATUS', label: 'Sound Temporary Tooth/Teeth', value: (r) => String(r.conditions[SOUND_TEMPORARY] ?? '') },
+  { group: 'ORAL HEALTH STATUS', label: 'Sound Temporary Tooth', value: (r) => String(r.conditions[SOUND_TEMPORARY] ?? '') },
   { group: 'ORAL HEALTH STATUS', label: 'D', value: (r) => String(r.conditions['D'] ?? '') },
   { group: 'ORAL HEALTH STATUS', label: 'M', value: (r) => String(r.conditions['M'] ?? '') },
   { group: 'ORAL HEALTH STATUS', label: 'F', value: (r) => String(r.conditions['F'] ?? '') },
   { group: 'ORAL HEALTH STATUS', label: 'X', value: (r) => String(r.conditions['X'] ?? '') },
-  { group: 'ORAL HEALTH STATUS', label: 'Sound Permanent Tooth/Teeth', value: (r) => String(r.conditions[SOUND_PERMANENT] ?? '') },
-  { group: 'ORAL HEALTH STATUS', label: 'Caries Free', value: (r) => yesNo(dmftPerm(r) + dftTemp(r) === 0) },
+  { group: 'ORAL HEALTH STATUS', label: 'Sound Permanent Teeth', value: (r) => String(r.conditions[SOUND_PERMANENT] ?? '') },
+  { group: 'ORAL HEALTH STATUS', label: 'Caries Free', value: (r) => yesNo(!cariesStatus(r.conditions).withCariesExperience) },
 ];
 
 const SERVICE_COLUMNS: ServiceCol[] = [
@@ -273,9 +317,13 @@ const SERVICE_COLUMNS: ServiceCol[] = [
   // DUPLICATE Temporary Filling column by adding the tooth-count variant beside
   // the tick one. Both errors corrected here against the workbook.
   { group: 'OTHER SERVICES', label: 'Composite Filling (Tooth Count)', value: (r) => String(r.toothCounts['PF'] ?? '') },
-  { group: 'OTHER SERVICES', label: 'ART/Glass Ionomer Filling (Tooth Count)', value: (r) => String(r.toothCounts['TR'] ?? '') },
+  { group: 'OTHER SERVICES', label: 'ART (Tooth Count)', value: (r) => String(r.toothCounts['TR'] ?? '') },
   { group: 'OTHER SERVICES', label: 'Temporary Filling (Tooth Count)', value: (r) => String(r.toothCounts['TF'] ?? '') },
   { group: 'OTHER SERVICES', label: 'Extraction (Tooth Count)', value: (r) => String(r.toothCounts['X'] ?? '') },
+  // ONE column, here — between Extraction and the sealant — per the filed
+  // sample. The workbook transcription had two ("Scaling" / "Prescription")
+  // and put them after the SDF pair.
+  { group: 'OTHER SERVICES', label: 'Gum Treatment' },
   // 'Removal of Plaque / Calculus' REMOVED 2026-09-03 — confirmed absent from
   // the workbook, like 'Complete Health Record' before it. Both were read off
   // the illegible Appendix E scan.
@@ -284,21 +332,23 @@ const SERVICE_COLUMNS: ServiceCol[] = [
   // tick for the 1st and a blank for the 2nd.
   { group: 'OTHER SERVICES', label: '1st Silver Diamine Fluoride App (tooth count)', value: (r) => String(r.toothCounts['SDF'] ?? '') },
   { group: 'OTHER SERVICES', label: '2nd Silver Diamine Fluoride App (tooth count)' },
-  { group: 'OTHER SERVICES', label: 'Gum Treatment - Scaling' },
-  { group: 'OTHER SERVICES', label: 'Gum Treatment - Prescription' },
   { group: 'OTHER SERVICES', label: 'Consultation' },
   { group: 'OTHER SERVICES', label: 'Referred Out' },
   { group: 'OTHER SERVICES', label: 'Complete Mouth Rehab' },
 
-  // The form's "Orally Fit Child" pair and its two visit-date columns, banded
-  // under their own headings after the services — they are an assessment and
-  // two dates, not services.
-  { group: 'ORALLY FIT CHILD', label: 'Upon Oral Examination', value: (r) => (r.orallyFit ? '✓' : '') },
-  // Nothing records a completed mouth rehabilitation, so this stays blank
-  // rather than reusing the examination answer, which would double-count.
-  { group: 'ORALLY FIT CHILD', label: 'After Complete Mouth Rehabilitation' },
-  { group: 'DENTAL VISIT', label: 'Last Dental Visit', value: (r) => (r.lastVisit ? formatDate(r.lastVisit) : '') },
-  { group: 'DENTAL VISIT', label: 'Next Dental Visit', value: (r) => (r.nextVisit ? formatDate(r.nextVisit) : '') },
+  // ⚠ ONE column, the LAST on page 1, and DELIBERATELY BLANK.
+  //
+  // It used to print a ✓ from `r.orallyFit`, which is `oralStatus === 'Orally
+  // Fit'`, which is `risk === "Low"` and nothing else. "Orally Fit Child" is a
+  // DOH indicator with a clinical definition — caries-free or treated, no
+  // debris, no gum pathology — that needs a judgement this system does not
+  // store. A risk band is not that judgement, and this sheet is filed with the
+  // City Health Office. Same reason the IPTR row for it is blank and the
+  // barangay dashboard says "Low caries risk" instead (4bd5deb0).
+  //
+  // The workbook transcription had a PAIR here (Upon Oral Examination / After
+  // Complete Mouth Rehabilitation); the filed sample has one.
+  { group: 'ORALLY FIT CHILD', label: 'Orally Fit Child' },
 ];
 
 const SERVICE_GROUPS = SERVICE_COLUMNS.reduce<{ label: string; span: number }[]>((acc, c) => {
@@ -315,6 +365,8 @@ const TCL_UNVERIFIED = SERVICE_COLUMNS.filter((c) => c.unverified).length;
 // constant that was now also wrong.
 
 export const TargetClientList = () => {
+  // → The filed sample is a wide landscape sheet: 30 columns on page 1, 31 on page 2.
+  usePrintOrientation('landscape');
   const { selectedSchool } = useAuth();
   const { students, loading: studentsLoading } = useStudents();
   const { records: rpcRecords, loading: rpcLoading } = useRPCTracking();
@@ -325,11 +377,7 @@ export const TargetClientList = () => {
   const [period, setPeriod] = useState<Period>('monthly');
   const [anchor, setAnchor] = useState(() => toLocalDateString(new Date()));
 
-  // Appointments back the form's Last / Next Dental Visit columns. Fetched
-  // here rather than added to useRPCTracking: no other consumer of that hook
-  // needs them, and it already pulls six collections.
-  const [appointments, setAppointments] = useState<ApiAppointment[]>([]);
-  const [busy, setBusy] = useState<'xlsx' | null>(null);
+  const { preview, building, previewExcel, closePreview, confirmDownload } = usePreviewModal();
   const [orals, setOrals] = useState<ApiOralHealthCondition[]>([]);
   const [iptrs, setIptrs] = useState<ApiStudentIptr[]>([]);
 
@@ -337,9 +385,6 @@ export const TargetClientList = () => {
     apiClient.get<ApiStudent[]>('/students')
       .then(setRaw)
       .catch(() => setRawError('Could not load address and PhilHealth details.'));
-    apiClient.get<ApiAppointment[]>('/appointments')
-      .then(setAppointments)
-      .catch(() => setAppointments([]));
     // ORAL_HEALTH_CONDITION backs the form's Gum/Perio, Debris, Calcular and
     // Dento-Facial Anomaly columns. Joined through STUDENT_IPTR, which is why
     // both are fetched.
@@ -378,15 +423,6 @@ export const TargetClientList = () => {
       });
     }
 
-    const now = Date.now();
-    const apptsByStudent = new Map<string, { past: number[]; future: number[] }>();
-    for (const a of appointments) {
-      const t = new Date(a.appointment_datetime).getTime();
-      if (Number.isNaN(t)) continue;
-      const b = apptsByStudent.get(a.student_id) ?? { past: [], future: [] };
-      (t <= now ? b.past : b.future).push(t);
-      apptsByStudent.set(a.student_id, b);
-    }
     return students
       .filter((s) => !s.pending && (!selectedSchool || s.school === selectedSchool))
       .map((s) => {
@@ -407,25 +443,46 @@ export const TargetClientList = () => {
           risk: s.riskLevel,
           visit1Done: r?.visit1Status === 'Completed',
           visit2Done: r?.visit2Status === 'Completed',
+          visit1Services: r?.visit1Services ?? null,
+          visit2Services: r?.visit2Services ?? null,
           treatments: r?.treatmentCodes ?? [],
           toothCounts: r?.treatmentToothCounts ?? {},
           conditions: r?.conditionToothCounts ?? {},
-          hasPermanentTooth: (r?.conditionToothCounts ?? {})[SOUND_PERMANENT] > 0
-            || ['D', 'M', 'F', 'X'].some((c) => ((r?.conditionToothCounts ?? {})[c] ?? 0) > 0),
           oral: oralByStudent.get(s.id) ?? null,
-          facilityBased: r?.visit1FacilityBased ?? null,
-          orallyFit: s.oralStatus === 'Orally Fit',
-          lastVisit: (() => {
-            const p = apptsByStudent.get(s.id)?.past ?? [];
-            return p.length ? toLocalDateString(new Date(Math.max(...p))) : null;
-          })(),
-          nextVisit: (() => {
-            const f = apptsByStudent.get(s.id)?.future ?? [];
-            return f.length ? toLocalDateString(new Date(Math.min(...f))) : null;
-          })(),
         };
       });
-  }, [students, rpcRecords, raw, appointments, orals, iptrs, selectedSchool]);
+  }, [students, rpcRecords, raw, orals, iptrs, selectedSchool]);
+
+  // Sprint 130 — the same fault Sprint 128 fixed on the school-year filter,
+  // in the control that fix did not reach. This anchor defaults to TODAY, so
+  // opening the Target Client List in September 2026 asked for a month in which
+  // nothing had happened: the form rendered all 66 columns and NOT ONE ROW, on
+  // a database holding 23 recorded consultations (2026-02-16 to 2026-08-29).
+  // An empty period is indistinguishable from a broken report.
+  //
+  // Once the rows are known, an anchor whose period contains no consultation is
+  // moved to the LATEST consultation date — the period a clinic actually wants
+  // when it opens the list. Done once, so it never fights the date picker, and
+  // never when the user has already moved it themselves.
+  const latestConsult = useMemo(() => {
+    const dates = rows.map((r) => r.consultDate).filter((d): d is string => !!d).sort();
+    return dates.length ? dates[dates.length - 1].slice(0, 10) : null;
+  }, [rows]);
+
+  const didAlignAnchor = useRef(false);
+  useEffect(() => {
+    if (didAlignAnchor.current || !latestConsult) return;
+    const { start: s0, end: e0 } = periodRange(anchor, period);
+    const [ly, lm, ld] = latestConsult.split('-').map(Number);
+    const anyInPeriod = rows.some((r) => {
+      if (!r.consultDate) return false;
+      const [y, m, d] = r.consultDate.slice(0, 10).split('-').map(Number);
+      const dt = new Date(y, m - 1, d);
+      return dt >= s0 && dt < e0;
+    });
+    if (!anyInPeriod) setAnchor(toLocalDateString(new Date(ly, lm - 1, ld)));
+    didAlignAnchor.current = true;
+  }, [rows, latestConsult, anchor, period]);
 
   const { start, end, label: periodLabel } = useMemo(() => periodRange(anchor, period), [anchor, period]);
 
@@ -478,29 +535,88 @@ export const TargetClientList = () => {
   // Writes the SAME cells the screen shows, "—" included, so the workbook makes
   // the identical claims as the report. Writing 0 where the screen says "—"
   // would turn "not recorded" into "none" the moment it left the app.
-  const onXlsx = async () => {
-    setBusy('xlsx');
-    try {
-      const cols = [
+  // ── The workbook is TWO SHEETS, because the form is TWO PAGES (Sprint 134) ──
+  //
+  // Read from the manuscript's own scans (Appendix E: `image16` = page 1,
+  // `image17` = page 2), not inferred:
+  //
+  //   PAGE 1  No. · Date of Consult · Facility Based · Family Serial Number ·
+  //           Barangay · PhilHealth No. · Name · Address · Contact · Date of
+  //           Birth · Age · Age Group · Sex, then the whole ORAL HEALTH STATUS
+  //           block, ending at "Caries Free" and "Orally Fit Child".
+  //   PAGE 2  a REPEATED `No.` column, then FIRST visit, SECOND visit and
+  //           OTHER SERVICES, ending in REMARKS (Specify other findings).
+  //
+  // The app renders both pages' columns as one continuous table on SCREEN,
+  // which is right for a screen — a 66-column sheet cannot be read any other
+  // way. The filed artifact is the workbook (TCL is Excel-only, decided
+  // 2026-09-03), so that is where the form's own pagination has to be
+  // reproduced: "a printout IS the form", and a two-page form filed as one
+  // 66-column sheet is a different document.
+  //
+  // ⚠ `No.` is repeated on sheet 2 ON PURPOSE. It is the form's own row link
+  // between the pages; without it sheet 2 is an unjoinable block of ticks.
+  //
+  // ⚠ ONE PLACEMENT IS UNVERIFIED: the scans are 540x375, and while ORAL
+  // HEALTH STATUS clearly ends page 1 and OTHER SERVICES clearly ends page 2,
+  // the DENTAL VISIT pair (Last / Next Dental Visit) could not be resolved on
+  // either scan. It is placed on page 2 with the services, which is where a
+  // visit date belongs — but if a sharper scan says otherwise, this is the
+  // line to change, and it is the only one.
+  const PAGE1_GROUPS = ['ORAL HEALTH STATUS', 'ORALLY FIT CHILD'];
+
+  // ⚠ THE FORM IS 25 RULED ROWS, and they are part of the form.
+  //
+  // Counted on the filed sample the user supplied: both pages are numbered 1
+  // to 25, and that sheet was submitted with 21 filled and rows 22-25 blank.
+  // This table used to stop after the last client — four rows on a 25-row
+  // form — which is the same class of error as a missing column: "a blank cell
+  // on a DOH form is meaningful; a MISSING one is a different form" (CLAUDE.md).
+  //
+  // Over 25 clients the paper form runs to a second sheet, so the count rounds
+  // UP to whole sheets rather than stopping mid-block.
+  const FORM_ROWS = 25;
+  const ruledRows = Math.max(FORM_ROWS, Math.ceil(visible.length / FORM_ROWS) * FORM_ROWS);
+  const blankRowIndexes = Array.from({ length: ruledRows - visible.length }, (_, n) => visible.length + n);
+
+  const onXlsx = () => {
+    previewExcel('Target Client List', `${exportBaseName}.xlsx`, async () => {
+      // `row: null` is one of the form's blank ruled rows — numbered, empty.
+      type XlsxRow = { row: Row | null; i: number };
+      const svc = (c: (typeof visibleServices)[number]) => ({
+        label: `${c.group} — ${c.label}`,
+        value: (r: XlsxRow) => (r.row ? String(c.value ? c.value(r.row) : NO_SOURCE) : ''),
+      });
+      const numberCol = {
+        label: 'No.',
+        value: (r: XlsxRow) => String(r.i + 1),
+      };
+
+      const page1 = [
         ...visibleIdentity.map((c) => ({
           label: c.label,
-          value: (r: { row: Row; i: number }) => String(c.value(r.row, r.i) ?? ''),
+          value: (r: XlsxRow) => (r.row ? String(c.value(r.row, r.i) ?? '') : c.key === 'no' ? String(r.i + 1) : ''),
         })),
-        ...visibleServices.map((c) => ({
-          label: `${c.group} — ${c.label}`,
-          value: (r: { row: Row; i: number }) => String(c.value ? c.value(r.row) : NO_SOURCE),
-        })),
+        ...visibleServices.filter((c) => PAGE1_GROUPS.includes(c.group)).map(svc),
+      ];
+
+      const page2 = [
+        numberCol,
+        ...visibleServices.filter((c) => !PAGE1_GROUPS.includes(c.group)).map(svc),
         ...(remarksVisible ? [{ label: 'REMARKS (Specify other findings)', value: () => '' }] : []),
       ];
-      await exportToXlsx(
-        visible.map((row, i) => ({ row, i })),
-        cols,
-        `${exportBaseName}.xlsx`,
-        'Target Client List',
-      );
-    } finally {
-      setBusy(null);
-    }
+
+      // The workbook is the artifact that gets filed, so it carries the form's
+      // blank ruled rows too — same count as the screen.
+      const rows: XlsxRow[] = [
+        ...visible.map((row, i) => ({ row: row as Row | null, i })),
+        ...blankRowIndexes.map((i) => ({ row: null, i })),
+      ];
+      return buildSheetsXlsx([
+        { name: 'Page 1', rows, columns: page1 },
+        { name: 'Page 2', rows, columns: page2 },
+      ]);
+    });
   };
 
   if (studentsLoading || rpcLoading) return <SkeletonTable rows={8} />;
@@ -508,13 +624,16 @@ export const TargetClientList = () => {
   const IDENTITY_COLUMNS: IdentityCol[] = [
     { key: 'no', label: 'No.', value: (_r, i) => i + 1 },
     { key: 'consult', label: 'Date of consultation', head: <>Date of<br />consultation</>, value: (r) => (r.consultDate ? formatDate(r.consultDate) : '') },
-    // Column C of the real form. Sprint 81 gave it a source; null stays blank
-    // rather than printing "0 - No", which would be a claim, not a blank.
-    { key: 'facility', label: 'Facility Based', rotate: true, head: <>Facility Based<br /><span className="font-normal">0 - No · 1 - Yes</span></>, value: (r) => (r.facilityBased === null ? NO_SOURCE : r.facilityBased ? '1' : '0') },
-    // On the real form, no source in Floral — STUDENT has no family serial and
-    // no barangay field (address is one free-text line).
-    { key: 'familyserial', label: 'Family Serial Number', value: () => NO_SOURCE },
-    { key: 'barangay', label: 'Barangay', rotate: true, value: () => NO_SOURCE },
+    // ⚠ Facility Based, Family Serial Number and Barangay USED TO SIT HERE.
+    //   They came from the workbook transcription (Sprint 82/84,
+    //   TCLForm2andFHSISReport.xlsx). The FILED SAMPLE the user supplied
+    //   2026-09-06 — Bagong Tanyag, Grade 1, dated 8-5-25, the sheet this
+    //   barangay actually submits — has none of the three: it runs No. → Date
+    //   of Consult → PhilHealth No. → Name → Address → Contact → Date of
+    //   Birth → Age → Age Group → Sex and straight into ORAL HEALTH STATUS.
+    //   The two sources are different editions of the form; the filed one wins,
+    //   because it is the document that leaves the building. Restoring them is
+    //   one revert of this commit if the workbook edition turns out to govern.
     { key: 'philhealth', label: 'PhilHealth No.', value: (r) => r.philhealth },
     { key: 'name', label: 'Name', head: <>Name<br /><span className="font-normal">(Last, First, MI)</span></>, value: (r) => r.name, cls: 'font-medium' },
     { key: 'address', label: 'Complete Address', value: (r) => r.address, cls: 'max-w-[220px] truncate' },
@@ -536,6 +655,130 @@ export const TargetClientList = () => {
     return acc;
   }, []);
   const hiddenCount = hiddenCols.size;
+
+  // The form's own page split. `visibleServiceGroups` is still computed above
+  // for nothing else now, so it is derived per page instead.
+  const page1Services = visibleServices.filter((c) => PAGE1_GROUPS.includes(c.group));
+  const page2Services = visibleServices.filter((c) => !PAGE1_GROUPS.includes(c.group));
+  /** Page 2 opens with a repeated `No.`, exactly as the paper form does — it is
+   *  the only thing joining a row of ticks back to the student named on page 1.
+   *  Not subject to the column picker for that reason. */
+  const NUMBER_COLUMN: IdentityCol = { key: 'no', label: 'No.', value: (_r, i) => i + 1 };
+  const groupBands = (cols: typeof visibleServices) =>
+    cols.reduce<{ label: string; span: number }[]>((acc, c) => {
+      const last = acc[acc.length - 1];
+      if (last && last.label === c.group) last.span += 1;
+      else acc.push({ label: c.group, span: 1 });
+      return acc;
+    }, []);
+
+  /** One PAGE of the paper form: its own group band, its own tall caption
+   *  band, its own rows, in its own horizontal scroller.
+   *
+   *  Confirmed against the filed sample (Bagong Tanyag Grade 1, 8-5-25):
+   *  page 1 ends at "Caries Free" / "Orally Fit Child", and page 2 opens with a
+   *  repeated `No.` before ROUTINE PREVENTIVE CARE. */
+  const formPage = (
+    page: 1 | 2,
+    identity: IdentityCol[],
+    services: typeof visibleServices,
+    withRemarks: boolean,
+  ) => {
+    const bands = groupBands(services);
+    const span = identity.length + services.length + (withRemarks ? 1 : 0);
+    const rpcSpan = services.filter((c) => c.group === 'FIRST' || c.group === 'SECOND').length;
+    const nonRpcSpan = services.length - rpcSpan;
+    return (
+      <div className={`bg-card rounded-xl border border-border overflow-x-auto ${page === 2 ? 'form-page-break' : ''}`}>
+        {/* Screen-only. The paper form has no such caption, and .print-hide is
+            how a note lives inside a printable root without reaching paper. */}
+        <div className="print-hide px-3 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Page {page} of 2
+        </div>
+        <table className="tcl-table border-collapse">
+          <thead className="bg-gray-50">
+            {/* ⚠ SUPER-BAND, page 2 only. On the paper form FIRST and SECOND are
+                not top-level headings — they sit UNDER one band reading ROUTINE
+                PREVENTIVE CARE, with OTHER SERVICES and REMARKS beside it. The
+                app ran FIRST and SECOND as peers of OTHER SERVICES, which loses
+                the form's own statement that the two visits are one programme.
+                SECOND carries the form's parenthetical about the interval. */}
+            {rpcSpan > 0 && (
+              <tr>
+                {identity.length > 0 && <th className={th} colSpan={identity.length} />}
+                <th className={`${th} bg-blue-50`} colSpan={rpcSpan}>ROUTINE PREVENTIVE CARE</th>
+                {nonRpcSpan > 0 && <th className={th} colSpan={nonRpcSpan} />}
+                {withRemarks && <th className={th} />}
+              </tr>
+            )}
+            {/* Group band — thin, above the tall caption band, exactly as the
+                paper form runs FIRST / SECOND / OTHER SERVICES across the top.
+                Spans are computed from the VISIBLE columns. */}
+            <tr>
+              {identity.length > 0 && <th className={th} colSpan={identity.length} />}
+              {bands.map((g) => (
+                <th key={g.label} colSpan={g.span}
+                    className={`${th} ${g.label === 'OTHER SERVICES' ? FORM_SECTION_BAND : 'bg-blue-50'}`}>
+                  {g.label}
+                  {g.label === 'SECOND' && (
+                    <div className="font-normal text-[10px]">at least 4 months interval from the first visit</div>
+                  )}
+                </th>
+              ))}
+              {withRemarks && <th className={th} />}
+            </tr>
+            <tr className={HEADER_H}>
+              {identity.map((c) => (
+                c.rotate
+                  ? <RotHead key={c.key} label={c.label} />
+                  : <th key={c.key} className={thFlat}>{c.head ?? c.label}</th>
+              ))}
+              {services.map((c, i) => (
+                <RotHead
+                  key={`${c.group}-${c.label}-${i}`}
+                  label={c.label}
+                  tone={c.group === 'OTHER SERVICES' ? FORM_SECTION_BAND : 'bg-blue-50'}
+                  unverified={c.unverified}
+                />
+              ))}
+              {withRemarks && <th className={thFlat}>Remarks</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map((r, i) => (
+              <tr key={r.id} className="hover:bg-gray-50">
+                {identity.map((c) => (
+                  <td key={c.key} className={`${td} ${c.cls ?? ''}`}
+                      title={c.key === 'address' ? r.address : undefined}>
+                    {c.value(r, i)}
+                  </td>
+                ))}
+                {services.map((c, n) => (
+                  <td key={`${c.group}-${c.label}-${n}`}
+                      className={`${td} text-center ${c.value ? '' : 'text-muted-foreground'}`}>
+                    {c.value ? c.value(r) : NO_SOURCE}
+                  </td>
+                ))}
+                {withRemarks && <td className={td} />}
+              </tr>
+            ))}
+            {/* The form's remaining ruled rows. Numbered, because the paper
+                form numbers them — that is what lets page 2 be joined to page
+                1 — and otherwise empty. */}
+            {blankRowIndexes.map((n) => (
+              <tr key={`blank-${n}`}>
+                {identity.map((c) => (
+                  <td key={c.key} className={td}>{c.key === 'no' ? n + 1 : ''}</td>
+                ))}
+                {services.map((c, k) => <td key={`b-${c.group}-${c.label}-${k}`} className={td} />)}
+                {withRemarks && <td className={td} />}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
 
   const tick = (on: boolean) => (on ? '✓' : '');
   const hasCode = (codes: string[], code: string) => (codes.includes(code) ? '✓' : '');
@@ -612,10 +855,10 @@ export const TargetClientList = () => {
           <div className="flex items-center gap-2">
             <button
               onClick={onXlsx}
-              disabled={busy !== null || visible.length === 0}
+              disabled={building || visible.length === 0}
               className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-gray-50 disabled:opacity-50"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5" />{busy === 'xlsx' ? 'Preparing…' : 'Excel'}
+              <FileSpreadsheet className="w-3.5 h-3.5" />{building ? 'Preparing…' : 'Excel'}
             </button>
           </div>
         </div>
@@ -627,6 +870,11 @@ export const TargetClientList = () => {
           >{showPicker ? 'Done' : `Columns${hiddenCount ? ` (${hiddenCount} hidden)` : ''}`}</button>
           <span className="font-semibold text-foreground">{periodLabel}</span> — showing {visible.length} client
           {visible.length !== 1 ? 's' : ''} consulted{selectedSchool ? ' at the selected school' : ' across all schools'}.
+          {visible.length === 0 && latestConsult && (
+            <span className="text-amber-700 font-medium">
+              {' '}No consultation falls in this period; the most recent one on record is {formatDate(latestConsult)}.
+            </span>
+          )}
           {withoutConsult > 0 && ` ${withoutConsult} enrolled client${withoutConsult !== 1 ? 's have' : ' has'} no recorded consultation and appear${withoutConsult !== 1 ? '' : 's'} in no period.`}
         </p>
         {rawError && <p className="text-xs text-destructive mt-1">{rawError}</p>}
@@ -682,67 +930,33 @@ export const TargetClientList = () => {
         </div>
       )}
 
-      {/* Scrolls inside its own container, like the DOH table — the form is far
-          wider than any screen and the page itself must never scroll sideways. */}
-      <div className="bg-card rounded-xl border border-border overflow-x-auto">
-        <table className="border-collapse">
-          <thead className="bg-gray-50">
-            {/* Group band — thin, above the tall caption band, exactly as the
-                paper form runs FIRST / SECOND / OTHER SERVICES across the top.
-                Spans are computed from the VISIBLE columns (Sprint 72). */}
-            <tr>
-              {visibleIdentity.length > 0 && <th className={th} colSpan={visibleIdentity.length} />}
-              {visibleServiceGroups.map((g) => (
-                <th key={g.label} colSpan={g.span}
-                    // Group bands carry the printed form's amber (Sprint 83);
-                    // the identity block keeps its cooler tone so the two
-                    // halves of the sheet stay distinguishable.
-                    className={`${th} ${g.label === 'OTHER SERVICES' ? FORM_SECTION_BAND : 'bg-blue-50'}`}>
-                  {g.label}
-                </th>
-              ))}
-              {remarksVisible && <th className={th} />}
-            </tr>
-            <tr className={HEADER_H}>
-              {visibleIdentity.map((c) => (
-                c.rotate
-                  ? <RotHead key={c.key} label={c.label} />
-                  : <th key={c.key} className={thFlat}>{c.head ?? c.label}</th>
-              ))}
-              {visibleServices.map((c, i) => (
-                <RotHead
-                  key={`${c.group}-${c.label}-${i}`}
-                  label={c.label}
-                  tone={c.group === 'OTHER SERVICES' ? FORM_SECTION_BAND : 'bg-blue-50'}
-                  unverified={c.unverified}
-                />
-              ))}
-              {remarksVisible && <th className={thFlat}>Remarks</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {visible.length === 0 ? (
-              <tr><td className={`${td} text-center text-muted-foreground`} colSpan={visibleIdentity.length + visibleServices.length + (remarksVisible ? 1 : 0)}>No clients consulted in this period.</td></tr>
-            ) : visible.map((r, i) => (
-              <tr key={r.id} className="hover:bg-gray-50">
-                {visibleIdentity.map((c) => (
-                  <td key={c.key} className={`${td} ${c.cls ?? ''}`}
-                      title={c.key === 'address' ? r.address : undefined}>
-                    {c.value(r, i)}
-                  </td>
-                ))}
-                {visibleServices.map((c, n) => (
-                  <td key={`${c.group}-${c.label}-${n}`}
-                      className={`${td} text-center ${c.value ? '' : 'text-muted-foreground'}`}>
-                    {c.value ? c.value(r) : NO_SOURCE}
-                  </td>
-                ))}
-                {remarksVisible && <td className={td} />}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* ⚠ TWO PAGES, NOT ONE LONG SHEET (user-reported 2026-09-06).
+          The form IS two pages — Sprint 134 established the split and the Excel
+          export has produced two sheets ever since, but the screen still ran all
+          66 columns into a single 2,850px table. That put the columns in an
+          order the form does not have: ORALLY FIT CHILD closes page 1 on paper
+          and was rendering after OTHER SERVICES here, so anyone reading the
+          screen was reading a different document from the one they file.
+
+          Same split as the workbook export below, from one constant, so the two
+          can never disagree: PAGE1_GROUPS ends page 1 at ORAL HEALTH STATUS +
+          ORALLY FIT CHILD; everything else is page 2, which repeats `No.` as
+          the form's own row link between the pages.
+
+          Each page scrolls inside its own container — the form is wider than any
+          screen and the page itself must never scroll sideways. */}
+      <div className="form-print space-y-4">
+        {formPage(1, visibleIdentity, page1Services, false)}
+        {formPage(2, [NUMBER_COLUMN], page2Services, remarksVisible)}
       </div>
+      <PreviewModal
+        open={preview.open}
+        kind={preview.kind}
+        title={preview.title}
+        url={preview.url}
+        onClose={closePreview}
+        onDownload={confirmDownload}
+      />
     </div>
   );
 };

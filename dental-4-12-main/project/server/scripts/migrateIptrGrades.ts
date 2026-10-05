@@ -2,8 +2,10 @@ import "dotenv/config";
 import "../dnsFix.js"; // this machine's Node 24 + Atlas SRV workaround
 import mongoose from "mongoose";
 import { connectDB } from "../config/db.js";
+import { announceTarget } from "./announceTarget.js";
 import Student from "../models/Student.js";
 import StudentIptr from "../models/StudentIptr.js";
+import { schoolYearLabel } from "../../shared/schoolYear.js";
 
 // One-off migration: stamp `grade_level` + `section` onto STUDENT_IPTR
 // (Sprint 57a).
@@ -28,16 +30,9 @@ import StudentIptr from "../models/StudentIptr.js";
 
 const CONFIRM = process.argv.includes("--confirm");
 
-/** The school year containing today, "YYYY-YYYY". June–April per the clinic
- *  calendar; May is bucketed to the year about to start, matching
- *  utils/schoolYear.ts on the client. */
-function currentSchoolYear(d = new Date()): string {
-  const y = d.getFullYear();
-  return d.getMonth() <= 3 ? `${y - 1}-${y}` : `${y}-${y + 1}`;
-}
-
 async function run() {
   await connectDB();
+  announceTarget("migrateIptrGrades");
 
   // Encrypted fields are irrelevant here (grade_level and section are
   // plaintext), but Student is still read as documents rather than lean so the
@@ -58,7 +53,7 @@ async function run() {
   let leftNull = 0;
   let noIptr = 0;
   let futureOnly = 0;
-  const SY_NOW = currentSchoolYear();
+  const SY_NOW = schoolYearLabel();
   console.log(`Current school year: ${SY_NOW}
 `);
 

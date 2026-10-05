@@ -12,15 +12,29 @@ export const ROLE_LABELS: Record<ApiRole, string> = {
   bho_staff: 'Barangay Health',
 };
 
+/** Empty assignment means every school, which is how system_admin and
+ *  bho_staff have always worked (it was `school_id: null` before Sprint 100).
+ *  Two or more are summarised rather than listed, so a row stays one line. */
+function schoolLabel(ids: string[], nameById: Map<string, string>): string {
+  if (!ids || ids.length === 0) return 'All Schools';
+  if (ids.length === 1) return nameById.get(ids[0]) ?? 'Unknown School';
+  if (ids.length === nameById.size) return 'All Schools';
+  return `${ids.length} schools`;
+}
+
 export interface UserRow {
   id: string;
   name: string;
   email: string;
   role: ApiRole;
   roleLabel: string;
+  /** Human-readable summary of `schoolIds` — "All Schools" when empty. */
   school: string;
+  /** The raw assignment. Empty means ALL schools (Sprint 100). */
+  schoolIds: string[];
   status: 'Active' | 'Inactive';
   twofaEnabled: boolean;
+  createdAt?: string;
   pending?: boolean;
 }
 
@@ -35,7 +49,9 @@ export function useUsers() {
     beginLoad();
     try {
       const [apiUsers, apiSchools] = await Promise.all([
-        apiClient.get<ApiUser[]>('/users'),
+        // Archived accounts too: a deactivated user is soft-deleted, and without
+        // this it vanished from the list so it could never be found or reactivated.
+        apiClient.get<ApiUser[]>('/users?includeArchived=true'),
         apiClient.get<ApiSchool[]>('/schools'),
       ]);
       const schoolNameById = new Map(apiSchools.map((s) => [s._id, s.school_name]));
@@ -46,9 +62,11 @@ export function useUsers() {
           email: u.email,
           role: u.role,
           roleLabel: ROLE_LABELS[u.role] ?? u.role,
-          school: u.school_id ? (schoolNameById.get(u.school_id) ?? 'Unknown School') : 'All Schools',
+          school: schoolLabel(u.school_ids, schoolNameById),
+          schoolIds: u.school_ids ?? [],
           status: u.isArchived ? 'Inactive' : 'Active',
           twofaEnabled: u.twofa_enabled === true,
+          createdAt: u.created_at,
         })),
       );
       setSchools(apiSchools);
@@ -79,14 +97,15 @@ export function useUsers() {
   const usersWithPending = useMemo(() => {
     const schoolNameById = new Map(schools.map((s) => [s._id, s.school_name]));
     const pendingRows: UserRow[] = pendingWrites.map((w) => {
-      const body = w.body as Partial<{ full_name: string; email: string; role: ApiRole; school_id: string }>;
+      const body = w.body as Partial<{ full_name: string; email: string; role: ApiRole; school_ids: string[] }>;
       return {
         id: `pending-${w.id}`,
         name: body.full_name ?? '(pending sync)',
         email: body.email ?? '',
         role: body.role ?? 'dentist',
         roleLabel: body.role ? (ROLE_LABELS[body.role] ?? body.role) : 'Pending',
-        school: body.school_id ? (schoolNameById.get(body.school_id) ?? 'Unknown School') : 'All Schools',
+        school: schoolLabel(body.school_ids ?? [], schoolNameById),
+        schoolIds: body.school_ids ?? [],
         status: 'Active',
         twofaEnabled: false,
         pending: true,

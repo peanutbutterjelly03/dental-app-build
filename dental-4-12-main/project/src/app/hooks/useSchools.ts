@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
 import type { ApiSchool } from '../api/types';
+import { setSchoolRegistry } from '../utils/schoolColors';
 
 // ─── The school list, from the database ──────────────────────────────────────
 // Every school dropdown in the app used to be a hardcoded array — the same
@@ -25,6 +26,7 @@ export function useSchools() {
     setLoading(true);
     try {
       const rows = await apiClient.get<ApiSchool[]>('/schools');
+      setSchoolRegistry([...rows].sort((a, b) => a._id.localeCompare(b._id)));
       // Alphabetical so the dropdowns have a stable, predictable order rather
       // than insertion order, which is whatever the seeder happened to do.
       setSchools([...rows].sort((a, b) => a.school_name.localeCompare(b.school_name)));

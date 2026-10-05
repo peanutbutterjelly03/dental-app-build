@@ -11,5 +11,5 @@
     "strict": false,
     "types": ["node"]
   },
-  "include": ["server", "api"]
+  "include": ["server", "api", "shared"]
 }

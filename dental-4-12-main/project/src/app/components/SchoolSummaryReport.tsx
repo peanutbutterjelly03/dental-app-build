@@ -1,9 +1,12 @@
 import { useMemo, useRef, useState } from 'react';
+import { usePrintOrientation } from '../hooks/usePrintOrientation';
 import { useSchoolSummary, type BySex, type SchoolSummaryTally } from '../hooks/useSchoolSummary';
 import { SkeletonTable } from './Skeleton';
 import { FORM_SECTION_BAND } from '../utils/dohFormStyle';
-import { exportDohReportToPdf } from '../utils/exportPdf';
-import { exportToXlsx } from '../utils/exportXlsx';
+import { buildDohReportPdf } from '../utils/exportPdf';
+import { buildXlsx } from '../utils/exportXlsx';
+import { usePreviewModal } from '../hooks/usePreviewModal';
+import { PreviewModal } from './PreviewModal';
 import { Download, FileSpreadsheet } from 'lucide-react';
 
 // ─── Per-school summary sheet ────────────────────────────────────────────────
@@ -98,9 +101,11 @@ interface Props {
 }
 
 export function SchoolSummaryReport({ schoolName, schoolYear }: Props) {
+  // → A short summary sheet, not a wide grid.
+  usePrintOrientation('portrait');
   const { tally, unsexedCount, loading, error } = useSchoolSummary(schoolName, schoolYear);
   const printableRef = useRef<HTMLDivElement>(null);
-  const [busy, setBusy] = useState<'pdf' | 'xlsx' | null>(null);
+  const { preview, building, previewPdf, previewExcel, closePreview, confirmDownload } = usePreviewModal();
 
   const rows = useMemo(
     () => ROWS.map((row) => ({
@@ -117,23 +122,18 @@ export function SchoolSummaryReport({ schoolName, schoolYear }: Props) {
     schoolYear ?? 'all-years',
   ].join('_');
 
-  const onPdf = async () => {
+  const onPdf = () => {
     if (!printableRef.current) return;
-    setBusy('pdf');
-    try {
-      await exportDohReportToPdf(printableRef.current, `${exportBaseName}.pdf`);
-    } finally {
-      setBusy(null);
-    }
+    const el = printableRef.current;
+    previewPdf('School Summary Report', `${exportBaseName}.pdf`, () => buildDohReportPdf(el));
   };
 
-  const onXlsx = async () => {
-    setBusy('xlsx');
-    try {
+  const onXlsx = () => {
+    previewExcel('School Summary Report', `${exportBaseName}.xlsx`, () =>
       // Writes exactly what the screen shows, "—" included. Turning a "—" into
       // 0 in a workbook converts "no source" into "none found" the moment the
       // file leaves the app (Sprint 85's rule).
-      await exportToXlsx(
+      buildXlsx(
         rows,
         [
           { label: schoolName ?? 'All schools', value: (r) => r.label },
@@ -143,12 +143,9 @@ export function SchoolSummaryReport({ schoolName, schoolYear }: Props) {
           { label: 'FEMALE', value: (r) => show(r.female.persons) },
           { label: 'TOTAL', value: (r) => show(r.female.teeth) },
         ],
-        `${exportBaseName}.xlsx`,
         'School Summary',
-      );
-    } finally {
-      setBusy(null);
-    }
+      ),
+    );
   };
 
   if (loading) return <SkeletonTable rows={13} />;
@@ -177,23 +174,23 @@ export function SchoolSummaryReport({ schoolName, schoolYear }: Props) {
                 PII weight (Sprint 85). */}
             <button
               onClick={onPdf}
-              disabled={busy !== null}
+              disabled={building}
               className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-gray-50 disabled:opacity-50"
             >
-              <Download className="w-3.5 h-3.5" />{busy === 'pdf' ? 'Preparing…' : 'PDF'}
+              <Download className="w-3.5 h-3.5" />{building && preview.kind === 'pdf' ? 'Preparing…' : 'PDF'}
             </button>
             <button
               onClick={onXlsx}
-              disabled={busy !== null}
+              disabled={building}
               className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-gray-50 disabled:opacity-50"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5" />{busy === 'xlsx' ? 'Preparing…' : 'Excel'}
+              <FileSpreadsheet className="w-3.5 h-3.5" />{building && preview.kind === 'excel' ? 'Preparing…' : 'Excel'}
             </button>
           </div>
         </div>
       </div>
 
-      <div ref={printableRef} className="bg-card rounded-xl border border-border p-4">
+      <div ref={printableRef} className="form-print bg-card rounded-xl border border-border p-4">
         {/* Wide content scrolls inside its own container — the table must never
             push the page sideways at 390px (CLAUDE.md, three device classes). */}
         <div className="overflow-x-auto">
@@ -232,7 +229,13 @@ export function SchoolSummaryReport({ schoolName, schoolYear }: Props) {
         {/* Every claim the table makes, and every one it declines to make.
             Inside the printable region deliberately: a filed copy that shows
             "—" without saying why invites someone to read it as zero. */}
-        <div className="mt-3 space-y-1 text-[11px] leading-relaxed text-muted-foreground">
+        {/* ⚠ `print-hide` (Sprint 133): these notes explain the SYSTEM to a
+            reader on screen — why a cell reads "—", why there is no (m)
+            row — and none of them is printed on the paper sheet. They sit
+            inside the printable root because they belong beside the table
+            on screen, so print has to drop them explicitly. The sheet filed
+            with the City Health Office must look like the official form. */}
+        <div className="print-hide mt-3 space-y-1 text-[11px] leading-relaxed text-muted-foreground">
           <p>
             <span className="font-semibold">MALE / FEMALE</span> count students; each{' '}
             <span className="font-semibold">TOTAL</span> counts teeth.{' '}
@@ -262,6 +265,14 @@ export function SchoolSummaryReport({ schoolName, schoolYear }: Props) {
           )}
         </div>
       </div>
+      <PreviewModal
+        open={preview.open}
+        kind={preview.kind}
+        title={preview.title}
+        url={preview.url}
+        onClose={closePreview}
+        onDownload={confirmDownload}
+      />
     </div>
   );
 }

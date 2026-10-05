@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate, Link, useSearchParams } from 'react-router';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, X, Check, Clock, Users, FileText, Mars, Venus, MoreVertical, Trash2, ClipboardList, StickyNote } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router';
+import { Calendar as CalendarIcon, CalendarClock, ChevronDown, ChevronLeft, ChevronRight, Plus, X, Check, FileText, Mars, Venus, MoreVertical, Trash2, StickyNote, Pencil } from 'lucide-react';
 import { getGradeColor } from '../utils/gradeColors';
-import { getSchoolShortName } from '../utils/schoolColors';
 import { useAppointments, type AppointmentSession } from '../hooks/useAppointments';
-import { useDentistRotations } from '../hooks/useDentistRotations';
+import { useDayNotes } from '../hooks/useDayNotes';
 import { useStudents } from '../hooks/useStudents';
 import { apiClient } from '../api/client';
 import { Notice } from './Notice';
@@ -16,6 +15,8 @@ import { SkeletonPageHeader, SkeletonStatGrid, SkeletonTable } from './Skeleton'
 import { useToast } from './Toast';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
+import { PageHeader } from './PageHeader';
+import { SchoolRotationTab } from './SchoolRotation';
 
 /** Fixed options plus a free-text escape hatch — the clinic's actual visit
  *  types are not a closed set, and forcing everything into these six used to
@@ -26,6 +27,23 @@ const OTHER_TYPE = 'Other';
 
 const TODAY = toLocalDateString(new Date());
 
+// Details-panel building blocks. ⚠ Module scope on purpose: declared inside
+// the component they were a NEW component type on every render, so React
+// remounted everything under them on each keystroke and the note box lost
+// focus after one letter.
+const PanelField = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  <div className="min-w-0">
+    <div className="text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground">{label}</div>
+    <div className="mt-0.5 break-words text-sm font-semibold text-foreground">{children}</div>
+  </div>
+);
+const PanelSection = ({ title, children, last = false }: { title: string; children: React.ReactNode; last?: boolean }) => (
+  <div className={`px-5 py-4 ${last ? '' : 'border-b border-border'}`}>
+    <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-primary">{title}</div>
+    {children}
+  </div>
+);
+
 /** "2026-09-04" -> "Sep 4". Shared by the card meta chips and the
  *  duplicate-booking warning so both read the same way. */
 const shortenDate = (dateStr: string) =>
@@ -33,40 +51,37 @@ const shortenDate = (dateStr: string) =>
 
 export const Appointments = () => {
   const { user, selectedSchool } = useAuth();
-  const navigate = useNavigate();
   const toast = useToast();
 
   // Tabs
-  const [activeTab, setActiveTab] = useState<'today' | 'upcoming' | 'completed' | 'missed' | 'all' | 'calendar'>('today');
+  const [activeTab, setActiveTab] = useState<'today' | 'upcoming' | 'completed' | 'missed' | 'all' | 'calendar' | 'rotation'>('today');
   // Filters
-  const [gradeFilter, setGradeFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [searchTerm, setSearchTerm] = useState('');
+  // ⚠ The grade/status/type/search filters that used to sit here are gone
+  // (Sprint 175). Their setters were never called — not on her branch and NOT
+  // on ours either, so this is dead code the audit found, not something the
+  // redesign lost. `filteredAppointments` read them at their constant defaults
+  // and filtered nothing. Leaving them in implied a feature that does not
+  // exist; if appointment filtering is wanted, it needs real controls.
 
   // Modals — ?new=1 (e.g. the dashboard's New Appointment CTA) opens the create
   // form directly; the param is stripped below so refresh/back doesn't reopen it.
   const [searchParams, setSearchParams] = useSearchParams();
   const [showCreateModal, setShowCreateModal] = useState(searchParams.get('new') === '1');
-  const [showRotationModal, setShowRotationModal] = useState(false);
   useEffect(() => {
     if (searchParams.has('new')) setSearchParams({}, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [currentDate, setCurrentDate] = useState(() => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), 1); });
 
-  // Escape closes whichever modal is open (a mis-click otherwise traps the user)
+  // Escape closes the create modal (a mis-click otherwise traps the user)
   useEffect(() => {
-    if (!showCreateModal && !showRotationModal) return;
+    if (!showCreateModal) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setShowCreateModal(false);
-        setShowRotationModal(false);
-      }
+      if (e.key === 'Escape') setShowCreateModal(false);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [showCreateModal, showRotationModal]);
+  }, [showCreateModal]);
 
   // Create appointment form. School and dentist are no longer picked here —
   // school follows the sidebar's school switcher (this is a one-school-at-a-
@@ -91,22 +106,15 @@ export const Appointments = () => {
   // server — so multiple picks are joined with ", " on submit.
   const [appointmentTypes, setAppointmentTypes] = useState<string[]>([]);
   const [appointmentTypeOther, setAppointmentTypeOther] = useState('');
+  // Who the clinic can actually reach about this booking — required, since an
+  // appointment nobody can be reached about is exactly the "parental
+  // supervision" gap module 4 exists to flag. One number per submission,
+  // written to every Appointment row the submission creates (one per
+  // selected student), not a separate pick per student.
+  const [guardianContactNumber, setGuardianContactNumber] = useState('');
   const [appointmentDentistId, setAppointmentDentistId] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-
-  // Calendar reminder/note form. Backed by the DentistRotation collection —
-  // repurposed rather than adding a new model for this (there is no NOTE/
-  // REMINDER model in the ERD, and one dentist covering three schools by
-  // week never got real use as a staffing schedule). One record = one day's
-  // note: week_start and week_end are both set to that date on save. School
-  // and dentist are automatic, same as the create-appointment form.
-  const [rotDentistId, setRotDentistId] = useState('');
-  const [noteDate, setNoteDate] = useState('');
-  const [rotNotes, setRotNotes] = useState('');
-  const [editingRotationId, setEditingRotationId] = useState<string | null>(null);
-  const [rotError, setRotError] = useState<string | null>(null);
-  const [rotSaving, setRotSaving] = useState(false);
 
   // Which appointments are loaded at all (Sprint 56). Today and Upcoming
   // self-limit by date, but Completed and Missed have no such bound and nothing
@@ -126,7 +134,6 @@ export const Appointments = () => {
   }, [currentDate]);
 
   const { sessions, dentists, loading: appointmentsLoading, error: appointmentsError, updateSessionStatus, deleteSession, reload: reloadAppointments } = useAppointments(appointmentWindow);
-  const { rotations, loading: rotationsLoading, reload: reloadRotations } = useDentistRotations();
   const [schools, setSchools] = useState<ApiSchool[]>([]);
   // Roster to search when creating an appointment — scoped to the school the
   // switcher already has selected, same as every other screen.
@@ -136,13 +143,11 @@ export const Appointments = () => {
     apiClient.get<ApiSchool[]>('/schools').then(setSchools).catch(() => {});
   }, []);
 
-  // Default the dentist pickers to the logged-in dentist, once dentists have loaded
+  // Default the dentist picker to the logged-in dentist, once dentists have loaded
   useEffect(() => {
     if (!user || dentists.length === 0) return;
     const own = dentists.find(d => d.user_id === user.id);
-    const defaultId = own?._id ?? dentists[0]._id;
-    setAppointmentDentistId(prev => prev || defaultId);
-    setRotDentistId(prev => prev || defaultId);
+    setAppointmentDentistId(prev => prev || (own?._id ?? dentists[0]._id));
   }, [user, dentists]);
 
   const resetCreateAppointmentForm = () => {
@@ -154,27 +159,12 @@ export const Appointments = () => {
     setAppointmentTime('');
     setAppointmentTypes([]);
     setAppointmentTypeOther('');
+    setGuardianContactNumber('');
     setCreateError(null);
-  };
-
-  const resetRotationForm = () => {
-    setNoteDate('');
-    setRotNotes('');
-    setEditingRotationId(null);
-    setRotError(null);
   };
 
   /** Opens the note modal for one calendar day, pre-filled if this school
    *  already has a note there. */
-  const openNoteModal = (dateStr: string) => {
-    const existing = rotations.find(r => r.school === selectedSchool && r.weekStart === dateStr && r.weekEnd === dateStr);
-    setNoteDate(dateStr);
-    setRotNotes(existing?.notes ?? '');
-    setEditingRotationId(existing?.id ?? null);
-    setRotError(null);
-    setShowRotationModal(true);
-  };
-
   const handleCreateAppointment = async () => {
     setCreateError(null);
     // Date is the only field the user must fill in by hand — school and
@@ -199,7 +189,7 @@ export const Appointments = () => {
     const duplicates = selectedStudents.filter(id => pendingAppointmentFor(id));
     if (duplicates.length > 0) {
       const names = duplicates.map(id => allStudentsForSearch.find(s => s.id === id)?.name ?? 'A selected student');
-      setCreateError(`${names.join(', ')} already ${duplicates.length === 1 ? 'has' : 'have'} an unresolved appointment — mark it Completed or Missed first.`);
+      setCreateError(`${names.join(', ')} already ${duplicates.length === 1 ? 'has' : 'have'} an unresolved appointment. Mark it Completed or Missed first.`);
       return;
     }
     if (!resolvedType) {
@@ -212,6 +202,10 @@ export const Appointments = () => {
     }
     if (!appointmentDentistId) {
       setCreateError('No dentist is set up for this clinic yet.');
+      return;
+    }
+    if (!guardianContactNumber.trim()) {
+      setCreateError('Guardian contact number is required.');
       return;
     }
     setCreating(true);
@@ -227,6 +221,7 @@ export const Appointments = () => {
             appointment_datetime,
             status: 'Scheduled',
             appointment_type: resolvedType,
+            guardian_contact_number: guardianContactNumber.trim(),
           }),
         ),
       );
@@ -241,62 +236,6 @@ export const Appointments = () => {
     }
   };
 
-  const handleSaveRotation = async () => {
-    setRotError(null);
-    if (!selectedSchool) {
-      setRotError('Pick a specific school first.');
-      return;
-    }
-    if (!noteDate || !rotNotes.trim()) {
-      setRotError('Date and note text are required.');
-      return;
-    }
-    if (!rotDentistId) {
-      setRotError('No dentist is set up for this clinic yet.');
-      return;
-    }
-    setRotSaving(true);
-    try {
-      const school = schools.find(s => s.school_name === selectedSchool);
-      if (!school) throw new Error('Selected school not found');
-      const body = {
-        school_id: school._id,
-        dentist_id: rotDentistId,
-        week_start: noteDate,
-        week_end: noteDate,
-        notes: rotNotes.trim(),
-      };
-      if (editingRotationId) {
-        await apiClient.put(`/dentist-rotations/${editingRotationId}`, body);
-      } else {
-        await apiClient.post('/dentist-rotations', body);
-      }
-      await reloadRotations();
-      toast.success('Note saved.');
-      resetRotationForm();
-      setShowRotationModal(false);
-    } catch (err) {
-      setRotError(err instanceof Error ? err.message : 'Failed to save note');
-    } finally {
-      setRotSaving(false);
-    }
-  };
-
-  const handleDeleteRotation = async () => {
-    if (!editingRotationId) return;
-    setRotSaving(true);
-    try {
-      await apiClient.patch(`/dentist-rotations/${editingRotationId}/archive`);
-      await reloadRotations();
-      toast.success('Note deleted.');
-      resetRotationForm();
-      setShowRotationModal(false);
-    } catch (err) {
-      setRotError(err instanceof Error ? err.message : 'Failed to delete note');
-    } finally {
-      setRotSaving(false);
-    }
-  };
 
   // Search results for the create-appointment picker: this school's active,
   // synced roster, name-matched. Kinder and Grades 7-10 are reachable here —
@@ -345,20 +284,121 @@ export const Appointments = () => {
   const allAppts = [...appointments].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
 
   const historyScopeBar = (label: string, tabKey: string) => (
-    <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+    <div className="sticky top-1 z-10 bg-card px-4 py-3 border-b border-border flex items-center justify-between">
       <span className="text-sm font-semibold text-foreground">{label}</span>
       <TabActionsMenu tabKey={tabKey} />
     </div>
   );
 
+  // Empty state, matching the reference: a light icon chip, a bold title,
+  // a muted one-line explanation. Replaces the old bare icon + <p>.
+  const EmptyState = ({ title, subtitle }: { title: string; subtitle: string }) => (
+    <div className="py-16 text-center">
+      <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
+        <CalendarIcon className="w-6 h-6 text-muted-foreground/60" />
+      </div>
+      <p className="text-base font-bold text-foreground">{title}</p>
+      <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>
+    </div>
+  );
+
   const filteredAppointments = appointments.filter(a => {
-    if (gradeFilter !== 'all' && a.grade !== gradeFilter) return false;
-    if (statusFilter !== 'all' && getStatus(a) !== statusFilter) return false;
-    if (typeFilter !== 'all' && a.type !== typeFilter) return false;
-    if (searchTerm && !a.grade.toLowerCase().includes(searchTerm.toLowerCase()) &&
-        !a.section.toLowerCase().includes(searchTerm.toLowerCase())) return false;
     return true;
   });
+
+  // Sprint 108 — notes written against a DATE (holiday, no-clinic day,
+  // equipment down), distinct from a per-patient remark. Bounded to the month
+  // on screen; see useDayNotes.
+  const { notesFor, reload: reloadDayNotes } = useDayNotes(currentDate);
+  const [noteDay, setNoteDay] = useState<Date | null>(null);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [noteSaving, setNoteSaving] = useState(false);
+
+  const canWriteNotes = !!user && ['system_admin', 'dentist', 'dental_aide'].includes(user.role);
+
+  const openDay = (day: Date | null) => {
+    if (!day) return;
+    setNoteDay(day);
+    setNoteDraft('');
+  };
+
+  const saveDayNote = async () => {
+    if (!noteDay || !noteDraft.trim()) return;
+    setNoteSaving(true);
+    try {
+      await apiClient.post('/day-notes', {
+        // Midnight local, so one calendar square is one date.
+        date: toLocalDateString(noteDay),
+        // ⚠ null means EVERY school — that is the barangay-wide holiday case,
+        // and it is what "All Schools" in the switcher should produce. When a
+        // specific school is selected the note is scoped to it. `selectedSchool`
+        // is a NAME, so it has to be mapped back to an id here.
+        school_id: schools.find((sc) => sc.school_name === selectedSchool)?._id ?? null,
+        note: noteDraft.trim(),
+      });
+      setNoteDraft('');
+      await reloadDayNotes();
+      toast.success('Note added.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not save the note');
+    } finally {
+      setNoteSaving(false);
+    }
+  };
+
+  // Sprint 109 — a remark on ONE student's slot, distinct from the day note.
+  const [apptNoteId, setApptNoteId] = useState<string | null>(null);
+  const [apptNoteDraft, setApptNoteDraft] = useState('');
+  const [apptNoteSaving, setApptNoteSaving] = useState(false);
+
+  const saveApptNote = async (appointmentId: string) => {
+    setApptNoteSaving(true);
+    try {
+      await apiClient.put(`/appointments/${appointmentId}`, { notes: apptNoteDraft.trim() });
+      setApptNoteId(null);
+      setApptNoteDraft('');
+      await reloadAppointments();
+      toast.success('Note saved.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not save the note');
+    } finally {
+      setApptNoteSaving(false);
+    }
+  };
+
+  // Sprint 131 — editing an existing day note. `PUT /day-notes/:id` has
+  // accepted CLINICAL_WRITE_ROLES since Sprint 108; nothing in the UI ever
+  // called it, so correcting a typo meant archiving the note and retyping it —
+  // which left the wrong note in the archive permanently.
+  const [dayNoteEditId, setDayNoteEditId] = useState<string | null>(null);
+  const [dayNoteEditDraft, setDayNoteEditDraft] = useState('');
+  const [dayNoteEditSaving, setDayNoteEditSaving] = useState(false);
+
+  const saveDayNoteEdit = async (id: string) => {
+    if (!dayNoteEditDraft.trim()) return;
+    setDayNoteEditSaving(true);
+    try {
+      await apiClient.put(`/day-notes/${id}`, { note: dayNoteEditDraft.trim() });
+      setDayNoteEditId(null);
+      setDayNoteEditDraft('');
+      await reloadDayNotes();
+      toast.success('Note updated.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not update the note');
+    } finally {
+      setDayNoteEditSaving(false);
+    }
+  };
+
+  const archiveDayNote = async (id: string) => {
+    try {
+      await apiClient.patch(`/day-notes/${id}/archive`);
+      await reloadDayNotes();
+      toast.success('Note removed.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not remove the note');
+    }
+  };
 
   // Calendar helpers
   const getDaysInMonth = (date: Date) => {
@@ -375,15 +415,6 @@ export const Appointments = () => {
     if (!date) return [];
     const ds = toLocalDateString(date);
     return filteredAppointments.filter(a => a.date === ds);
-  };
-  // Notes for one day, scoped to the school in view — the range check covers
-  // both the normal single-day note (weekStart === weekEnd) and any older
-  // multi-day rotation rows already in the database from before this screen
-  // was repurposed.
-  const getNotesForDay = (date: Date | null) => {
-    if (!date || !selectedSchool) return [];
-    const ds = toLocalDateString(date);
-    return rotations.filter(r => r.school === selectedSchool && r.weekStart <= ds && r.weekEnd >= ds);
   };
   const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth()-1, 1));
   const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth()+1, 1));
@@ -413,12 +444,91 @@ export const Appointments = () => {
     setConfirmStatusAction(null);
   };
 
+  // Confirmed before it happens (2026-09-25) -- the trash icon used to delete
+  // on the spot, same "a stray click can't remove an appointment" reasoning
+  // the delete-mode toggle itself already carries, just one step earlier than
+  // where it stopped short.
+  const [deleteTarget, setDeleteTarget] = useState<AppointmentSession | null>(null);
+  const [deletingAppointment, setDeletingAppointment] = useState(false);
+
   const removeAppointment = async (session: AppointmentSession) => {
     try {
       await deleteSession(session);
       toast.success('Appointment deleted.');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete appointment');
+    }
+  };
+
+  const confirmDeleteAppointment = async () => {
+    if (!deleteTarget) return;
+    setDeletingAppointment(true);
+    await removeAppointment(deleteTarget);
+    setDeletingAppointment(false);
+    setDeleteTarget(null);
+  };
+
+  // Reschedule — a missed/overdue appointment's real fix isn't always
+  // "attended" or "missed"; it's often "give this a new slot". Moves the
+  // underlying appointment_datetime (same PUT the create form uses) and
+  // resets status to Scheduled, since a rescheduled visit is not the old
+  // missed one anymore.
+  // Details side panel (user's pick "B", 2026-09-25). Held by id and looked up
+  // fresh each render, so a status change made from the panel shows at once.
+  const [detailId, setDetailId] = useState<string | null>(null);
+  // The panel's editable note (one-student bookings). Seeded when the panel
+  // opens; saved through the same PUT the day view's "Edit note" uses.
+  const [panelNote, setPanelNote] = useState('');
+  const [panelNoteSaving, setPanelNoteSaving] = useState(false);
+  const openDetail = (a: AppointmentSession) => {
+    setPanelNote(a.studentCount === 1 ? a.students[0].notes : '');
+    setDetailId(a.id);
+  };
+  useEffect(() => {
+    if (!detailId) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setDetailId(null); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [detailId]);
+  const [rescheduleTarget, setRescheduleTarget] = useState<AppointmentSession | null>(null);
+  const [rescheduleDate, setRescheduleDate] = useState('');
+  const [rescheduleTime, setRescheduleTime] = useState('');
+  const [rescheduling, setRescheduling] = useState(false);
+  const [rescheduleError, setRescheduleError] = useState<string | null>(null);
+
+  const openReschedule = (session: AppointmentSession) => {
+    setRescheduleTarget(session);
+    setRescheduleDate(session.date);
+    setRescheduleTime(session.time);
+    setRescheduleError(null);
+  };
+
+  const closeReschedule = () => {
+    if (rescheduling) return;
+    setRescheduleTarget(null);
+  };
+
+  const submitReschedule = async () => {
+    if (!rescheduleTarget || !rescheduleDate) {
+      setRescheduleError('Pick a date to reschedule to.');
+      return;
+    }
+    setRescheduling(true);
+    setRescheduleError(null);
+    try {
+      const appointment_datetime = new Date(`${rescheduleDate}T${rescheduleTime || '08:00'}`).toISOString();
+      await Promise.all(
+        rescheduleTarget.appointmentIds.map(id =>
+          apiClient.put(`/appointments/${id}`, { appointment_datetime, status: 'Scheduled' }),
+        ),
+      );
+      await reloadAppointments();
+      toast.success('Appointment rescheduled.');
+      setRescheduleTarget(null);
+    } catch (err) {
+      setRescheduleError(err instanceof Error ? err.message : 'Failed to reschedule appointment');
+    } finally {
+      setRescheduling(false);
     }
   };
 
@@ -429,9 +539,18 @@ export const Appointments = () => {
   // at a time — kept generic (tabKey-driven) so a second menu item can be
   // added later without a new state variable per tab.
   const [openTabMenu, setOpenTabMenu] = useState<string | null>(null);
+  const [tabMenuAt, setTabMenuAt] = useState<{ top: number; right: number } | null>(null);
   const [deleteModeTab, setDeleteModeTab] = useState<string | null>(null);
+  // Same reasoning, one level down: which CARD's "Actions" menu (missed/
+  // overdue cards) is open, keyed by appointment id. AppointmentCard is
+  // itself declared inside this component and re-created on every render,
+  // so state local to it would reset (closing the menu) on any unrelated
+  // re-render of this page -- keeping it here, in the stable parent, avoids
+  // that.
+  const [openCardMenu, setOpenCardMenu] = useState<string | null>(null);
+  const [cardMenuAt, setCardMenuAt] = useState<{ top?: number; bottom?: number; right: number } | null>(null);
 
-  useEffect(() => { setDeleteModeTab(null); setOpenTabMenu(null); }, [activeTab]);
+  useEffect(() => { setDeleteModeTab(null); setOpenTabMenu(null); setOpenCardMenu(null); }, [activeTab]);
 
   const TabActionsMenu = ({ tabKey }: { tabKey: string }) => (
     deleteModeTab === tabKey ? (
@@ -441,19 +560,31 @@ export const Appointments = () => {
       </button>
     ) : (
       <div className="relative">
-        <button onClick={() => setOpenTabMenu(v => v === tabKey ? null : tabKey)}
+        <button onClick={(e) => {
+            const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+            setTabMenuAt({ top: r.bottom + 4, right: Math.max(8, window.innerWidth - r.right) });
+            setOpenTabMenu(v => v === tabKey ? null : tabKey);
+          }}
           className="p-1.5 rounded-lg text-muted-foreground hover:bg-gray-100 hover:text-foreground" title="More options">
           <MoreVertical className="w-4 h-4" />
         </button>
         {openTabMenu === tabKey && (
           <>
             <div className="fixed inset-0 z-10" onClick={() => setOpenTabMenu(null)} />
-            <div className="absolute right-0 top-full mt-1 z-20 bg-card border border-border rounded-lg shadow-md py-1 w-40">
+            {/* ⚠ FIXED, not absolute. This card is `overflow-hidden`,
+                and a clipping ancestor cuts an absolutely positioned
+                menu off at its edge — the school-year menu looked like
+                a dead button for exactly that reason. Positioned from
+                the trigger's own rect so no ancestor can clip it. */}
+            <div
+              style={tabMenuAt ? { top: tabMenuAt.top, right: tabMenuAt.right } : undefined}
+              className="fixed z-50 bg-card border border-border rounded-lg shadow-md py-1 w-max"
+            >
               <button
                 onClick={() => { setDeleteModeTab(tabKey); setOpenTabMenu(null); }}
-                className="w-full text-left px-3 py-2 text-sm text-destructive hover:bg-danger-surface flex items-center gap-2"
+                className="text-left pl-3 pr-4 py-2 text-sm text-destructive hover:bg-danger-surface flex items-center gap-2 whitespace-nowrap"
               >
-                <Trash2 className="w-3.5 h-3.5" /> Delete…
+                <Trash2 className="w-3.5 h-3.5" /> Delete
               </button>
             </div>
           </>
@@ -473,7 +604,72 @@ export const Appointments = () => {
     return map[status] || 'bg-gray-100 text-muted-foreground';
   };
 
-  const AppointmentCard = ({ a, showActions = false, deleteMode = false }: { a: AppointmentSession; showActions?: boolean; deleteMode?: boolean }) => {
+  // Solid fill for the card's time block + the border tint around the whole
+  // card -- same hue family as statusBadge above (blue/yellow/green/red/gray),
+  // just a bold block instead of a soft chip, so a card reads its status at
+  // a glance without needing to read the text badge too.
+  // 'Today' is a display-only pseudo-status (not a real value of
+  // AppointmentSession.status) so a Scheduled card happening today reads
+  // differently from one that's still days out -- otherwise every Scheduled
+  // card was the same blue whether it needed attention right now or not.
+  const statusBlock = (status: string | 'Today'): string => {
+    const map: Record<string, string> = {
+      'Today': '#C026D3',
+      'Scheduled': '#2563EB',
+      'In Progress': '#CA8A04',
+      'Completed': '#16A34A',
+      'Missed': '#DC2626',
+      'Cancelled': '#6B7280',
+    };
+    return map[status] || '#6B7280';
+  };
+
+  // "HH:MM" (24h, as stored) -> the 12h clock + AM/PM shown in the card's
+  // time block.
+  const formatTimeBlock = (time: string) => {
+    const [hStr, mStr] = time.split(':');
+    let h = parseInt(hStr, 10);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return { clock: `${String(h).padStart(2, '0')}:${mStr}`, ampm };
+  };
+
+  // Groups a session list into consecutive same-date runs, sorted first --
+  // Missed/Completed/All aren't guaranteed sorted like `allAppts` already is
+  // -- so a "THURSDAY, SEPTEMBER 4" caption can sit above each date's cards,
+  // matching the agreed agenda-timeline layout.
+  const groupByDate = (list: AppointmentSession[]) => {
+    const sorted = [...list].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+    const groups: { date: string; items: AppointmentSession[] }[] = [];
+    for (const a of sorted) {
+      const last = groups[groups.length - 1];
+      if (last && last.date === a.date) last.items.push(a);
+      else groups.push({ date: a.date, items: [a] });
+    }
+    return groups;
+  };
+
+  const DateGroupedCards = ({ list, tabKey }: { list: AppointmentSession[]; tabKey: string }) => (
+    <div className="p-3">
+      {groupByDate(list).map((group, gi) => (
+        <div key={group.date} className={gi > 0 ? 'mt-4' : ''}>
+          <div className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground px-1 mb-2">
+            {formatDateWithWeekday(group.date)}
+          </div>
+          {group.items.map(a => <AppointmentCard key={a.id} a={a} showActions deleteMode={deleteModeTab === tabKey} />)}
+        </div>
+      ))}
+    </div>
+  );
+
+  // ⚠ `compact` exists because this card is ALSO rendered inside the day
+  // dialog's left half — roughly 340px, against the ~1300px list it was drawn
+  // for. At that width the chips wrap one per line, the section name truncates
+  // to "Del Pi…", and a tidy row becomes four ragged ones. Compact drops the
+  // date (the dialog's title IS the date) and the student count (the students are
+  // listed directly underneath), which are the two chips that say nothing new
+  // in that context.
+  const AppointmentCard = ({ a, showActions = false, deleteMode = false, compact = false }: { a: AppointmentSession; showActions?: boolean; deleteMode?: boolean; compact?: boolean }) => {
     const gc = getGradeColor(a.grade);
     const status = getStatus(a);
     // The common case now that appointments are booked by searching a
@@ -483,7 +679,7 @@ export const Appointments = () => {
     // more than one) falls back to the old grouped view, since there is no
     // single chart to link to.
     const soleStudent = a.studentCount === 1 ? a.students[0] : null;
-    const shortDate = shortenDate(a.date);
+    const shortDate = new Date(a.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     // School and dentist dropped from the card: the page is already scoped
     // to one school at a time via the switcher, and the clinic has exactly
     // one dentist, so both were repeating information on every row. The
@@ -505,91 +701,161 @@ export const Appointments = () => {
       : isFemale
         ? <Venus className="w-5 h-5" />
         : a.grade.replace('Grade ', 'G');
-    // Meta info as a row of small tags instead of "Label: value" text — same
-    // information, read at a glance instead of parsed word by word.
-    const chip = 'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-gray-100 text-xs font-medium text-foreground';
+    // The time block's color is the SAME "effectively missed" rule the
+    // Missed tab itself filters by (past-dated and never explicitly marked)
+    // -- so a card sitting in that tab visually reads as missed even before
+    // anyone clicks the X to record it as such in the database. The text
+    // badge stays on the real stored status ("Scheduled"): that is still
+    // true until someone confirms otherwise, only the color is a preview.
+    const isOverdueUnmarked = a.date < TODAY && status === 'Scheduled';
+    const isScheduledToday = a.date === TODAY && status === 'Scheduled';
+    const blockFill = statusBlock(isOverdueUnmarked ? 'Missed' : isScheduledToday ? 'Today' : status);
+    const { clock, ampm } = formatTimeBlock(a.time);
+    const actionsOpen = openCardMenu === a.id;
     return (
-      <div className="flex items-center justify-between gap-4 px-4 py-2.5 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <div style={{ backgroundColor: iconBg, color: iconColor }} className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0">
-            {genderIcon}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-bold text-foreground truncate">
-              {soleStudent ? soleStudent.name : `${a.section} — ${a.grade}`}
-            </div>
-            {/* One row of tags, using the row's width instead of stacking
-                three mostly-empty lines or spelling out "Label: value". */}
-            <div className="flex flex-wrap items-center gap-1.5 mt-1">
-              {soleStudent && (
-                <span className={chip} style={{ backgroundColor: gc.light, color: gc.solid }}>
-                  {a.grade} <span className="opacity-70 font-normal">· {a.section}</span>
-                </span>
-              )}
-              <span className={chip}>
-                <CalendarIcon className="w-3 h-3 text-muted-foreground" /> {shortDate}
-              </span>
-              <span className={chip}>
-                <Clock className="w-3 h-3 text-muted-foreground" /> {a.time}
-              </span>
-              <span className={chip}>
-                <ClipboardList className="w-3 h-3 text-muted-foreground" /> {a.type}
-              </span>
-              {!soleStudent && (
-                <span className={chip}>
-                  <Users className="w-3 h-3 text-muted-foreground" /> {a.studentCount} students
-                </span>
-              )}
-            </div>
-          </div>
+      <div className="flex overflow-hidden rounded-2xl border border-border shadow-sm mb-2.5 last:mb-0">
+        {/* Time block — solid fill by status, same hue family as the text
+            badge below, so the card's status reads before you even get to
+            the badge. */}
+        <div className="w-[72px] sm:w-[84px] flex-shrink-0 flex flex-col items-center justify-center px-2 py-3" style={{ backgroundColor: blockFill }}>
+          <div className="text-[15px] sm:text-base font-extrabold text-white tabular-nums">{clock}</div>
+          <div className="text-[9.5px] font-semibold text-white/75 mt-0.5">{ampm}</div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {a.pending && (
-            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200">Pending sync</span>
-          )}
-          <Link
-            to={soleStudent ? `/dental-chart/${soleStudent.id}` : '/dental-charts'}
-            className="w-7 h-7 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 flex items-center justify-center transition-colors"
-            title={soleStudent ? `Open ${soleStudent.name}'s Dental Chart` : 'Open Dental Charts'}
-          >
-            <FileText className="w-3.5 h-3.5" />
-          </Link>
-          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusBadge(status)}`}>{status}</span>
-          {/* Delete mode replaces the status actions with one clear choice,
-              so a stray click can't both change status and delete. */}
-          {deleteMode && !a.pending ? (
-            <button onClick={() => removeAppointment(a)}
-              className="w-7 h-7 rounded-full bg-red-100 hover:bg-red-200 text-red-700 flex items-center justify-center transition-colors" title="Delete this appointment">
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          ) : (
-            <>
-              {showActions && !a.pending && status === 'Scheduled' && (
-                <>
+
+        <div className="flex-1 min-w-0 bg-card flex items-center justify-between gap-3 px-4 py-3">
+          {/* Click (or Enter) opens the details side panel. The action
+              buttons on the right sit outside this area, so they keep
+              working exactly as before. */}
+          <div role="button" tabIndex={0} onClick={() => openDetail(a)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail(a); } }}
+            title="Show details" className="min-w-0 flex-1 flex items-center gap-3 cursor-pointer rounded-lg focus-visible:outline-2 focus-visible:outline-primary">
+            <div style={{ backgroundColor: iconBg, color: iconColor }} className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0">
+              {genderIcon}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-bold text-foreground truncate">
+                  {soleStudent ? soleStudent.name : `${a.section} · ${a.grade}`}
+                </span>
+                <span className={`text-[10.5px] font-bold px-2 py-0.5 rounded-full ${statusBadge(status)}`}>{status}</span>
+                {a.pending && (
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200">Pending sync</span>
+                )}
+              </div>
+              {/* Group grade/section together and separate appointment details with pipes. */}
+              <div className="text-xs text-muted-foreground mt-1 truncate">
+                {soleStudent ? <>{a.grade}-{a.section}</> : <>{a.studentCount} students</>}
+                {!compact && <> | {shortDate}</>}
+                {' | '}{a.type}
+                {a.guardianContactNumber && <> | Contact No. {a.guardianContactNumber}</>}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Delete mode replaces the status actions with one clear choice,
+                so a stray click can't both change status and delete. */}
+            {deleteMode && !a.pending ? (
+              <button onClick={() => setDeleteTarget(a)}
+                className="w-7 h-7 rounded-full bg-red-100 hover:bg-red-200 text-red-700 flex items-center justify-center transition-colors" title="Delete this appointment">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <>
+                {/* In Progress is the one status still worth a single plain
+                    button (Mark Completed) -- Reschedule/No-Show make no
+                    sense mid-visit, so a 3-item menu would be two dead
+                    options. Every Scheduled card (today's or not) gets the
+                    full Actions menu below instead: a same-day appointment
+                    can still turn into a no-show before the day is over, so
+                    "not yet overdue" was never a reason to hide that option. */}
+                {showActions && !a.pending && status === 'In Progress' && (
                   <button onClick={() => setConfirmStatusAction({ session: a, status: 'Completed' })}
-                    className="w-7 h-7 rounded-full bg-green-100 hover:bg-green-200 text-green-700 flex items-center justify-center transition-colors" title="Mark Attended">
+                    className="w-7 h-7 rounded-full bg-green-100 hover:bg-green-200 text-green-700 flex items-center justify-center transition-colors" title="Mark Completed">
                     <Check className="w-3.5 h-3.5" />
                   </button>
-                  <button onClick={() => setConfirmStatusAction({ session: a, status: 'Missed' })}
-                    className="w-7 h-7 rounded-full bg-red-100 hover:bg-red-200 text-red-700 flex items-center justify-center transition-colors" title="Mark Missed">
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </>
-              )}
-              {showActions && !a.pending && status === 'In Progress' && (
-                <button onClick={() => setConfirmStatusAction({ session: a, status: 'Completed' })}
-                  className="w-7 h-7 rounded-full bg-green-100 hover:bg-green-200 text-green-700 flex items-center justify-center transition-colors" title="Mark Completed">
-                  <Check className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </>
-          )}
+                )}
+                {/* Scheduled or Missed: one menu instead of a row of icons --
+                    attended, reschedule, or confirm no-show, each going
+                    through its own confirmation (the status changes reuse
+                    the existing dialog; reschedule opens its own form). */}
+                {showActions && !a.pending && (status === 'Scheduled' || status === 'Missed') && (
+                  <div className="relative">
+                    <button
+                      onClick={(e) => {
+                        const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                        // Flip upward when there isn't room below -- a
+                        // 3-item menu is roughly 140px tall (2 items, no
+                        // No-Show option, a bit less); estimating high
+                        // avoids a downward menu clipping at the viewport
+                        // edge, which is the bug this fixes.
+                        const estMenuHeight = 150;
+                        const right = Math.max(8, window.innerWidth - r.right);
+                        setCardMenuAt(
+                          window.innerHeight - r.bottom < estMenuHeight
+                            ? { bottom: window.innerHeight - r.top + 4, right }
+                            : { top: r.bottom + 4, right },
+                        );
+                        setOpenCardMenu(v => v === a.id ? null : a.id);
+                      }}
+                      className="flex items-center gap-1 h-7 pl-2.5 pr-2 rounded-full bg-gray-100 hover:bg-gray-200 text-foreground text-xs font-semibold transition-colors"
+                      title="Resolve this appointment"
+                    >
+                      Actions <ChevronDown className={`w-3 h-3 transition-transform ${actionsOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {actionsOpen && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setOpenCardMenu(null)} />
+                        <div
+                          style={cardMenuAt ?? undefined}
+                          className="fixed z-50 bg-card border border-border rounded-lg shadow-md py-1 w-52"
+                        >
+                          <button
+                            onClick={() => { setOpenCardMenu(null); setConfirmStatusAction({ session: a, status: 'Completed' }); }}
+                            className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-gray-50 flex items-center gap-2"
+                          >
+                            <Check className="w-3.5 h-3.5 text-green-600" /> Mark Attended
+                          </button>
+                          <button
+                            onClick={() => { setOpenCardMenu(null); openReschedule(a); }}
+                            className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-gray-50 flex items-center gap-2"
+                          >
+                            <CalendarClock className="w-3.5 h-3.5 text-primary" /> Reschedule
+                          </button>
+                          {/* A future date can't be a no-show yet -- only
+                              today's or an already-past appointment can. */}
+                          {a.date <= TODAY && (
+                            <button
+                              onClick={() => { setOpenCardMenu(null); setConfirmStatusAction({ session: a, status: 'Missed' }); }}
+                              className="w-full text-left px-3 py-2 text-sm text-destructive hover:bg-danger-surface flex items-center gap-2"
+                            >
+                              <X className="w-3.5 h-3.5" /> Confirm No-Show
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+            {/* Dental chart is always the rightmost icon -- it's the one
+                constant across every status, so it anchors the same spot
+                whether it's sitting next to a Delete button, an Actions
+                menu, a single check, or nothing at all. */}
+            <Link
+              to={soleStudent ? `/dental-chart/${soleStudent.id}` : '/dental-charts'}
+              className="w-7 h-7 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 flex items-center justify-center transition-colors"
+              title={soleStudent ? `Open ${soleStudent.name}'s Dental Chart` : 'Open Dental Charts'}
+            >
+              <FileText className="w-3.5 h-3.5" />
+            </Link>
+          </div>
         </div>
       </div>
     );
   };
 
-  if (appointmentsLoading || rotationsLoading) {
+  if (appointmentsLoading) {
     return (
       <div className="space-y-4">
         <SkeletonPageHeader />
@@ -602,59 +868,101 @@ export const Appointments = () => {
   return (
     <div className="space-y-4">
       {appointmentsError && <Notice variant="error">{appointmentsError}</Notice>}
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Appointments</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{appointments.length} appointment{appointments.length !== 1 ? 's' : ''} total</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* No export by design (2026-09-02) — see PatientList for the
-              reasoning. The DOH report on Reports is the official output. */}
-          <button onClick={() => setShowCreateModal(true)}
+      {/* Header
+          ⚠ A SESSION IS NOT AN APPOINTMENT. `appointments` here is the
+          session list — one scheduled slot holding several students, which is
+          what each card below shows — so this line read "10 appointments
+          total" for a school with 14 appointment rows. The tab counts are
+          session counts and are right, because the cards are sessions; only
+          this total claimed to be something it was not. Both units now,
+          named. */}
+      <PageHeader
+        icon={CalendarIcon}
+        eyebrow="Scheduling"
+        title="Appointments"
+        description={`${appointments.length} session${appointments.length !== 1 ? 's' : ''} covering ${appointments.reduce((n, a) => n + a.appointmentIds.length, 0)} appointment${appointments.reduce((n, a) => n + a.appointmentIds.length, 0) !== 1 ? 's' : ''}.`}
+        action={
+          // No export by design (2026-09-02) — see PatientList for the
+          // reasoning. The DOH report on Reports is the official output.
+          <button onClick={() => { resetCreateAppointmentForm(); setShowCreateModal(true); }}
             className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover text-sm font-medium">
             <Plus className="w-4 h-4" /> New Appointment
           </button>
-        </div>
-      </div>
+        }
+      />
 
-      {/* ── TABS: Today / Upcoming / Completed / Missed ── */}
-      {/* max-w-full + scroll: five tabs do not fit a phone, so "Rotation" was
-          cut off past the right edge with no way to reach it. */}
-      <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 w-fit max-w-full overflow-x-auto">
-        {[
-          { key: 'today',     label: `Today (${todayAppts.length})`            },
-          { key: 'upcoming',  label: `Upcoming (${upcomingAppts.length})`      },
-          { key: 'completed', label: `Completed (${completedAppts.length})`    },
-          { key: 'missed',    label: `Missed (${missedAppts.length})`          },
-          { key: 'all',       label: `All (${appointments.length})`            },
-          { key: 'calendar',  label: 'Calendar'                                },
-        ].map(tab => (
-          <button key={tab.key} onClick={() => setActiveTab(tab.key as any)}
-            className={`flex-shrink-0 whitespace-nowrap px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === tab.key ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {/* ── LEFT RAIL: Today / Upcoming / Completed / Missed / All / Calendar ──
+          Vertical view switcher next to the agenda, replacing the old
+          horizontal pill strip -- the six tabs never fit a 390px phone as a
+          row, and the rail scrolls its own short list instead of fighting
+          the page for width. Below md it stacks above the content like the
+          old strip did. */}
+      <div className="flex flex-col md:flex-row gap-5 md:min-h-[calc(100vh-220px)]">
+        <nav className="flex md:flex-col gap-1 md:w-[200px] flex-shrink-0 overflow-x-auto md:overflow-visible">
+          {[
+            // Fixed brand navy for every tab's active fill -- status color
+            // (red Missed, green Completed) lives on the cards themselves
+            // (time block, badge), not on the rail's own selection state.
+            { key: 'today',     label: 'Today',     count: todayAppts.length,     fill: '#273A78' },
+            { key: 'upcoming',  label: 'Upcoming',  count: upcomingAppts.length,  fill: '#273A78' },
+            { key: 'completed', label: 'Completed', count: completedAppts.length, fill: '#273A78' },
+            { key: 'missed',    label: 'Missed',    count: missedAppts.length,    fill: '#273A78' },
+            { key: 'all',       label: 'All',       count: appointments.length,   fill: '#273A78' },
+            { key: 'calendar',  label: 'Calendar',  count: null,                  fill: '#273A78' },
+            // School Rotation (2026-09-24, user-approved): where the dentist is each weekday.
+            { key: 'rotation',  label: 'School Rotation', count: null,            fill: '#273A78' },
+          ].map(tab => {
+            const isActive = activeTab === tab.key;
+            return (
+              <button key={tab.key} onClick={() => setActiveTab(tab.key as any)}
+                style={isActive ? { backgroundColor: tab.fill } : undefined}
+                className={`flex-shrink-0 flex items-center justify-between gap-3 whitespace-nowrap px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                  isActive
+                    ? 'text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-gray-100'
+                }`}>
+                <span>{tab.label}</span>
+                {tab.count !== null && <span className={isActive ? 'text-white/80' : 'opacity-55'}>{tab.count}</span>}
+              </button>
+            );
+          })}
+        </nav>
 
-      {/* ── TAB CONTENT ── */}
-      <div className="bg-card rounded-xl border border-border overflow-hidden">
+        {/* ── TAB CONTENT ── */}
+        {/* This box, not the page, is what scrolls: capped to the viewport
+            (minus the topbar + page header above it) so a long appointment
+            list scrolls inside its own container instead of the header,
+            rail and everything else scrolling away with it. Each tab's own
+            header bar (Today's date strip, historyScopeBar, etc.) is
+            `sticky top-0` inside it so it stays pinned while the list
+            beneath scrolls. `no-scrollbar` keeps it scrollable (wheel/touch/
+            keyboard) without drawing the OS scrollbar track.
+            220px (2026-09-25: 260 left a visible gap under the card; 180
+            overshot and ran past the sidebar's own bottom edge instead of
+            aligning with it). Tuned by eye without a live browser in this
+            session -- re-check against the sidebar's actual bottom if it's
+            still off. */}
+        <div className="no-scrollbar flex-1 min-w-0 bg-card rounded-xl border border-border shadow-[0_8px_24px_rgba(15,23,42,0.08)] overflow-y-auto max-h-[calc(100vh-220px)]">
+          {/* Top accent stripe, matching the reference card -- sticky and
+              above every other sticky header in this box (z-20 vs their
+              z-10) so it stays visible as the sole rounded band at the very
+              top while everything beneath scrolls under it. */}
+          <div className="sticky top-0 z-20 h-1 bg-primary rounded-t-xl" />
 
       {/* TODAY */}
       {activeTab === 'today' && (
         <>
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+          <div className="sticky top-1 z-10 bg-card px-4 py-3 border-b border-border flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
             <span className="text-sm font-bold text-foreground flex-1">Today, {formatDateWithWeekday(TODAY)}</span>
             <TabActionsMenu tabKey="today" />
           </div>
           {todayAppts.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground">
-              <CalendarIcon className="w-8 h-8 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No appointments scheduled for today</p>
-            </div>
+            <EmptyState title="No appointments found" subtitle="There are no appointments scheduled for today." />
           ) : (
-            todayAppts.map(a => <AppointmentCard key={a.id} a={a} showActions deleteMode={deleteModeTab === 'today'} />)
+            <div className="p-3">
+              {todayAppts.map(a => <AppointmentCard key={a.id} a={a} showActions deleteMode={deleteModeTab === 'today'} />)}
+            </div>
           )}
         </>
       )}
@@ -662,27 +970,14 @@ export const Appointments = () => {
       {/* UPCOMING */}
       {activeTab === 'upcoming' && (
         <>
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+          <div className="sticky top-1 z-10 bg-card px-4 py-3 border-b border-border flex items-center justify-between">
             <span className="text-sm font-semibold text-foreground">Upcoming Appointments</span>
             <TabActionsMenu tabKey="upcoming" />
           </div>
           {upcomingAppts.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground">
-              <CalendarIcon className="w-8 h-8 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No upcoming appointments</p>
-            </div>
+            <EmptyState title="No appointments found" subtitle="There are no upcoming appointments scheduled." />
           ) : (
-            upcomingAppts.map(a => (
-              <div key={a.id} className="flex items-center gap-4 px-4 py-3 border-b border-gray-100 last:border-0 hover:bg-gray-50">
-                <div className="text-center min-w-[48px]">
-                  <div className="text-lg font-bold text-primary">{a.date.split('-')[2]}</div>
-                  <div className="text-xs text-muted-foreground">{new Date(a.date + 'T00:00:00').toLocaleString('default', { month: 'short' })}</div>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <AppointmentCard a={a} showActions deleteMode={deleteModeTab === 'upcoming'} />
-                </div>
-              </div>
-            ))
+            <DateGroupedCards list={upcomingAppts} tabKey="upcoming" />
           )}
         </>
       )}
@@ -692,12 +987,9 @@ export const Appointments = () => {
         <>
           {historyScopeBar('Completed Appointments', 'completed')}
           {completedAppts.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground">
-              <CalendarIcon className="w-8 h-8 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No completed appointments</p>
-            </div>
+            <EmptyState title="No appointments found" subtitle="There are currently no completed appointments." />
           ) : (
-            completedAppts.map(a => <AppointmentCard key={a.id} a={a} showActions deleteMode={deleteModeTab === 'completed'} />)
+            <DateGroupedCards list={completedAppts} tabKey="completed" />
           )}
         </>
       )}
@@ -707,12 +999,9 @@ export const Appointments = () => {
         <>
           {historyScopeBar('Missed Appointments', 'missed')}
           {missedAppts.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground">
-              <CalendarIcon className="w-8 h-8 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No missed appointments</p>
-            </div>
+            <EmptyState title="No appointments found" subtitle="There are currently no missed appointments." />
           ) : (
-            missedAppts.map(a => <AppointmentCard key={a.id} a={a} showActions deleteMode={deleteModeTab === 'missed'} />)
+            <DateGroupedCards list={missedAppts} tabKey="missed" />
           )}
         </>
       )}
@@ -720,29 +1009,28 @@ export const Appointments = () => {
       {/* ALL */}
       {activeTab === 'all' && (
         <>
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+          <div className="sticky top-1 z-10 bg-card px-4 py-3 border-b border-border flex items-center justify-between">
             <span className="text-sm font-semibold text-foreground">All Appointments</span>
             <TabActionsMenu tabKey="all" />
           </div>
           {allAppts.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground">
-              <CalendarIcon className="w-8 h-8 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No appointments loaded for this window</p>
-            </div>
+            <EmptyState title="No appointments found" subtitle="No appointments are loaded for this window." />
           ) : (
-            allAppts.map(a => <AppointmentCard key={a.id} a={a} showActions deleteMode={deleteModeTab === 'all'} />)
+            <DateGroupedCards list={allAppts} tabKey="all" />
           )}
         </>
       )}
 
-      {/* CALENDAR — the old "Dentist Rotation Schedule" widget, now doubling
-          as a reminders calendar (see the note above the rotation form
-          state). Rotation-by-school scheduling is gone: with one dentist
-          covering three schools, a per-day note here is more useful than a
-          week-range picker nobody was filling in. */}
+      {/* CALENDAR — a per-day reminders calendar, backed by DAY_NOTE.
+          Rotation-by-school scheduling is gone for good (the tab was removed
+          2026-09-07): with one dentist covering three schools, a per-day note
+          here is more useful than a week-range picker nobody was filling in,
+          and no objective or ERD entity asked for the schedule. If it is ever
+          wanted back, the answer is a cross-school week view, not this. */}
+      {activeTab === 'rotation' && <SchoolRotationTab />}
       {activeTab === 'calendar' && (
         <>
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+          <div className="sticky top-1 z-10 bg-card px-4 py-3 border-b border-gray-100 flex items-center justify-between">
             <span className="text-sm font-semibold text-foreground">Calendar Reminders</span>
             <div className="flex items-center gap-2">
               <button onClick={prevMonth} className="p-1.5 hover:bg-gray-100 rounded-lg"><ChevronLeft className="w-4 h-4 text-muted-foreground"/></button>
@@ -752,7 +1040,7 @@ export const Appointments = () => {
           </div>
           {!selectedSchool && (
             <div className="px-4 py-2">
-              <Notice variant="warning">Pick a specific school from the school switcher to add reminders — appointments and notes are both kept one school at a time.</Notice>
+              <Notice variant="warning">Pick a specific school from the school switcher to add reminders. Appointments and notes are both kept one school at a time.</Notice>
             </div>
           )}
           <div className="grid grid-cols-7 border-b border-border">
@@ -763,14 +1051,18 @@ export const Appointments = () => {
           <div className="grid grid-cols-7">
             {days.map((day, idx) => {
               const dayAppts = getAppointmentsForDay(day);
-              const dayNotes = getNotesForDay(day);
+              // ⚠ OUR day notes (DAY_NOTE), not rotation rows. Her branch
+              // repurposed DENTIST_ROTATION as the notes table; ours has a
+              // model for this, and the badge must show the same notes the
+              // day dialog edits or the two disagree on one screen.
+              const dayNotes = day ? notesFor(day) : [];
               const isToday = day && toLocalDateString(day) === TODAY;
               const clickable = day && selectedSchool;
               return (
                 <div
                   key={idx}
-                  onClick={() => clickable && openNoteModal(toLocalDateString(day!))}
-                  title={clickable ? 'Click to add or edit a reminder for this date' : undefined}
+                  onClick={() => clickable && openDay(day)}
+                  title={clickable ? 'Open this day: schedule and notes' : undefined}
                   className={`min-h-[82px] p-1.5 border-r border-b border-gray-100 last:border-b-0 space-y-1 ${!day ? 'bg-gray-50/60' : ''} ${isToday ? 'bg-teal-50' : ''} ${clickable ? 'cursor-pointer hover:bg-gray-50' : ''}`}
                 >
                   {day && (
@@ -789,13 +1081,13 @@ export const Appointments = () => {
                       })}
                       {dayNotes.map(n => (
                         <button
-                          key={n.id}
-                          onClick={e => { e.stopPropagation(); openNoteModal(toLocalDateString(day)); }}
-                          title={n.notes}
+                          key={n._id}
+                          onClick={e => { e.stopPropagation(); openDay(day); }}
+                          title={n.note}
                           className="w-full flex items-start gap-1 text-left text-xs font-medium px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100"
                         >
                           <StickyNote className="w-3 h-3 flex-shrink-0 mt-0.5" />
-                          <span className="leading-snug line-clamp-2 break-words">{n.notes}</span>
+                          <span className="leading-snug line-clamp-2 break-words">{n.note}</span>
                         </button>
                       ))}
                     </>
@@ -807,9 +1099,209 @@ export const Appointments = () => {
         </>
       )}
 
-      </div>{/* end tab content box */}
+        </div>{/* end tab content box */}
+      </div>{/* end rail + content row */}
 
       {/* ── CREATE APPOINTMENT MODAL ── */}
+      {noteDay && (
+        <Modal onClose={() => setNoteDay(null)} maxWidth="max-w-4xl" closeDisabled={noteSaving}>
+          <div className="flex items-center justify-between p-5 border-b border-gray-100">
+            <h2 className="text-lg font-bold text-foreground">{formatDateWithWeekday(toLocalDateString(noteDay))}</h2>
+            <button onClick={() => setNoteDay(null)} className="p-2 hover:bg-gray-100 rounded-lg" aria-label="Close"><X className="w-4 h-4"/></button>
+          </div>
+          {/* ⚠ NOT an even split. The left half carries session cards, student
+              rows and their notes; the right is one textarea and a button. An
+              even split starved the side with all the content — the section
+              name truncated and every chip wrapped. */}
+          <div className="p-5 grid grid-cols-1 md:grid-cols-[3fr_2fr] gap-5">
+
+            {/* ── READ HALF ─────────────────────────────────────────────── */}
+            <div className="space-y-4 md:max-h-[60vh] md:overflow-y-auto md:pr-1">
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Appointments</p>
+                {getAppointmentsForDay(noteDay).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">None scheduled.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {getAppointmentsForDay(noteDay).map((a) => (
+                      <li key={a.id}>
+                        {/* The SAME card the Today / Upcoming / Completed /
+                            Missed tabs use, with its real actions - mark
+                            completed, mark missed, re-open. It was already in
+                            scope here; this dialog just never used it and
+                            offered a note editor and nothing else. */}
+                        <AppointmentCard a={a} showActions compact />
+                        {/* Student rows stay NESTED under the card. The card is
+                            per SESSION (time + grade + section) while these are
+                            the individual students in it, so replacing them with
+                            the card alone would have lost the per-student note
+                            and the link to that student's chart. */}
+                        <ul className="mt-1 space-y-1 pl-3 border-l-2 border-gray-100">
+                          {a.students.map((st) => (
+                            <li key={st.appointmentId} className="text-xs">
+                              <div className="flex items-start justify-between gap-2">
+                                {/* Straight to THIS student's record. The card's
+                                    own link goes to the chart LIST, which is
+                                    the right target for a session and the
+                                    wrong one for a named student. */}
+                                <Link to={`/dental-chart/${st.id}`} className="text-foreground hover:text-primary hover:underline">
+                                  {st.name}
+                                </Link>
+                                {canWriteNotes && apptNoteId !== st.appointmentId && (
+                                  <button
+                                    onClick={() => { setApptNoteId(st.appointmentId); setApptNoteDraft(st.notes); }}
+                                    className="text-primary hover:underline shrink-0"
+                                  >
+                                    {st.notes ? 'Edit note' : 'Add note'}
+                                  </button>
+                                )}
+                              </div>
+                              {apptNoteId === st.appointmentId ? (
+                                <div className="mt-1 space-y-1">
+                                  <input
+                                    value={apptNoteDraft}
+                                    onChange={(e) => setApptNoteDraft(e.target.value)}
+                                    maxLength={500}
+                                    placeholder="e.g. bring guardian"
+                                    aria-label={`Note for ${st.name}`}
+                                    className="w-full px-2 py-1 text-xs border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                                  />
+                                  <div className="flex gap-1.5">
+                                    <button onClick={() => saveApptNote(st.appointmentId)} disabled={apptNoteSaving}
+                                      className="px-2 py-0.5 text-xs bg-primary text-white rounded disabled:opacity-50">
+                                      {apptNoteSaving ? 'Saving…' : 'Save'}
+                                    </button>
+                                    <button onClick={() => { setApptNoteId(null); setApptNoteDraft(''); }} disabled={apptNoteSaving}
+                                      className="px-2 py-0.5 text-xs border border-border rounded">Cancel</button>
+                                  </div>
+                                </div>
+                              ) : st.notes ? (
+                                <p className="text-[11px] text-blue-800 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5 mt-0.5">{st.notes}</p>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Notes on this date</p>
+                {notesFor(noteDay).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No notes on this date.</p>
+                ) : (
+                  <ul className="space-y-1.5">
+                    {notesFor(noteDay).map((n) => (
+                      <li key={n._id} className="text-sm bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+                        {dayNoteEditId === n._id ? (
+                          <div className="space-y-1.5">
+                            <textarea
+                              value={dayNoteEditDraft}
+                              onChange={(e) => setDayNoteEditDraft(e.target.value)}
+                              maxLength={500}
+                              rows={2}
+                              aria-label="Edit note"
+                              className="w-full px-2 py-1 text-sm border border-amber-300 rounded bg-card focus:outline-none focus:ring-2 focus:ring-primary"
+                            />
+                            <div className="flex gap-1.5">
+                              <button onClick={() => saveDayNoteEdit(n._id)} disabled={dayNoteEditSaving || !dayNoteEditDraft.trim()}
+                                className="px-2 py-0.5 text-xs bg-primary text-white rounded disabled:opacity-50">
+                                {dayNoteEditSaving ? 'Saving…' : 'Save'}
+                              </button>
+                              <button onClick={() => { setDayNoteEditId(null); setDayNoteEditDraft(''); }} disabled={dayNoteEditSaving}
+                                className="px-2 py-0.5 text-xs border border-border rounded bg-card">Cancel</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="text-amber-900">
+                              {n.note}
+                              {/* A note with no school applies everywhere — say so,
+                                  rather than leaving the reader to infer it. */}
+                              <span className="block text-[11px] text-amber-700/80">
+                                {n.school_id ? (schools.find((sc) => sc._id === n.school_id)?.school_name ?? 'One school') : 'All schools'}
+                              </span>
+                            </span>
+                            {canWriteNotes && (
+                              <span className="flex items-center gap-1.5 shrink-0">
+                                {/* Edit, new in Sprint 131. Until now the only
+                                    way to correct a typo was to remove the note
+                                    and retype it, which left the wrong wording
+                                    in the archive for good. */}
+                                <button onClick={() => { setDayNoteEditId(n._id); setDayNoteEditDraft(n.note); }}
+                                  className="text-amber-700 hover:text-primary" aria-label="Edit note">
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                {/* "Remove" on screen, ARCHIVE underneath — the
+                                    record is never hard deleted and a System
+                                    Admin can restore it from /archive. */}
+                                <button onClick={() => archiveDayNote(n._id)} className="text-amber-700 hover:text-destructive" aria-label="Remove note">
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+
+            {/* ── WRITE HALF ────────────────────────────────────────────── */}
+            <div className="md:border-l md:border-gray-100 md:pl-5">
+              {canWriteNotes ? (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Add a note</p>
+                  {/* Grows with what is typed instead of holding two lines and
+                      scrolling a long note out of sight (user, 2026-09-05),
+                      capped so it can never push the Add button off a phone. */}
+                  <textarea
+                    value={noteDraft}
+                    onChange={(e) => {
+                      setNoteDraft(e.target.value);
+                      // ⚠ `scrollHeight` excludes the border, and the box is
+                      // border-box — without the +2 the element ends up two
+                      // pixels short of its own content and shows a scrollbar
+                      // for text that is already fully visible.
+                      const el = e.currentTarget;
+                      el.style.height = 'auto';
+                      const grown = Math.min(el.scrollHeight + 2, 220);
+                      el.style.height = `${grown}px`;
+                      el.style.overflowY = el.scrollHeight + 2 > 220 ? 'auto' : 'hidden';
+                    }}
+                    maxLength={500}
+                    rows={3}
+                    placeholder="e.g. No clinic, holiday"
+                    aria-label="New note for this date"
+                    className="w-full px-3 py-2 text-sm border border-border rounded-lg resize-y overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-muted-foreground">{noteDraft.length}/500</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {selectedSchool ? 'This school only' : 'All schools'}
+                    </span>
+                  </div>
+                  <button
+                    onClick={saveDayNote}
+                    disabled={noteSaving || !noteDraft.trim()}
+                    className="w-full px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50"
+                  >
+                    {noteSaving ? 'Saving…' : 'Add note'}
+                  </button>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">Your role can read day notes but not write them.</p>
+              )}
+            </div>
+          </div>
+        </Modal>
+      )}
+
+
       {showCreateModal && (
         <Modal onClose={() => { resetCreateAppointmentForm(); setShowCreateModal(false); }} maxWidth="max-w-lg" closeDisabled={creating}>
             <div className="flex items-center justify-between p-5 border-b border-gray-100">
@@ -818,12 +1310,12 @@ export const Appointments = () => {
             </div>
             <div className="p-5 space-y-4">
               {!selectedSchool ? (
-                <Notice variant="warning">Pick a specific school from the school switcher first — appointments are booked one school at a time.</Notice>
+                <Notice variant="warning">Pick a specific school from the school switcher first. Appointments are booked one school at a time.</Notice>
               ) : (
                 <>
                   <div>
                     <label className="block text-xs font-medium text-muted-foreground mb-1">
-                      Search Students at {getSchoolShortName(selectedSchool)}
+                      Search Students at {selectedSchool}
                     </label>
                     <input
                       type="text"
@@ -852,7 +1344,7 @@ export const Appointments = () => {
                             {pending ? (
                               <span className="text-xs text-destructive ml-auto">{pending.status} for {shortenDate(pending.date)}</span>
                             ) : (
-                              <span className="text-xs text-muted-foreground ml-auto">{s.grade} · {s.section || '—'}</span>
+                              <span className="text-xs text-muted-foreground ml-auto">{s.grade} · {s.section || 'N/A'}</span>
                             )}
                           </label>
                         );
@@ -876,6 +1368,16 @@ export const Appointments = () => {
                     placeholder="Defaults to 8:00 AM"
                     className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring" />
                   <p className="text-[11px] text-muted-foreground mt-1">Defaults to 8:00 AM if left blank.</p>
+                </div>
+                <div className="col-span-2">
+                  <label htmlFor="guardian-contact-number" className="block text-xs font-medium text-muted-foreground mb-1">
+                    Guardian Contact Number <span className="text-destructive">*</span>
+                  </label>
+                  <input id="guardian-contact-number" type="tel" required value={guardianContactNumber}
+                    onChange={e => setGuardianContactNumber(e.target.value)}
+                    placeholder="09XX XXX XXXX"
+                    className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring" />
+                  <p className="text-[11px] text-muted-foreground mt-1">Who the clinic can reach about this booking.</p>
                 </div>
                 <div className="col-span-2">
                   <label className="block text-xs font-medium text-muted-foreground mb-2">
@@ -927,51 +1429,126 @@ export const Appointments = () => {
         </Modal>
       )}
 
-      {/* ── ADD/EDIT CALENDAR NOTE MODAL ── */}
-      {showRotationModal && (
-        <Modal onClose={() => { resetRotationForm(); setShowRotationModal(false); }} closeDisabled={rotSaving}>
-            <div className="flex items-center justify-between p-5 border-b border-gray-100">
-              <div>
-                <h2 className="text-lg font-bold text-foreground">{editingRotationId ? 'Edit Reminder' : 'Add Reminder'}</h2>
-                {/* The date was set by which calendar cell was clicked — no
-                    separate date field to change it from here. */}
-                {noteDate && (
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {new Date(noteDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-                  </p>
-                )}
+      {/* ── Appointment details side panel (option B, 2026-09-25) ── */}
+      {(() => {
+        const d = detailId ? appointments.find((x) => x.id === detailId) : null;
+        if (!d) return null;
+        const status = getStatus(d);
+        const sole = d.studentCount === 1 ? d.students[0] : null;
+        const when = new Date(`${d.date}T${d.time}`);
+        const whenText = `${when.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })} · ${formatTimeBlock(d.time).clock} ${formatTimeBlock(d.time).ampm}`;
+        const flags = sole ? [sole.requiresFollowup && 'Follow-up', sole.parentalSupervision && 'Parent present'].filter(Boolean) as string[] : [];
+        const canResolve = !d.pending && (status === 'Scheduled' || status === 'Missed' || status === 'In Progress');
+        return (
+          <div className="fixed inset-0 z-[80] flex justify-end">
+            <div className="absolute inset-0 bg-black/30" onClick={() => setDetailId(null)} aria-hidden="true" />
+            <aside role="dialog" aria-modal="true" aria-label="Appointment details"
+              className="relative flex h-full w-full flex-col bg-card shadow-[-20px_0_50px_rgba(15,23,42,0.25)] sm:w-[420px]">
+              <div className="flex items-center gap-3 border-b border-border px-5 py-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+                  style={{ backgroundColor: sole?.gender === 'Female' ? '#FCE7F3' : '#DBEAFE', color: sole?.gender === 'Female' ? '#DB2777' : '#1E40AF' }}>
+                  {sole?.gender === 'Female' ? <Venus className="h-5 w-5" /> : sole?.gender === 'Male' ? <Mars className="h-5 w-5" /> : <span className="text-sm font-bold">{d.grade.replace('Grade ', 'G')}</span>}
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate text-base font-extrabold text-foreground">{sole ? sole.name : `${d.grade}-${d.section}`}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {sole ? `${sole.gender} · ${sole.age} years · ${d.grade}-${d.section}` : `${d.studentCount} students`}
+                  </div>
+                </div>
+                <button type="button" onClick={() => setDetailId(null)} aria-label="Close details"
+                  className="ml-auto rounded-lg p-1.5 text-muted-foreground hover:bg-gray-100"><X className="h-4 w-4" /></button>
               </div>
-              <button onClick={() => { resetRotationForm(); setShowRotationModal(false); }} className="p-2 hover:bg-gray-100 rounded-lg"><X className="w-4 h-4"/></button>
-            </div>
-            <div className="p-5 space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Note</label>
-                <textarea value={rotNotes} onChange={e => setRotNotes(e.target.value)}
-                  placeholder="e.g. Bayanihan Mission at BT Annex A"
-                  rows={3}
-                  className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring" />
-              </div>
-              {rotError && <p className="text-sm text-destructive">{rotError}</p>}
-              <div className="flex gap-3 pt-2">
-                {editingRotationId && (
-                  <button onClick={handleDeleteRotation} disabled={rotSaving}
-                    className="px-4 py-2 border border-destructive text-destructive rounded-lg hover:bg-danger-surface text-sm font-medium disabled:opacity-60">
-                    Delete
-                  </button>
-                )}
-                <button onClick={() => { resetRotationForm(); setShowRotationModal(false); }}
-                  className="flex-1 px-4 py-2 border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium">
-                  Cancel
-                </button>
-                <button onClick={handleSaveRotation} disabled={rotSaving}
-                  className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-60 text-sm font-medium">
-                  {rotSaving ? 'Saving…' : 'Save Reminder'}
-                </button>
-              </div>
-            </div>
-        </Modal>
-      )}
 
+              <div className="flex-1 overflow-y-auto">
+                <PanelSection title="Appointment">
+                  <div className="grid grid-cols-2 gap-x-5 gap-y-3">
+                    <PanelField label="When">{whenText}</PanelField>
+                    <PanelField label="Status"><span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${statusBadge(status)}`}>{status}</span></PanelField>
+                    <PanelField label="Type">{d.type}</PanelField>
+                    <PanelField label="Dentist">{d.dentist}</PanelField>
+                  </div>
+                </PanelSection>
+                <PanelSection title="Patient">
+                  <div className="grid grid-cols-2 gap-x-5 gap-y-3">
+                    <PanelField label="School">{d.school}</PanelField>
+                    <PanelField label="Guardian contact">{d.guardianContactNumber || 'Not recorded'}</PanelField>
+                    <PanelField label="Flags">
+                      {flags.length
+                        ? <span className="flex flex-wrap gap-1">{flags.map((f) => <span key={f} className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">{f}</span>)}</span>
+                        : <span className="font-normal text-muted-foreground">None</span>}
+                    </PanelField>
+                    {sole && (
+                      <PanelField label="Record">
+                        <Link to={`/dental-chart/${sole.id}`} className="text-primary underline underline-offset-2 hover:text-primary-hover">Open dental chart ›</Link>
+                      </PanelField>
+                    )}
+                  </div>
+                  {!sole && (
+                    <ul className="mt-3 space-y-1.5">
+                      {d.students.map((st) => (
+                        <li key={st.appointmentId} className="flex items-center justify-between gap-2 text-sm">
+                          <span className="truncate">{st.name} <span className="text-xs text-muted-foreground">· {st.gender} · {st.age}</span></span>
+                          <Link to={`/dental-chart/${st.id}`} className="shrink-0 text-xs font-semibold text-primary hover:underline">Chart ›</Link>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </PanelSection>
+                <PanelSection title="Note" last>
+                  {sole && canWriteNotes && !d.pending ? (
+                    <>
+                      <textarea value={panelNote} onChange={(e) => setPanelNote(e.target.value)} maxLength={500} rows={3}
+                        aria-label="Appointment note"
+                        className="w-full resize-y rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-foreground focus:bg-white focus:outline-none focus:ring-2 focus:ring-ring" />
+                      {panelNote.trim() !== sole.notes && (
+                        <div className="mt-2 flex gap-2">
+                          <button type="button" disabled={panelNoteSaving}
+                            onClick={async () => {
+                              setPanelNoteSaving(true);
+                              try {
+                                await apiClient.put(`/appointments/${sole.appointmentId}`, { notes: panelNote.trim() });
+                                await reloadAppointments();
+                                toast.success('Note saved.');
+                              } catch (err) {
+                                toast.error(err instanceof Error ? err.message : 'Could not save the note');
+                              } finally { setPanelNoteSaving(false); }
+                            }}
+                            className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-60">
+                            {panelNoteSaving ? 'Saving…' : 'Save note'}
+                          </button>
+                          <button type="button" onClick={() => setPanelNote(sole.notes)} disabled={panelNoteSaving}
+                            className="rounded-lg border border-border px-3 py-2 text-sm font-semibold text-foreground hover:bg-gray-50">Undo</button>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="min-h-[44px] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-foreground">
+                      {sole ? sole.notes : d.students.filter((st) => st.notes).map((st) => <div key={st.appointmentId}><b>{st.name}:</b> {st.notes}</div>)}
+                    </div>
+                  )}
+                </PanelSection>
+              </div>
+
+              {/* Same rules as the row's Actions menu: In Progress can only be
+                  completed; a future date cannot be a no-show yet. */}
+              {canResolve && (
+                <div className="flex flex-wrap justify-end gap-2 border-t border-border px-5 py-4">
+                  <button type="button" onClick={() => setConfirmStatusAction({ session: d, status: 'Completed' })}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-700"><Check className="h-4 w-4" /> Completed</button>
+                  {status !== 'In Progress' && d.date <= TODAY && (
+                    <button type="button" onClick={() => setConfirmStatusAction({ session: d, status: 'Missed' })}
+                      className="rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-destructive hover:bg-danger-surface">Missed</button>
+                  )}
+                  {status !== 'In Progress' && (
+                    <button type="button" onClick={() => { setDetailId(null); openReschedule(d); }}
+                      className="rounded-lg border border-border px-3 py-2 text-sm font-semibold text-foreground hover:bg-gray-50">Reschedule</button>
+                  )}
+                </div>
+              )}
+            </aside>
+          </div>
+        );
+      })()}
       <ConfirmDialog
         open={!!confirmStatusAction}
         title={confirmStatusAction?.status === 'Missed' ? 'Mark as missed?' : 'Mark as attended?'}
@@ -986,6 +1563,64 @@ export const Appointments = () => {
         onConfirm={confirmStatusChange}
         onCancel={() => setConfirmStatusAction(null)}
       />
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete this appointment?"
+        message={
+          deleteTarget
+            ? `This permanently removes ${deleteTarget.studentCount === 1 ? deleteTarget.students[0]?.name ?? 'this student' : `${deleteTarget.studentCount} students`}' appointment. This cannot be undone.`
+            : ''
+        }
+        confirmLabel="Delete"
+        tone="danger"
+        busy={deletingAppointment}
+        onConfirm={confirmDeleteAppointment}
+        onCancel={() => setDeleteTarget(null)}
+      />
+
+      {/* ── RESCHEDULE MODAL ── */}
+      {rescheduleTarget && (
+        <Modal onClose={closeReschedule} maxWidth="max-w-sm" closeDisabled={rescheduling}>
+          <div className="flex items-center justify-between p-5 border-b border-gray-100">
+            <h2 className="text-lg font-bold text-foreground">Reschedule Appointment</h2>
+            <button onClick={closeReschedule} disabled={rescheduling} className="p-2 hover:bg-gray-100 rounded-lg disabled:opacity-50">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="p-5 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {rescheduleTarget.studentCount === 1
+                ? rescheduleTarget.students[0]?.name ?? 'This student'
+                : `${rescheduleTarget.studentCount} students`}
+              {': pick a new date and time. This also clears the missed status.'}
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-foreground mb-1">New Date *</label>
+                <input type="date" value={rescheduleDate} onChange={e => setRescheduleDate(e.target.value)}
+                  className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">New Time</label>
+                <input type="time" value={rescheduleTime} onChange={e => setRescheduleTime(e.target.value)}
+                  className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring" />
+              </div>
+            </div>
+            {rescheduleError && <Notice variant="error">{rescheduleError}</Notice>}
+          </div>
+          <div className="flex items-center justify-end gap-2 p-5 border-t border-gray-100">
+            <button onClick={closeReschedule} disabled={rescheduling}
+              className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground disabled:opacity-50">
+              Cancel
+            </button>
+            <button onClick={submitReschedule} disabled={rescheduling}
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-60 text-sm font-medium">
+              {rescheduling ? 'Rescheduling…' : 'Reschedule'}
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };

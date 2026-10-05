@@ -4,6 +4,9 @@ import { apiClient } from '../api/client';
 import { usePendingWritesFor } from './useOfflineQueue';
 import type { ApiSchool } from '../api/types';
 import { surnameFirst } from '../utils/studentName';
+import { cachedGet, refreshCached, invalidateCached } from '../utils/apiCache';
+
+const STUDENT_ROWS_CACHE_KEY = '/stats/student-rows';
 
 export interface StudentRow {
   id: string;
@@ -21,6 +24,23 @@ export interface StudentRow {
   lastVisit: string | null;
   oralStatus: string;
   riskLevel: 'High' | 'Medium' | 'Low' | null;
+  /** The dentist-validated recommendation text from the same RiskStratification
+   *  record `riskLevel` came from. Empty string when unassessed. */
+  recommendation: string;
+  /** The Risk chip on the Students list (2026-10-01): the SAME review status
+   *  Risk Classification shows (shared `reviewSummary`). `level` is the
+   *  dentist's once reviewed, the waiting suggestion's while it needs review.
+   *  Absent on offline-queued rows. */
+  riskReview?: {
+    status: 'reviewed' | 'needs_review' | 'not_checked' | 'no_visit';
+    level: 'High' | 'Medium' | 'Low' | null;
+    reviewedAt: string | null;
+  };
+  /** This school year's treatment pipeline stage (user, 2026-09-28) --
+   *  distinct from riskLevel/oralStatus's clinical severity. Resets to
+   *  "For Oral Exam" each new school year even for a student who finished
+   *  both RPC visits last year. */
+  pipelineStatus: 'For Oral Exam' | 'For First Treatment' | 'For Second Treatment' | 'Completed';
   /** From the student's LATEST STUDENT_IPTR (consent is per school year).
    *  null means no IPTR exists yet — a different fact from "pending". */
   consentStatus: 'pending' | 'complete' | null;
@@ -34,19 +54,32 @@ export function useStudents() {
   const [error, setError] = useState<string | null>(null);
   const pendingWrites = usePendingWritesFor('/students');
 
-  const reload = useCallback(async () => {
+  // The join that built these rows used to happen here, over six whole
+  // collections fetched into the browser (Sprint 56b moved it to
+  // /stats/student-rows). Eight components mount this hook, so at the
+  // Chapter 1 scale of ~8,000 students it was the app's largest read.
+  // `schools` is still fetched because the hook exposes it for the
+  // optimistic pending-write rows below.
+  //
+  // Cached across mounts within the session (user, 2026-09-27): the
+  // decrypt-heavy /stats/student-rows query was re-run in full on every
+  // mount of every one of those eight components, even navigating back to a
+  // page visited seconds ago. `force` is true for anything that just
+  // mutated a student (add/edit/archive/import, or a queued write that
+  // finally synced) and false for a plain page mount, which is happy to
+  // reuse a still-fresh cache from wherever last warmed it.
+  const runFetch = useCallback(async (force: boolean) => {
     beginLoad();
     try {
-      // The join that built these rows used to happen here, over six whole
-      // collections fetched into the browser (Sprint 56b moved it to
-      // /stats/student-rows). Eight components mount this hook, so at the
-      // Chapter 1 scale of ~8,000 students it was the app's largest read.
-      // `schools` is still fetched because the hook exposes it for the
-      // optimistic pending-write rows below.
+      const getRows = () => apiClient.get<StudentRow[]>(STUDENT_ROWS_CACHE_KEY);
       const [rows, apiSchools] = await Promise.all([
-        apiClient.get<StudentRow[]>('/stats/student-rows'),
+        force ? refreshCached(STUDENT_ROWS_CACHE_KEY, getRows) : cachedGet(STUDENT_ROWS_CACHE_KEY, getRows),
         apiClient.get<ApiSchool[]>('/schools'),
       ]);
+      // The Dental Chart's Prev/Next nav (/stats/student-nav) reads the same
+      // underlying roster -- a mutation here must invalidate that cache too,
+      // or a chart opened next would still walk the pre-mutation nav order.
+      if (force) invalidateCached('/stats/student-nav');
 
       setStudents(rows);
       setSchools(apiSchools);
@@ -58,9 +91,11 @@ export function useStudents() {
     }
   }, []);
 
+  const reload = useCallback(() => runFetch(true), [runFetch]);
+
   useEffect(() => {
-    reload();
-  }, [reload]);
+    runFetch(false);
+  }, [runFetch]);
 
   // A pending write disappearing from the queue means it just synced —
   // reload so the real server record (with its real _id) replaces the
@@ -92,6 +127,8 @@ export function useStudents() {
         lastVisit: null,
         oralStatus: 'Not Yet Screened',
         riskLevel: null,
+        recommendation: '',
+        pipelineStatus: 'For Oral Exam',
         consentStatus: 'pending',
         pending: true,
       };

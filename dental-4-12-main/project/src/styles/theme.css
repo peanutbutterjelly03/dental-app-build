@@ -7,11 +7,41 @@
    dead by grepping src/ for every corresponding utility class before deleting.
    Every token below is in active use; see DESIGN.md for what each one means. */
 :root {
-  --font-size: 16px;
+  /* App-wide scale-down (2026-09-24), replacing an earlier `zoom: 0.85` on
+     `html` that was reverted -- `zoom` desynced `100vh`/`min-h-screen` and
+     every `window.innerHeight`-based sticky/bounded-height calculation in
+     the app from the real viewport, leaving a blank gap of bare page below
+     content on every screen. Root `font-size` doesn't touch viewport-unit
+     math at all: `vh`/`vw` are defined purely by the viewport's own
+     dimensions, independent of font-size, so this shrinks every rem-based
+     Tailwind utility (padding, gaps, text, icon and avatar sizing, radii)
+     by the same ~15% without that risk.
+     ⚠ DOES NOT reach values given in raw px, in general. Two exceptions,
+     both in Root.tsx, done deliberately and by hand rather than a blanket
+     multiply:
+     - The sidebar's label/badge text-[Npx] sizes (2026-09-25) aren't
+       layout, just font-size expressed as px instead of Tailwind's rem
+       scale -- converted to the equivalent rem value (N/16rem) so they
+       shrink with everything else.
+     - The rail's own layout px -- w-[280px]/w-[88px], main's
+       md:ml-[320px]/[128px], --content-left, and the smaller radii/gaps
+       inside the rail -- were re-derived at the same ~0.85 ratio
+       (2026-09-25) to w-[238px]/[75px], md:ml-[272px]/[109px], etc., since
+       main's margin = rail width + (rem-based, already-shrinking) inset,
+       and multiplying the old raw margin by 0.85 reproduces that same
+       relationship rather than fighting it. TOPBAR_H (used well beyond the
+       sidebar -- five call sites per its own comment) is NOT included in
+       this and still doesn't shrink; scaling it is a separate, wider
+       change. */
+  --font-size: 13.6px;
   --background: #ffffff;
   --foreground: oklch(0.145 0 0);
   --card: #ffffff;
-  --primary: #1E40AF;
+  /* RAMHIS-derived palette (adopted 2026-09-22, sourced from the real
+     carlonana0213-arch/RAMHIS-V3 `production` branch's Theme/colors.js, not
+     eyeballed from a screenshot). primary-700 does general brand/button duty;
+     primary-900 is reserved for the sidebar surface + high-emphasis figures. */
+  --primary: #273A78;            /* primary-700 */
   --primary-foreground: oklch(1 0 0);
   --muted: #ececf0;
   /* Sprint 94: #717182 -> #67687A. MEASURED, not taste. The old value is
@@ -22,37 +52,49 @@
      incidental. #67687A measures 5.47:1 on white, 5.05:1 on canvas and
      4.94:1 on gray-100. */
   --muted-foreground: #67687A;
-  --destructive: #DC2626;
+  --destructive: #BE123C;        /* RAMHIS danger-700 / status.critical.text */
   /* Semantic state vocabulary (Sprint 23g). Each state = a solid color for
      text/icon/border on white, plus a light `-surface` fill for banners,
      tints, and selected rows. Replaces ad-hoc blue-50/green-700/amber-* etc.
      scattered across components. Restrained per product register — brand blue
      carries primary + info; green/amber/red carry the three real statuses. */
-  --canvas: #F4F6FA;             /* app page background — cool-biased, not default gray */
-  --primary-hover: #1D4ED8;      /* blue-700 — hover on primary buttons */
-  --primary-surface: #EFF6FF;    /* blue-50 — nav active/hover, selected, info fill */
-  --success: #15803D;            /* green-700 — legible on white */
-  --success-surface: #F0FDF4;    /* green-50 */
-  --warning: #B45309;            /* amber-700 */
-  --warning-surface: #FFFBEB;    /* amber-50 */
-  --danger-surface: #FEF2F2;     /* red-50 — destructive light fill / hover */
-  --border: rgba(0, 0, 0, 0.1);
+  --canvas: #F6F9FC;             /* RAMHIS background.DEFAULT — cool-biased, not default gray */
+  --primary-hover: #1E2E63;      /* primary-800 — hover on primary buttons */
+  --primary-surface: #F4F7FF;    /* primary-50 — nav active/hover, selected, info fill */
+  --success: #15803D;            /* matches RAMHIS success-700 exactly, unchanged */
+  --success-surface: #F0FDF4;    /* matches RAMHIS success-50 exactly, unchanged */
+  --warning: #B45309;            /* matches RAMHIS warning-700 exactly, unchanged */
+  --warning-surface: #FEF3C7;    /* RAMHIS warning-100 (was warning-50 -- brighter attention fill) */
+  --danger-surface: #FFF1F2;     /* RAMHIS danger-50 / status.critical.bg */
+  --border: #E2E8F0;             /* RAMHIS border.DEFAULT (was a translucent black) */
   --input: transparent;
+  /* Sidebar-only surface pair: the app's one dark, floating panel. Kept as
+     tokens (not hardcoded hex in Root.tsx) so they follow the same
+     single-source-of-truth pattern as everything else here. */
+  --sidebar-bg: #17234D;         /* RAMHIS primary-900 */
+  --sidebar-active: #F4C542;     /* RAMHIS's exact active-nav gold */
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  /* Public Sans — the US federal government typeface: institutional,
-     highly legible for older/non-technical staff, quietly distinctive.
-     Gives the app a type identity instead of the OS default (Segoe UI). */
-  --font-sans: 'Public Sans Variable', system-ui, -apple-system, sans-serif;
-  /* The one exception to Public Sans, declared 2026-08-11. `font-mono` was
+  /* Segoe UI (2026-09-29, user-chosen: the font seen on the Scan a Student Form
+     page). System font, nothing bundled: Windows renders Segoe UI, other
+     devices fall back to their own UI font. */
+  --font-sans: 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, sans-serif;
+  /* The one exception to the body font, declared 2026-08-11. `font-mono` was
      already in use on audit-trail record IDs and dental notation codes, but it
      resolved to Tailwind's built-in stack — undeclared here, so the app picked a
      different face per operating system. Pinned to a Windows-first order because
      the clinic runs Windows. Scope is deliberate and narrow: hex identifiers and
      dental codes, never body copy or headings. */
   --font-mono: Consolas, 'Cascadia Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-  --ring: #1E40AF;
-  --radius: 0.625rem;
+  /* Dental Chart code palette ONLY (user, 2026-09-24): the condition/treatment
+     code buttons and their "click teeth to apply" line. DejaVu Sans, bundled
+     from public/fonts (Latin + ✓ subset, ~42 KB, precached for offline) because
+     most clinic devices do not have it installed. Not for any other text. */
+  --font-palette: 'DejaVu Sans Palette', 'DejaVu Sans', Verdana, sans-serif;
+  --ring: #273A78;
+  /* Bumped from 0.625rem so --radius-xl lands on 16px (RAMHIS's rounded-2xl
+     card standard) instead of 14px. */
+  --radius: 0.75rem;
 }
 
 /* No dark theme: this is a light-only internal clinical tool. The former
@@ -60,8 +102,24 @@
    class — so it was removed. `@custom-variant dark` above is kept so any
    stray `dark:` utility stays inert rather than reacting to system theme. */
 
+@font-face {
+  font-family: 'DejaVu Sans Palette';
+  src: url('/fonts/DejaVuSans-subset.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'DejaVu Sans Palette';
+  src: url('/fonts/DejaVuSans-Bold-subset.woff2') format('woff2');
+  font-weight: 600 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme inline {
   --font-sans: var(--font-sans);
+  --font-palette: var(--font-palette);
   --font-mono: var(--font-mono);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -79,6 +137,8 @@
   --color-warning: var(--warning);
   --color-warning-surface: var(--warning-surface);
   --color-danger-surface: var(--danger-surface);
+  --color-sidebar-bg: var(--sidebar-bg);
+  --color-sidebar-active: var(--sidebar-active);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);

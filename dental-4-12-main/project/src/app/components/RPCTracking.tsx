@@ -1,20 +1,38 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
-import { Search, Plus, X, CheckCircle, AlertCircle, Clock, Shield, School as SchoolIcon, List, ChevronRight, Users } from 'lucide-react';
+import { Search, X, CheckCircle, AlertCircle, Shield, School as SchoolIcon, List, ChevronLeft, ChevronRight, ChevronUp, Eye, Users, ChevronDown } from 'lucide-react';
 import { getGradeColor } from '../utils/gradeColors';
-import { useRPCTracking } from '../hooks/useRPCTracking';
-import { treatmentCodes, treatmentLabel } from './DentalChart';
+import { useRPCTracking, dueDateOf } from '../hooks/useRPCTracking';
+import { treatmentCodes, treatmentLabel } from '../utils/dentalChartCodes';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
-import { activatable } from '../utils/a11y';
-import { Pagination, usePagination } from './Pagination';
-import { apiClient } from '../api/client';
-import { useToast } from './Toast';
-import { Modal } from './Modal';
+import { PAGE_SIZE_OPTIONS } from './Pagination';
+import { formatDate, formatMonthYear } from '../utils/localDate';
+import { TOPBAR_H } from '../utils/layout';
+import { PageHeader } from './PageHeader';
 import { schoolYearLabel } from '../utils/schoolYear';
-import type { RPCRow } from '../hooks/useRPCTracking';
 
 const GRADES = ['Kinder','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10'];
+
+// The "resting" school year for this page's default view (user, 2026-09-25):
+// a student whose Visit 2 just got recorded was disappearing from the default
+// list because the OLD default combined 'outstanding' status with 'all'
+// years, and 'outstanding' hides a completed pair. The fix scopes the
+// default to the CURRENT school year instead -- that is what "School Year"
+// filter is actually for, going BACK to see other years -- and shows every
+// status within it, completed pairs included.
+const CURRENT_SCHOOL_YEAR = schoolYearLabel();
+
+// "Hide" (user, 2026-09-25): 0 is the sentinel -- useRPCTracking already
+// treats a falsy limit as "no limit" (see filterRpcRows), so this needs no
+// new backend concept, just a page size that isn't sent. It shows every row
+// AND hides the whole footer bar (Showing.../Items per page), so the table
+// flows to fill the space that bar used to take -- a thin reveal tab at the
+// bottom brings the footer back (see the footer render below). Kept OUT of
+// the shared PAGE_SIZE_OPTIONS: PatientList's usePagination divides by
+// pageSize to slice client-side, and a 0 there would divide by zero.
+const HIDE_FOOTER = 0;
+const RPC_PAGE_SIZE_OPTIONS = [...PAGE_SIZE_OPTIONS, HIDE_FOOTER] as const;
 
 
 const ViewToggle = ({ mode, onChange }: { mode: 'school' | 'list'; onChange: (m: 'school' | 'list') => void }) => (
@@ -31,66 +49,6 @@ const ViewToggle = ({ mode, onChange }: { mode: 'school' | 'list'; onChange: (m:
 export const RPCTracking = () => {
   const { selectedSchool, user } = useAuth();
   const navigate = useNavigate();
-  const toast = useToast();
-  const { records: rpcRecords, loading, error, reload } = useRPCTracking();
-
-  // Recording a visit (Sprint 81). Until now PREVENTIVE_CARE_RECORD had NO
-  // write path anywhere in the app — the two-visit RPC module could be read
-  // and filtered, but a visit could only be created by a seed script.
-  const [recording, setRecording] = useState<RPCRow | null>(null);
-  const [visitDate, setVisitDate] = useState('');
-  // null = not answered. The field is optional on purpose: an encoder who does
-  // not know stores null, which reads as "not recorded" on FHSIS, rather than
-  // being pushed into a default that would invent the facility split.
-  const [facilityBased, setFacilityBased] = useState<boolean | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-
-  // Same roles the server enforces on /preventive-care-records
-  // (CLINICAL_WRITE_ROLES in routes/index.ts). Checked here too so the button
-  // is absent rather than present-and-403 for a school admin or BHO viewer.
-  const canRecord = user?.role === 'dentist' || user?.role === 'dental_aide' || user?.role === 'system_admin';
-
-  const openRecord = (r: RPCRow) => {
-    setRecording(r);
-    // Defaults to today but stays editable — a visit is often encoded a day or
-    // two after it happened. Local date parts, never toISOString: that shifts
-    // the date backwards for UTC+8 (the Sprint 20 vanishing-appointments bug).
-    const now = new Date();
-    setVisitDate(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`);
-    setFacilityBased(null);
-    setSaveError(null);
-  };
-
-  // The IPTR the visit will attach to, resolved from the school year of THE
-  // VISIT DATE — a visit backdated to March belongs to the school year running
-  // in March, not to today's. Recomputes as the date changes, so the modal can
-  // say up front which record it is about to write to.
-  const targetIptrId = recording && visitDate
-    ? recording.iptrIdBySchoolYear[schoolYearLabel(new Date(`${visitDate}T00:00:00`))] ?? null
-    : null;
-  const targetSchoolYear = visitDate ? schoolYearLabel(new Date(`${visitDate}T00:00:00`)) : '';
-
-  const saveVisit = async () => {
-    if (!recording || !targetIptrId || !recording.nextVisitNumber) return;
-    setSaving(true);
-    setSaveError(null);
-    try {
-      await apiClient.post('/preventive-care-records', {
-        iptr_id: targetIptrId,
-        visit_date: visitDate,
-        visit_number: recording.nextVisitNumber,
-        facility_based: facilityBased,
-      });
-      toast.success(`Visit ${recording.nextVisitNumber} recorded for ${recording.studentName}.`);
-      setRecording(null);
-      await reload();
-    } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Failed to record the visit');
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const [drillSchool, setDrillSchool] = useState<string | null>(null);
   const [selectedGrade, setSelectedGrade] = useState<string | null>(null);
@@ -100,58 +58,210 @@ export const RPCTracking = () => {
   const [sectionFilter, setSectionFilter] = useState('all');
   const [genderFilter, setGenderFilter] = useState('all');
   const [ageGroupFilter, setAgeGroupFilter] = useState('all');
-  // Defaults to 'outstanding', not 'all': this page is a worklist, so it opens
-  // on the students who still need a visit. Completed records are opt-in via
-  // the Status filter rather than padding the list with finished work.
-  const [statusFilter, setStatusFilter] = useState('outstanding');
+  // Defaults to 'all', not 'outstanding' (user, 2026-09-25): see
+  // CURRENT_SCHOOL_YEAR above -- a completed Visit 1 + Visit 2 pair stays
+  // visible in the default view instead of vanishing the moment it's done.
+  const [statusFilter, setStatusFilter] = useState('all');
   const [treatmentFilter, setTreatmentFilter] = useState('all');
+  const [schoolYearFilter, setSchoolYearFilter] = useState(CURRENT_SCHOOL_YEAR);
+  // Defaults to 'date_desc', not 'all' (user, 2026-09-25): a worklist reads
+  // newest activity first, so the most recently treated students lead. 'all'
+  // stays selectable from the dropdown for the plain alphabetical order.
+  const [sortFilter, setSortFilter] = useState('date_desc');
 
-  const calculateAge = (birthdate: string) => {
-    const today = new Date();
-    const birth = new Date(birthdate);
-    let age = today.getFullYear() - birth.getFullYear();
-    const m = today.getMonth() - birth.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
-    return age;
+  // ── Sprint 146: FILTERED AND PAGED ON THE SERVER ────────────────────────
+  //
+  // ⚠ Every filter moved together, including the SCHOOL context. Paging the
+  // query while one stayed here would have filtered only the visible page —
+  // and a page count describing a roll the user is not looking at.
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const {
+    records: rpcRecords,
+    total,
+    schoolTotal,
+    sectionOptions,
+    schoolYearOptions,
+    loading,
+    error,
+  } = useRPCTracking({
+    q: searchTerm,
+    school: selectedSchool ?? undefined,
+    grade: gradeFilter,
+    section: sectionFilter,
+    gender: genderFilter,
+    ageGroup: ageGroupFilter,
+    status: statusFilter,
+    treatment: treatmentFilter,
+    schoolYear: schoolYearFilter,
+    sort: sortFilter,
+    limit: pageSize === HIDE_FOOTER ? undefined : pageSize,
+    offset: pageSize === HIDE_FOOTER ? 0 : (page - 1) * pageSize,
+  });
+
+  // Back to page 1 on any filter change — a narrowed filter can otherwise
+  // leave the user on a page that no longer exists, looking at nothing.
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, selectedSchool, gradeFilter, sectionFilter, genderFilter, ageGroupFilter, statusFilter, treatmentFilter, schoolYearFilter, sortFilter]);
+
+  const pageCount = pageSize === HIDE_FOOTER ? 1 : Math.max(1, Math.ceil(total / pageSize));
+  // Changing page size keeps you near the same records rather than dumping you
+  // back to the top — the same rule usePagination applied.
+  const changePageSize = (next: number) => {
+    if (next === HIDE_FOOTER) { setPageSize(next); setPage(1); return; }
+    const firstRow = pageSize === HIDE_FOOTER ? 0 : (page - 1) * pageSize;
+    setPageSize(next);
+    setPage(Math.floor(firstRow / next) + 1);
   };
 
-  const getAgeGroup = (age: number) => {
-    if (age <= 4) return '4 & below';
-    if (age <= 9) return '5-9';
-    if (age <= 14) return '10-14';
-    if (age <= 19) return '15-19';
-    return '20 & above';
-  };
+  // ⚠ The local `calculateAge`/`getAgeGroup` copies were deleted in Sprint 146.
+  // They were a THIRD copy of the DOH age brackets — `shared/age.ts` says in
+  // its own header that a second copy is how two screens disagree about a
+  // 9-year-old, and the filter that used them now runs on the server anyway.
 
-  const schoolRecords = selectedSchool
-    ? rpcRecords.filter(r => r.school === selectedSchool)
-    : rpcRecords;
 
-  const filtered = useMemo(() => schoolRecords.filter(r => {
-    const age = calculateAge(r.birthdate);
-    if (gradeFilter !== 'all' && r.grade !== gradeFilter) return false;
-    if (sectionFilter !== 'all' && r.section !== sectionFilter) return false;
-    if (genderFilter !== 'all' && r.gender !== genderFilter) return false;
-    if (ageGroupFilter !== 'all' && getAgeGroup(age) !== ageGroupFilter) return false;
-    if (statusFilter === 'outstanding') { if (r.status === 'complete') return false; }
-    else if (statusFilter !== 'all' && r.status !== statusFilter) return false;
-    if (treatmentFilter !== 'all' && !r.treatmentCodes.includes(treatmentFilter)) return false;
-    if (searchTerm && !r.studentName.toLowerCase().includes(searchTerm.toLowerCase())) return false;
-    return true;
-  }), [schoolRecords, gradeFilter, sectionFilter, genderFilter, ageGroupFilter, statusFilter, treatmentFilter, searchTerm]);
 
-  // Paged (Sprint 58): this list rendered EVERY filtered row, which is fine at
-  // demo scale and thousands of DOM rows at ~8,000 students. Reset keys are the
-  // filter inputs, never `filtered` — see Pagination.tsx.
-  const pager = usePagination(filtered, [gradeFilter, sectionFilter, genderFilter, ageGroupFilter, statusFilter, treatmentFilter, searchTerm]);
+  // Already filtered and paged by the server (Sprint 146).
+  const filtered = rpcRecords;
+
+  // Pins the title and the search/filter card at the top (stacked below
+  // TOPBAR_H, the fixed status strip — same pattern as PatientList's
+  // toolbar/header), so ONLY the table below them can ever scroll, even if
+  // the filter row wraps to more lines at a narrow width. Heights are
+  // measured rather than hardcoded for that same reason.
+  const titleRef = useRef<HTMLDivElement | null>(null);
+  const filterCardRef = useRef<HTMLDivElement | null>(null);
+  const [stickyTop, setStickyTop] = useState({ title: TOPBAR_H, filters: TOPBAR_H });
+
+  // ⚠ BUG FIX (user, 2026-09-25): this used to run with `[]` deps, so it
+  // measured titleRef ONCE -- during the very first render, while `loading`
+  // is still true and the component returns the skeleton below instead of
+  // the real title. titleRef.current is null at that moment, so titleH
+  // came out 0 and never got corrected (the ResizeObserver.observe() calls
+  // were skipped too, for the same null-ref reason), leaving the filter
+  // bar's sticky offset stuck at TOPBAR_H forever -- same as the title's own
+  // offset, so once both stuck on scroll, the filter card overlapped and
+  // covered the bottom of "Routine Preventive Care". Re-running this when
+  // `loading` flips to false re-measures against the now-mounted real
+  // title and reattaches the observer to it.
+  useEffect(() => {
+    const measure = () => {
+      const titleH = titleRef.current?.offsetHeight ?? 0;
+      setStickyTop({ title: TOPBAR_H, filters: TOPBAR_H + titleH });
+    };
+    measure();
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(measure);
+      if (titleRef.current) resizeObserver.observe(titleRef.current);
+      if (filterCardRef.current) resizeObserver.observe(filterCardRef.current);
+    }
+    window.addEventListener('resize', measure);
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [loading]);
+
+  // The card fills whatever viewport space is left below it (fixed height,
+  // not max-height, so a short page of results still fills that space
+  // instead of leaving a grey gap of bare page underneath) -- same pattern
+  // as PatientList's Students table, EXCEPT only the card's own `top` is
+  // measured here; the split between the rows box and the footer/reveal-tab
+  // beneath it is plain CSS flexbox on the card (see the JSX), not a second
+  // JS measurement. That is what makes Hide "adaptive": nothing has to know
+  // the footer's height, because there IS no separate footer measurement.
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const [cardHeight, setCardHeight] = useState<number | null>(null);
+
+  useEffect(() => {
+    // Target the sidebar's OWN rendered bottom edge, not window.innerHeight
+    // (user, 2026-09-28, found on the Treatment Queue's twin of this card --
+    // a taskbar screenshot showed the sidebar itself stops 20px short of the
+    // true viewport edge: Root.tsx's <aside> is `md:top-5 md:bottom-5`, a
+    // floating card inset from the screen at desktop widths, not flush to
+    // it. Reading #main-nav's real getBoundingClientRect().bottom tracks
+    // whatever that inset is (or isn't, below md where the aside is an
+    // off-canvas h-screen drawer and its bottom IS window.innerHeight)
+    // instead of hardcoding 20px.
+    const measure = () => {
+      if (!cardRef.current) return;
+      // Phones (< 640 px, 2026-10-04): no fixed card height, same as the
+      // Students list. Locked to the screen, the seven filters left the table
+      // ~60 px; the card now grows with its rows and the page scrolls.
+      if (window.innerWidth < 640) { setCardHeight(null); return; }
+      const top = cardRef.current.getBoundingClientRect().top;
+      const sidebar = document.getElementById('main-nav');
+      // Hide targets the screen's true bottom edge, not the sidebar's own
+      // (`md:bottom-5` floating look, 20px short of it at md: widths) --
+      // ported from PatientList (user, 2026-09-29). The default view keeps
+      // matching the sidebar's inset, unchanged.
+      const bottomTarget = pageSize !== HIDE_FOOTER && sidebar ? sidebar.getBoundingClientRect().bottom : window.innerHeight;
+      setCardHeight(Math.max(bottomTarget - top, 160));
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+    // pageSize re-measures from a fresh baseline on every Hide toggle -- the
+    // correction pass below only ever SHRINKS, so without this, leaving Hide
+    // (which cancels the bottom-padding overflow that pass was shrinking
+    // for) would keep the old, already-shrunk height instead of settling
+    // back at the true sidebar-bottom - top.
+  }, [loading, pageSize]);
+
+  // Trims any stray page scroll the estimate above leaves behind (e.g.
+  // <main>'s own bottom padding), the same correction pass PatientList uses.
+  //
+  // ⚠ `pageSize` is ALSO a dep, not just `cardHeight` (user, 2026-09-25):
+  // leaving Hide can remeasure to the EXACT SAME cardHeight value Hide was
+  // already using (both are `window.innerHeight - top`, and `top` doesn't
+  // move between states) -- React bails out of the resulting setCardHeight
+  // as a no-op since the value didn't change, so this effect never got a
+  // second look at the DEFAULT view's real overflow (Hide's negative margin,
+  // which cancels it, is gone once you're back in the default view).
+  useLayoutEffect(() => {
+    if (cardHeight == null) return;
+    const overflow = document.documentElement.scrollHeight - window.innerHeight;
+    if (overflow > 0) {
+      setCardHeight((h) => (h == null ? h : Math.max(h - overflow, 160)));
+    }
+  }, [cardHeight, pageSize]);
+
+  // Hide's bottom corners (user, 2026-09-25): rounded when the rows fit
+  // without scrolling (a short list, with blank card interior above the
+  // pinned reveal tab), square when the rows box is actually scrolling
+  // internally (a long list past the card's fixed height) -- a curve right
+  // at the screen edge, with nothing beneath it, reads as a cut-off render
+  // glitch rather than a corner. `hideAtEdge` is true exactly when the rows
+  // box is scrolling.
+  //
+  // ⚠ `useLayoutEffect`, not `useEffect` (user, 2026-09-25 -- "its
+  // delayed"): a passive effect runs AFTER the browser paints, so the
+  // rounded corner flashed for one visible frame before squaring off. This
+  // runs synchronously right after the DOM commits, before that paint.
+  const rowsBoxRef = useRef<HTMLDivElement | null>(null);
+  const [hideAtEdge, setHideAtEdge] = useState(false);
+  useLayoutEffect(() => {
+    if (pageSize !== HIDE_FOOTER) { setHideAtEdge(false); return; }
+    const el = rowsBoxRef.current;
+    if (!el) return;
+    const check = () => setHideAtEdge(el.scrollHeight > el.clientHeight + 1);
+    check();
+    const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(check) : null;
+    resizeObserver?.observe(el);
+    return () => resizeObserver?.disconnect();
+  }, [pageSize, cardHeight, filtered.length]);
 
   // sectionFilter was missing from both of these — an active section filter
   // neither lit up "Clear All" nor got cleared by it.
-  // statusFilter is compared against 'outstanding', not 'all': that is now its
-  // resting value, so treating it like the others would light up "Clear All"
-  // permanently and make Clear All widen the list instead of resetting it.
-  const hasActiveFilters = [gradeFilter, sectionFilter, genderFilter, ageGroupFilter, treatmentFilter].some(f => f !== 'all') || statusFilter !== 'outstanding' || searchTerm !== '';
-  const clearFilters = () => { setGradeFilter('all'); setSectionFilter('all'); setGenderFilter('all'); setAgeGroupFilter('all'); setStatusFilter('outstanding'); setTreatmentFilter('all'); setSearchTerm(''); };
+  // statusFilter and schoolYearFilter are each compared against their OWN
+  // resting value ('all' and CURRENT_SCHOOL_YEAR), not the shared array's
+  // 'all' check — treating them like the others would light up "Clear All"
+  // permanently on page load and make Clear All widen the list instead of
+  // resetting it.
+  const hasActiveFilters = [gradeFilter, sectionFilter, genderFilter, ageGroupFilter, treatmentFilter].some(f => f !== 'all') || statusFilter !== 'all' || schoolYearFilter !== CURRENT_SCHOOL_YEAR || sortFilter !== 'date_desc' || searchTerm !== '';
+  const clearFilters = () => { setGradeFilter('all'); setSectionFilter('all'); setGenderFilter('all'); setAgeGroupFilter('all'); setStatusFilter('all'); setTreatmentFilter('all'); setSchoolYearFilter(CURRENT_SCHOOL_YEAR); setSortFilter('date_desc'); setSearchTerm(''); };
 
   const statusConfig: Record<string,{label:string;color:string;bg:string}> = {
     complete:     { label:'Complete',     color:'text-green-700', bg:'bg-green-100' },
@@ -167,6 +277,40 @@ export const RPCTracking = () => {
     </select>
   );
 
+  // A native <select> always shows the CURRENT selection as its own text,
+  // which is right for "All Grades" etc. RPC Status and Sort Order need the
+  // opposite: the button always reads the filter's NAME, and the chosen
+  // option shows only inside the open menu (checked) — so it needs its own
+  // little menu rather than FS above.
+  const PinnedLabelSelect = ({ value, onChange, opts, label }: { value: string; onChange: (v: string) => void; opts: { v: string; l: string }[]; label: string }) => {
+    const [open, setOpen] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+      if (!open) return;
+      const onDown = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+      document.addEventListener('mousedown', onDown);
+      return () => document.removeEventListener('mousedown', onDown);
+    }, [open]);
+    return (
+      <div ref={ref} className="relative">
+        <button type="button" role="combobox" aria-haspopup="listbox" onClick={() => setOpen(o => !o)} aria-expanded={open}
+          className="flex items-center gap-1.5 text-sm font-normal border border-border rounded-lg px-3 py-2 bg-card focus:outline-none focus:ring-2 focus:ring-ring">
+          {label} <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+        </button>
+        {open && (
+          <div className="absolute z-20 mt-1 min-w-[190px] rounded-lg border border-border bg-card shadow-md py-1">
+            {opts.map(o => (
+              <button key={o.v} type="button" onClick={() => { onChange(o.v); setOpen(false); }}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-canvas ${value === o.v ? 'text-primary font-semibold' : 'text-foreground'}`}>
+                {o.l}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -181,17 +325,19 @@ export const RPCTracking = () => {
       {error && (
         <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">{error}</div>
       )}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">RPC Records</h1>
-          <p className="text-sm text-muted-foreground">Routine Preventive Care — Fluoride application tracking (2nd fluoride dose due 4–6 months after Visit 1; other treatments may be done anytime)</p>
-        </div>
-        {/* No export by design (2026-09-02) — see PatientList for the reasoning:
-            a CSV of named students leaves the encrypted store as plaintext.
-            The DOH report on Reports is the official, aggregate output. */}
+      {/* No export by design (2026-09-02) — see PatientList for the reasoning:
+          a CSV of named students leaves the encrypted store as plaintext.
+          The DOH report on Reports is the official, aggregate output. */}
+      <div ref={titleRef} className="sticky z-40 bg-gray-50 pb-2" style={{ top: stickyTop.title }}>
+        <PageHeader
+          icon={Shield}
+          eyebrow="Clinical Care"
+          title="Routine Preventive Care"
+          description="Track each student's two required RPC visits per school year and flag the ones due or overdue."
+        />
       </div>
 
-      <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+      <div ref={filterCardRef} className="sticky z-40 bg-card rounded-xl border border-border p-4 space-y-3" style={{ top: stickyTop.filters }}>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input type="text" placeholder="Search student..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)}
@@ -199,171 +345,191 @@ export const RPCTracking = () => {
         </div>
         <div className="flex flex-wrap gap-2">
           <FS value={gradeFilter} onChange={g => { setGradeFilter(g); setSectionFilter('all'); }} label="All Grades" opts={GRADES.map(g=>({v:g,l:g}))} />
-          <FS value={sectionFilter} onChange={setSectionFilter} label="All Sections" opts={[...new Set((gradeFilter !== 'all' ? schoolRecords.filter(r => r.grade === gradeFilter) : schoolRecords).map(r => r.section))].sort().map(s => ({v:s,l:s}))} />
+          <FS value={sectionFilter} onChange={setSectionFilter} label="All Sections" opts={sectionOptions.map(sec => ({ v: sec, l: sec }))} />
           <FS value={genderFilter} onChange={setGenderFilter} label="All Genders" opts={[{v:'Male',l:'Male'},{v:'Female',l:'Female'}]} />
           <FS value={ageGroupFilter} onChange={setAgeGroupFilter} label="All Age Groups" opts={[{v:'4 & below',l:'4 & below'},{v:'5-9',l:'5-9'},{v:'10-14',l:'10-14'},{v:'15-19',l:'15-19'},{v:'20 & above',l:'20 & above'}]} />
-          {/* 'outstanding' is listed first and is the default — FS renders its
-              `label` as the value-'all' option, so without an explicit entry
-              here the select would have no option matching its own value. */}
-          <FS value={statusFilter} onChange={setStatusFilter} label="All Statuses (incl. complete)" opts={[{v:'outstanding',l:'Outstanding only'},{v:'complete',l:'Both Complete'},{v:'pending',l:'Visit 1 Only'},{v:'overdue',l:'Overdue'},{v:'not-started',l:'Not Started'}]} />
-          <FS value={treatmentFilter} onChange={setTreatmentFilter} label="All Treatments" opts={treatmentCodes.map(t=>({v:t.code,l:treatmentLabel(t)}))} />
-          {hasActiveFilters && <button onClick={clearFilters} className="flex items-center gap-1 px-3 py-2 text-sm text-destructive border border-red-200 rounded-lg hover:bg-red-50"><X className="w-3 h-3"/>Clear All</button>}
+          {/* Button always reads "RPC Status"; the chosen option only shows
+              inside the open menu (see PinnedLabelSelect above FS). */}
+          <PinnedLabelSelect value={statusFilter} onChange={setStatusFilter} label="RPC Status" opts={[{v:'all',l:'All Statuses'},{v:'outstanding',l:'Outstanding only'},{v:'complete',l:'Both Complete'},{v:'pending',l:'Visit 1 Only'},{v:'overdue',l:'Overdue'},{v:'not-started',l:'Not Started'}]} />
+          {/* .label only, never treatmentLabel() -- that appends the Tagalog
+              local term (e.g. "Oral Prophylaxis (Linis)"), which stays on the
+              clinical legend/chart but this filter is English-only. */}
+          <FS value={treatmentFilter} onChange={setTreatmentFilter} label="All Treatments" opts={treatmentCodes.map(t=>({v:t.code,l:t.label}))} />
+          {/* Narrows to students with an IPTR for that year — i.e. enrolled
+              that year, the only school-year fact this join actually has
+              (a visit isn't itself scoped to one). */}
+          <FS value={schoolYearFilter} onChange={setSchoolYearFilter} label="All School Years" opts={schoolYearOptions.map(y=>({v:y,l:`SY ${y}`}))} />
+          <PinnedLabelSelect value={sortFilter} onChange={setSortFilter} label="Sort Order" opts={[{v:'date_desc',l:'Latest Treatment First'},{v:'date_asc',l:'Oldest Treatment First'},{v:'due_this_month',l:'Due This Month'},{v:'all',l:'Name (A-Z)'}]} />
+          {hasActiveFilters && <button onClick={clearFilters} title="Clear all filters" aria-label="Clear all filters" className="flex items-center justify-center p-2 text-destructive border border-red-200 rounded-lg hover:bg-red-50"><X className="w-4 h-4"/></button>}
         </div>
       </div>
 
-      <div className="bg-card rounded-xl border border-border overflow-hidden">
-        <div className="overflow-x-auto">
+      {/* ⚠ ADAPTIVE, not JS pixel math (user, 2026-09-25, after three failed
+          attempts at computing an exact height for the rows box AND the
+          footer separately): the CARD itself is measured ONCE (its own `top`
+          — the one thing genuine CSS can't express here, since it depends on
+          the title/filter row's rendered height) and given that much of the
+          viewport as a real `height`. Everything below that split is plain
+          CSS flexbox: the card is `flex flex-col`, the rows box is `flex-1
+          min-h-0 overflow-auto` and the footer/reveal-tab is an ordinary flex
+          item sized by its own content. The browser recomputes that split on
+          every layout pass, so a short footer, a tall footer, or no footer
+          (Hide) all just work — nothing to remeasure, nothing to fall out of
+          sync, no stale height left over from switching states. */}
+      {/* Hide cancels <main>'s own bottom padding (Root.tsx's `p-4 md:p-8`
+          around <Outlet/>) with a matching negative margin (user, 2026-09-25):
+          without it, that trailing padding still counted toward the page's
+          scrollHeight, and the overflow-correction pass above shrank the
+          card by exactly that much to keep the page from scrolling -- a gap
+          between the card and the true bottom of the screen. Cancelling the
+          padding removes the overflow at its source, so the card can settle
+          at its full `window.innerHeight - top` CAP when it needs to.
+          Only in Hide: the default view keeps that breathing room. */}
+      {/* Hide uses `maxHeight`, not `height` (ported from PatientList,
+          user, 2026-09-29: "when there is only two [rows], the container
+          would end in that") -- a short filtered list shrink-wraps to its
+          real content instead of stretching with blank interior. Only safe
+          because the reveal tab lives INSIDE the scrollable rows box below,
+          not as its own footer sibling: with it split out, `maxHeight`
+          leaves a gap below the tab on a short list. A long list still caps
+          at `cardHeight` and scrolls internally, tab included. */}
+      <div ref={cardRef} className={`flex flex-col bg-card border border-border overflow-hidden ${hideAtEdge ? 'rounded-t-xl' : 'rounded-xl'} ${pageSize === HIDE_FOOTER ? '-mb-4 md:-mb-8' : ''}`} style={{ [pageSize === HIDE_FOOTER ? 'maxHeight' : 'height']: cardHeight ?? undefined }}>
+        {/* Column headings stick to the TOP OF THIS BOX via `sticky` on each
+            `<th>`, not the `<tr>` (a sticky `<tr>` rendered as a duplicate
+            mid-table in some browsers, see PatientList). */}
+        <div ref={rowsBoxRef} className="min-h-0 flex-1 overflow-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-border">
-              <tr>
-                {['Student','School','Grade / Section','Visit 1','Visit 2','Status','Days Until Due'].map(h => (
-                  <th key={h} className="text-left px-4 py-3 font-semibold text-foreground">{h}</th>
+            <thead>
+              <tr className="border-b border-border">
+                {['Student','Grade / Section','Visit 1','Visit 2','Status'].map(h => (
+                  <th key={h} className="sticky top-0 z-10 bg-gray-100 text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{h}</th>
                 ))}
-                {canRecord && <th className="text-right px-4 py-3 font-semibold text-foreground">Record</th>}
+                <th className="sticky top-0 z-10 bg-gray-100 text-left pl-4 pr-2 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Days Until Due</th>
+                <th className="sticky top-0 z-10 bg-gray-100 text-left pl-2 pr-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filtered.length === 0 ? (
-                <tr><td colSpan={canRecord ? 8 : 7} className="text-center py-12 text-muted-foreground">{hasActiveFilters ? <>No records match your filters. <button onClick={clearFilters} className="text-primary hover:underline font-medium">Clear filters</button></> : 'No RPC records for this school yet.'}</td></tr>
-              ) : pager.paged.map(r => {
+                <tr><td colSpan={7} className="text-center py-12 text-muted-foreground">{hasActiveFilters ? <>No records match your filters. <button onClick={clearFilters} className="text-primary hover:underline font-medium">Clear filters</button></> : 'No RPC records for this school yet.'}</td></tr>
+              ) : filtered.map(r => {
                 const sc = statusConfig[r.status] || statusConfig['not-started'];
                 const gc = getGradeColor(r.grade);
+                // Shared with 'due_this_month' sorting (shared/rpcTracking.ts)
+                // so the column and the sort can never disagree about what
+                // "due" means.
+                const dueDate = dueDateOf(r);
                 return (
-                  <tr key={r.id} {...activatable(() => navigate(`/dental-chart/${r.id}?tab=treatments`))} className={`hover:bg-gray-50 transition-colors cursor-pointer ${r.status==='overdue'?'bg-red-50':''}`}>
+                  <tr key={r.id} className={`hover:bg-gray-50 transition-colors ${r.status==='overdue'?'bg-red-50':''}`}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-semibold">{r.studentName.split(' ').map(n=>n[0]).join('').slice(0,2)}</div>
                         <span className="font-medium text-foreground">{r.studentName}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground text-xs max-w-[130px] truncate">{r.school}</td>
                     <td className="px-4 py-3">
-                      <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold" style={{backgroundColor:gc.light,color:gc.solid}}>{r.grade}</span>
-                      <span className="text-muted-foreground text-xs ml-1">{r.section}</span>
+                      <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold align-middle" style={{backgroundColor:gc.light,color:gc.solid}}>{r.grade}</span>
+                      <span className="text-muted-foreground text-xs ml-1 align-middle">{r.section}</span>
                     </td>
-                    <td className="px-4 py-3">{r.visit1Date ? <span className="text-green-700 text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3"/>{r.visit1Date}</span> : <span className="text-muted-foreground text-xs">Not done</span>}</td>
-                    <td className="px-4 py-3">{r.visit2Date ? <span className="text-green-700 text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3"/>{r.visit2Date}{r.earlyVisit2 && <span className="ml-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold" title="Visit 2 recorded less than 4 months after Visit 1">early</span>}</span> : <span className="text-muted-foreground text-xs flex items-center gap-1.5 flex-wrap">Not done
-                      {r.syCutoff === 'impossible' && <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-semibold" title={`Even the earliest allowed Visit 2 (+4 months) falls after this school year ends (${r.syDeadline}) — it can't be counted for DOH/PhilHealth this school year`}>won't fit SY</span>}
-                      {r.syCutoff === 'tight' && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold" title={`The 4–6 month window extends past the school year — Visit 2 must be done by ${r.syDeadline} to count for DOH/PhilHealth`}>by {r.syDeadline}</span>}
+                    <td className="px-4 py-3">{r.visit1Date ? <span className="text-green-700 text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3"/>{formatDate(r.visit1Date)}</span> : <span className="text-muted-foreground text-xs">Not done</span>}</td>
+                    {/* "early" badge removed from view (user, 2026-09-25); r.earlyVisit2 is
+    still computed server-side, just not shown here. */}
+                    <td className="px-4 py-3">{r.visit2Date ? <span className="text-green-700 text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3"/>{formatDate(r.visit2Date)}</span> : <span className="text-muted-foreground text-xs flex flex-col items-start gap-1">Not done
+                      {r.syCutoff === 'impossible' && <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-semibold text-[10px]" title={`Even the earliest allowed Visit 2 (+4 months) falls after this school year ends (${r.syDeadline}) — it can't be counted for DOH/PhilHealth this school year`}>won't fit SY</span>}
+                      {r.syCutoff === 'tight' && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold text-[10px]" title={`The 4–6 month window extends past the school year — Visit 2 must be done by ${r.syDeadline} to count for DOH/PhilHealth`}>by {r.syDeadline}</span>}
                     </span>}</td>
                     <td className="px-4 py-3"><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${sc.bg} ${sc.color}`}>{sc.label}</span></td>
-                    <td className="px-4 py-3 text-sm">{r.status==='overdue'?<span className="text-red-600 font-semibold">{Math.abs(r.daysUntilDue)}d overdue</span>:r.daysUntilDue>0?<span className="text-blue-600">{r.daysUntilDue}d</span>:<span className="text-muted-foreground">—</span>}</td>
-                    {canRecord && (
-                      // stopPropagation: the whole row navigates to the dental
-                      // chart, so without it recording a visit would also leave
-                      // the page the moment the modal opened.
-                      <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
-                        {r.nextVisitNumber === null ? (
-                          <span className="text-xs text-muted-foreground">Both done</span>
-                        ) : Object.keys(r.iptrIdBySchoolYear).length === 0 ? (
-                          // No IPTR at all, so there is nothing to attach a
-                          // visit to. Saying so beats a button that 400s, and it
-                          // names the fix. (Which school YEAR is missing is
-                          // decided in the modal, once a date is chosen.)
-                          <span className="text-xs text-muted-foreground" title="This student has no IPTR yet — open their record and create one first.">No IPTR</span>
-                        ) : (
-                          <button
-                            onClick={() => openRecord(r)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium border border-border rounded-lg hover:bg-gray-50 whitespace-nowrap"
-                          >
-                            <Plus className="w-3 h-3" />Visit {r.nextVisitNumber}
-                          </button>
-                        )}
-                      </td>
-                    )}
+                    <td className="pl-4 pr-2 py-3">
+                      {dueDate ? (
+                        <>
+                          <div className="text-fuchsia-600 font-semibold text-xs">{formatMonthYear(dueDate)}</div>
+                          <div className={r.status==='overdue' ? 'text-red-600 font-semibold text-xs' : 'text-muted-foreground text-xs'}>
+                            {r.status==='overdue' ? `${Math.abs(r.daysUntilDue)}d overdue` : `${r.daysUntilDue}d`}
+                          </div>
+                        </>
+                      ) : <span className="text-muted-foreground text-xs">—</span>}
+                    </td>
+                    <td className="pl-2 pr-4 py-3 text-left">
+                      <button
+                        onClick={() => navigate(`/dental-chart/${r.id}?tab=treatments`)}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium border border-border rounded-lg hover:bg-gray-50 whitespace-nowrap"
+                      >
+                        <Eye className="w-3.5 h-3.5" /> Open Chart
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-        </div>
-        <div className="px-4 py-3 border-t border-gray-100 text-sm text-muted-foreground">
-          <Pagination
-            {...pager}
-            onPage={pager.setPage}
-            onPageSize={pager.changePageSize}
-            noun="records"
-            detail={filtered.length !== schoolRecords.length ? `(filtered from ${schoolRecords.length})` : ''}
-          />
-        </div>
-      </div>
 
-      {recording && (
-        <Modal onClose={() => setRecording(null)} maxWidth="max-w-md" closeDisabled={saving}>
-          <div className="flex items-center justify-between p-6 border-b">
-            <h2 className="text-lg font-bold text-foreground">Record Visit {recording.nextVisitNumber}</h2>
-            <button onClick={() => setRecording(null)} disabled={saving} className="text-muted-foreground hover:text-foreground disabled:opacity-50"><X className="w-5 h-5" /></button>
-          </div>
-          <div className="p-6 space-y-4">
-            <div>
-              <p className="text-sm font-medium text-foreground">{recording.studentName}</p>
-              <p className="text-xs text-muted-foreground">{recording.grade} {recording.section} · {recording.school}</p>
-            </div>
-
-            {recording.nextVisitNumber === 2 && recording.visit1Date && (
-              <p className="text-xs text-muted-foreground bg-gray-50 border border-border rounded-lg px-3 py-2">
-                Visit 1 was {recording.visit1Date}. The DOH window is 4–6 months after it
-                {recording.syCutoff === 'tight' && recording.syDeadline && <> and this school year ends {recording.syDeadline}</>}.
-              </p>
-            )}
-
-            <div>
-              <label htmlFor="rpc-visit-date" className="block text-sm font-medium text-foreground mb-1">Visit date</label>
-              <input
-                id="rpc-visit-date"
-                type="date"
-                value={visitDate}
-                onChange={e => setVisitDate(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-            </div>
-
-            {/* Which record this lands on, stated before saving rather than
-                discovered afterwards. The year follows the DATE above, so
-                changing the date can change the answer. */}
-            {targetIptrId ? (
-              <p className="text-xs text-muted-foreground">
-                Will be filed under the <span className="font-medium text-foreground">{targetSchoolYear}</span> IPTR.
-              </p>
-            ) : (
-              <p className="text-xs text-destructive bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                This student has no IPTR for <span className="font-medium">{targetSchoolYear}</span>, the school year
-                that date falls in. Pick a date inside a school year they have a record for, or create the
-                {' '}{targetSchoolYear} IPTR first — a visit is not filed against another year&rsquo;s record.
-              </p>
-            )}
-
-            <fieldset>
-              <legend className="block text-sm font-medium text-foreground mb-1">Facility-based care?</legend>
-              {/* Three states, not a checkbox. FHSIS Section D splits each band
-                  into facility-based (a) and non-facility-based (b) sub-rows,
-                  and "not recorded" is a real third answer — a checkbox would
-                  force every visit into one of two, inventing the split. */}
-              <div className="flex flex-wrap gap-2">
-                {([[true, 'Facility-based'], [false, 'Non-facility-based'], [null, 'Not recorded']] as const).map(([val, label]) => (
-                  <button
-                    key={String(val)}
-                    type="button"
-                    onClick={() => setFacilityBased(val)}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${facilityBased === val ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:bg-gray-50'}`}
-                  >{label}</button>
-                ))}
-              </div>
-              <p className="mt-1.5 text-xs text-muted-foreground">
-                Leave as “Not recorded” if unsure — the FHSIS report shows those separately rather than counting them in either row.
-              </p>
-            </fieldset>
-
-            {saveError && <p className="text-sm text-destructive">{saveError}</p>}
-          </div>
-          <div className="flex justify-end gap-2 px-6 py-4 border-t">
-            <button onClick={() => setRecording(null)} disabled={saving} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-gray-50 disabled:opacity-50">Cancel</button>
-            <button onClick={saveVisit} disabled={saving || !visitDate || !targetIptrId} className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:opacity-90 disabled:opacity-50">
-              {saving ? 'Saving…' : 'Record visit'}
+          {/* Reveal tab back INSIDE the scrollable rows box (ported from
+              PatientList, user, 2026-09-29: "it should NEVER be fixed in the
+              page"): as a footer sibling of this box it sat fixed on screen
+              at a constant spot while the rows scrolled past it. Inside the
+              scroll container it scrolls WITH the rows and only comes into
+              view at the true end of the list. */}
+          {pageSize === HIDE_FOOTER && (
+            <button
+              type="button"
+              onClick={() => changePageSize(25)}
+              title="Show pagination controls"
+              className="flex w-full items-center justify-center gap-1.5 border-t border-gray-100 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-canvas hover:text-foreground"
+            >
+              <ChevronUp className="h-3 w-3" /> Show pagination controls
             </button>
+          )}
+        </div>
+        {pageSize !== HIDE_FOOTER && (
+        <div className="flex flex-shrink-0 flex-col gap-3 border-t border-gray-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+            <span>
+              Showing <span className="font-semibold text-foreground">{total === 0 ? 0 : (page - 1) * pageSize + 1}</span> to{' '}
+              <span className="font-semibold text-foreground">{Math.min(page * pageSize, total)}</span> of{' '}
+              <span className="font-semibold text-foreground">{total}</span> records
+              {selectedSchool ? ` at ${selectedSchool}` : ''}
+            </span>
+            {/* Literal glyph, not a CSS-drawn bar (2026-09-25: matches
+                Students/Dental Charts/Treatment's divider exactly). */}
+            <span aria-hidden="true" className="hidden text-3xl font-thin leading-none align-middle text-gray-300 sm:inline-block">|</span>
+            <div className="flex items-center gap-2">
+              {/* theme.css's base `label` rule sets its own font-size/weight
+                  (medium), which otherwise overrides the ancestor's text-sm —
+                  a bare element selector always wins over inheritance, so
+                  this needs its own explicit text-sm font-normal. */}
+              <label htmlFor="rpc-page-size" className="whitespace-nowrap text-sm font-normal">Items per page</label>
+              <select
+                id="rpc-page-size"
+                aria-label="Items per page"
+                value={pageSize}
+                onChange={(e) => changePageSize(Number(e.target.value))}
+                className="w-fit rounded-full border border-border bg-canvas px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {RPC_PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n === HIDE_FOOTER ? 'Hide' : n}</option>)}
+              </select>
+            </div>
           </div>
-        </Modal>
-      )}
+          {pageCount > 1 && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage(Math.max(1, page - 1))}
+                disabled={page === 1}
+                className="flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-canvas disabled:opacity-40 disabled:hover:bg-transparent"
+              >
+                <ChevronLeft className="w-4 h-4" /> Previous
+              </button>
+              <span className="rounded-full bg-primary-surface px-3 py-1.5 text-sm font-semibold text-primary tabular-nums">{page} / {pageCount}</span>
+              <button
+                onClick={() => setPage(Math.min(pageCount, page + 1))}
+                disabled={page === pageCount}
+                className="flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-canvas disabled:opacity-40 disabled:hover:bg-transparent"
+              >
+                Next <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </div>
+        )}
+      </div>
     </div>
   );
 };

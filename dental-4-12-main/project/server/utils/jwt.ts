@@ -6,7 +6,9 @@ const REFRESH_TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60;
 export interface AuthTokenPayload {
   sub: string;
   role: string;
-  school_id: string | null;
+  school_ids: string[];
+  /** Issue time in seconds. jsonwebtoken sets it on sign; read back on verify. */
+  iat?: number;
 }
 
 // The refresh token carries whether this login opted into "Remember me".

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check } from 'lucide-react';
 import { useOfflineQueue } from '../hooks/useOfflineQueue';
 import { retryQueue, discardFailedWrite, keepMyChange, discardMyChange } from '../offline/queueProcessor';
+import { requestConflictReview } from '../offline/queueEvents';
 import type { QueuedWrite } from '../offline/db';
 
 // "/appointments/6a44ad4..." -> "Appointment"
@@ -49,7 +49,7 @@ type Tone = 'offline' | 'syncing' | 'auth' | 'failed' | 'conflict' | 'idle';
 // full sync panel. The floating round icon that used to hang in the top-right
 // corner was deleted on request — it overlapped page content and duplicated
 // what the strip already says.
-export const SyncStatus = () => {
+export const SyncStatus = ({ schoolLabel }: { schoolLabel?: string }) => {
   const { isOnline, pendingCount, failed, authBlocked, conflicts } = useOfflineQueue();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -118,17 +118,36 @@ export const SyncStatus = () => {
 
   const { ring, label } = chrome[tone];
 
+  const isIdle = tone === 'idle';
+
+  // Deleted from the always-visible topbar on request (2026-09-23), matching
+  // both the reference topbar (which shows nothing but the user avatar) and
+  // CLAUDE.md's own PWA/OFFLINE spec: "Show offline banner when disconnected"
+  // -- implying nothing renders here at all while online and synced. The
+  // underlying offline/sync-failure tracking is untouched; it just no longer
+  // paints a permanent "Online" chip.
+  if (isIdle) return null;
+
+  const fullLabel = schoolLabel ? `${label} — ${schoolLabel}` : label;
+
   return (
     <div ref={containerRef} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        aria-label={label}
-        title={label}
+        aria-label={fullLabel}
+        title={fullLabel}
         aria-expanded={open}
-        className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-[2px] text-[13px] font-semibold leading-none transition-colors ${ring}`}
+        className={`inline-flex h-9 flex-col items-start justify-center rounded-lg border px-2.5 text-[13px] font-semibold leading-tight transition-colors ${ring}`}
       >
-        <span className="w-[5px] h-[5px] rounded-full bg-current" aria-hidden="true" />
-        {isOnline ? 'Online' : 'Offline'}
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-[5px] h-[5px] rounded-full bg-current" aria-hidden="true" />
+          {isOnline ? 'Online' : 'Offline'}
+        </span>
+        {/* School is a fact, not a status -- stays black regardless of the
+            box's alert color, same as the clock's own second line. */}
+        {schoolLabel && (
+          <span className="text-[11px] font-normal leading-none text-foreground truncate max-w-[38vw]">{schoolLabel}</span>
+        )}
       </button>
 
       {open && (
@@ -138,13 +157,6 @@ export const SyncStatus = () => {
           className="absolute right-0 mt-2 w-[min(22rem,calc(100vw-1rem))] max-h-[70vh] overflow-y-auto bg-card border border-border rounded-xl shadow-xl p-3 text-sm text-left font-normal normal-case leading-normal z-50"
         >
           <p className="font-semibold text-foreground mb-2">{label}</p>
-
-          {tone === 'idle' && (
-            <p className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Check className="w-3.5 h-3.5 text-success" />
-              No changes waiting to sync.
-            </p>
-          )}
 
           {tone === 'offline' && (
             <p className="text-xs text-muted-foreground">
@@ -185,9 +197,17 @@ export const SyncStatus = () => {
 
           {conflicts.length > 0 && (
             <div className="mt-3 space-y-2">
-              <p className="text-xs font-medium text-foreground">
-                Edited elsewhere while you were offline:
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-medium text-foreground">
+                  Edited elsewhere while you were offline:
+                </p>
+                <button
+                  onClick={() => { setOpen(false); requestConflictReview(); }}
+                  className="px-2 py-1 rounded border border-border text-foreground text-xs font-medium hover:bg-muted"
+                >
+                  Review side by side
+                </button>
+              </div>
               {conflicts.map((c) => (
                 <div key={c.id} className="border border-orange-200 rounded-lg p-2 text-xs text-foreground bg-orange-50">
                   <p className="font-semibold mb-1.5">{describeResource(c.endpoint)} was changed by someone else</p>

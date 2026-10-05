@@ -1,0 +1,332 @@
+import { useEffect, useRef, useState } from 'react';
+import { computeBmi, BMI_NOTE, classifyNutritionalStatus } from '../utils/bmi';
+import type { MedicalHistoryDraft, MedFlag, MedText, DietDraft, MeasureDraft } from './iptrDrafts';
+
+// The History tab — physical measurements, medical history, dietary/social
+// history.
+//
+// Extracted from `DentalChart.tsx` in Sprint 162c, unchanged.
+//
+// ⚠ ORAL HEALTH CONDITION IS DELIBERATELY NOT HERE (Sprint 176, hers). It is
+// the same ORAL_HEALTH_CONDITION record the Oral Conditions card on the Dental
+// Chart tab edits — two editors for one record, on adjacent tabs, is how a
+// screen ends up disagreeing with itself. It lives beside the odontogram now,
+// because that is where a clinician is looking when they notice calculus.
+
+// Height is typed in any of three units but STORED in cm only (height_cm) —
+// BMI, the DOH forms and the DB never see anything else. Feet + inches is the
+// default: it is what the clinic reads first, and the tab returns to it every
+// time the record leaves edit mode (saved or cancelled).
+type HeightUnit = 'ftin' | 'cm' | 'm';
+type HeightDraft = { main: string; inches: string };
+const roundStr = (n: number, d: number) => String(Math.round(n * 10 ** d) / 10 ** d);
+
+function cmToHeightDraft(cmStr: string, unit: HeightUnit): HeightDraft {
+  const cm = Number(cmStr);
+  if (cmStr === '' || !Number.isFinite(cm) || cm <= 0) return { main: '', inches: '' };
+  if (unit === 'cm') return { main: cmStr, inches: '' };
+  if (unit === 'm') return { main: roundStr(cm / 100, 3), inches: '' };
+  const totalIn = cm / 2.54;
+  let ft = Math.floor(totalIn / 12);
+  let inches = Math.round((totalIn - ft * 12) * 10) / 10;
+  if (inches >= 12) { ft += 1; inches = 0; }
+  return { main: String(ft), inches: String(inches) };
+}
+
+function heightDraftToCm(d: HeightDraft, unit: HeightUnit): string {
+  if (unit === 'cm') return d.main;
+  if (unit === 'm') return d.main === '' ? '' : roundStr(Number(d.main) * 100, 1);
+  if (d.main === '' && d.inches === '') return '';
+  return roundStr((Number(d.main || 0) * 12 + Number(d.inches || 0)) * 2.54, 1);
+}
+
+// Every medical-history chip, in the user's order (2026-09-24). DOH Form 1's
+// Filipino questions are chips here under short English names (Form 1 itself
+// still prints them verbatim in Filipino). `details` are the forms' "Please
+// specify" boxes: they open INSIDE the chip when it is ticked, and unticking
+// clears them, so an unticked condition never prints a leftover detail.
+// `field: null` is Allergies, which has no yes/no of its own: it is "yes"
+// when an allergy is written down (that is what Form 1 Q6 and the DOH count read).
+type MedDetail = { field: MedText; label: string; placeholder?: string };
+const MED_CHIPS: { label: string; field: MedFlag | null; femaleOnly?: boolean; details?: MedDetail[] }[] = [
+  { label: 'Allergies', field: null, details: [{ field: 'allergies', label: 'Specify allergies', placeholder: 'e.g. penicillin, shrimp' }] },
+  { label: 'Anesthesia Allergy', field: 'anesthesia_allergy' },                       // Form 1 Q7
+  { label: 'Hypertension / CVA', field: 'hypertension' },
+  { label: 'Diabetes Mellitus', field: 'diabetes_mellitus' },
+  { label: 'Blood Disorders', field: 'blood_disorders' },
+  { label: 'Cardiovascular / Heart Diseases', field: 'cardiovascular_disease' },
+  { label: 'Thyroid Disorders', field: 'thyroid_disorders' },
+  { label: 'Hepatitis', field: 'hepatitis_disorders', details: [{ field: 'hepatitis_type', label: 'Please specify type', placeholder: 'e.g. Hepatitis B' }] },
+  { label: 'Malignancy', field: 'malignancy', details: [{ field: 'malignancy_details', label: 'Please specify' }] },
+  { label: 'Blood Transfusion', field: 'blood_transfusion', details: [{ field: 'blood_transfusion_date', label: 'Month & year', placeholder: 'e.g. March 2024' }] },
+  { label: 'Tattoo', field: 'tattoo' },
+  { label: 'Liver Disease', field: 'liver_disease' },                                 // Form 1 Q3
+  { label: 'Anemia', field: 'anemia' },                                               // Form 1 Q4
+  { label: 'High Blood Pressure', field: 'high_blood_pressure' },                     // Form 1 Q5
+  { label: 'Previous Tooth Extraction', field: 'previous_extraction',                 // Form 1 Q8
+    details: [{ field: 'last_extraction_date', label: 'When (optional)', placeholder: 'e.g. 2024' }] },
+  { label: 'Bleeds a Lot After Extraction', field: 'extraction_bleeding' },           // Form 1 Q9
+  { label: 'Chest Tightness / Easily Tired', field: 'chest_tightness' },              // Form 1 Q10
+  { label: 'Asthma', field: 'asthma' },                                               // Form 1 Q11
+  { label: 'Menstruation', field: 'menstruation', femaleOnly: true },                 // Form 1 Q12
+  { label: 'Pregnant', field: 'pregnant', femaleOnly: true },                         // Form 1 Q13
+  { label: 'Currently Taking Medication', field: 'current_medication',                // Form 1 Q15
+    details: [{ field: 'medication_details', label: 'What medication?' }] },
+  { label: 'Epilepsy', field: 'epilepsy' },                                           // Form 1 Q16
+  { label: 'History of Hospitalization', field: 'previous_hospitalization', details: [
+    { field: 'last_admission', label: 'Medical (last admission & cause)', placeholder: 'e.g. June 2025, dengue' },
+    { field: 'surgical_details', label: 'Surgical (post-operative)' },
+  ] },
+];
+
+/** A medical-history tick-box chip. When ticked, its detail boxes (if any)
+ *  sit INSIDE the chip on the same row, after the name (user's pick "A",
+ *  2026-09-24), and the chip widens to the full row to fit them. The box's
+ *  label is its placeholder and aria-label; on a phone the boxes wrap onto
+ *  the next line inside the chip. */
+function MedChip({ label, checked, onToggle, disabled, details, med, setText }: {
+  label: string; checked: boolean; onToggle: (v: boolean) => void; disabled: boolean;
+  details?: MedDetail[]; med: MedicalHistoryDraft; setText: (field: MedText, v: string) => void;
+}) {
+  const open = checked && !!details?.length;
+  return (
+    <div className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border px-3 py-2 text-xs transition-colors ${open ? 'sm:col-span-2' : ''} ${checked ? 'border-primary bg-primary/10' : 'border-border'} ${disabled ? 'opacity-70' : 'hover:bg-canvas'}`}>
+      <label className={`flex shrink-0 items-center gap-2 text-xs ${checked ? 'text-primary font-medium' : 'text-foreground'} ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+        <input type="checkbox" disabled={disabled} checked={checked}
+          onChange={(e) => onToggle(e.target.checked)}
+          className="w-4 h-4 shrink-0 rounded accent-primary disabled:cursor-not-allowed" />
+        {label}
+      </label>
+      {open && details!.map((d) => (
+        <input key={d.field} type="text" disabled={disabled} value={med[d.field]}
+          placeholder={d.placeholder ? `${d.label}, ${d.placeholder}` : d.label} aria-label={`${label}: ${d.label}`} title={d.label}
+          onChange={(e) => setText(d.field, e.target.value)}
+          className="min-w-[160px] flex-1 bg-card text-xs border border-border rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+      ))}
+    </div>
+  );
+}
+
+export function HistoryTab({
+  editing,
+  measure,
+  setMeasure,
+  med,
+  setMed,
+  diet,
+  setDiet,
+  patientAgeMonths,
+  sex,
+}: {
+  /** Every field on this tab is disabled unless the record is in edit mode —
+   *  the tab is a reader by default and an editor only on request. */
+  editing: boolean;
+  measure: MeasureDraft;
+  setMeasure: React.Dispatch<React.SetStateAction<MeasureDraft>>;
+  med: MedicalHistoryDraft;
+  setMed: React.Dispatch<React.SetStateAction<MedicalHistoryDraft>>;
+  diet: DietDraft;
+  setDiet: React.Dispatch<React.SetStateAction<DietDraft>>;
+  /** Needed for BMI-for-Age, which is keyed on exact age in months and sex. */
+  patientAgeMonths: number | null;
+  sex: string;
+}) {
+  // Form 1 Q12 (regla) and Q13 (buntis) are for girls only.
+  const isFemale = sex === 'Female';
+  // Allergies has no yes/no field: the chip is ticked while an allergy is
+  // written down, or while it has just been ticked and not yet typed.
+  const [allergiesOn, setAllergiesOn] = useState(false);
+  useEffect(() => { if (!editing) setAllergiesOn(false); }, [editing]);
+  const [heightUnit, setHeightUnit] = useState<HeightUnit>('ftin');
+  const [heightDraft, setHeightDraft] = useState<HeightDraft>(() => cmToHeightDraft(measure.height_cm, 'ftin'));
+  // What the draft was last derived from — so a reload / cancel / year switch
+  // re-derives it, but the user's own keystrokes are never reformatted mid-type.
+  const heightSynced = useRef({ cm: measure.height_cm, unit: heightUnit });
+  useEffect(() => { if (!editing) setHeightUnit('ftin'); }, [editing]);
+  useEffect(() => {
+    if (heightSynced.current.cm === measure.height_cm && heightSynced.current.unit === heightUnit) return;
+    heightSynced.current = { cm: measure.height_cm, unit: heightUnit };
+    setHeightDraft(cmToHeightDraft(measure.height_cm, heightUnit));
+  }, [measure.height_cm, heightUnit]);
+  const updateHeight = (next: HeightDraft) => {
+    setHeightDraft(next);
+    const cm = heightDraftToCm(next, heightUnit);
+    heightSynced.current = { cm, unit: heightUnit };
+    setMeasure((p) => ({ ...p, height_cm: cm }));
+  };
+  const noSpin = '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';
+  const heightInput = `min-w-0 flex-1 text-sm border border-border rounded px-2 py-1.5 ${noSpin} focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed`;
+
+  return (
+    <div className="p-4 space-y-4">
+      {/* Physical Measurements — first on the tab, hers (Sprint 173).
+          These were three grey read-only rows on the patient card, typed
+          somewhere else entirely (the Edit Student Info panel). Two
+          places for one record is how a screen ends up disagreeing with
+          itself, so both of those are gone and this is the one editor. */}
+      {/* ⚠ A CARD, like every other section on this tab. An earlier pass
+          stripped it on the reasoning that the tab body is already a card
+          — true, but its siblings are all nested cards inside it, so this
+          was the one section sitting bare. */}
+      <div className="bg-card rounded-xl border border-border p-3">
+        <div className="text-base font-bold text-foreground mb-2">Physical Measurements</div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-2">
+          <div>
+            <label className="block text-xs text-muted-foreground mb-0.5">Height</label>
+            <div className="flex gap-1">
+              {heightUnit === 'ftin' ? (
+                <>
+                  <input type="number" min="0" max="9" step="1" inputMode="numeric" disabled={!editing} aria-label="Height, feet"
+                    value={heightDraft.main}
+                    onChange={(e) => updateHeight({ ...heightDraft, main: e.target.value })}
+                    placeholder="ft" className={heightInput} />
+                  <input type="number" min="0" max="11.9" step="0.1" inputMode="decimal" disabled={!editing} aria-label="Height, inches"
+                    value={heightDraft.inches}
+                    onChange={(e) => updateHeight({ ...heightDraft, inches: e.target.value })}
+                    placeholder="in" className={heightInput} />
+                </>
+              ) : (
+                <input type="number" min="0" max={heightUnit === 'm' ? '3' : '300'} step={heightUnit === 'm' ? '0.01' : '0.1'} inputMode="decimal" disabled={!editing}
+                  aria-label={heightUnit === 'm' ? 'Height, meters' : 'Height, centimeters'}
+                  value={heightDraft.main}
+                  onChange={(e) => updateHeight({ main: e.target.value, inches: '' })}
+                  placeholder={heightUnit === 'm' ? 'e.g. 1.20' : 'e.g. 120'} className={heightInput} />
+              )}
+              {/* Display unit only — switching never rewrites the stored cm. */}
+              <select value={heightUnit} onChange={(e) => setHeightUnit(e.target.value as HeightUnit)} aria-label="Height unit"
+                className="shrink-0 text-sm border border-border rounded bg-card px-1 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring">
+                <option value="ftin">ft/in</option>
+                <option value="cm">cm</option>
+                <option value="m">m</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-muted-foreground mb-0.5">Weight (kg)</label>
+            <input type="number" min="0" max="500" step="0.1" inputMode="decimal" disabled={!editing}
+              value={measure.weight_kg}
+              onChange={(e) => setMeasure((p) => ({ ...p, weight_kg: e.target.value }))}
+              placeholder="e.g. 25" className="w-full text-sm border border-border rounded px-2 py-1.5 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+          </div>
+          <div>
+            <label className="block text-xs text-muted-foreground mb-0.5">Temperature (°C)</label>
+            <input type="number" min="0" max="45" step="0.1" inputMode="decimal" disabled={!editing}
+              value={measure.temperature_c}
+              onChange={(e) => setMeasure((p) => ({ ...p, temperature_c: e.target.value }))}
+              placeholder="e.g. 36.5" className="w-full text-sm border border-border rounded px-2 py-1.5 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+          </div>
+          <div>
+            <label className="block text-xs text-muted-foreground mb-0.5">Blood Pressure</label>
+            {/* Text, not two numbers: read and written as one pair, and
+                nothing here queries systolic alone. */}
+            <input type="text" disabled={!editing}
+              value={measure.blood_pressure}
+              onChange={(e) => setMeasure((p) => ({ ...p, blood_pressure: e.target.value }))}
+              placeholder="e.g. 110/70" className="w-full text-sm border border-border rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+          </div>
+          {(() => {
+            const bmiValue = computeBmi(Number(measure.height_cm) || null, Number(measure.weight_kg) || null);
+            const status = classifyNutritionalStatus(bmiValue, patientAgeMonths, sex);
+            const statusColor =
+              status === 'Normal' ? 'bg-success-surface text-success'
+              : status === 'Overweight' || status === 'Obese' ? 'bg-warning-surface text-warning'
+              : status === 'Wasted' || status === 'Severely Wasted' ? 'bg-danger-surface text-destructive'
+              : 'bg-muted text-muted-foreground';
+            // ⚠ Say WHY it is blank. "Nothing measured yet" and "no
+            // reference exists for this age" look identical as a dash,
+            // and only one of them is the user's to fix.
+            const statusFallback = bmiValue == null
+              ? 'Automatic'
+              : (patientAgeMonths ?? 0) < 72
+              ? 'No reference below age 6'
+              : 'No reference above age 19';
+            return (
+              <>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-0.5">BMI</label>
+                  <div className="w-full text-sm border border-border rounded px-2 py-1.5 bg-muted text-muted-foreground" title={BMI_NOTE}>
+                    {bmiValue ?? 'Automatic'}
+                  </div>
+                </div>
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="block text-xs text-muted-foreground mb-0.5">Nutritional Status</label>
+                  <div className={`w-full text-sm border border-border rounded px-2 py-1.5 ${statusColor}`}
+                    title="DOH/DepEd BMI-for-Age classification, 6-19 years old — blank outside that range.">
+                    {status ?? statusFallback}
+                  </div>
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-card rounded-xl border border-border p-4">
+          {/* Her heading: sentence case at text-base with the instruction
+              under it, not a small uppercase label. */}
+          <div className="text-base font-bold text-foreground">Medical History</div>
+          <p className="text-xs text-muted-foreground mb-3">Select all applicable conditions.</p>
+          {/* ⚠ Sprint 165 — chips, not label-left/checkbox-right rows.
+              Removing the record page's width cap stretched those rows to
+              the full content width and left every checkbox a hand-span
+              from the word it belonged to. Her chips keep the box against
+              its label at any width.
+              On DOH Form 1 a ticked chip prints under Oo, an unticked one
+              under Hindi (user, 2026-09-24). */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {MED_CHIPS.filter((c) => !c.femaleOnly || isFemale).map(({ label, field, details }) => {
+              const checked = field ? med[field] : allergiesOn || med.allergies !== '';
+              const onToggle = (v: boolean) => {
+                if (field === null) setAllergiesOn(v);
+                setMed((p) => {
+                  const next = { ...p };
+                  if (field) next[field] = v;
+                  // Unticking clears its details (see MED_CHIPS).
+                  if (!v) for (const d of details ?? []) next[d.field] = '';
+                  if (field === 'previous_hospitalization' && !v) next.previous_surgical = false;
+                  return next;
+                });
+              };
+              const setText = (f: MedText, v: string) => setMed((p) => ({
+                ...p, [f]: v,
+                // The IPTR's Surgical (Post-Operative) row is a yes/no on the
+                // record; it is "yes" exactly when a surgery is written down.
+                ...(f === 'surgical_details' ? { previous_surgical: v.trim() !== '' } : {}),
+              }));
+              return (
+                <MedChip key={label} label={label} checked={checked} onToggle={onToggle} disabled={!editing}
+                  details={details} med={med} setText={setText} />
+              );
+            })}
+          </div>
+          <div className="mt-3">
+            <label className="block text-xs text-muted-foreground mb-1">Others (please specify)</label>
+            <input type="text" disabled={!editing} value={med.others}
+              onChange={(e) => setMed((p) => ({ ...p, others: e.target.value }))}
+              className="w-full text-xs border border-border rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+          </div>
+        </div>
+        <div className="bg-card rounded-xl border border-border p-4">
+          <div className="text-base font-bold text-foreground">Dietary Habits and Social History</div>
+          <p className="text-xs text-muted-foreground mb-3">Select all applicable conditions.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {([
+              ['Sugar Sweetened Beverages/Food', 'sugarSweetened'], ['Alcohol Drinker', 'alcoholDrinker'],
+              ['Tobacco User', 'tobaccoUser'], ['Betel Nut Chewer', 'betelNut'],
+              ['Body Piercing', 'bodyPiercing'], ['Nail Biting', 'nailBiting'], ['Thumbsucking', 'thumbsucking'],
+            ] as [string, keyof DietDraft][]).map(([label, field]) => (
+              <label key={field} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors ${!!diet[field] ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-border text-foreground'} ${editing ? 'cursor-pointer hover:bg-canvas' : 'cursor-not-allowed opacity-70'}`}>
+                <input type="checkbox" disabled={!editing} checked={!!diet[field]}
+                  onChange={(e) => setDiet((p) => ({ ...p, [field]: e.target.checked }))}
+                  className="w-4 h-4 rounded accent-primary disabled:cursor-not-allowed" />
+                {label}
+              </label>
+            ))}
+          </div>
+        </div>
+      </div>
+
+    </div>
+  );
+}

@@ -1,92 +1,387 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
-import { X } from 'lucide-react';
-import { GradeTableCell } from './GradeTableCell';
+import { Eye, Users, Calendar, Clipboard, ClipboardList, Shield, Stethoscope, SlidersHorizontal, PanelLeftClose, PanelLeftOpen, X, ChevronDown, MoreVertical, CircleDashed } from 'lucide-react';
+import { LevelChip } from './risk/RiskReviewDialog';
+import { GradePill } from './GradePill';
+import { PipelineStatusPill } from './PipelineStatusPill';
+import { getSchoolColor } from '../utils/schoolColors';
+import { getGradeColor } from '../utils/gradeColors';
 import { ListSearchInput } from './ListSearchInput';
-import { studentListTableStyles } from './StudentListTableStyles';
-import { getQueuedStudentIds } from '../utils/queueStorage';
+import { getQueuedStudentIds, setQueuedStudentIds as persistQueuedStudentIds, getEffectiveQueueOrder } from '../utils/queueStorage';
 import { useStudents } from '../hooks/useStudents';
+import { useRPCTracking } from '../hooks/useRPCTracking';
 import { useAuth } from '../context/AuthContext';
+import { apiClient } from '../api/client';
+import { OfflineDataStatus } from './OfflineDataStatus';
+import type { ApiAppointment, ApiStudentIptr, ApiTreatment } from '../api/types';
+import { toLocalDateString, formatDate } from '../utils/localDate';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
+import { ConfirmDialog } from './ConfirmDialog';
+import { Modal } from './Modal';
 import { activatable } from '../utils/a11y';
-import { Pagination, usePagination } from './Pagination';
+import { calculateAge } from '../utils/age';
 
-const GRADES = ['Kinder','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10'];
+// Gender-specific avatar glyphs for the Up Next card (user, 2026-09-26) --
+// a plain lucide "User" icon doesn't distinguish sex, and initials read as
+// less immediately legible at a glance than a real person icon.
+const BoyIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className}><circle cx="12" cy="7" r="4" /><path d="M6 21v-2a6 6 0 0 1 12 0v2" /></svg>
+);
+const GirlIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className}><circle cx="12" cy="6.5" r="3.5" /><path d="M12 10 6 21h12L12 10z" /></svg>
+);
 
-const calculateAge = (birthdate: string) => {
-  const today = new Date();
-  const birth = new Date(birthdate);
-  let age = today.getFullYear() - birth.getFullYear();
-  const m = today.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
-  return age;
+// Same badge convention as AI Analytics' own RISK_BADGE.
+const RISK_BADGE: Record<string, string> = {
+  High: 'bg-red-100 text-red-700',
+  Medium: 'bg-yellow-100 text-yellow-700',
+  Low: 'bg-green-100 text-green-800',
 };
 
-const getAgeGroup = (age: number) => {
-  if (age <= 4) return '4 & below';
-  if (age <= 9) return '5-9';
-  if (age <= 14) return '10-14';
-  if (age <= 19) return '15-19';
-  return '20 & above';
-};
+/** Two-letter initials for the row avatar. Same derivation her Student
+ *  Records rows use, so a student is recognised by the same mark on both
+ *  screens rather than two near-misses. */
+const initials = (name: string) =>
+  name.split(/[\s,]+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
+
+// calculateAge: the shared one (BUG-02), null rather than NaN on a bad birthdate.
 
 export const DentalChartNav = () => {
   const navigate = useNavigate();
   // Open on Full List when nothing is queued — an empty default view reads as a dead page
   const [viewMode, setViewMode] = useState<'queued' | 'full'>(() => (getQueuedStudentIds().length ? 'queued' : 'full'));
-  const [gradeFilter, setGradeFilter] = useState('all');
-  const [sectionFilter, setSectionFilter] = useState('all');
-  const [genderFilter, setGenderFilter] = useState('all');
-  const [ageGroupFilter, setAgeGroupFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const queuedStudentIds = useMemo(() => getQueuedStudentIds(), []);
+  // Reactive, not a one-time useMemo (user, 2026-09-26): clicking a stat
+  // card can now auto-queue students, which has to show up immediately in
+  // both this list and the Queue #/Students Queue count, not just after a
+  // fresh page load.
+  const [queuedStudentIds, setQueuedStudentIds] = useState<string[]>(() => getQueuedStudentIds());
+  // Which stat card (if any) is narrowing the queue beyond viewMode alone --
+  // Appointments Today / RPC filter to a specific set of students; Students
+  // Queue and the "Clear filter" chip reset it (user, 2026-09-26).
+  const [extraFilter, setExtraFilter] = useState<'none' | 'appointments-today' | 'rpc-outstanding'>('none');
+  // Up Next can be hidden to give the queue table more width (user,
+  // 2026-09-26).
+  const [showUpNext, setShowUpNext] = useState(true);
+  // The single "Filter" button's dropdown (replaces the old Queued/Full
+  // List segmented toggle, user, 2026-09-26). State lives here, not inside
+  // a nested component defined in the render body -- that component gets a
+  // NEW function identity every render, so React remounts it (and drops
+  // `open` back to false, mid-click) any time this component re-renders for
+  // an unrelated reason. Confirmed via Playwright: the button detached from
+  // the DOM and reattached on every render while a click was in flight.
+  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
+  const filterMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!filterMenuOpen) return;
+    const onDown = (e: MouseEvent) => { if (!filterMenuRef.current?.contains(e.target as Node)) setFilterMenuOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [filterMenuOpen]);
+  // Bulk-actions "⋮" menu, after Filter (user, 2026-09-26): the actual
+  // Dequeue action lives one click deeper, behind this menu, instead of
+  // sitting as a bare button in the selection bar -- a stray click in that
+  // bar's row (which the count/pills also occupy) can no longer fire a
+  // bulk dequeue by accident. Same top-level-state pattern as filterMenuOpen
+  // above, for the same reason (a nested component here would remount).
+  const [bulkMenuOpen, setBulkMenuOpen] = useState(false);
+  const bulkMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!bulkMenuOpen) return;
+    const onDown = (e: MouseEvent) => { if (!bulkMenuRef.current?.contains(e.target as Node)) setBulkMenuOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [bulkMenuOpen]);
   const { selectedSchool } = useAuth();
   const { students: allStudents, loading: studentsLoading } = useStudents();
   // School-scoped like every other list page
-  const mockPatients = useMemo(
+  const allPatients = useMemo(
     () => (selectedSchool ? allStudents.filter((s) => s.school === selectedSchool) : allStudents),
     [allStudents, selectedSchool],
   );
 
   const sourcePatients = useMemo(
-    () => (viewMode === 'queued' ? mockPatients.filter((p) => queuedStudentIds.includes(p.id)) : mockPatients),
-    [viewMode, queuedStudentIds, mockPatients],
+    () => (viewMode === 'queued' ? allPatients.filter((p) => queuedStudentIds.includes(p.id)) : allPatients),
+    [viewMode, queuedStudentIds, allPatients],
   );
 
-  const allSections = useMemo(() => {
-    const base = gradeFilter !== 'all' ? sourcePatients.filter((p) => p.grade === gradeFilter) : sourcePatients;
-    return [...new Set(base.map(p => p.section))].sort();
-  }, [gradeFilter, sourcePatients]);
+  // ── Stat row + "Up Next" spotlight (user, 2026-09-25) ───────────────────
+  // `upNext`/`spotlightStudent`/`isSpotlightUpNext` are defined further
+  // down, right after `queuedInView` -- Up Next now has to respect whatever
+  // search/viewMode/extraFilter narrowed the queue to (user, 2026-09-27:
+  // clicking Appointments Today didn't change who this panel showed), and
+  // `queuedInView` is what already does that filtering. Referencing it here
+  // would read `queuedInView` before its own declaration runs (TDZ), same
+  // bug class hit before with this exact file.
 
-  const filtered = useMemo(() => sourcePatients.filter(p => {
-    const age = calculateAge(p.birthdate);
-    const ag = getAgeGroup(age);
-    if (gradeFilter !== 'all' && p.grade !== gradeFilter) return false;
-    if (sectionFilter !== 'all' && p.section !== sectionFilter) return false;
-    if (genderFilter !== 'all' && p.gender !== genderFilter) return false;
-    if (ageGroupFilter !== 'all' && ag !== ageGroupFilter) return false;
-    if (searchTerm) {
+  // Clicking a row in the Charting Queue table previews that student in the
+  // left panel instead of always showing whoever is first in queue (user,
+  // 2026-09-26). null means "show the real Up Next" -- the fallback below
+  // also covers a selection that's since left the filtered list (e.g. a
+  // search that no longer matches them).
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  // Confirms before leaving the page (user, 2026-09-27, Option A of the
+  // design review: solid navy modal) -- the other three stat cards stay on
+  // this page, so "For Treatment" is the only one that needs a "you're
+  // about to leave" step.
+  const [showTreatmentConfirm, setShowTreatmentConfirm] = useState(false);
+
+  // Dequeue, with confirmation (user, 2026-09-26) -- one shared pending-
+  // removal state for both the single Queue # badge click AND the bulk
+  // checkbox flow below, so there's one confirm dialog, not two.
+  const [pendingDequeue, setPendingDequeue] = useState<{ ids: string[]; label: string } | null>(null);
+  const confirmDequeue = () => {
+    if (!pendingDequeue) return;
+    const toRemove = new Set(pendingDequeue.ids);
+    const next = queuedStudentIds.filter((id) => !toRemove.has(id));
+    persistQueuedStudentIds(next);
+    setQueuedStudentIds(next);
+    if (selectedStudentId && toRemove.has(selectedStudentId)) setSelectedStudentId(null);
+    exitBulkSelectMode();
+    setPendingDequeue(null);
+  };
+
+  // Bulk multi-select (user, 2026-09-27 -- entered deliberately, not always
+  // on): checkboxes and clickable Grade/Section badges are HIDDEN by
+  // default. Picking "Dequeue" from the "⋮" menu after Filter is what turns
+  // `bulkSelectMode` on and reveals them -- the user's own correction: pick
+  // dequeue mode FIRST, then the checkboxes/badges appear to build a
+  // selection, not the other way around. The same menu, once in the mode,
+  // offers "Dequeue N selected" (opens the confirm dialog) and "Cancel".
+  const [bulkSelectMode, setBulkSelectMode] = useState(false);
+  const [selectedForDequeue, setSelectedForDequeue] = useState<Set<string>>(new Set());
+  const [activeGradeCriteria, setActiveGradeCriteria] = useState<Set<string>>(new Set());
+  const [activeSectionCriteria, setActiveSectionCriteria] = useState<Set<string>>(new Set());
+  const toggleSelectedForDequeue = (id: string) => {
+    setSelectedForDequeue((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const clearBulkSelection = () => {
+    setSelectedForDequeue(new Set());
+    setActiveGradeCriteria(new Set());
+    setActiveSectionCriteria(new Set());
+  };
+  const exitBulkSelectMode = () => {
+    clearBulkSelection();
+    setBulkSelectMode(false);
+  };
+  // Clicking a Grade/Section badge on a queued row toggles it as a selection
+  // criterion: turning one on unions its matching rows into the selection;
+  // turning it off drops just those rows back out.
+  const toggleGradeCriterion = (grade: string) => {
+    const matching = queuedInView.filter((p) => p.grade === grade).map((p) => p.id);
+    const turningOn = !activeGradeCriteria.has(grade);
+    setActiveGradeCriteria((prev) => {
+      const next = new Set(prev);
+      if (turningOn) next.add(grade); else next.delete(grade);
+      return next;
+    });
+    setSelectedForDequeue((prev) => {
+      const next = new Set(prev);
+      matching.forEach((id) => (turningOn ? next.add(id) : next.delete(id)));
+      return next;
+    });
+  };
+  const toggleSectionCriterion = (section: string) => {
+    const matching = queuedInView.filter((p) => p.section === section).map((p) => p.id);
+    const turningOn = !activeSectionCriteria.has(section);
+    setActiveSectionCriteria((prev) => {
+      const next = new Set(prev);
+      if (turningOn) next.add(section); else next.delete(section);
+      return next;
+    });
+    setSelectedForDequeue((prev) => {
+      const next = new Set(prev);
+      matching.forEach((id) => (turningOn ? next.add(id) : next.delete(id)));
+      return next;
+    });
+  };
+
+  // For Treatment: students at this school with at least one TREATMENT
+  // record — same query TreatmentRecords.tsx runs for its own "Treatment
+  // List" view, so the two counts can't disagree.
+  const [treatmentStudentIds, setTreatmentStudentIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const [iptrs, treatments] = await Promise.all([
+        apiClient.get<ApiStudentIptr[]>('/student-iptrs'),
+        apiClient.get<ApiTreatment[]>('/treatments'),
+      ]);
+      const studentIdByIptr = new Map(iptrs.map((i) => [i._id, i.student_id]));
+      const ids = new Set(treatments.map((t) => studentIdByIptr.get(t.iptr_id)).filter((id): id is string => !!id));
+      if (!cancelled) setTreatmentStudentIds(ids);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  const forTreatmentCount = useMemo(
+    () => allPatients.filter((p) => treatmentStudentIds.has(p.id)).length,
+    [allPatients, treatmentStudentIds],
+  );
+
+  // Appointments Today: this school's students with a non-archived
+  // appointment on today's LOCAL calendar date. Kept as the actual student
+  // ID set, not just a count (user, 2026-09-26) -- clicking the card queues
+  // and filters to exactly these students.
+  const [appointmentsTodayIds, setAppointmentsTodayIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const appts = await apiClient.get<ApiAppointment[]>('/appointments');
+      const today = toLocalDateString(new Date());
+      const schoolIds = new Set(allPatients.map((p) => p.id));
+      const ids = new Set(
+        appts
+          .filter((a) => !a.isArchived && schoolIds.has(a.student_id) && toLocalDateString(new Date(a.appointment_datetime)) === today)
+          .map((a) => a.student_id),
+      );
+      if (!cancelled) setAppointmentsTodayIds(ids);
+    })();
+    return () => { cancelled = true; };
+  }, [allPatients]);
+  const appointmentsToday = appointmentsTodayIds.size;
+
+  // RPC: outstanding (pending or overdue Visit 2) rows at this school --
+  // same 'outstanding' meaning RPC Monitoring's own default view uses.
+  // limit: 1 -- only `.total` is read, not the rows themselves.
+  // limit: 1000, not 1 (user, 2026-09-26) -- clicking the card now filters
+  // the queue to these exact students, which needs their ids, not just the
+  // count. A single school's outstanding-RPC population is nowhere near
+  // this cap.
+  const { total: rpcOutstandingCount, records: rpcOutstandingRecords } = useRPCTracking({ school: selectedSchool ?? undefined, status: 'outstanding', limit: 1000 });
+  const rpcOutstandingIds = useMemo(() => new Set(rpcOutstandingRecords.map((r) => r.id)), [rpcOutstandingRecords]);
+  // For the Up Next card's Status pill RPC chip (user, 2026-09-28: "the RPC
+  // should only show if they are due this month") -- same 'due_this_month'
+  // rule Treatment Queue's own auto-enqueue and RPC Monitoring's sort/filter
+  // use, not the broader "outstanding" set above.
+  const { records: rpcDueThisMonthRecords } = useRPCTracking({ school: selectedSchool ?? undefined, sort: 'due_this_month', limit: 1000 });
+  const rpcDueThisMonthIds = useMemo(() => new Set(rpcDueThisMonthRecords.map((r) => r.id)), [rpcDueThisMonthRecords]);
+
+  // The actual "Queue #" every queued student is given (user, 2026-09-27):
+  // appointments-today students BYPASS raw queue position entirely and get
+  // renumbered 1, 2, 3… ahead of everyone else, who then continue after
+  // them in their existing relative order. Computed once, off every queued
+  // student (not `filtered`, which search/extraFilter can narrow) so the
+  // number a student shows is stable regardless of what's currently
+  // searched or filtered -- only the visible ROWS should shrink with a
+  // search, never the numbers themselves.
+  // Shared with DentalChart.tsx's own Prev/Next nav (user, 2026-09-27: "Next"
+  // from an opened chart must agree with the Queue # shown here, not just
+  // the raw order students were added in) via getEffectiveQueueOrder.
+  const effectiveQueueOrder = useMemo(() => {
+    const queuedIdsAtSchool = queuedStudentIds.filter((qid) => allPatients.some((p) => p.id === qid));
+    return getEffectiveQueueOrder(queuedIdsAtSchool, appointmentsTodayIds);
+  }, [allPatients, queuedStudentIds, appointmentsTodayIds]);
+
+  // No grade/section/gender/age filters (user, 2026-09-25 — removed in
+  // favor of a single, fixed sort). Search only; row order follows the same
+  // effectiveQueueOrder as the Queue # badge, with un-queued students (Full
+  // List only) pushed after the queued ones and broken by name.
+  const filtered = useMemo(() => {
+    const rows = sourcePatients.filter((p) => {
+      // Stat-card filter (user, 2026-09-26): narrows to exactly the
+      // students that card represents, on top of whatever viewMode/search
+      // already apply.
+      if (extraFilter === 'appointments-today' && !appointmentsTodayIds.has(p.id)) return false;
+      if (extraFilter === 'rpc-outstanding' && !rpcOutstandingIds.has(p.id)) return false;
+      if (!searchTerm) return true;
       const query = searchTerm.toLowerCase();
       const formattedName = p.name.toLowerCase();
-      if (!formattedName.includes(query) && !p.grade.toLowerCase().includes(query) && !p.section.toLowerCase().includes(query)) return false;
-    }
-    return true;
-  }), [sourcePatients, gradeFilter, sectionFilter, genderFilter, ageGroupFilter, searchTerm]);
+      return formattedName.includes(query) || p.grade.toLowerCase().includes(query) || p.section.toLowerCase().includes(query);
+    });
+    return [...rows].sort((a, b) => {
+      const qa = effectiveQueueOrder.indexOf(a.id);
+      const qb = effectiveQueueOrder.indexOf(b.id);
+      const posA = qa >= 0 ? qa : Infinity;
+      const posB = qb >= 0 ? qb : Infinity;
+      return posA !== posB ? posA - posB : a.name.localeCompare(b.name);
+    });
+  }, [sourcePatients, searchTerm, effectiveQueueOrder, extraFilter, appointmentsTodayIds, rpcOutstandingIds]);
 
-  // Paged (Sprint 58). This is the real Dental Charts list page — it rendered
-  // every filtered row, which is thousands at ~8,000 students. Reset keys are
-  // the filter inputs, never `filtered` — see Pagination.tsx.
-  const pager = usePagination(filtered, [gradeFilter, sectionFilter, genderFilter, ageGroupFilter, searchTerm, viewMode]);
+  // Only students BOTH queued and currently visible in `filtered` count --
+  // selecting shouldn't reach past the search box into rows you can't see.
+  const queuedInView = useMemo(() => filtered.filter((p) => queuedStudentIds.includes(p.id)), [filtered, queuedStudentIds]);
 
-  const hasActiveFilters = gradeFilter !== 'all' || sectionFilter !== 'all' || genderFilter !== 'all' || ageGroupFilter !== 'all' || searchTerm !== '';
-  const clearFilters = () => { setGradeFilter('all'); setSectionFilter('all'); setGenderFilter('all'); setAgeGroupFilter('all'); setSearchTerm(''); };
-
-  const FS = ({ value, onChange, opts, label }: { value: string; onChange: (v: string) => void; opts: {v:string;l:string}[]; label: string }) => (
-    <select value={value} onChange={e => onChange(e.target.value)} className="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-      <option value="all">{label}</option>
-      {opts.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
-    </select>
+  // "Up Next" = whoever is first in queue order AMONG the currently
+  // filtered view (user, 2026-09-27) -- was always the global first-in-
+  // queue regardless of search/viewMode/extraFilter, so clicking
+  // Appointments Today (or RPC, or typing a search) filtered the table but
+  // left this panel showing someone who might not even be in that filtered
+  // set any more. `queuedInView` is already `filtered` narrowed to queued
+  // students, in queue-position order, so its first entry IS that answer.
+  const upNext = queuedInView.length ? queuedInView[0] : null;
+  const spotlightStudent = useMemo(
+    () => (selectedStudentId ? allPatients.find((p) => p.id === selectedStudentId) ?? upNext : upNext),
+    [selectedStudentId, allPatients, upNext],
   );
+  const isSpotlightUpNext = !!spotlightStudent && spotlightStudent.id === upNext?.id;
+
+  const allQueuedInViewSelected = queuedInView.length > 0 && queuedInView.every((p) => selectedForDequeue.has(p.id));
+  // "All" quick-select (user, 2026-09-27): grabs everyone queued and in
+  // view in one click. Clears any grade/section criteria pills first --
+  // they'd just be a redundant subset once everyone's selected.
+  const toggleSelectAllQueued = () => {
+    setActiveGradeCriteria(new Set());
+    setActiveSectionCriteria(new Set());
+    setSelectedForDequeue(allQueuedInViewSelected ? new Set() : new Set(queuedInView.map((p) => p.id)));
+  };
+
+  // No pagination (user, 2026-09-26 — removed): the queue card scrolls its
+  // own rows internally (see regionRef/rowsBoxRef below) instead of paging,
+  // so every filtered row renders and scrolling the box reaches the rest.
+
+  // Adaptive, PINNED queue card (user, 2026-09-26 — fixed AGAIN: sticking the
+  // card to the document at `top: TOPBAR_H` worked for where it landed, but
+  // any page that can scroll at all gets the BROWSER's own scrollbar, which
+  // is chrome outside our DOM and always spans the full window from y:0 --
+  // it visually ran straight through the fixed top bar. The actual fix is to
+  // never let the page/document scroll in the first place: this whole
+  // section becomes its OWN bounded, internally-scrolling region (height =
+  // remaining viewport, `overflow-y-auto`), so any scrollbar it shows is
+  // confined to its own box, below the top bar, not the window's. The queue
+  // card then sticks at `top-0` of THAT region instead of the document, and
+  // fills the same remaining height once stuck -- the rows box inside it
+  // keeps its own separate internal scroll for the list itself, unchanged.
+  const regionRef = useRef<HTMLDivElement | null>(null);
+  const rowsBoxRef = useRef<HTMLDivElement | null>(null);
+  const [regionHeight, setRegionHeight] = useState<number | null>(null);
+
+  useEffect(() => {
+    // Always flush to the true screen edge, scrolled or not (user,
+    // 2026-09-28: "it should always touch the edge of the screen even if i
+    // scrolled till the bottom or end of the page") -- the Treatment
+    // Queue's sidebar-bottom cap (added earlier the same day) is
+    // deliberately NOT ported here; this queue always stays flush.
+    const measure = () => {
+      if (!regionRef.current) return;
+      const top = regionRef.current.getBoundingClientRect().top;
+      setRegionHeight(Math.max(window.innerHeight - top, 200));
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    resizeObserver?.observe(document.body);
+    return () => {
+      window.removeEventListener('resize', measure);
+      resizeObserver?.disconnect();
+    };
+  }, [studentsLoading]);
+
+  // Trims any stray page scroll the estimate above leaves behind -- mainly
+  // <main>'s own bottom padding (p-4/md:p-8 around every routed page, see
+  // Root.tsx), which the negative margin below cancels but isn't the only
+  // possible source. Same correction pass RPC Monitoring and Student
+  // Records use.
+  useLayoutEffect(() => {
+    if (regionHeight == null) return;
+    const overflow = document.documentElement.scrollHeight - window.innerHeight;
+    if (overflow > 0) {
+      setRegionHeight((h) => (h == null ? h : Math.max(h - overflow, 200)));
+    }
+  }, [regionHeight]);
 
   if (studentsLoading) {
     return (
@@ -97,87 +392,590 @@ export const DentalChartNav = () => {
     );
   }
 
+  // Her Student Records card, applied here (Sprint 161). ⚠ NOT adopted from
+  // her branch — she never restyled this screen either, so there was nothing to
+  // copy. It kept the pre-adoption look while everything around it became hers,
+  // which is why it read as the odd one out. The patterns are lifted from her
+  // PatientList so the two rosters are recognisably the same screen.
+  const kickerColor = getSchoolColor(selectedSchool || '');
+
+  // Each card is clickable (user, 2026-09-26):
+  // - Students Queue: back to the plain queued view, clearing any filter.
+  // - Appointments Today: queues everyone with an appointment today (adding
+  //   them to the persisted queue, not just filtering) AND filters the list
+  //   down to exactly them -- the user's own distinction: this one "should
+  //   be automatically queued", the others below only filter.
+  // - For Treatment: leaves this page entirely, for the Treatment submodule.
+  // - RPC: filters (Full List, since these students aren't necessarily
+  //   queued) down to students with an outstanding RPC visit.
+  const handleStudentsQueueClick = () => {
+    setViewMode('queued');
+    setExtraFilter('none');
+  };
+  const handleAppointmentsTodayClick = () => {
+    const merged = Array.from(new Set([...queuedStudentIds, ...appointmentsTodayIds]));
+    persistQueuedStudentIds(merged);
+    setQueuedStudentIds(merged);
+    setViewMode('queued');
+    setExtraFilter('appointments-today');
+  };
+  const handleForTreatmentClick = () => setShowTreatmentConfirm(true);
+  const handleRpcClick = () => {
+    setViewMode('full');
+    setExtraFilter('rpc-outstanding');
+  };
+
+  // Styled after RAMHIS's Doctor Queue stat row (user, 2026-09-25), each tied
+  // to a real, already-computed count above -- nothing here is a placeholder
+  // number.
+  const statCards = [
+    { label: 'Students Queue', value: allPatients.filter((p) => queuedStudentIds.includes(p.id)).length, icon: Users, bg: '#E8ECF6', fg: '#273A78', onClick: handleStudentsQueueClick },
+    { label: 'Appointments Today', value: appointmentsToday, icon: Calendar, bg: '#FFFBEB', fg: '#B45309', onClick: handleAppointmentsTodayClick },
+    { label: 'For Treatment', value: forTreatmentCount, icon: Clipboard, bg: '#EFF6FF', fg: '#1D4ED8', onClick: handleForTreatmentClick },
+    { label: 'RPC', value: rpcOutstandingCount, icon: Shield, bg: '#FDF2F8', fg: '#BE185D', onClick: handleRpcClick },
+  ];
+
+  const queueCount = filtered.length;
+
+  // Replaces the old Queued/Full List segmented toggle with a single button
+  // (user, 2026-09-26) -- same effect (picking viewMode, clearing any stat
+  // filter), just as a dropdown off one dark, filled button instead of two
+  // side-by-side ones. Rendered inline below, not as a nested component --
+  // see the filterMenuOpen state above for why.
+  const viewModeOpts: { v: 'queued' | 'full'; l: string }[] = [
+    { v: 'queued', l: 'Queued' },
+    { v: 'full', l: 'Full List' },
+  ];
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Dental Charts</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {viewMode === 'queued' ? `${filtered.length} queued student${filtered.length !== 1 ? 's' : ''}` : `${filtered.length} chart${filtered.length !== 1 ? 's' : ''} found`}
-          </p>
-        </div>
-        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-          <button
-            onClick={() => setViewMode('queued')}
-            className={`px-3 py-1.5 rounded-md text-sm font-medium ${viewMode === 'queued' ? 'bg-white text-[#1E40AF] shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-          >
-            Queued
-          </button>
-          <button
-            onClick={() => setViewMode('full')}
-            className={`px-3 py-1.5 rounded-md text-sm font-medium ${viewMode === 'full' ? 'bg-white text-[#1E40AF] shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-          >
-            Full List
-          </button>
+    <div ref={regionRef} className="space-y-4 overflow-y-auto no-scrollbar -mb-4 md:-mb-8" style={{ height: regionHeight ?? undefined }}>
+      {/* Page-level identity header, above the stat row and the queue itself
+          (user, 2026-09-25). No card/border -- sits directly on the page.
+          Generic module eyebrow ("Clinical Services") instead of the school
+          name, which is already shown in the top bar; description is a
+          fixed line about what the module does, not a live count (the
+          queue card below already gives the real number). */}
+      <div className="flex items-center gap-4">
+        <span style={{ backgroundColor: kickerColor.light }} className="w-12 h-12 rounded-2xl grid place-items-center flex-shrink-0">
+          <Stethoscope style={{ color: kickerColor.solid }} className="w-6 h-6" />
+        </span>
+        <div className="min-w-0">
+          <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Clinical Services</div>
+          <h1 className="text-2xl font-bold text-foreground mt-0.5">Dental Charts</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Manage student dental charts and the charting queue.</p>
+          <OfflineDataStatus />
         </div>
       </div>
-      <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
-        <div className="flex flex-wrap gap-2">
-          <ListSearchInput value={searchTerm} onChange={setSearchTerm} />
-          <FS value={gradeFilter} onChange={g => { setGradeFilter(g); setSectionFilter('all'); }} label="All Grades" opts={GRADES.map(g => ({ v: g, l: g }))} />
-          <FS value={sectionFilter} onChange={setSectionFilter} label="All Sections" opts={allSections.map(s => ({ v: s, l: s }))} />
-          <FS value={genderFilter} onChange={setGenderFilter} label="All Genders" opts={[{ v:'Male', l:'Male' }, { v:'Female', l:'Female' }]} />
-          <FS value={ageGroupFilter} onChange={setAgeGroupFilter} label="All Age Groups"
-            opts={[{ v:'4 & below', l:'4 & below' }, { v:'5-9', l:'5-9' }, { v:'10-14', l:'10-14' }, { v:'15-19', l:'15-19' }, { v:'20 & above', l:'20 & above' }]} />
-          {hasActiveFilters && (
-            <button onClick={clearFilters} className="flex items-center gap-1 px-3 py-2 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50">
-              <X className="w-3 h-3" /> Clear All
-            </button>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {statCards.map(({ label, value, icon: Icon, bg, fg, onClick }) => (
+          <div
+            key={label}
+            {...activatable(onClick)}
+            // Same hover spec as Dashboard's own SummaryCell (user,
+            // 2026-09-26): -translate-y + primary-tinted border + the exact
+            // shadow, not a generic hover:shadow-md.
+            className="flex flex-col rounded-xl border border-border bg-card p-4 shadow-sm cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-2"
+          >
+            <span style={{ backgroundColor: bg, color: fg }} className="w-8 h-8 flex-shrink-0 rounded-xl grid place-items-center mb-4">
+              <Icon className="w-4 h-4" />
+            </span>
+            <div className="min-w-0">
+              <div className="text-[12px] font-bold text-foreground truncate">{label}</div>
+              <div className="text-[22px] leading-none font-extrabold text-foreground mt-1">{value}</div>
+              <div className="text-[10px] font-thin text-muted-foreground mt-0.5">{value === 1 ? 'student' : 'students'}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Up Next can be collapsed to a slim strip so the queue table gets
+          its width back (user, 2026-09-26) -- the freed ~236px goes
+          straight to the queue card via the grid template itself, not just
+          visually. */}
+      <div className={`grid gap-4 items-start ${showUpNext ? 'lg:grid-cols-[280px_1fr]' : 'lg:grid-cols-[44px_1fr]'}`}>
+        {showUpNext ? (
+        /* "Up Next": shorter than the queue table beside it (user,
+            2026-09-25 -- option B of the design review), not stretched to
+            match its full height. Mirrors RAMHIS's own empty state when
+            nothing is queued. */
+        <div className="relative overflow-hidden bg-card rounded-2xl border border-border shadow-sm p-5 flex flex-col items-center justify-center text-center gap-2 min-h-[200px]">
+          {/* Blue top accent bar (user, 2026-09-25). */}
+          <div style={{ backgroundColor: '#273A78' }} className="absolute top-0 left-0 right-0 h-1.5" />
+          <button
+            onClick={() => setShowUpNext(false)}
+            aria-label="Hide Up Next panel"
+            title="Hide Up Next"
+            className="absolute top-3 right-3 z-10 p-1 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <PanelLeftClose className="w-3.5 h-3.5" />
+          </button>
+          {spotlightStudent ? (
+            <>
+              {/* Gender-specific avatar (user, 2026-09-26): blue + boy icon
+                  for Male, pink + girl icon for Female. */}
+              {spotlightStudent.gender === 'Female' ? (
+                <span style={{ backgroundColor: '#FCE4EC', color: '#D6367B' }} className="w-14 h-14 rounded-full grid place-items-center">
+                  <GirlIcon className="w-7 h-7" />
+                </span>
+              ) : (
+                <span style={{ backgroundColor: '#E1EEFB', color: '#1D6FD6' }} className="w-14 h-14 rounded-full grid place-items-center">
+                  <BoyIcon className="w-7 h-7" />
+                </span>
+              )}
+              {/* "Up Next" only while it's genuinely who's first in queue;
+                  a clicked row that isn't reads "Selected" instead so the
+                  label never claims something false (user, 2026-09-26). */}
+              <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                {isSpotlightUpNext ? 'Up Next' : 'Selected'}
+              </div>
+              <div className="font-bold text-foreground">{spotlightStudent.name}</div>
+              {[spotlightStudent.grade, spotlightStudent.section].filter(Boolean).length > 0 && (
+                <span
+                  className="-mt-1.5 inline-flex items-center justify-center rounded-full px-2 py-0.5 text-center text-[10px] font-bold leading-none"
+                  style={{ backgroundColor: getGradeColor(spotlightStudent.grade).light, color: getGradeColor(spotlightStudent.grade).solid }}
+                >
+                  {[spotlightStudent.grade, spotlightStudent.section].filter(Boolean).join(' · ')}
+                </span>
+              )}
+              {/* Only when real risk data exists -- never a fabricated pill
+                  (CLAUDE.md "NOTHING COSMETIC"). */}
+              {spotlightStudent.riskLevel && (
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${RISK_BADGE[spotlightStudent.riskLevel]}`}>
+                  {spotlightStudent.riskLevel.toUpperCase()} RISK
+                </span>
+              )}
+              <div className="w-full border-t border-border mt-2 pt-2 text-xs">
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-muted-foreground">Queue No.</span>
+                  <span className="font-semibold text-foreground">
+                    {queuedStudentIds.includes(spotlightStudent.id) ? effectiveQueueOrder.indexOf(spotlightStudent.id) + 1 : '—'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-muted-foreground">Age</span>
+                  <span className="font-semibold text-foreground">{calculateAge(spotlightStudent.birthdate) ?? '—'}</span>
+                </div>
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-muted-foreground">Last Dental Visit</span>
+                  <span className="font-semibold text-foreground">{formatDate(spotlightStudent.lastVisit)}</span>
+                </div>
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-muted-foreground">Status</span>
+                  <PipelineStatusPill status={spotlightStudent.pipelineStatus} isRpcDueThisMonth={rpcDueThisMonthIds.has(spotlightStudent.id)} />
+                </div>
+              </div>
+              <button
+                onClick={() => navigate(`/dental-chart/${spotlightStudent.id}?tab=chart&context=dental-queue`)}
+                className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted"
+              >
+                <Eye className="w-3.5 h-3.5" /> Open Chart
+              </button>
+            </>
+          ) : (
+            <>
+              {/* Blue fill, matching the populated avatar above (user,
+                  2026-09-25) -- was a plain gray circle. */}
+              <span style={{ backgroundColor: '#E8ECF6', color: '#273A78' }} className="w-10 h-10 rounded-full grid place-items-center">
+                <Users className="w-4 h-4" />
+              </span>
+              <div className="text-sm font-bold text-foreground">No Students Queued</div>
+              {/* Shortened (user, 2026-09-27) -- was 'Use "Queue for Charting" on the Students page.' */}
+              <div className="text-xs text-muted-foreground">Queue on the Students page.</div>
+            </>
           )}
         </div>
-      </div>
-      <div className={studentListTableStyles.wrapper}>
-        <div className={studentListTableStyles.scroller}>
-          <table className={studentListTableStyles.table}>
-            <thead className={studentListTableStyles.head}>
-              <tr>
-                <th className={studentListTableStyles.headerCell}>Student</th>
-                <th className={studentListTableStyles.headerCell}>Grade</th>
-                <th className={studentListTableStyles.headerCell}>Section</th>
-                <th className={studentListTableStyles.headerCell}>Gender</th>
-                <th className={studentListTableStyles.headerCell}>Age</th>
+        ) : (
+          // Compact, not stretched to match the queue card's height -- a
+          // small icon control, as asked, not another tall panel.
+          <button
+            onClick={() => setShowUpNext(true)}
+            aria-label="Show Up Next panel"
+            title="Show Up Next"
+            className="flex items-center justify-center h-11 lg:w-11 rounded-2xl border border-border bg-card shadow-sm text-muted-foreground hover:text-foreground hover:border-primary/40"
+          >
+            <PanelLeftOpen className="w-4 h-4" />
+          </button>
+        )}
+
+      {/* The card is sticky at `top-0` of the bounded region above (user,
+          2026-09-26), not the document -- pinning it to the document at
+          TOPBAR_H worked for position, but any page-level scroll at all
+          brings the browser's own scrollbar, full window height, straight
+          through the fixed top bar. Since the region itself is now the only
+          thing that scrolls, the card sticks within IT instead. Same
+          height math as the region: once stuck, it sits exactly where the
+          region starts and fills to the region's own bottom. */}
+      {/* Square bottom corners, not rounded (user, 2026-09-26): this card's
+          height is always exactly `regionHeight`, so its bottom edge is
+          always flush against the bottom of the screen once pinned -- unlike
+          RPC Monitoring/Student Records' "Hide" toggle, there's no shorter
+          state here where a rounded bottom corner would ever be correct. */}
+      <div className="sticky top-0 z-30 flex flex-col bg-card rounded-t-2xl border border-border shadow-sm overflow-clip" style={{ height: regionHeight ?? undefined }}>
+        {/* Queue card's own header, restyled after the RAMHIS "Patient
+            Queue" reference exactly -- icon badge, gray eyebrow, title with
+            a count pill, one-line description, search + view toggle at the
+            top right (user, 2026-09-25). No grade/section/gender/age
+            filters any more -- order is fixed to queue position (see
+            `filtered` above), so those controls had nothing left to do. */}
+        <div className="p-5 sm:p-6 border-b border-border bg-card">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0 flex items-center gap-3">
+              <span className="w-10 h-10 rounded-xl bg-gray-100 grid place-items-center flex-shrink-0">
+                <SlidersHorizontal className="w-4.5 h-4.5 text-muted-foreground" />
+              </span>
+              <div className="min-w-0">
+                {/* Count pill moved here, beside the eyebrow and above the
+                    title (user, 2026-09-26) -- was under the Filter button
+                    on the right. */}
+                <div className="flex items-center gap-2">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Queue</div>
+                  <span style={{ backgroundColor: kickerColor.light, color: kickerColor.solid }} className="text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                    {queueCount} {queueCount === 1 ? 'STUDENT' : 'STUDENTS'}
+                  </span>
+                </div>
+                <h2 className="text-lg font-bold text-foreground mt-0.5">Charting Queue</h2>
+                <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
+                  <span>
+                    {extraFilter === 'appointments-today'
+                      ? 'Showing students with an appointment today.'
+                      : extraFilter === 'rpc-outstanding'
+                      ? 'Showing students with an outstanding RPC visit.'
+                      : 'Students in queue order, ready for dental charting.'}
+                  </span>
+                  {extraFilter !== 'none' && (
+                    <button
+                      onClick={() => setExtraFilter('none')}
+                      className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
+                      <X className="w-3 h-3" /> Clear filter
+                    </button>
+                  )}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <ListSearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search student, grade, or section" />
+              <div ref={filterMenuRef} className="relative shrink-0">
+                <button
+                  type="button"
+                  role="combobox"
+                  aria-haspopup="listbox"
+                  aria-expanded={filterMenuOpen}
+                  onClick={() => setFilterMenuOpen((o) => !o)}
+                  className="flex items-center gap-1.5 text-sm font-medium rounded-lg px-3 py-2 bg-primary text-white hover:bg-primary-hover"
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5" /> Filter <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+                {filterMenuOpen && (
+                  <div className="absolute right-0 z-20 mt-1 min-w-[160px] rounded-lg border border-border bg-card shadow-md py-1">
+                    {viewModeOpts.map((o) => (
+                      <button
+                        key={o.v}
+                        type="button"
+                        onClick={() => { setViewMode(o.v); setExtraFilter('none'); setFilterMenuOpen(false); }}
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-canvas ${viewMode === o.v ? 'text-primary font-semibold' : 'text-foreground'}`}
+                      >
+                        {o.l}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* Bulk-actions "⋮" menu (user, 2026-09-27): the ENTRY POINT
+                  only. Picking "Dequeue…" turns bulkSelectMode on, revealing
+                  the table's checkboxes + clickable Grade/Section badges --
+                  before that they're plain, inert cells. Once in the mode,
+                  this button disables itself -- the actual Dequeue/Cancel
+                  controls move to the selection bar below (user, 2026-09-27),
+                  not a second menu state. Thinner than a standard icon-square
+                  button -- narrower width, same height as Filter. */}
+              <div ref={bulkMenuRef} className="relative shrink-0">
+                <button
+                  type="button"
+                  aria-haspopup="menu"
+                  aria-expanded={bulkMenuOpen}
+                  aria-label="Bulk actions"
+                  title="Bulk actions"
+                  disabled={bulkSelectMode}
+                  onClick={() => setBulkMenuOpen((o) => !o)}
+                  className={`flex items-center justify-center w-7 h-9 rounded-lg border border-border bg-card ${
+                    bulkSelectMode ? 'text-muted-foreground/40 cursor-not-allowed' : 'text-foreground hover:bg-muted'
+                  }`}
+                >
+                  <MoreVertical className="w-4 h-4" />
+                </button>
+                {bulkMenuOpen && !bulkSelectMode && (
+                  <div className="absolute right-0 z-20 mt-1 w-max rounded-lg border border-border bg-card shadow-md py-1">
+                    <button
+                      type="button"
+                      onClick={() => { setBulkSelectMode(true); setBulkMenuOpen(false); }}
+                      className="block px-3 py-2 text-sm font-medium text-foreground hover:bg-canvas"
+                    >
+                      Dequeue
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bulk dequeue (user, 2026-09-27 -- reordered): this bar only
+            appears once "Dequeue…" is picked from the "⋮" menu above, which
+            is what turns bulkSelectMode on and reveals the table's
+            checkboxes + clickable Grade/Section badges below. Checking a
+            row, or clicking a badge, populates the selection and shows why
+            (removable criteria pills). "All" grabs everyone queued and in
+            view in one click. Dequeue/Cancel sit together on the right of
+            this same row (user, 2026-09-27 -- moved off the "⋮" menu, which
+            now only starts the mode; word is just "Dequeue", not "Dequeue
+            Selected"). */}
+        {bulkSelectMode && (
+          <div className="px-5 sm:px-6 py-2.5 bg-foreground flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-xs font-normal text-white">
+              {selectedForDequeue.size > 0 ? `${selectedForDequeue.size} selected` : 'Check rows or click a Grade/Section badge to select'}
+            </span>
+            <button
+              onClick={toggleSelectAllQueued}
+              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-normal ${
+                allQueuedInViewSelected ? 'bg-white text-foreground' : 'bg-white/10 text-white hover:bg-white/20'
+              }`}
+            >
+              All
+            </button>
+            {Array.from(activeGradeCriteria).map((g) => (
+              <button
+                key={`g-${g}`}
+                onClick={() => toggleGradeCriterion(g)}
+                className="inline-flex items-center gap-1.5 rounded-full bg-white/10 text-white px-2.5 py-1 text-xs font-normal hover:bg-white/20"
+              >
+                {g} <X className="w-3 h-3" />
+              </button>
+            ))}
+            {Array.from(activeSectionCriteria).map((s) => (
+              <button
+                key={`s-${s}`}
+                onClick={() => toggleSectionCriterion(s)}
+                className="inline-flex items-center gap-1.5 rounded-full bg-white/10 text-white px-2.5 py-1 text-xs font-normal hover:bg-white/20"
+              >
+                {s} section <X className="w-3 h-3" />
+              </button>
+            ))}
+            <div className="flex-1" />
+            <button
+              disabled={selectedForDequeue.size === 0}
+              onClick={() => setPendingDequeue({ ids: Array.from(selectedForDequeue), label: `${selectedForDequeue.size} student${selectedForDequeue.size === 1 ? '' : 's'}` })}
+              className={`rounded-lg px-3 py-1.5 text-xs font-normal ${
+                selectedForDequeue.size === 0 ? 'bg-white/10 text-white/40 cursor-not-allowed' : 'bg-destructive text-white hover:opacity-90'
+              }`}
+            >
+              Dequeue
+            </button>
+            <button onClick={exitBulkSelectMode} className="text-xs font-normal text-white/60 hover:text-white">
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {/* The rows box, not the card, is what actually scrolls (user,
+            2026-09-26) -- column headings stick to the TOP OF THIS BOX via
+            `sticky` on each `<th>`, not the `<tr>` (a sticky `<tr>` renders
+            as a duplicate mid-table in some browsers, see PatientList). */}
+        <div ref={rowsBoxRef} className="min-h-0 flex-1 overflow-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                {/* Bulk-dequeue checkboxes (user, 2026-09-27): hidden until
+                    bulkSelectMode is on (see the "⋮" menu above) -- only
+                    queued rows get one even then, since there's nothing to
+                    select on an un-queued Full List row. */}
+                <th className="sticky top-0 z-10 px-4 py-3 sm:pl-6 bg-gray-100 w-8">
+                  {bulkSelectMode && queuedInView.length > 0 && (
+                    <input
+                      type="checkbox"
+                      aria-label="Select all queued students in view"
+                      checked={selectedForDequeue.size > 0 && queuedInView.every((p) => selectedForDequeue.has(p.id))}
+                      onChange={(e) => setSelectedForDequeue(e.target.checked ? new Set(queuedInView.map((p) => p.id)) : new Set())}
+                      className="w-4 h-4"
+                    />
+                  )}
+                </th>
+                <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">#</th>
+                <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Student</th>
+                <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Risk</th>
+                <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground w-36">Status</th>
+                {/* Position in the actual queue (queueStorage's stored order,
+                    user 2026-09-25) — NOT the row index in `#`, which follows
+                    this list's own alphabetical sort and can disagree with
+                    who was queued first. Blank for a student never queued. */}
+                <th className="sticky top-0 z-10 text-center px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Queue #</th>
+                <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground sm:pr-6">Actions</th>
               </tr>
             </thead>
-            <tbody className={studentListTableStyles.body}>
+            <tbody className="divide-y divide-border">
               {filtered.length === 0 ? (
-                <tr><td colSpan={5} className={studentListTableStyles.emptyCell}>{viewMode === 'queued' && queuedStudentIds.length === 0 ? 'No students queued for charting yet — use "Queue for Charting" on the Students page, or switch to Full List.' : 'No dental charts match the selected filters.'}</td></tr>
-              ) : pager.paged.map(p => {
-                const age = calculateAge(p.birthdate);
+                <tr>
+                  {/* Same empty-state pattern as Appointments' own EmptyState
+                      (user, 2026-09-27): icon badge, bold title, muted
+                      subtitle -- was a single line of plain muted text. */}
+                  {/* Extra top padding (user, 2026-09-27) -- pushes the icon
+                      further from the column header row than a plain py-10
+                      did, so it doesn't read as cramped against it. */}
+                  <td colSpan={7} className="px-4 pt-20 pb-10 text-center">
+                    <div className="w-10 h-10 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
+                      <Users className="w-4 h-4 text-muted-foreground/60" />
+                    </div>
+                    <p className="text-sm font-bold text-foreground">No patients found</p>
+                    {/* Shortened, wraps to two short lines instead of one
+                        long one (user, 2026-09-27) -- was 'There are
+                        currently no patients in this charting queue. Use
+                        "Queue for Charting" on the Students page, or switch
+                        to Full List.' */}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {viewMode === 'queued' && queuedStudentIds.length === 0
+                        ? 'There are currently no patients in this charting queue. Queue on the Students page.'
+                        : 'No students match your search.'}
+                    </p>
+                  </td>
+                </tr>
+              ) : filtered.map((p, i) => {
+                const queuePosition = queuedStudentIds.indexOf(p.id);
+                const gc = getGradeColor(p.grade);
+                const open = () => navigate(`/dental-chart/${p.id}?tab=chart&context=dental-queue`);
+                // Row click previews the student in the left panel (user,
+                // 2026-09-28 -- reverted back from opening the chart
+                // directly: "i forgot that when this is clicked, the
+                // container from the left reflects the information"). The
+                // Actions button is the only way this row navigates.
+                const select = () => setSelectedStudentId(p.id);
                 return (
-                  <tr key={p.id} {...activatable(() => navigate(`/dental-chart/${p.id}?tab=history&context=dental-queue`))} className={studentListTableStyles.row}>
-                    <td className={studentListTableStyles.primaryCell}>{p.name}</td>
-                    <GradeTableCell grade={p.grade} />
-                    <td className={studentListTableStyles.secondaryCell}>{p.section}</td>
-                    <td className={studentListTableStyles.secondaryCell}>{p.gender}</td>
-                    <td className={studentListTableStyles.secondaryCell}>{age}</td>
+                  <tr key={p.id} {...activatable(select)} className={`cursor-pointer ${spotlightStudent?.id === p.id ? 'bg-primary-surface' : 'hover:bg-canvas'}`}>
+                    <td className="px-4 py-2.5 sm:pl-6" onClick={(e) => e.stopPropagation()}>
+                      {bulkSelectMode && queuePosition >= 0 && (
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${p.name} for bulk dequeue`}
+                          checked={selectedForDequeue.has(p.id)}
+                          onChange={() => toggleSelectedForDequeue(p.id)}
+                          className="w-4 h-4"
+                        />
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-muted-foreground">{i + 1}</td>
+                    <td className="px-4 py-2.5 font-medium text-foreground">
+                      <div className="flex items-center gap-3">
+                        <span style={{ backgroundColor: gc.light, color: gc.solid }} className="w-8 h-8 shrink-0 rounded-full grid place-items-center text-xs font-bold">
+                          {initials(p.name)}
+                        </span>
+                        <span className="truncate">{p.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {p.riskLevel ? (
+                        <LevelChip level={p.riskLevel as 'High' | 'Medium' | 'Low'} small />
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-normal text-slate-500">
+                          <CircleDashed className="h-3.5 w-3.5" aria-hidden="true" /> Not assessed
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 w-36"><PipelineStatusPill status={p.pipelineStatus} isRpcDueThisMonth={rpcDueThisMonthIds.has(p.id)} /></td>
+                    <td className="px-4 py-2.5 text-center">
+                      {queuePosition >= 0 ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setPendingDequeue({ ids: [p.id], label: p.name }); }}
+                          title={appointmentsTodayIds.has(p.id) ? 'Has an appointment today. Remove from charting queue' : 'Remove from charting queue'}
+                          aria-label={`Remove ${p.name} from the charting queue`}
+                          // Green when this student has an appointment
+                          // today (user, 2026-09-27 -- amber "was ugly"),
+                          // otherwise the usual school color.
+                          style={
+                            appointmentsTodayIds.has(p.id)
+                              ? { backgroundColor: '#DCFCE7', color: '#15803D' }
+                              : { backgroundColor: kickerColor.light, color: kickerColor.solid }
+                          }
+                          className="inline-flex w-6 h-6 rounded-full items-center justify-center text-xs font-bold hover:opacity-75"
+                        >
+                          {/* Effective number, not raw queuePosition (user,
+                              2026-09-27): appointments-today students
+                              bypass the queue entirely and get renumbered
+                              1, 2, 3… ahead of everyone else. */}
+                          {effectiveQueueOrder.indexOf(p.id) + 1}
+                        </button>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 sm:pr-6">
+                      {/* The row was already clickable; the button makes that
+                          visible rather than folklore, and matches the Actions
+                          column her Student Records carries. */}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); open(); }}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1 text-xs font-semibold text-foreground hover:bg-muted"
+                      >
+                        <Eye className="w-3.5 h-3.5" /> Open Chart
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
-        {filtered.length > 0 && (
-          <div className={studentListTableStyles.footer}>
-            <Pagination
-              {...pager}
-              onPage={pager.setPage}
-              onPageSize={pager.changePageSize}
-              noun={viewMode === 'queued' ? 'queued students' : 'charts'}
-              detail={filtered.length !== sourcePatients.length ? `(filtered from ${sourcePatients.length})` : ''}
-            />
-          </div>
-        )}
       </div>
+      </div>
+
+      <ConfirmDialog
+        open={!!pendingDequeue}
+        title="Remove from charting queue?"
+        message={pendingDequeue ? `${pendingDequeue.label} will be removed from the charting queue. This does not affect their student record or dental chart.` : ''}
+        confirmLabel="Remove"
+        tone="danger"
+        onConfirm={confirmDequeue}
+        onCancel={() => setPendingDequeue(null)}
+      />
+
+      {/* "For Treatment" leaves this page entirely, so it gets a step to
+          confirm first, unlike the other three cards (user, 2026-09-27 --
+          Option A of the design review: solid navy fill, not the app's
+          usual white dialog). Custom-built rather than a ConfirmDialog
+          `tone`, since the full-bleed navy card is a one-off look, not a
+          reusable variant. */}
+      {showTreatmentConfirm && (
+        <Modal onClose={() => setShowTreatmentConfirm(false)} maxWidth="max-w-sm">
+          <div className="rounded-xl bg-[#1B2A63] p-6 text-center">
+            <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10">
+              <ClipboardList className="h-6 w-6 text-white" />
+            </span>
+            <h3 className="text-base font-bold text-white">Go to Treatment Records?</h3>
+            <p className="mt-2 text-sm leading-relaxed text-white/70">
+              You're about to leave Dental Charts. This takes you to the Treatment Records to view students that are for treatment.
+            </p>
+            {/* Real, already-computed count -- same number the stat card
+                itself shows (user, 2026-09-27). */}
+            <span className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white">
+              <ClipboardList className="h-3.5 w-3.5" />
+              {forTreatmentCount} {forTreatmentCount === 1 ? 'student' : 'students'} for treatment
+            </span>
+            <div className="mt-6 flex gap-2.5">
+              <button
+                onClick={() => setShowTreatmentConfirm(false)}
+                className="flex-1 rounded-lg border border-white/25 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/10"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { setShowTreatmentConfirm(false); navigate('/treatment-records'); }}
+                className="flex-1 rounded-lg bg-white px-4 py-2.5 text-sm font-bold text-[#1B2A63] hover:bg-white/90"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };

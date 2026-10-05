@@ -16,8 +16,13 @@ Capstone Thesis — Build Phase — Group 404 — AY 2025-2026
 - **`/docs/technology-documentation.md`** = VERIFIED SNAPSHOT of platforms/services/libraries and where each surfaces in the app. Every entry was confirmed by locating a real `import` — never list a library because it appears in `package.json`. Re-run that import audit after any dependency change and once before defense; a stale snapshot here misrepresents the build in Chapter 4.
 - Every ~5 sprints, do a CLAUDE.md hygiene pass: delete superseded lines, compress resolved sagas to one-liners, verify build-phase status markers.
 
-## MODEL STRATEGY (updated 2026-07-10 → Fable available again)
-- Fable is available again (2026-07-10). Split by task: **Fable = judgment** (scoping, plan mode, reviews, risky work), **Opus/Sonnet = execute written plans and light work** — premium capacity on light work is waste.
+## MODEL STRATEGY (updated 2026-09-29 → NO Fable)
+- Fable is unavailable. Split by task:
+  - **Opus high = judgment/risky** — scoping, plan mode, reviews/audits, clinical screens (e.g. 162 TAB 2), auth/encryption, Phase 3 real data.
+  - **Opus medium = execute a written plan** — multi-file work with file:line targets already decided.
+  - **Sonnet high = small well-specified fixes** — one-liners, single-handler bugs, doc/ledger updates.
+  - **Sonnet medium = light/mechanical** — status checks, reading, commits, HANDOFF refresh.
+- Claude cannot switch models itself: when work crosses tiers, say which one fits and let the user run `/model`.
 - Leave a precise plan in HANDOFF (or a plan-mode plan file) before executing, so any session/model can execute without re-deriving intent.
 
 ## BEHAVIOR RULES
@@ -28,11 +33,15 @@ Capstone Thesis — Build Phase — Group 404 — AY 2025-2026
 - YAGNI: don't build it if it doesn't need to exist yet
 - Prefer native platform features (e.g. `<input type="date">`) and stdlib/already-installed deps over new packages or custom code
 - Before starting a sprint, give a one-line scope estimate (files touched, new models, complexity). Claude Code has no token/cost visibility here — this is the substitute for a usage warning.
+- **No em dashes in user-facing UI text** (toasts, `<Notice>` copy, button/menu labels, `title=`/`placeholder=`/`aria-label=` strings) — user rule, 2026-09-23. Use a period, comma, or colon instead. Code comments are unaffected; this codebase's own comment style uses them throughout and that stays as-is.
 
 ## APP CONTEXT
 - Floral — web app only (no NATIVE mobile app), internal use only, Barangay Tanyag, Taguig City
 - **Three target device classes: phone, tablet, laptop/PC** (established 2026-08-25). "No mobile" above means no native app — the PWA IS used on phones in the field, so every screen must be checked at all three widths (~390px / ~768px / ~1280px+). Page headers stack below `sm:` and go side-by-side above it; tab strips and wide tables scroll inside their own container. Never leave a header or control row as a bare `flex items-center justify-between`.
 - ~8,000 student records; 1 dentist, 1 dental aide, 3 clinic staff
+- **Non-student patients are IN scope (user decision 2026-09-30, merging the classmate's `majorUpdates`):** `STUDENT.is_not_student` marks a patient who is not enrolled; grade and section are then not required. Chapter 3 describes students only, so cite this as a scope extension, not as the manuscript's design.
+- **One dentist and one dental aide per SCHOOL, enforced on the API** (`server/middleware/oneStaffPerSchool.ts`; user decision 2026-09-30). A dentist or aide may cover several schools; an account with EMPTY `school_ids` (= all schools) is exempt and never counted. It checks only the save in front of it and leaves already-conflicting accounts alone.
+- **Starting a school year (user decision 2026-10-01):** ONLY the System Admin starts it, for EVERY school at once (clears grade/section, outgoing values saved to each IPTR first); changing the next year's planned start date and starting all schools both need the admin's password. A dentist or dental aide may ask ONCE A YEAR for their own school to start early; the admin approves (that school only) or declines (the request is spent). Until a school has started, only a System Admin can create that year's STUDENT_IPTR (API-enforced, `schoolYearController.guardNextYearIptr`). Every step shows on the Update School Year page AND in Notifications. "Current year" is `schoolYearLabel()`, which buckets May into the year about to begin.
 - Three schools: (1) Bagong Tanyag Integrated School (primary, K-G10), (2) Bagong Tanyag Elementary School Annex A (K-G6), (3) South Daang Hari Elementary School Main (K-G6)
 
 ## SCOPE LIMITATIONS (do not build)
@@ -52,10 +61,14 @@ Capstone Thesis — Build Phase — Group 404 — AY 2025-2026
 - **Barangay Health Office Staff** — consolidated reports across all schools, City Health Office report submission
 
 ## MONGODB MODELS (exact from ERD Chapter 3)
-Full field-level specs for all 16 models live in **`/docs/DATA-MODEL.md`** — READ IT before touching any schema, model, or migration (moved out of CLAUDE.md to keep per-session context small; that doc is authoritative for field details). Models: SCHOOL, USER, DENTIST, DENTAL_AIDE, STUDENT, STUDENT_IPTR, MEDICAL_HISTORY, DIETARY_SOCIAL_HABITS, ORAL_HEALTH_CONDITION, DENTAL_CHART, TOOTH_RECORD, TREATMENT, PREVENTIVE_CARE_RECORD, RISK_STRATIFICATION, APPOINTMENT, DENTIST_ROTATION, AUDIT_TRAIL.
+Full field-level specs for all 22 models live in **`/docs/DATA-MODEL.md`** — READ IT before touching any schema, model, or migration (moved out of CLAUDE.md to keep per-session context small; that doc is authoritative for field details).
+
+**16 models ARE the Chapter 3 ERD:** SCHOOL, USER, DENTIST, DENTAL_AIDE, STUDENT, STUDENT_IPTR, MEDICAL_HISTORY, DIETARY_SOCIAL_HABITS, ORAL_HEALTH_CONDITION, DENTAL_CHART, TOOTH_RECORD, TREATMENT, PREVENTIVE_CARE_RECORD, RISK_STRATIFICATION, APPOINTMENT, AUDIT_TRAIL.
+
+**6 are ERD DEVIATIONS — do not cite them as ERD entities:** DAY_NOTE (Sprint 108), REFERRAL (Sprint 127), DENTIST_ROTATION (Sprint 11), SCHOOL_YEAR_ROLLOVER (2026-10-01), SYNC_CONFLICT and SYNC_OPERATION (2026-10-03, offline sync). ⚠ This line previously listed DENTIST_ROTATION among the ERD models; it is not in the ERD, not in the manuscript, and not in any Specific Objective (corrected 2026-09-07, after that false claim was used to justify keeping a UI feature). Its Rotation tab was removed the same day; on 2026-09-24 the user asked for it back, so it now powers Appointments → School Rotation (one row per day, today/tomorrow reminder for dentist + aide). Still a deviation: cite it as one.
 
 ## SOFT DELETE RULES
-- ALL models include: isArchived BOOLEAN default false, archivedAt DATETIME default null, archivedBy user_id default null
+- All models include: isArchived BOOLEAN default false, archivedAt DATETIME default null, archivedBy user_id default null — **except AUDIT_TRAIL, deliberately** (verified Sprint 155; an audit trail that can be archived is not an audit trail, so its reads are bounded by date range instead). Said "ALL" until 2026-09-11, which invited someone to "fix" the model to match.
 - All GET queries filter isArchived=false
 - Only System Admin can view or restore archived records
 - NEVER hard delete any record ever
@@ -63,12 +76,15 @@ Full field-level specs for all 16 models live in **`/docs/DATA-MODEL.md`** — R
 ## AUTH RULES
 - JWT authentication, JWT expiry configured, refresh token handling
 - 5 roles with strict RBAC; all routes protected by auth middleware; role checked on every API call
+- **RBAC is never deleted.** For classmate testing (user decision 2026-10-01) there is a SWITCH instead: Vercel env **`OPEN_ACCESS_TESTING=true`** makes `requireRole` (`server/middleware/auth.ts`) pass every SIGNED-IN user, shows an amber "Testing mode" banner, and opens **"View as"** (`utils/viewAs.ts`, `ViewAsControl.tsx`) to every user on the live site WITH saving (saves are audited under the signed-in account). Delete the variable + redeploy = normal RBAC again; no code is reverted. ⚠ **It MUST be OFF before defense and any real use, together with the classmate's school-year switch `SCHOOL_YEAR_DATE_RULES` (shared/schoolYearRollover.ts) set back to `true`** (check `/api/config` → `{"testingMode":false}`). Pre-switch version tagged `pre-open-access`. With the switch off, "View as" is the old read-only, System-Admin-only, never-on-live preview.
 - bcrypt for all passwords
+- **Idle timeout: 30 minutes → lock screen** (2026-10-01, user's reference design; `SessionLock.tsx`, `utils/sessionIdle.ts`). Locking ENDS this device's server session (`/auth/logout` with `scope: "device"`, so other devices stay signed in), keeps the page mounted behind an opaque layer, and the SAME account unlocks with its password so unsaved work survives. A normal Logout still signs out every device (SEC-12). Change the time in `IDLE_MINUTES` only.
 - Audit trail logs ALL user actions (additions, edits, archives) across all three school sites
 
 ## DATA ENCRYPTION
 - Encrypt sensitive patient fields before saving to MongoDB. Do NOT encrypt fields needed for querying (isArchived, dates, IDs, role, school_id).
-- Implemented Sprint 8 via `mongoose-field-encryption` (AES-256-CBC), scoped to: STUDENT (full_name, last_name, first_name, middle_name, address, contact_number, guardian_name, guardian_contact, philhealth_number, fourps_id, place_of_birth, guardian_occupation — last two added 2026-09-04), DENTAL_AIDE (contact_number), MEDICAL_HISTORY (allergies, others — not the boolean flags), TREATMENT (diagnosis, treatment_done). USER.full_name NOT encrypted (staff name, not patient PII). CRUD routes for these models use findById+save (not findByIdAndUpdate) — see HANDOFF Sprint 8 for why.
+- Implemented Sprint 8 via `mongoose-field-encryption` (AES-256-CBC). **EIGHT models.** STUDENT (full_name, last_name, first_name, middle_name, address, contact_number, guardian_name, guardian_contact, philhealth_number, fourps_id, **place_of_birth, guardian_occupation** — the last two added Sprint 174), DENTAL_AIDE (contact_number), MEDICAL_HISTORY (allergies, others, hepatitis_type, malignancy_details, blood_transfusion_date, last_admission, medication_details, last_extraction_date, surgical_details — not the boolean flags; the seven details added 2026-09-24), TREATMENT (diagnosis, treatment_done), REFERRAL (reason, notes — Sprint 127), **APPOINTMENT (guardian_contact_number — added 2026-09-25, the per-visit contact number, same PII class as STUDENT.guardian_contact but recorded per booking instead of per student)**, **RISK_STRATIFICATION (dentist_notes — added 2026-10-01, the dentist's review note)**, **SYNC_CONFLICT (base_json, changes_json — added 2026-10-03, the offline edits held for review, which are copies of the fields above; this makes EIGHT models)**. USER.full_name NOT encrypted (staff name, not patient PII). **This list is what the `filterableText` rule is checked against, so keep it exact: a text filter on an encrypted field silently matches nothing instead of failing loudly.**
+- CRUD routes for these models use findById+save, **never findByIdAndUpdate**. ⚠ **Treat that as a convention, not a mechanism — the recorded REASON has been wrong twice.** It is not "the write lands as plaintext" (corrected Sprint 151) and not "the hook calls a removed Node crypto API" (corrected Sprint 155: `useAes256Ctr` defaults false and is never set, so the live path is `createCipheriv`, which works). The real failure mode has not been re-derived — do not cite one, and do not "fix" anything on the strength of it. **Narrow exception, verified Sprint 155:** `crudFactory`'s archive/restore DO use findByIdAndUpdate and are safe, because the plugin's `updateHook` only acts on encrypted fields actually present in the update, and those routes touch none.
 - **Random IV per encryption (Sprint 26)** — values stored as `<iv>:<ciphertext>`, decrypt reads the IV from the stored value, so plaintext equality queries on encrypted fields NEVER match (fetch + filter in JS instead; see seedStudents/seedRpcVisit2). NEVER change `FIELD_ENCRYPTION_SECRET` — that is the one action that makes existing records permanently undecryptable.
 
 ## SECURITY
@@ -83,15 +99,21 @@ Full field-level specs for all 16 models live in **`/docs/DATA-MODEL.md`** — R
 3. Digital dental charting — tooth-by-tooth, standard notation, DMF/dmf index tracking
 4. Appointment scheduling + monitoring — follow-up flagging, parental supervision flags
 5. Two-visit RPC monitoring — Visit 1 + 2, oral screening, prophylaxis, fluoride varnish, hygiene instruction, caries risk assessment
-6. Predictive analytics integration — risk classification (High/Medium/Low), treatment recommendations, dentist validation
+6. Predictive analytics integration — risk classification (High/Medium/Low) BY THE MODEL; treatment recommendations are RULE-BASED (`shared/riskTreatments.ts`), never from the model; dentist validates both (scope decision 2026-10-04, "hanggang risk lang")
 7. Dashboard + automated DOH report generation — age-bracket + gender counts, monthly standardized reports, interactive dashboard
 
 ## OCR MODULE
-- Tesseract.js scans DOH IPTR paper forms; extracts only what the form actually prints: name, birthday, age, sex, address, contact number, PhilHealth #, 4Ps/NHTS ID → structured JSON mapped to STUDENT fields. **Grade and section are NOT extracted — the official IPTR has no such field** (verified against the blank form, Sprint 87); they are typed. Occupation and Place of Birth are now on STUDENT (`guardian_occupation`, `place_of_birth` — added 2026-09-04) but OCR still does not extract either; both are typed only, same as Grade/Section.
-- Ticked checkboxes are read by INK DENSITY per cell, not character recognition (Sprint 86), and findings are shown for review, never auto-applied. Both the grid reader and the field reader decline rather than guess — including on an upside-down page, where row identity would otherwise silently shift.
+- Tesseract.js scans a student form (image/PDF), OR reads a CSV/Excel file directly by column header — two entry points on the Scan a Student Form page (`ScanStudentForm.tsx`), both landing on the same Verify screen (`VerifyStudentForm.tsx`) before anything saves.
+- **Two form layouts now supported, and the extractor tries BOTH on every image/PDF (2026-09-29, superseding the old "grade/section never extracted, official IPTR only" note):**
+  - The official DOH IPTR: flowing "Label: value" text on one line. Handled by the original label-regex matcher in `iptrOcr.ts` (`findLabelValue`/`extractFieldsFromPage`'s flowing-text pass).
+  - The clinic's own "Patient Information Sheet": a bordered GRID where each caption ("Last Name *") sits in its own box, with the answer on the line below it, not beside it — flattened OCR text alone can't represent that structure. `extractGridFields`/`gridLinesOf` in `iptrOcr.ts` read it by WORD POSITION instead: each caption's answer is matched by x-range, either the remainder of its own line or the words below it that line up in its column. **Verified against a real scan of the actual form** (not guessed) — every personal-info field extracted correctly once same-row OCR line-splitting artifacts were merged by y-band overlap.
+  - Grade, Section, Place of Birth, Guardian Name, Guardian Contact and Occupation ARE extracted from this second layout (it prints all of them) — the old blanket "never extracted" was true only of the official DOH IPTR specifically, not of every source this module reads. `IptrOcrFieldKey` (`iptrOcrShared.ts`) carries all six now.
+- Sex and PhilHealth Status (None/Principal/Dependent) on the clinic's boxed sheet are read by INK DENSITY left of each OCR'd option label (`iptrTickBoxes.ts`), never from text; blank unless one option clearly out-inks the rest. The IPTR's "Sex: M ___ F ___" is read from the tick glyph OCR places after a letter ("M Fv"). Any Sex text that is not plainly M/F is BLANK, so junk never pre-empts the ink reader.
+- A landscape two-page IPTR spread is split at its blank middle gutter; identity fields come from the page with the most identity captions (O2, 2026-10-01). Measured fixtures and limits: HANDOFF "OCR requests".
+- Ticked checkboxes on the Year 1-5 tick grid are read by INK DENSITY per cell, not character recognition (Sprint 86). Findings appear on the Verify screen UNCHECKED; only the ones the encoder ticks are saved into that school year's records, and a section with nothing ticked gets no record (O2b, 2026-10-01). Rows map through `TABLE_LAYOUT` because the section headings are ruled rows. Both the grid reader and the field reader decline rather than guess — including on an upside-down page, where row identity would otherwise silently shift.
 
 ## PREDICTIVE ANALYTICS (Phase 3)
-- Python (scikit-learn, pandas, numpy) via FastAPI. Key inputs: DMF/dmf index (PRIMARY), oral health conditions, dietary habits, medical history, treatment history. Risk output: High/Medium/Low.
+- Python (scikit-learn, pandas, numpy) via FastAPI. Key inputs: DMF/dmf index (PRIMARY), oral health conditions, dietary habits, medical history, treatment history. Risk output: High/Medium/Low. **The model outputs RISK ONLY** (risk_level, confidence, probabilities, top_features); it does not recommend treatment. The old per-level `recommendation` sentence was removed from `predictor.py` 2026-10-04. Rules for treatments must each cite a published guideline in Chapter 3 (barangay dentist: a thesis cannot rest on subjective rules).
 - Pipeline: preprocess → feature-engineer → train + compare → risk output
 - **Architecture:** Strategy Pattern for algo swapping. Active algo in config.py only. Express calls predictor.py only — never individual algo files. Dentist MUST validate before clinical action.
 - **Algorithms (all 5 run — DECIDED 2026-07-02, SVM stays):** Logistic Regression, Decision Tree, Random Forest, SVM, XGBoost. Primary feature: DMF/dmf score. Metric priority: F1. Generate a visual decision tree for Chapter 4.
@@ -104,8 +126,9 @@ Full field-level specs for all 16 models live in **`/docs/DATA-MODEL.md`** — R
 - Age-bracket + gender counts, monthly automated generation, interactive dashboards, filterable/searchable records, follow-up alerts
 
 ## PWA / OFFLINE (Phase 2)
-- Offline storage: IndexedDB. Sync FIFO (oldest timestamp first) — stop queue if sync fails, never skip. Background sync: Workbox.
-- Show offline banner when disconnected; disable form submissions when offline.
+- **Offline scope (user decision 2026-10-03): Student Records, Dental Charts, the Dental Chart and Treatment work offline; every other page shows "This page needs a connection"** (`OnlineOnly.tsx`, wrapped in `routes.tsx`).
+- Storage: IndexedDB `floral-offline` = `writeQueue` (FIFO oldest first, stop the queue if a sync fails, never skip; a conflict is isolated to its record) + a per-user `readCache` of those modules' reads + `records`: **EVERY in-scope student's IPTR and everything under it, downloaded in the background after sign-in** (`offline/bulkSync.ts` pages `GET /api/offline/bundle`, same roles and school scope as the normal reads, skipped when `GET /api/offline/version` shows nothing downloaded has changed), so any chart opens offline even if never opened on that device. Reads are answered offline from the URL cache, else from `records`, with unsynced changes laid over them (`offline/overlay.ts`). ⚠ This puts a DECRYPTED copy of every student the user may see on that device; it is wiped at sign-out. The service worker is the app shell + Background Sync only and NEVER caches `/api`. Cache is cleared at sign-out; unsynced writes stay queued under their owner.
+- Forms are NOT disabled offline: a save queues, a record created offline is `pending-<n>` and later writes that name it are rewritten to the real id at sync (`db.completeWrite`). The server holds an offline edit that would overwrite a field someone else changed (SYNC_CONFLICT, reviewed in the pop-up) and applies a retried create once (SYNC_OPERATION). Sync status pill + "back online" summary replace a banner.
 
 ## BUILD PHASES
 
@@ -114,10 +137,6 @@ Full field-level specs for all 16 models live in **`/docs/DATA-MODEL.md`** — R
 **Phase 3 — Algo (BUILD DONE on synthetic data; re-run against REAL data BLOCKED — see Predictive Analytics above):** full 21a–21g task breakdown is authoritative in **`/docs/phase3-sprint-prompts.md`** — read it before any Phase 3 work; each sub-sprint needs approval before the next. Chapter 4: state that real IPTR records (after cleaning) were the training data — stronger than synthetic.
 
 **PENDING backlog + Before-Defense checklist:** authoritative in HANDOFF.md (`## Open work`, `## User-only items`, `## Live warnings`) — state belongs there per DOC ROLES above. Each item needs approval; sprint loop applies.
-
-## DENTAL CHART RESTORE POINT (set 2026-09-05, by user request)
-- The user will ask, in plain words, to "go back to the version before I made changes in the dental charting tab" — possibly many sprints later. The baseline is **commit `176998c` on `majorUpdates`**, with a frozen copy at **`docs/snapshots/DentalChart.baseline-2026-09-05.tsx.txt`**. Do NOT try to reconstruct that layout by hand or from memory. (A git TAG was attempted and could not be pushed — this environment's proxy rejects `refs/tags`; don't rely on one.)
-- **Full restore procedure, the whole-file caveat, and what the baseline looks like are in HANDOFF.md** under the ⭐ DENTAL CHART BASELINE section. Read it before restoring — `DentalChart.tsx` holds all six tabs, so a blind `git checkout <tag> -- <file>` also reverts the sibling tabs.
 
 ## SPRINT LOOP (every session)
 - **Two local dev devices in use.** Git-tracked files sync only via push/pull — never assume HANDOFF is current without pulling. Per-device (NOT synced): `.env`, `data/` Excel files, `.claude/settings.local.json`, Claude auto-memory, and machine quirks (Node 24 DNS workaround applies to one machine only).
@@ -131,7 +150,9 @@ Full field-level specs for all 16 models live in **`/docs/DATA-MODEL.md`** — R
 ## NOTHING COSMETIC (user rule, restated 2026-09-02)
 - **No fabricated or placeholder values anywhere in the UI.** Every figure is computed from the DB. Where there is no data, render EMPTY — never a guess, a sample, or a filler number. The seeded demo records are the only "placeholder", and they are real rows in the database that get purged before deployment.
 - **A control that appears to work must work.** A filter that changes a label but not the data, an asterisk on a field that is not enforced, a period selector that filters nothing — these are placeholders too, and they are worse than a missing feature because the output looks authoritative. If it cannot be made real yet, remove it or say plainly on screen that it is not wired.
-- **Official DOH forms keep ALL their rows and columns even when empty.** The form is the form; a blank cell on it is meaningful. Do not omit sections because the system has no source for them — leave them blank and note why.
+- **COPY OFFICIAL FORMS EXACTLY — user rule, restated 2026-09-05 after the Target Client List was found to be short a whole page.** The form is the form. Reproduce EVERY page, section, row, column, caption and printed order as the paper/workbook has them, in the form's own wording, even where the system has no source for a cell and even where a cell can never be filled. A blank cell on a DOH form is meaningful; a MISSING one is a different form. **Never decide a part of a form is unnecessary** — leave it blank and note why. When the form and the app disagree, the FORM wins and the app changes. Before building any form surface, read the source workbook/scan end to end — including page 2 — rather than the part already transcribed.
+
+- **A PRINTOUT OR PDF IS THE FORM AND NOTHING ELSE (user rule, 2026-09-05).** No page title, tab strip, sidebar, filter row, control label, live-updated stamp, or on-screen explanatory caption may appear on paper — those explain the APP to a user, and the sheet that reaches the City Health Office must be indistinguishable from the official form. **Print by INCLUSION, not by hiding chrome one element at a time:** each report has ONE printable root, print CSS hides everything outside it, and anything that must appear on paper goes inside it. Enumerating things to hide is what let labels and captions keep leaking onto the page as the UI grew.
 
 ## ABSOLUTE DO NOT
 - Hard delete any record ever

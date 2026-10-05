@@ -57,3 +57,10 @@ docs/*.docx
 # "." and drops PNGs into the repo when run from project/. Test output, not
 # source (Sprint 90).
 dental-4-12-main/project/sprint*.png
+
+# Vitest run artifacts (Sprint 158). Local output, regenerated every run.
+dental-4-12-main/project/.vitest/
+
+# OCR engine files copied from pinned packages by scripts/copy-ocr-assets.mjs
+# before dev/build (SEC-36). Regenerated every run; ~14 MB of binaries.
+dental-4-12-main/project/public/ocr/

@@ -7,19 +7,21 @@
 // Never trusted silently — see CLAUDE.md OCR MODULE spec.
 export const OCR_CONFIDENCE_THRESHOLD = 70;
 
-// ⚠ NO 'grade' / 'section' HERE, AND THAT IS DELIBERATE (Sprint 87).
-// The official DOH IPTR's Personal Information block is: Patient's Name ·
-// Birthday · Age · Sex · Address · Occupation · Contact # · Philhealth #
-// (Principal/Dependent) · 4Ps/NHTS. It prints NO grade and NO section, so
-// anchoring on them could only ever return nothing. The app still needs both
-// — they are required on STUDENT and snapshotted per year on STUDENT_IPTR —
-// they are just TYPED, not scanned. The Parents & Guardian Consent Form is
-// the document that carries GRADE&SECTION; reading it is separate scope.
-// 'occupation' is likewise absent: the form prints it, but no model stores it,
-// so extracting it would only produce a value with nowhere to go.
+// 'grade'/'section'/'placeOfBirth'/'guardianName'/'guardianContact'/
+// 'guardianOccupation' ADDED 2026-09-29, superseding the Sprint 87 note that
+// used to be here ("NO grade/section, deliberate — the official DOH IPTR
+// prints neither"). That was true of the official DOH IPTR specifically;
+// it is not true of every source this module reads. The school's own
+// "Patient Information Sheet" (a custom boxed/grid layout, not the DOH
+// form) DOES print all of these, and the grid extractor below reads them
+// from it. A source that genuinely lacks a field still just returns
+// nothing for it — these keys are safe to always attempt.
 export type IptrOcrFieldKey =
   | 'firstName' | 'lastName' | 'middleName' | 'birthdate' | 'age' | 'gender'
-  | 'address' | 'contactNumber' | 'philhealthNumber' | 'fourPsId';
+  | 'address' | 'contactNumber' | 'philhealthNumber' | 'fourPsId'
+  | 'grade' | 'section' | 'placeOfBirth' | 'guardianName' | 'guardianContact' | 'guardianOccupation'
+  // Read from a ticked checkbox (iptrTickBoxes.ts), not from text.
+  | 'philhealthStatus';
 
 /** One detected finding from the form's Year 1-5 tick grid. Kept flat and
  *  label-first because the UI shows these for confirmation, never saves them
@@ -30,6 +32,10 @@ export interface IptrCheckboxFinding {
   /** Model field this maps to, or null when the form carries the row and the
    *  data model has nowhere to store it. */
   field: string | null;
+  /** The row's value is free text on the form (Allergies, Others, Last
+   *  Admission): a tick says "yes" but the details must be typed, and the
+   *  model stores a STRING there, so a tick is never saved as `true`. */
+  text?: boolean;
   /** Which Year columns were ticked (1-5). */
   years: number[];
 }

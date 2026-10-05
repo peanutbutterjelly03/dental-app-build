@@ -38,15 +38,13 @@ export const IPTR_FORM_ROWS: FormRow[] = [
   { label: 'Allergies (Please specify)', section: 'medical', field: 'allergies', text: true },
   { label: 'Hypertension / CVA', section: 'medical', field: 'hypertension' },
   { label: 'Diabetes Mellitus', section: 'medical', field: 'diabetes_mellitus' },
-  // ⚠ On the form, absent from MEDICAL_HISTORY. Detected and reported, never
-  // silently dropped — see UNMAPPED_ROWS.
-  { label: 'Blood Disorders', section: 'medical', field: null },
+  { label: 'Blood Disorders', section: 'medical', field: 'blood_disorders' },
   { label: 'Cardiovascular / Heart Diseases', section: 'medical', field: 'cardiovascular_disease' },
   { label: 'Thyroid Disorders', section: 'medical', field: 'thyroid_disorders' },
   { label: 'Hepatitis (Please specify type)', section: 'medical', field: 'hepatitis_disorders' },
   { label: 'Malignancy (Please specify)', section: 'medical', field: 'malignancy' },
   { label: 'History of Previous Hospitalization:', section: 'medical', field: 'previous_hospitalization' },
-  { label: 'Medical (Last Admission & Cause)', section: 'medical', field: null, text: true },
+  { label: 'Medical (Last Admission & Cause)', section: 'medical', field: 'last_admission', text: true },
   { label: 'Surgical (Post-Operative)', section: 'medical', field: 'previous_surgical' },
   { label: 'Blood transfusion (Month & Year)', section: 'medical', field: 'blood_transfusion' },
   { label: 'Tattoo', section: 'medical', field: 'tattoo' },
@@ -74,9 +72,27 @@ export const IPTR_FORM_ROWS: FormRow[] = [
   { label: 'Others (Please specify)', section: 'oral', field: 'others', text: true },
 ];
 
+/** The table's ruled rows from the first medical row to the last, in printed
+ *  order: an index into IPTR_FORM_ROWS, or null for a SECTION HEADING row
+ *  ("Dietary Habits and Social History", "Oral Health Condition").
+ *
+ *  ⚠ The headings are ruled rows of their own (O2b, 2026-10-01, measured on the
+ *  blank form: "Dietary Habits…" y 695-712, "Oral Health Condition" y 841-857
+ *  at the app's PDF render size). Mapping the last 31 bands straight onto the
+ *  31 conditions therefore shifted every row above a heading: with ticks drawn
+ *  into known cells, a Thumbsucking tick came back as "Nail Biting" and an
+ *  Allergies tick was lost, at confidence 75. Only the oral rows, below the
+ *  last heading, were right. */
+const TABLE_LAYOUT: (number | null)[] = [
+  ...IPTR_FORM_ROWS.map((r, i) => (r.section === 'medical' ? i : -1)).filter((i) => i >= 0),
+  null,
+  ...IPTR_FORM_ROWS.map((r, i) => (r.section === 'dietary' ? i : -1)).filter((i) => i >= 0),
+  null,
+  ...IPTR_FORM_ROWS.map((r, i) => (r.section === 'oral' ? i : -1)).filter((i) => i >= 0),
+];
+
 /** Rows the printed form carries that the data model cannot store. Reported so
  *  a tick in one of them is visibly dropped rather than invisibly lost:
- *   - Blood Disorders          — no field on MEDICAL_HISTORY
  *   - Orally Fit               — derived elsewhere from oral status, not stored
  *   - Dental Caries            — derived from the DMF index, not a boolean
  *   - Completely Edentulous    — no field on ORAL_HEALTH_CONDITION
@@ -146,12 +162,22 @@ export function readIptrCheckboxes(canvas: HTMLCanvasElement): CheckboxScan {
     return collapse(found);
   };
 
+  // A vertical rule is looked for in a 3 px strip, not one pixel column
+  // (O2b, 2026-10-01). The app renders a PDF page at ~1028 px wide, where the
+  // rules are 1 px thick, and the supplied scan leans very slightly: one Year
+  // rule was split across x=737 and x=738, each inked on 46-48% of the table
+  // height, so neither passed the 50% bar and the form was declined with "6
+  // column lines". Sprint 86 was verified on a higher-resolution PNG, never on
+  // the app's own PDF rendering, which is why this was not seen.
+  const darkStrip = (x: number, y: number) =>
+    dark[y * w + x] | (x > 0 ? dark[y * w + x - 1] : 0) | (x < w - 1 ? dark[y * w + x + 1] : 0);
+
   const verticalRules = (y0: number, y1: number) => {
     const span = y1 - y0;
     const found: number[] = [];
     for (let x = 0; x < w; x++) {
       let count = 0;
-      for (let y = y0; y < y1; y++) count += dark[y * w + x];
+      for (let y = y0; y < y1; y++) count += darkStrip(x, y);
       if (count > span * 0.5) found.push(x);
     }
     return collapse(found);
@@ -184,12 +210,12 @@ export function readIptrCheckboxes(canvas: HTMLCanvasElement): CheckboxScan {
   const probeX = coarseV[coarseV.length - 4]; // an interior year rule
   let bestStart = -1, bestLen = 0, runStart = -1;
   for (let y = 0; y <= h; y++) {
-    const on = y < h && dark[y * w + probeX] === 1;
+    const on = y < h && darkStrip(probeX, y) === 1;
     if (on && runStart === -1) runStart = y;
     // Tolerate hairline gaps so a faint scan does not split one rule in two.
     if (!on && runStart !== -1) {
       let gap = 0;
-      while (y + gap < h && gap < 6 && dark[(y + gap) * w + probeX] === 0) gap++;
+      while (y + gap < h && gap < 6 && darkStrip(probeX, y + gap) === 0) gap++;
       if (gap < 6 && y + gap < h) { y += gap; continue; }
       if (y - runStart > bestLen) { bestLen = y - runStart; bestStart = runStart; }
       runStart = -1;
@@ -245,23 +271,26 @@ export function readIptrCheckboxes(canvas: HTMLCanvasElement): CheckboxScan {
     const a = hLines[i], b = hLines[i + 1];
     if (b - a >= 8) rowBands.push([a, b]);
   }
-  const expected = IPTR_FORM_ROWS.length;
-  // Header row, DATE EXAMINED and the three section headings sit among the
-  // bands; the data rows are the tail of the table.
+  // The header row, DATE EXAMINED and the "Medical History" heading come
+  // first; the tail of the table is TABLE_LAYOUT, section headings included.
+  const expected = TABLE_LAYOUT.length;
   if (rowBands.length < expected) {
     return {
       ...EMPTY,
-      reason: `Read ${rowBands.length} rows but the form has ${expected} tickable rows — refusing to guess which is which.`,
+      reason: `Read ${rowBands.length} rows but the form has ${expected} (tickable rows plus section headings), refusing to guess which is which.`,
     };
   }
-  const dataBands = rowBands.slice(rowBands.length - expected);
+  const tableBands = rowBands.slice(rowBands.length - expected);
 
   // ── Ink density per cell ─────────────────────────────────────────────────
   const ticks: Record<number, boolean[]> = {};
   for (let yi = 0; yi < IPTR_YEARS.length; yi++) {
     const x0 = yearEdges[yi], x1 = yearEdges[yi + 1];
-    const col: boolean[] = [];
-    for (const [ya, yb] of dataBands) {
+    const col: boolean[] = new Array(IPTR_FORM_ROWS.length).fill(false);
+    for (let b = 0; b < tableBands.length; b++) {
+      const row = TABLE_LAYOUT[b];
+      if (row === null) continue; // a section heading: nothing to tick
+      const [ya, yb] = tableBands[b];
       // Inset so the cell's own ruled borders are not counted as ink.
       const ix0 = x0 + 3, ix1 = x1 - 3, iy0 = ya + 3, iy1 = yb - 3;
       let ink = 0, total = 0;
@@ -271,7 +300,7 @@ export function readIptrCheckboxes(canvas: HTMLCanvasElement): CheckboxScan {
       }
       // 4% of the cell inked is a deliberate, empirical floor: scanner speckle
       // and bleed-through sit well below it, and even a small tick sits above.
-      col.push(total > 0 && ink / total > 0.04);
+      col[row] = total > 0 && ink / total > 0.04;
     }
     ticks[IPTR_YEARS[yi]] = col;
   }

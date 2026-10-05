@@ -47,6 +47,13 @@ export function formatDate(value: Date | string | number | null | undefined, fal
   return d ? d.toLocaleDateString(LOCALE, DATE_OPTS) : fallback;
 }
 
+/** "Dec 2026" — month-only, for a target/due date named by month rather than
+ *  an exact day (RPC's Visit 2 due window). */
+export function formatMonthYear(value: Date | string | number | null | undefined, fallback = '—'): string {
+  const d = asDate(value);
+  return d ? d.toLocaleDateString(LOCALE, { month: 'short', year: 'numeric' }) : fallback;
+}
+
 /** "Wed, Aug 27, 2026" — for the dashboard/appointments "today" headers, where staff schedule by day of week. */
 export function formatDateWithWeekday(value: Date | string | number | null | undefined, fallback = '—'): string {
   const d = asDate(value);
