@@ -1064,7 +1064,7 @@ export const PatientList = () => {
                   SY {schoolYearLabel()}
                 </span>
               </div>
-              <p className="mt-1 max-w-[62ch] text-sm text-muted-foreground">
+              <p className="mt-1 text-sm text-muted-foreground">
                 {selectedSchool ? 'Everyone enrolled at this school.' : 'Everyone enrolled across all schools.'} Search, filter, queue for dental care, or open a student's chart.
               </p>
             </div>
