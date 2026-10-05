@@ -73,9 +73,9 @@ export type DuplicateCandidate = {
 // else typed keeps the violet default, so a non-student is always coloured.
 const roleTone = (role: string | undefined) => {
   const r = (role ?? '').trim().toLowerCase();
-  if (r.includes('staff')) return { box: 'border-teal-300 text-teal-700', dot: 'bg-teal-600' };
-  if (r.includes('guard')) return { box: 'border-amber-300 text-amber-700', dot: 'bg-amber-500' };
-  return { box: 'border-violet-300 text-violet-700', dot: 'bg-violet-600' };
+  if (r.includes('staff')) return { box: 'border-teal-300 bg-teal-100 text-teal-800', dot: 'bg-teal-600' };
+  if (r.includes('guard')) return { box: 'border-amber-300 bg-amber-100 text-amber-800', dot: 'bg-amber-500' };
+  return { box: 'border-violet-300 bg-violet-100 text-violet-800', dot: 'bg-violet-600' };
 };
 
 // Empty Grade/Section cell (user pick D, 2026-10-05): a dashed "+ Assign" prompt
@@ -1386,9 +1386,11 @@ export const PatientList = () => {
                           </button>
                         ))}
                       </div>
-                      {noneYet && (
-                        <p className="text-sm">Tick "Not a Student" when adding someone who is not enrolled, such as a teacher or staff member.</p>
-                      )}
+                      <p className="text-sm">
+                        {noneYet
+                          ? 'Tick "Not a Student" when adding someone who is not enrolled, such as a teacher or staff member.'
+                          : 'Nobody in this list fits all of these filters. Remove a filter to widen the search, or clear them all.'}
+                      </p>
                       <div className="flex flex-wrap justify-center gap-2">
                         {noneYet && canAddStudent && (
                           <button
@@ -1400,7 +1402,7 @@ export const PatientList = () => {
                         )}
                         <button
                           onClick={clearFilters}
-                          className={noneYet && canAddStudent ? 'rounded-full border border-primary px-5 py-2 text-sm font-semibold text-primary hover:bg-primary-surface' : 'rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white hover:bg-primary-hover'}
+                          className="inline-flex items-center rounded-full bg-primary px-3 py-1 text-xs font-semibold text-white hover:bg-primary-hover"
                         >
                           Clear all filters
                         </button>
@@ -1454,7 +1456,7 @@ export const PatientList = () => {
                     </td>
                     <td className="px-4 py-1.5 text-muted-foreground" onClick={(e) => e.stopPropagation()}>
                       {student.isNotStudent ? (
-                        <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border bg-card px-3 py-1 text-xs font-semibold leading-none ${roleTone(student.notStudentRole).box}`} title="Not a student"><span className={`h-[7px] w-[7px] rounded-full ${roleTone(student.notStudentRole).dot}`} />{student.notStudentRole || 'Not a student'}</span>
+                        <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-semibold leading-none ${roleTone(student.notStudentRole).box}`} title="Not a student"><span className={`h-[7px] w-[7px] rounded-full ${roleTone(student.notStudentRole).dot}`} />{student.notStudentRole || 'Not a student'}</span>
                       ) : bulkQueueMode && !student.pending ? (
                         <button
                           onClick={() => toggleGradeCriterionQ(student.grade)}
