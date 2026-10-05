@@ -27,8 +27,8 @@ const NAVY = '#273A78';
 const MUTED = '#67687A';
 const LINE = '#E2E8F0';
 const GRID_LINE = '#CBD5E1';
-// The last column keeps this much room on its right so its title ends before the corner tab.
-const LAST_COL_PAD = '6rem';
+// The last (and first) column keep this much room at their outer edge so the edge tabs never cover text.
+const LAST_COL_PAD = '1.75rem';
 // Breathing room between the pinned table and the top bar, in px.
 const TOP_GAP = 8;
 
@@ -268,7 +268,7 @@ export const BulkScanReview = () => {
     const box = el.getBoundingClientRect();
     const leftOf = (t: HTMLElement) => t.getBoundingClientRect().left - box.left + el.scrollLeft;
     const pinned = ths[0].offsetWidth;
-    const reserve = (el.parentElement?.querySelector('.bulk-tab') as HTMLElement | null)?.offsetWidth ?? 80;
+    const reserve = 28;
     const cols = ths.slice(1);
     const max = el.scrollWidth - el.clientWidth;
     if (dir === 1) {
@@ -413,11 +413,12 @@ export const BulkScanReview = () => {
         + '.bulk-grid::-webkit-scrollbar:horizontal{display:none;height:0}'
         + '.bulk-grid::-webkit-scrollbar{width:0.5rem}.bulk-grid::-webkit-scrollbar-thumb{background:#9aa5c0;border-radius:0.5rem}.bulk-grid::-webkit-scrollbar-track{background:#eef1f7}'
         + '.bulk-grid{cursor:grab}.bulk-grid.dragging{cursor:grabbing;user-select:none}'
-        + '.bulk-tab{position:absolute;top:0.0625rem;right:0.0625rem;display:flex;align-items:center;gap:0.25rem;padding:0 0.5rem;background:#273A78;border-left:0.0625rem solid rgba(255,255,255,0.18);border-top-right-radius:0.6875rem;z-index:6}'
-        + '.bulk-tab button{width:1.75rem;height:1.75rem;border:0.0625rem solid rgba(255,255,255,0.45);border-radius:0.5rem;background:rgba(255,255,255,0.16);color:#fff;font-size:1.0625rem;font-weight:700;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0}'
-        + '.bulk-tab button:hover:not(:disabled){background:rgba(255,255,255,0.32)}.bulk-tab button:active:not(:disabled){background:rgba(255,255,255,0.45)}'
-        + '.bulk-tab button:disabled{opacity:.4;cursor:default}.bulk-tab button:focus-visible{outline:0.125rem solid #7AA2FF;outline-offset:0.125rem}'
-        + '@media (pointer: coarse){.bulk-tab button{width:2.75rem;height:2.75rem}}'
+        // Slim tabs on the left and right edges of the table, at mid height (user pick 4, 2026-10-05).
+        + '.bulk-edge{position:absolute;top:50%;transform:translateY(-50%);width:1.25rem;height:2.875rem;border:0;background:#273A78;color:#fff;font-size:1rem;font-weight:700;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0;opacity:.92;z-index:6;box-shadow:0 0.125rem 0.5rem rgba(15,23,42,0.25)}'
+        + '.bulk-edge.l{left:0.0625rem;border-radius:0 0.5625rem 0.5625rem 0}.bulk-edge.r{border-radius:0.5625rem 0 0 0.5625rem}'
+        + '.bulk-edge:hover:not(:disabled){background:#31458C;opacity:1}.bulk-edge:active:not(:disabled){background:#101A3D}'
+        + '.bulk-edge:disabled{opacity:.3;cursor:default}.bulk-edge:focus-visible{outline:0.125rem solid #7AA2FF;outline-offset:0.125rem}'
+        + '@media (pointer: coarse){.bulk-edge{width:2rem;height:3.5rem}}'
         + '@media (max-width: 639px){.bulk-shell{height:auto !important;overflow:visible !important;padding:0.25rem 0 1rem 1rem !important;margin-bottom:0 !important}'
         + '.bulk-pr{padding-right:1rem !important}.bulk-scroll{flex:none !important;max-height:75vh}.bulk-sticky{position:static !important;height:auto !important}}'}</style>
       {/* Header, same shape as the Scan and Verify pages */}
@@ -499,7 +500,7 @@ export const BulkScanReview = () => {
           <table style={{ borderCollapse: 'separate', borderSpacing: 0, width: '100%' }}>
             <thead>
               <tr>
-                <th style={{ ...head, left: 0, zIndex: 5 }}>Student</th>
+                <th style={{ ...head, left: 0, zIndex: 5, paddingLeft: LAST_COL_PAD }}>Student</th>
                 {cols.map((c, ci) => <th key={c.label} style={ci === cols.length - 1 ? { ...head, paddingRight: LAST_COL_PAD } : head}>{c.label}</th>)}
               </tr>
             </thead>
@@ -508,7 +509,7 @@ export const BulkScanReview = () => {
                 const band = i % 2 ? '#F5F8FF' : '#fff';
                 return (
                   <tr key={r.index} onClick={() => open(r.index)} style={{ cursor: 'pointer', background: band }}>
-                    <td style={{ ...cell, position: 'sticky', left: 0, zIndex: 2, background: '#E8EEFB', fontWeight: 700, color: NAVY, boxShadow: `1px 0 0 ${GRID_LINE}` }}>{fullName(r.h, r.index)}</td>
+                    <td style={{ ...cell, position: 'sticky', left: 0, zIndex: 2, background: '#E8EEFB', fontWeight: 700, color: NAVY, boxShadow: `1px 0 0 ${GRID_LINE}`, paddingLeft: LAST_COL_PAD }}>{fullName(r.h, r.index)}</td>
                     {cols.map((c, ci) => <td key={c.label} style={ci === cols.length - 1 ? { ...cell, paddingRight: LAST_COL_PAD } : cell}>{c.cell(r)}</td>)}
                   </tr>
                 );
@@ -526,10 +527,10 @@ export const BulkScanReview = () => {
           </table>
         </div>
           {!tab.fits && (
-            <div className="bulk-tab" style={{ height: tab.headH, right: `calc(0.0625rem + ${tab.sbw}px)` }}>
-              <button type="button" aria-label="Show previous columns" title="Show previous columns" disabled={!tab.left} onClick={() => stepColumns(-1)}>‹</button>
-              <button type="button" aria-label="Show next columns" title="Show next columns" disabled={!tab.right} onClick={() => stepColumns(1)}>›</button>
-            </div>
+            <>
+              <button type="button" className="bulk-edge l" aria-label="Show previous columns" title="Show previous columns" disabled={!tab.left} onClick={() => stepColumns(-1)}>‹</button>
+              <button type="button" className="bulk-edge r" style={{ right: `calc(0.0625rem + ${tab.sbw}px)` }} aria-label="Show next columns" title="Show next columns" disabled={!tab.right} onClick={() => stepColumns(1)}>›</button>
+            </>
           )}
         </div>
         </div>
