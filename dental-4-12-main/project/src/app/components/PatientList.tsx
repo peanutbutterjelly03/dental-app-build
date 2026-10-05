@@ -75,12 +75,12 @@ const AssignPrompt = ({ label, enabled, onAssign }: { label: 'grade' | 'section'
       type="button"
       onClick={onAssign}
       title={`Assign ${label} in Update School Year`}
-      className="inline-flex items-center gap-1 rounded-full border border-dashed border-primary px-3 py-0.5 text-xs font-semibold text-primary hover:bg-primary-surface"
+      className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-dashed border-primary px-3 py-0.5 text-xs font-semibold capitalize text-primary hover:bg-primary-surface"
     >
       <Plus className="h-3 w-3" /> Assign {label}
     </button>
   ) : (
-    <span className="inline-flex items-center rounded-full border border-dashed border-border px-3 py-0.5 text-xs text-muted-foreground">No {label}</span>
+    <span className="inline-flex items-center whitespace-nowrap rounded-full border border-dashed border-border px-3 py-0.5 text-xs capitalize text-muted-foreground">No {label}</span>
   );
 
 export const duplicatesFromError = (err: unknown): DuplicateCandidate[] | null => {
@@ -1298,9 +1298,9 @@ export const PatientList = () => {
                 Grade. Student takes the largest share; the rest sit close. */}
             <colgroup>
               <col className="w-16" />
-              <col style={{ width: '21%' }} />
+              <col style={{ width: '19%' }} />
               <col style={{ width: '12%' }} />
-              <col style={{ width: '9%' }} />
+              <col style={{ width: '11%' }} />
               <col style={{ width: '13%' }} />
               <col style={{ width: '8%' }} />
               <col style={{ width: '6%' }} />
