@@ -5,7 +5,6 @@ import { useLocation, useNavigate } from 'react-router';
 import { REQUIRED_STUDENT_FIELDS, type DuplicateCandidate } from './PatientList';
 import type { ExtractedHandoff } from './ScanStudentForm';
 import { calculateAge } from '../utils/age';
-import { TOPBAR_H } from '../utils/layout';
 import { apiClient } from '../api/client';
 import { inFileDuplicates, type DupDecisions } from '../utils/bulkDuplicates';
 
@@ -147,6 +146,53 @@ export const BulkScanReview = () => {
   // bottom padding, so the document has nothing left to scroll.
   const shellRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
+  // The corner tab (‹ ›) at the right end of the table header: it needs to know whether
+  // there is more to the left or right, and whether everything already fits.
+  const [gridEl, setGridEl] = useState<HTMLDivElement | null>(null);
+  const setGrid = (el: HTMLDivElement | null) => { gridRef.current = el; setGridEl(el); };
+  const [tab, setTab] = useState({ left: false, right: false, fits: true, headH: 36 });
+  useEffect(() => {
+    const el = gridEl;
+    if (!el) return;
+    const update = () => {
+      const th = el.querySelector('thead th') as HTMLElement | null;
+      setTab({
+        left: el.scrollLeft > 1,
+        right: el.scrollLeft + el.clientWidth < el.scrollWidth - 1,
+        fits: el.scrollWidth <= el.clientWidth + 1,
+        headH: th?.offsetHeight ?? 36,
+      });
+    };
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null;
+    ro?.observe(el);
+    const table = el.querySelector('table');
+    if (table) ro?.observe(table);
+    return () => { el.removeEventListener('scroll', update); ro?.disconnect(); };
+  }, [gridEl]);
+  // One press moves about a screen of columns and always lands on a column edge, so a title is
+  // never sliced. The Student column is pinned, so columns scroll under it.
+  const stepColumns = (dir: 1 | -1) => {
+    const el = gridRef.current;
+    if (!el) return;
+    const ths = Array.from(el.querySelectorAll('thead th')) as HTMLElement[];
+    if (ths.length < 3) return;
+    const box = el.getBoundingClientRect();
+    const leftOf = (t: HTMLElement) => t.getBoundingClientRect().left - box.left + el.scrollLeft;
+    const pinned = ths[0].offsetWidth;
+    const reserve = ths[ths.length - 1].offsetWidth;
+    const cols = ths.slice(1, -1);
+    if (dir === 1) {
+      const viewRight = el.scrollLeft + el.clientWidth - reserve;
+      const next = cols.find((c) => leftOf(c) + c.offsetWidth > viewRight + 1);
+      el.scrollTo({ left: next ? leftOf(next) - pinned : el.scrollWidth, behavior: 'smooth' });
+    } else {
+      const target = Math.max(0, el.scrollLeft - (el.clientWidth - pinned - reserve));
+      const snap = target <= 0 ? undefined : cols.find((c) => leftOf(c) - pinned >= target - 1);
+      el.scrollTo({ left: snap ? leftOf(snap) - pinned : 0, behavior: 'smooth' });
+    }
+  };
   const [fitHeight, setFitHeight] = useState<number | null>(null);
   // The layout pads the page on the right and bottom; the grid should touch those edges, so the
   // page cancels that padding with matching negative margins.
@@ -256,6 +302,12 @@ export const BulkScanReview = () => {
         // The page scrolls DOWN as normal; the table only scrolls SIDEWAYS, with a visible bar.
         + '.bulk-scroll{flex:none !important;scrollbar-width:thin;scrollbar-color:#9aa5c0 #eef1f7}'
         + '.bulk-scroll.bulk-grid{overflow-x:auto !important;overflow-y:hidden !important}'
+        + '.bulk-tab button{width:2rem;height:100%;border:0;background:transparent;color:#fff;font-size:1.125rem;font-weight:700;line-height:1;cursor:pointer}'
+        + '.bulk-tab button+button{border-left:0.0625rem solid rgba(255,255,255,0.18)}'
+        + '.bulk-tab button:hover:not(:disabled){background:#31458C}.bulk-tab button:active:not(:disabled){background:#101A3D}'
+        + '.bulk-tab button:disabled{opacity:.35;cursor:default}.bulk-tab button:focus-visible{outline:0.125rem solid #7AA2FF;outline-offset:-0.1875rem}'
+        + '.bulk-spacer{width:4rem;min-width:4rem}'
+        + '@media (pointer: coarse){.bulk-tab button{width:2.75rem}.bulk-spacer{width:5.5rem;min-width:5.5rem}}'
         + '@media (max-width: 639px){.bulk-shell{padding:0.25rem 0 1rem 1rem !important}'
         + '.bulk-pr{padding-right:1rem !important}.bulk-scroll{max-height:75vh}.bulk-scroll.bulk-grid{max-height:none}}'}</style>
       {/* Header, same shape as the Scan and Verify pages */}
@@ -315,23 +367,14 @@ export const BulkScanReview = () => {
         // visible bar. The Student column stays pinned on the left. The arrow buttons float
         // at the top of the screen, so sideways is reachable however far down you are.
         <div className="bulk-pr" style={{ position: 'relative', width: '100%', boxSizing: 'border-box', paddingRight: '3.5rem' }}>
-          <div style={{ position: 'sticky', top: TOPBAR_H + 8, zIndex: 6, height: 0, display: 'flex', justifyContent: 'flex-end', gap: '0.375rem', paddingRight: '0.5rem', pointerEvents: 'none' }}>
-            {(['‹', '›'] as const).map((arrow, k) => (
-              <button
-                key={arrow}
-                type="button"
-                aria-label={k === 0 ? 'Scroll columns left' : 'Scroll columns right'}
-                onClick={() => gridRef.current?.scrollBy({ left: (k === 0 ? -1 : 1) * Math.max(240, (gridRef.current?.clientWidth ?? 600) * 0.7), behavior: 'smooth' })}
-                style={{ pointerEvents: 'auto', width: '2rem', height: '2rem', borderRadius: '50%', border: `0.0625rem solid ${LINE}`, background: '#fff', color: NAVY, fontSize: '1.125rem', lineHeight: 1, cursor: 'pointer', boxShadow: '0 0.125rem 0.5rem rgba(15,23,42,0.18)', marginTop: '0.5rem' }}
-              >{arrow}</button>
-            ))}
-          </div>
-        <div ref={gridRef} className="bulk-scroll bulk-grid" style={{ flex: '1 1 0', minHeight: 0, width: 0, minWidth: '100%', maxWidth: '100%', overflow: 'auto', background: '#fff', border: `0.0625rem solid ${GRID_LINE}`, borderRadius: '0.75rem' }}>
+          <div style={{ position: 'relative' }}>
+        <div ref={setGrid} className="bulk-scroll bulk-grid" style={{ flex: '1 1 0', minHeight: 0, width: 0, minWidth: '100%', maxWidth: '100%', overflow: 'auto', background: '#fff', border: `0.0625rem solid ${GRID_LINE}`, borderRadius: '0.75rem' }}>
           <table style={{ borderCollapse: 'separate', borderSpacing: 0, width: '100%' }}>
             <thead>
               <tr>
                 <th style={{ ...head, left: 0, zIndex: 5 }}>Student</th>
                 {cols.map((c) => <th key={c.label} style={head}>{c.label}</th>)}
+                <th className="bulk-spacer" aria-hidden="true" style={{ ...head, padding: 0 }} />
               </tr>
             </thead>
             <tbody>
@@ -341,11 +384,19 @@ export const BulkScanReview = () => {
                   <tr key={r.index} onClick={() => open(r.index)} style={{ cursor: 'pointer', background: band }}>
                     <td style={{ ...cell, position: 'sticky', left: 0, zIndex: 2, background: '#E8EEFB', fontWeight: 700, color: NAVY, boxShadow: `1px 0 0 ${GRID_LINE}` }}>{fullName(r.h, r.index)}</td>
                     {cols.map((c) => <td key={c.label} style={cell}>{c.cell(r)}</td>)}
+                    <td aria-hidden="true" style={{ ...cell, padding: 0 }} />
                   </tr>
                 );
               })}
             </tbody>
           </table>
+        </div>
+          {!tab.fits && (
+            <div className="bulk-tab" style={{ position: 'absolute', top: '0.0625rem', right: '0.0625rem', height: tab.headH, display: 'flex', background: '#1C2A5A', borderTopRightRadius: '0.6875rem', overflow: 'hidden', boxShadow: '-0.625rem 0 0.75rem -0.375rem rgba(0,0,0,0.4)', zIndex: 6 }}>
+              <button type="button" aria-label="Show previous columns" title="Show previous columns" disabled={!tab.left} onClick={() => stepColumns(-1)}>‹</button>
+              <button type="button" aria-label="Show next columns" title="Show next columns" disabled={!tab.right} onClick={() => stepColumns(1)}>›</button>
+            </div>
+          )}
         </div>
         </div>
       )}
