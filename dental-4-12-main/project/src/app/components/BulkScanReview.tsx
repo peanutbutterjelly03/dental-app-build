@@ -5,6 +5,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { REQUIRED_STUDENT_FIELDS, type DuplicateCandidate } from './PatientList';
 import type { ExtractedHandoff } from './ScanStudentForm';
 import { calculateAge } from '../utils/age';
+import { TOPBAR_H } from '../utils/layout';
 import { apiClient } from '../api/client';
 import { inFileDuplicates, type DupDecisions } from '../utils/bulkDuplicates';
 
@@ -143,6 +144,7 @@ export const BulkScanReview = () => {
   // where the page starts and give it exactly the rest of the screen, minus the layout's
   // bottom padding, so the document has nothing left to scroll.
   const shellRef = useRef<HTMLDivElement | null>(null);
+  const gridRef = useRef<HTMLDivElement | null>(null);
   const [fitHeight, setFitHeight] = useState<number | null>(null);
   // The layout pads the page on the right and bottom; the grid should touch those edges, so the
   // page cancels that padding with matching negative margins.
@@ -248,9 +250,12 @@ export const BulkScanReview = () => {
           strip under the header, and the inline 3.5rem left padding pushed the page
           right. There, the page scrolls normally, the list pane is capped at 75% of
           the screen, and the side padding is 1rem. Wider screens unchanged. */}
-      <style>{'.bulk-scroll{scrollbar-width:none;-ms-overflow-style:none}.bulk-scroll::-webkit-scrollbar{display:none}'
-        + '@media (max-width: 639px){.bulk-shell{height:auto !important;overflow:visible !important;padding:0.25rem 0 1rem 1rem !important;margin-bottom:0 !important}'
-        + '.bulk-pr{padding-right:1rem !important}.bulk-scroll{flex:none !important;max-height:75vh}}'}</style>
+      <style>{'.bulk-shell{height:auto !important;overflow:visible !important;margin-bottom:0 !important}'
+        // The page scrolls DOWN as normal; the table only scrolls SIDEWAYS, with a visible bar.
+        + '.bulk-scroll{flex:none !important;scrollbar-width:thin;scrollbar-color:#9aa5c0 #eef1f7}'
+        + '.bulk-scroll.bulk-grid{overflow-x:auto !important;overflow-y:hidden !important}'
+        + '@media (max-width: 639px){.bulk-shell{padding:0.25rem 0 1rem 1rem !important}'
+        + '.bulk-pr{padding-right:1rem !important}.bulk-scroll{max-height:75vh}.bulk-scroll.bulk-grid{max-height:none}}'}</style>
       {/* Header, same shape as the Scan and Verify pages */}
       <div className="bulk-pr" style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem', flexShrink: 0, paddingRight: '3.5rem' }}>
         <div style={{ width: '3.5rem', height: '3.5rem', borderRadius: '1rem', background: '#F4F7FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -304,9 +309,22 @@ export const BulkScanReview = () => {
       {shown.length === 0 && <p style={{ fontSize: '0.875rem', color: MUTED, flexShrink: 0 }}>No student needs fixes.</p>}
 
       {shown.length > 0 && view === 'grid' && (
-        // The pane scrolls on its own (both ways) and fills the screen below the header,
-        // like a spreadsheet: the header row and Student column never leave the frame.
-        <div className="bulk-scroll" style={{ flex: '1 1 0', minHeight: 0, width: 0, minWidth: '100%', maxWidth: '100%', overflow: 'auto', background: '#fff', borderTop: `0.0625rem solid ${GRID_LINE}`, borderLeft: `0.0625rem solid ${GRID_LINE}`, borderTopLeftRadius: '0.75rem' }}>
+        // The page scrolls down; this pane scrolls SIDEWAYS only (user, 2026-10-05), with a
+        // visible bar. The Student column stays pinned on the left. The arrow buttons float
+        // at the top of the screen, so sideways is reachable however far down you are.
+        <div style={{ position: 'relative', width: '100%' }}>
+          <div style={{ position: 'sticky', top: TOPBAR_H + 8, zIndex: 6, height: 0, display: 'flex', justifyContent: 'flex-end', gap: '0.375rem', paddingRight: '0.5rem', pointerEvents: 'none' }}>
+            {(['‹', '›'] as const).map((arrow, k) => (
+              <button
+                key={arrow}
+                type="button"
+                aria-label={k === 0 ? 'Scroll columns left' : 'Scroll columns right'}
+                onClick={() => gridRef.current?.scrollBy({ left: (k === 0 ? -1 : 1) * Math.max(240, (gridRef.current?.clientWidth ?? 600) * 0.7), behavior: 'smooth' })}
+                style={{ pointerEvents: 'auto', width: '2rem', height: '2rem', borderRadius: '50%', border: `0.0625rem solid ${LINE}`, background: '#fff', color: NAVY, fontSize: '1.125rem', lineHeight: 1, cursor: 'pointer', boxShadow: '0 0.125rem 0.5rem rgba(15,23,42,0.18)', marginTop: '0.5rem' }}
+              >{arrow}</button>
+            ))}
+          </div>
+        <div ref={gridRef} className="bulk-scroll bulk-grid" style={{ flex: '1 1 0', minHeight: 0, width: 0, minWidth: '100%', maxWidth: '100%', overflow: 'auto', background: '#fff', borderTop: `0.0625rem solid ${GRID_LINE}`, borderLeft: `0.0625rem solid ${GRID_LINE}`, borderTopLeftRadius: '0.75rem' }}>
           <table style={{ borderCollapse: 'separate', borderSpacing: 0, width: '100%' }}>
             <thead>
               <tr>
@@ -326,6 +344,7 @@ export const BulkScanReview = () => {
               })}
             </tbody>
           </table>
+        </div>
         </div>
       )}
 
