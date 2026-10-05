@@ -28,7 +28,7 @@ import { buildFhsisCounts } from "../../shared/fhsis.js";
 import { buildReportsPanels } from "../../shared/reportsPanels.js";
 import { perToothTreatmentCodes, WHOLE_MOUTH_CODE_TO_PREVENTIVE_FIELD } from "../../shared/treatmentCodes.js";
 import { schoolYearLabel } from "../../shared/schoolYear.js";
-import { findDuplicateStudents } from "../utils/studentDuplicates.js";
+import { findDuplicateStudents, findDuplicateGroups } from "../utils/studentDuplicates.js";
 import {
   School,
   User,
@@ -1464,6 +1464,18 @@ router.get("/stats/student-rows", requireAuth, asyncHandler(async (req, res) => 
     a.middleName.localeCompare(b.middleName));
 
   res.json(rows);
+}));
+
+// Duplicate-records scan for the Student Records "Find Duplicates" dialog.
+// Registered before the /students CRUD mount: without this line the request
+// fell through to GET /students/:id and answered "Invalid id". Same roles as
+// the add/archive actions it feeds, and only the caller's own schools.
+router.get("/students/duplicates", requireAuth, requireRole(...CLINICAL_WRITE_ROLES), asyncHandler(async (req, res) => {
+  const asked = typeof req.query.school_id === "string" ? req.query.school_id : undefined;
+  const allowed = userSchools(req);
+  if (!allowed) { res.json(await findDuplicateGroups(asked)); return; }
+  const ids = asked ? (allowed.includes(asked) ? [asked] : []) : allowed;
+  res.json((await Promise.all(ids.map((id) => findDuplicateGroups(id)))).flat());
 }));
 
 // Bulk duplicate check (2026-10-04): the bulk review list asks, for every row
