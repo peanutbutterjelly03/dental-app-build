@@ -1060,7 +1060,7 @@ export const PatientList = () => {
                 <span style={{ backgroundColor: kickerColor.light, color: kickerColor.solid }} className="text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap">
                   {schoolStudents.length} {schoolStudents.length === 1 ? 'STUDENT' : 'STUDENTS'}{selectedSchool ? '' : ' ACROSS 3 SCHOOLS'}
                 </span>
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap bg-green-100 text-green-800">
+                <span className="-ml-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap bg-green-100 text-green-800">
                   SY {schoolYearLabel()}
                 </span>
               </div>
