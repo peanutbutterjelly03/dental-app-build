@@ -126,7 +126,9 @@ export const SyncStatus = ({ schoolLabel }: { schoolLabel?: string }) => {
   // -- implying nothing renders here at all while online and synced. The
   // underlying offline/sync-failure tracking is untouched; it just no longer
   // paints a permanent "Online" chip.
-  if (isIdle) return null;
+  // The plain "Offline" and "Syncing" pills were removed on request (2026-10-06). The states that need an
+  // action (session expired, a change couldn't be saved, changes to review) still show, since they open the panel.
+  if (isIdle || tone === 'offline' || tone === 'syncing') return null;
 
   const fullLabel = schoolLabel ? `${label} — ${schoolLabel}` : label;
 
