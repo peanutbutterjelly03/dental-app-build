@@ -425,15 +425,30 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
   /** Zero shows EMPTY, a count shows as a number, and "—" is still "no source" (user, 2026-10-06). */
   const show = (v: number | null) => (v === null || v === 0 ? '' : v);
 
+  /** The line printed directly under each line, within its own section (sections are separated by their bar). */
+  const nextLine = new Map<string, Row | undefined>();
+  [UTILIZATION_ROWS, STATUS_ROWS, SERVICE_ROWS, OTHER_ROWS].forEach((list) => {
+    const lines = list.filter(rowVisible).flatMap((r) => r.subRows ?? [r]);
+    lines.forEach((l, i) => nextLine.set(l.key, lines[i + 1]));
+  });
+
   /** The value cells for one line — every age/sex column plus the grand total.
    *  Shared by plain rows and sub-rows, which carry identical value grids. */
   const valueCells = (r: Row) => (
     <>
-      {visibleCols.map((c) => SEXES.map((s) => {
+      {visibleCols.map((c, ci) => SEXES.map((s, si) => {
         const v = cell(r.field, c, s);
         const key = `${c.group}-${c.label}-${s}`;
         // A blocked cell carries no value and no dash: the paper form fills it solid, meaning "do not write here".
-        if (isBlocked(r, c)) return <td key={key} className={`${td} ${PR_BLOCKED} !border-0`} title={BLOCKED_TITLE} />;
+        // Only the INSIDE borders of a gray block are dropped (between its cells, left to right and top to bottom);
+        // its outline stays, drawn by the border of the cell on its outer side.
+        if (isBlocked(r, c)) {
+          const rightCol = visibleCols[ci + 1];
+          const keepRight = si === 1 && (rightCol ? !isBlocked(r, rightCol) : !!r.blocked === false);
+          const below = nextLine.get(r.key);
+          const keepBottom = !below || !isBlocked(below, c);
+          return <td key={key} className={`${td} ${PR_BLOCKED}${keepRight ? '' : ' !border-r-0'}${keepBottom ? '' : ' !border-b-0'}`} title={BLOCKED_TITLE} />;
+        }
         return (
           <td key={key} className={`${td} ${c.label.startsWith('Total') ? PR_TOTAL : ''} ${v === null ? 'text-muted-foreground' : ''}`}>
             {show(v)}
@@ -441,7 +456,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
         );
       }))}
       {r.blocked ? (
-        <td className={`${td} ${PR_BLOCKED} !border-0`} title={BLOCKED_TITLE} />
+        <td className={`${td} ${PR_BLOCKED}`} title={BLOCKED_TITLE} />
       ) : (
         <td className={`${td} ${PR_GRAND}`}>
           {show(rowTotal(r.field))}
