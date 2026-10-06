@@ -407,8 +407,11 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
   const section = (title: string) => (
     // Orange band across the full width, as printed. Painted on the TD as well as the TR: html2canvas (the PDF
     // path) resolves cell backgrounds reliably and row backgrounds not always.
+    // Two cells, like every other row: a title cell frozen over the label columns, and the rest of the bar,
+    // which scrolls with the data (user, 2026-10-06: the section rows stay fixed when scrolling sideways).
     <tr className={PR_ORANGE}>
-      <td className={`${labelTd} font-bold ${PR_ORANGE}`} colSpan={visibleCols.length * 2 + 3}><div className="sticky left-0 w-max">{title}</div></td>
+      <td className={`${labelTd} font-bold ${PR_ORANGE} sticky left-0 z-10`} colSpan={2}>{title}</td>
+      <td className={`${td} ${PR_ORANGE}`} colSpan={visibleCols.length * 2 + 1} />
     </tr>
   );
   /** The solid black rule the filed form runs between its sections. */
