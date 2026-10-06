@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { TOPBAR_H } from '../utils/layout';
 import { usePrintOrientation } from '../hooks/usePrintOrientation';
 import { useAuth } from '../context/AuthContext';
 import { apiClient } from '../api/client';
@@ -474,6 +475,23 @@ export const TargetClientList = () => {
 
   const didAlignAnchor = useRef(false);
   const sheetsRef = useRef<HTMLDivElement>(null);
+  // Space taken above the table pane when the page is scrolled to the end: the status strip, plus the
+  // pinned Reports header (tablet and up; it is not pinned on phones) and the gap under it. Measured,
+  // so the pane fills exactly the rest of the screen and touches its bottom edge.
+  const [paneOffset, setPaneOffset] = useState(318);
+  useEffect(() => {
+    const measure = () => {
+      const band = document.getElementById('reports-band');
+      const pinned = band && window.matchMedia('(min-width: 640px)').matches;
+      setPaneOffset(TOPBAR_H + (pinned ? band.offsetHeight : 0) + 16);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    const band = document.getElementById('reports-band');
+    const ro = band && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    if (band && ro) ro.observe(band);
+    return () => { window.removeEventListener('resize', measure); ro?.disconnect(); };
+  }, []);
   useEffect(() => {
     if (didAlignAnchor.current || !latestConsult) return;
     const { start: s0, end: e0 } = periodRange(anchor, period);
@@ -851,7 +869,7 @@ export const TargetClientList = () => {
   const sTd = `border border-[#CBD5E1] px-2 py-1.5 text-xs text-foreground whitespace-nowrap`;
   const screenTable = (
     <div className="w-full min-w-0 max-w-full rounded-xl border border-border bg-card overflow-hidden">
-      <div className="max-h-[max(320px,calc(100vh_-_348px))] w-full overflow-auto">
+      <div className="w-full overflow-auto" style={{ maxHeight: `max(320px, calc(100vh - ${paneOffset}px))` }}>
         <table className="border-separate border-spacing-0 w-max min-w-full">
           <thead className="sticky top-0 z-20">
             <tr>
@@ -1046,7 +1064,9 @@ export const TargetClientList = () => {
           screen and the page itself must never scroll sideways. */}
       {/* ON SCREEN: one table. IN PRINT AND IN THE PDF: the exact two-page
           form (`.tcl-sheets`, off-screen until printed or captured). */}
-      <div className="print-hide">{screenTable}</div>
+      {/* The negative bottom margin cancels the page padding, so at the end of the scroll the table touches
+          the bottom edge of the screen (user, 2026-10-06). `paneOffset` below is that header's measured height. */}
+      <div className="print-hide -mb-4 md:-mb-8">{screenTable}</div>
       <div ref={sheetsRef} className="form-print tcl-sheets" aria-hidden="true">
         {sheetChunks.flatMap((chunk, i) => [sheetPage1(chunk, `p1-${i}`), sheetPage2(chunk, `p2-${i}`)])}
       </div>

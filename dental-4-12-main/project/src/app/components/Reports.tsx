@@ -608,7 +608,7 @@ export const Reports = () => {
       {/* Pinned under the status strip from sm up so the title, school and tabs stay put while the report scrolls
           (sticky works here because Root's <main> uses overflow-x-clip, not hidden). Left static on phones: the
           stacked band is too tall to leave room for the report. */}
-      <div className="min-w-0 sm:sticky z-30" style={{ top: TOPBAR_H }}>
+      <div id="reports-band" className="min-w-0 sm:sticky z-30" style={{ top: TOPBAR_H }}>
         <div className="rounded-t-2xl bg-primary px-4 pt-4 text-white sm:px-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
