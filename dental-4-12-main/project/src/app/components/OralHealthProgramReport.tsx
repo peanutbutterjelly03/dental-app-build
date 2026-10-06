@@ -12,7 +12,7 @@ import { BLOCKED_TITLE } from '../utils/dohFormStyle';
 const PR_ORANGE = '!bg-[#FFC000] text-black';
 // Blocked cells keep their place but are no longer filled black (user, 2026-10-06).
 const PR_BLOCKED = 'bg-white';
-const PR_TOTAL = 'font-bold'; // total columns: no longer filled light blue (user, 2026-10-06)
+const PR_TOTAL = 'bg-[#DDEBF7] font-bold';
 const PR_GRAND = 'bg-[#FFFF00] font-bold';
 const PR_SUBROW = '!bg-[#EAD1DC]';
 import { buildDohReportPdf } from '../utils/exportPdf';
@@ -686,7 +686,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
             <tr ref={row1Ref} className="[&>th]:sticky [&>th]:top-0 [&>th]:z-20">
               <th className={`${th} text-left align-bottom !left-0 !z-30 bg-gray-50`} rowSpan={3} colSpan={2}>INDICATORS</th>
               {visibleGroups.map((g, i) => (
-                <th key={`${g.label}-${i}`} className={`${th} ${PR_ORANGE}`} colSpan={g.span * SEXES.length}>
+                <th key={`${g.label}-${i}`} className={`${th} bg-gray-100`} colSpan={g.span * SEXES.length}>
                   {g.label}
                 </th>
               ))}
