@@ -753,7 +753,7 @@ export const Reports = () => {
           {/* How the two year-varying figures in this table are derived. Both
               used to be computed against TODAY, which silently rewrote past
               reports every time a student was promoted or had a birthday. */}
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground pb-3">
             {dohSchoolYear && !dohLoading && dohYears.length > 0 && !dohYears.includes(dohSchoolYear) && (
               <> <span className="font-medium text-amber-700">No records exist for {dohSchoolYear}</span>, so every figure below is zero.
               Records exist for {dohYears.join(', ')}. </>
