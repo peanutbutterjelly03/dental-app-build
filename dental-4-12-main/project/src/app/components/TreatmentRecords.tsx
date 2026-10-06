@@ -1,4 +1,3 @@
-import { OfflineReadiness } from './OfflineReadiness';
 import { useState, useMemo, useRef, useEffect, useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { Clipboard, Search, Droplet, ShieldCheck, Sparkles, Wrench, Timer, RotateCcw, Scissors, Syringe, MessageCircle, Eye, ChevronUp, MoreVertical, Trash2, Users, CircleDashed, type LucideIcon } from 'lucide-react';
@@ -335,7 +334,6 @@ export const TreatmentRecords = () => {
         <div className="min-w-0 flex-1">
           <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Clinical Services</div>
           <h1 className="text-2xl font-bold text-foreground mt-0.5">Treatment Records</h1>
-          <OfflineReadiness />
           {/* School-year picker on the same row as the description (user,
               2026-09-28), shrunk. Design "B" -- a single pill, no icons,
               opens a dropdown of the other years on click. TEMPORARY per

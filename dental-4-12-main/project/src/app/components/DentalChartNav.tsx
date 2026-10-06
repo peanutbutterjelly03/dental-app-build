@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
 import { useNavigate } from 'react-router';
 import { Eye, Users, Calendar, Clipboard, ClipboardList, Shield, Stethoscope, SlidersHorizontal, PanelLeftClose, PanelLeftOpen, X, ChevronDown, MoreVertical, CircleDashed } from 'lucide-react';
 import { LevelChip } from './risk/RiskReviewDialog';
@@ -12,7 +12,7 @@ import { useStudents } from '../hooks/useStudents';
 import { useRPCTracking } from '../hooks/useRPCTracking';
 import { useAuth } from '../context/AuthContext';
 import { apiClient } from '../api/client';
-import { OfflineReadiness } from './OfflineReadiness';
+import { getOfflineReadyIds, subscribeOfflineReadiness } from '../offline/offlineCache';
 import type { ApiAppointment, ApiStudentIptr, ApiTreatment } from '../api/types';
 import { toLocalDateString, formatDate } from '../utils/localDate';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
@@ -94,6 +94,8 @@ export const DentalChartNav = () => {
   }, [bulkMenuOpen]);
   const { selectedSchool } = useAuth();
   const { students: allStudents, loading: studentsLoading } = useStudents();
+  // Queue number turns green once that student's chart is saved for offline use.
+  const offlineReadyIds = useSyncExternalStore(subscribeOfflineReadiness, getOfflineReadyIds);
   // School-scoped like every other list page
   const allPatients = useMemo(
     () => (selectedSchool ? allStudents.filter((s) => s.school === selectedSchool) : allStudents),
@@ -464,7 +466,6 @@ export const DentalChartNav = () => {
           <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Clinical Services</div>
           <h1 className="text-2xl font-bold text-foreground mt-0.5">Dental Charts</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Manage student dental charts and the charting queue.</p>
-          <OfflineReadiness />
         </div>
       </div>
 
@@ -886,13 +887,12 @@ export const DentalChartNav = () => {
                       {queuePosition >= 0 ? (
                         <button
                           onClick={(e) => { e.stopPropagation(); setPendingDequeue({ ids: [p.id], label: p.name }); }}
-                          title={appointmentsTodayIds.has(p.id) ? 'Has an appointment today. Remove from charting queue' : 'Remove from charting queue'}
+                          title={`${offlineReadyIds.has(p.id) ? 'Saved for offline use. ' : ''}${appointmentsTodayIds.has(p.id) ? 'Has an appointment today. ' : ''}Remove from charting queue`}
                           aria-label={`Remove ${p.name} from the charting queue`}
-                          // Green when this student has an appointment
-                          // today (user, 2026-09-27 -- amber "was ugly"),
+                          // Green = saved for offline use (user, 2026-10-06);
                           // otherwise the usual school color.
                           style={
-                            appointmentsTodayIds.has(p.id)
+                            offlineReadyIds.has(p.id)
                               ? { backgroundColor: '#DCFCE7', color: '#15803D' }
                               : { backgroundColor: kickerColor.light, color: kickerColor.solid }
                           }

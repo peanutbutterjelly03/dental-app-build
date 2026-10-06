@@ -57,25 +57,28 @@ const warmedThisSession = new Set<string>();
 const inFlight = new Set<string>();
 const WARM_PARALLEL = 3;
 
-/** How many of the queued students are saved on this device, for the screens. */
-export interface OfflineReadiness {
-  ready: number;
-  total: number;
-  /** A read is in progress right now. */
-  busy: boolean;
-}
-let readiness: OfflineReadiness = { ready: 0, total: 0, busy: false };
+// Students whose chart is fully saved on this device, for the green queue number.
+// Persisted (ids only, no patient data) so it is still right after an offline
+// reload, and dropped at sign-out together with the cache itself.
+const READY_KEY = 'floral_offline_ready_ids';
+const loadReady = (): Set<string> => {
+  try {
+    const raw = JSON.parse(localStorage.getItem(READY_KEY) ?? '[]');
+    return new Set(Array.isArray(raw) ? raw.map(String) : []);
+  } catch {
+    return new Set();
+  }
+};
+let readyIds: ReadonlySet<string> = typeof localStorage === 'undefined' ? new Set() : loadReady();
 const listeners = new Set<() => void>();
-export const getOfflineReadiness = () => readiness;
+export const getOfflineReadyIds = () => readyIds;
 export function subscribeOfflineReadiness(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
-function refreshReadiness() {
-  const ids = queuedIds();
-  const next = { ready: ids.filter((id) => warmedThisSession.has(id)).length, total: ids.length, busy: inFlight.size > 0 };
-  if (next.ready === readiness.ready && next.total === readiness.total && next.busy === readiness.busy) return;
-  readiness = next;
+function setReady(next: Set<string>) {
+  readyIds = next;
+  try { localStorage.setItem(READY_KEY, JSON.stringify([...next])); } catch { /* storage unavailable */ }
   for (const listener of listeners) listener();
 }
 
@@ -85,29 +88,23 @@ function refreshReadiness() {
  *  one that failed is tried again on the next queue change or reconnect. */
 async function warmQueuedStudents(): Promise<void> {
   const todo = queuedIds().filter((id) => !warmedThisSession.has(id) && !inFlight.has(id));
-  refreshReadiness();
   const worker = async () => {
     for (let id = todo.shift(); id; id = todo.shift()) {
       if (!navigator.onLine) return;
       inFlight.add(id);
-      refreshReadiness();
       try {
         await warmStudentChart(id);
         warmedThisSession.add(id);
+        if (!readyIds.has(id)) setReady(new Set([...readyIds, id]));
       } catch {
         /* left unmarked: retried later */
       } finally {
         inFlight.delete(id);
-        refreshReadiness();
       }
     }
   };
   await Promise.all(Array.from({ length: WARM_PARALLEL }, worker));
-  refreshReadiness();
 }
-
-/** For the "Try again" button when some queued students did not get saved. */
-export const retryOfflineWarm = () => warmQueuedStudents().catch(() => {});
 
 /** Best-effort, never throws, never blocks. Skips when offline, and the school
  *  lists when it ran within the last few minutes. */
@@ -141,7 +138,7 @@ export async function clearOfflineReadCaches(): Promise<void> {
     await clearReadCache();
     await clearOfflineRecords();
     warmedThisSession.clear();
-    refreshReadiness();
+    setReady(new Set());
     localStorage.removeItem(WARM_STAMP_KEY);
   } catch {
     // Nothing was saved to clear.
