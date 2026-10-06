@@ -1,5 +1,4 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { TOPBAR_H } from '../utils/layout';
 import { FileSpreadsheet, FileText, Printer, Download, AlertTriangle, AlertCircle, CheckCircle, Users, Calendar, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ChartTooltip } from './ChartTooltip';
@@ -605,10 +604,7 @@ export const Reports = () => {
           labelled groups (clinic, City Health Office), the open tab white. One school at a time: the badge is a
           fixed label for a person with one school, a dropdown for several, and "All schools" is offered only when
           canSeeAllSchools. The band replaces the two category cards, the "Other reports" row and the page header. */}
-      {/* Pinned under the status strip from sm up so the title, school and tabs stay put while the report scrolls
-          (sticky works here because Root's <main> uses overflow-x-clip, not hidden). Left static on phones: the
-          stacked band is too tall to leave room for the report. */}
-      <div id="reports-band" className="min-w-0 sm:sticky z-30" style={{ top: TOPBAR_H }}>
+      <div className="min-w-0">
         <div className="rounded-t-2xl bg-primary px-4 pt-4 text-white sm:px-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
