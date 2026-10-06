@@ -13,7 +13,7 @@ import { pendingRowIdsIn, replacePendingId } from './idRemap';
 import { mintOperationId } from './syncEnvelope';
 
 const DB_NAME = 'floral-offline';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const STORE = 'writeQueue';
 // v2: the per-user read cache (readCache.ts). v3: `records`, every student's chart
 // data kept record by record (records.ts, bulkSync.ts), and the `offlineMeta` that
@@ -21,6 +21,9 @@ const STORE = 'writeQueue';
 const READ_STORE = 'readCache';
 const RECORD_STORE = 'records';
 const META_STORE = 'offlineMeta';
+// v4: `syncHistory`, what each sync did (before / after per field), kept 7 days so a
+// change can be reviewed and restored (syncHistory.ts).
+const HISTORY_STORE = 'syncHistory';
 
 export interface QueuedWrite {
   id?: number;
@@ -50,6 +53,10 @@ export interface QueuedWrite {
   // compared against the live server record at sync time to detect if
   // someone else changed the same fields while this device was offline.
   baselineSnapshot?: Record<string, unknown>;
+  // The server copy as the device last saw it, WITHOUT earlier queued edits
+  // overlaid (baselineSnapshot has those, see baseline.ts). This is the "before"
+  // the sync report shows and what Restore goes back to.
+  originalSnapshot?: Record<string, unknown>;
   conflictServerRecord?: Record<string, unknown>;
   // Minted when the change was queued; sent with every attempt so the SERVER can
   // recognise a retry (a create applies once, a held edit has one row).
@@ -77,6 +84,11 @@ function openDb(): Promise<IDBDatabase> {
         records.createIndex('fk', 'fk', { multiEntry: true });
       }
       if (!db.objectStoreNames.contains(META_STORE)) db.createObjectStore(META_STORE, { keyPath: 'key' });
+      if (!db.objectStoreNames.contains(HISTORY_STORE)) {
+        const history = db.createObjectStore(HISTORY_STORE, { keyPath: 'id', autoIncrement: true });
+        history.createIndex('ownerKey', 'ownerKey');
+        history.createIndex('runId', 'runId');
+      }
       if (!db.objectStoreNames.contains(READ_STORE)) {
         const cache = db.createObjectStore(READ_STORE, { keyPath: 'key' });
         cache.createIndex('ownerKey', 'ownerKey');
@@ -368,4 +380,63 @@ export const getOfflineMeta = <T>(key: string) =>
   inTx<T | undefined>(META_STORE, 'readonly', (tx, done) => {
     const req = tx.objectStore(META_STORE).get(key);
     req.onsuccess = () => done(req.result as T | undefined);
+  });
+
+// ── Sync history (offline/syncHistory.ts) ───────────────────────────────────
+export interface SyncHistoryRow {
+  id?: number;
+  ownerKey: string;
+  runId: string;
+  /** When the sync (or the restore) happened. */
+  at: number;
+  [field: string]: unknown;
+}
+
+export async function addHistoryRows(rows: Omit<SyncHistoryRow, 'id'>[]): Promise<void> {
+  if (rows.length === 0) return;
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(HISTORY_STORE, 'readwrite');
+    for (const row of rows) tx.objectStore(HISTORY_STORE).add(row);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
+}
+
+export async function getHistoryForOwner(ownerKey: string): Promise<SyncHistoryRow[]> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(HISTORY_STORE, 'readonly').objectStore(HISTORY_STORE).index('ownerKey').getAll(ownerKey);
+    req.onsuccess = () => resolve(req.result as SyncHistoryRow[]);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/** Drops this owner's rows older than `cutoff` (ms). */
+export async function purgeHistoryBefore(ownerKey: string, cutoff: number): Promise<void> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(HISTORY_STORE, 'readwrite');
+    const req = tx.objectStore(HISTORY_STORE).index('ownerKey').openCursor(ownerKey);
+    req.onsuccess = () => {
+      const cursor = req.result;
+      if (!cursor) return;
+      if ((cursor.value as SyncHistoryRow).at < cutoff) cursor.delete();
+      cursor.continue();
+    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+/** Sign-out on a shared PC: the history holds names and clinical values. */
+export const clearSyncHistory = () =>
+  new Promise<void>((resolve, reject) => {
+    openDb().then((db) => {
+      const tx = db.transaction(HISTORY_STORE, 'readwrite');
+      tx.objectStore(HISTORY_STORE).clear();
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    }, reject);
   });

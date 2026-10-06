@@ -164,9 +164,9 @@ try {
   check('the "back online" dialog opened', await dialog.count() === 1);
   const text = (await dialog.innerText().catch(() => '')) || '';
   check('dialog lists the student by name', text.includes('Cruz, Juan'), text);
-  check('dialog groups tooth records with a count', /Tooth record added\s*×2/.test(text), text);
+  check('the report lists each tooth record added', (text.match(/Tooth record added/g) ?? []).length === 2, text);
   check('dialog shows the dental chart and year record', /Dental chart added/.test(text) && /School year record added/.test(text), text);
-  check('dialog reports the change that could not sync', /Not saved/.test(text) && /discarded/.test(text), text);
+  check('the report says what could not sync and why', /Not synced/.test(text) && /discarded/.test(text), text);
   if (process.env.SHOTS_DIR) await page.screenshot({ path: `${process.env.SHOTS_DIR}/offline-sync-dialog.png` });
   await ctx.close();
 
@@ -227,8 +227,8 @@ try {
   const held = await p3.evaluate(async () => (await window.__m.getQueue()).map((w) => ({ s: w.status, c: w.serverConflictId })));
   check("the server's 409 held all three edits, each remembering the server's conflict id", held.length === 3 && held.every((h) => h.s === 'conflict' && /^c0/.test(h.c ?? '')), JSON.stringify(held));
   let summary = (await p3.locator('dialog[open]').innerText().catch(() => '')) || '';
-  check('the summary offers to review the clashes', /Review changes/.test(summary) && /Needs review/.test(summary), summary);
-  await p3.getByRole('button', { name: 'Review changes' }).click();
+  check('the summary offers to review the clashes', /Review changes/.test(summary) && /Held for your review/.test(summary), summary);
+  await p3.getByRole('button', { name: 'Review changes' }).first().click();
   await p3.waitForTimeout(800);
   const review = (await p3.locator('dialog[open]').innerText().catch(() => '')) || '';
   check('the review pop-up lists all three clashes', (review.match(/Student record updated/g) ?? []).length === 3, review);

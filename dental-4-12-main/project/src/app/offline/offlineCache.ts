@@ -5,7 +5,7 @@
 // student is pre-read the moment they are queued, and again on sign-in, so the
 // day's children are ready before the connection goes. Nobody else is downloaded.
 import { apiClient } from '../api/client';
-import { clearReadCache, clearOfflineRecords } from './db';
+import { clearReadCache, clearOfflineRecords, clearSyncHistory } from './db';
 import { getQueuedStudentIds, QUEUE_CHANGED_EVENT } from '../utils/queueStorage';
 import { getTreatmentQueueStudentIds } from '../utils/treatmentQueueStorage';
 
@@ -137,6 +137,7 @@ export async function clearOfflineReadCaches(): Promise<void> {
   try {
     await clearReadCache();
     await clearOfflineRecords();
+    await clearSyncHistory();
     warmedThisSession.clear();
     setReady(new Set());
     localStorage.removeItem(WARM_STAMP_KEY);

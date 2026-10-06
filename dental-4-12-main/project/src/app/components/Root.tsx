@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Users, Calendar, Brain,
   ClipboardList, LogOut, Stethoscope, Shield,
-  Clipboard, FileBarChart, UserCog,
+  Clipboard, FileBarChart, UserCog, History,
   ChevronDown, Menu, X, School, Archive, Bell, ArrowLeftRight
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -21,6 +21,7 @@ const ROLE_ICONS: Record<string, typeof Stethoscope> = {
 };
 import { TOPBAR_H } from '../utils/layout';
 import { SyncStatus } from './SyncStatus';
+import { requestSyncReport } from '../offline/syncReport';
 import { useOfflineQueue } from '../hooks/useOfflineQueue';
 import { useNotifications, NOTIFIED_ROLES } from '../hooks/useNotifications';
 // Sprint 163: who may open each screen. The SAME table the page guard in
@@ -166,6 +167,16 @@ const UserMenu = ({ user, schoolLabel, onAccountSettings }: { user: { name: stri
             <UserCog className="w-4 h-4 text-primary" />
             <span>Account Settings</span>
           </button>
+          {['system_admin', 'dentist', 'dental_aide'].includes(user.role) && (
+            <button
+              type="button"
+              onClick={() => { setOpen(false); requestSyncReport(); }}
+              className="flex h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] font-semibold text-muted-foreground transition-all duration-200 hover:bg-primary-surface hover:text-sidebar-bg"
+            >
+              <History className="w-4 h-4 text-primary" />
+              <span>Sync report</span>
+            </button>
+          )}
         </div>
       )}
     </div>

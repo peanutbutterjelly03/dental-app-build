@@ -11,6 +11,8 @@ export interface SyncReportItem {
 }
 
 export interface SyncReport {
+  /** Ties this drain to its rows in the sync history (syncHistory.ts). */
+  runId: string;
   items: SyncReportItem[];
   finishedAt: number;
 }
@@ -56,4 +58,15 @@ export function groupSyncReport(items: SyncReportItem[]): ReportGroup[] {
     if (item.reason && !line.reasons.includes(item.reason)) line.reasons.push(item.reason);
   }
   return [...groups.values()];
+}
+
+// Asks the sync report to open on demand (the account menu): the last seven days,
+// not only the latest sync.
+const requestListeners = new Set<() => void>();
+export function subscribeReportRequest(listener: () => void): () => void {
+  requestListeners.add(listener);
+  return () => requestListeners.delete(listener);
+}
+export function requestSyncReport(): void {
+  for (const listener of requestListeners) listener();
 }

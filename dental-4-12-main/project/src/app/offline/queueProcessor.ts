@@ -3,7 +3,8 @@ import { notifyQueueChange } from './queueEvents';
 import { notifySyncReport, type SyncReportItem } from './syncReport';
 import { describeWrite } from './describeWrite';
 import { hasUnresolvedPending, pendingRowIdsIn } from './idRemap';
-import { bodyWithSync } from './syncEnvelope';
+import { bodyWithSync, mintOperationId } from './syncEnvelope';
+import { recordSync, type SyncOutcome } from './syncHistory';
 import { isOwnedBy } from './queueRules';
 import { loadUserCache } from './authCache';
 
@@ -73,6 +74,9 @@ export async function processQueue(): Promise<void> {
   processing = true;
   // What this drain did, for the "back online" dialog (syncReport.ts).
   const report: SyncReportItem[] = [];
+  // The same drain, in detail, for the sync history (syncHistory.ts).
+  const runId = mintOperationId();
+  const outcomes: SyncOutcome[] = [];
   try {
     // SEC-27. Read once per drain rather than per row: the signed-in user
     // cannot change mid-drain without a page load, and a load starts a fresh
@@ -104,6 +108,7 @@ export async function processQueue(): Promise<void> {
         if (parents.some((id) => !queue.some((q) => q.id === id))) {
           await markFailed(write.id!, 'This change belongs to a record that was discarded before it synced, so it can no longer be saved. Discard this change too.');
           report.push({ ...describeWrite(write), status: 'failed', reason: 'Belongs to a record that was discarded.' });
+          outcomes.push({ write, status: 'failed', reason: 'Belongs to a record that was discarded.' });
           notifyQueueChange();
           break;
         }
@@ -123,6 +128,7 @@ export async function processQueue(): Promise<void> {
           if (write.method === 'POST') await completeWrite(write.id!, result.data?._id);
           else await removeFromQueue(write.id!);
           report.push({ ...describeWrite(write), status: 'synced' });
+          outcomes.push({ write, status: 'synced', data: result.data });
           notifyQueueChange();
         } else if (result.status === 409 && result.errorBody?.conflict === true) {
           // The SERVER held this edit back: someone else changed a field it would
@@ -136,6 +142,7 @@ export async function processQueue(): Promise<void> {
           );
           await releaseClaim(write.id!);
           report.push({ ...describeWrite(write), status: 'conflict', reason: 'Someone else changed this record while you were offline.' });
+          outcomes.push({ write, status: 'conflict', reason: 'Someone else changed this record while you were offline.' });
           notifyQueueChange();
           continue;
         } else if (result.status === 401 || result.status === 403) {
@@ -146,6 +153,7 @@ export async function processQueue(): Promise<void> {
           await markAuthRequired(write.id!, 'Your session expired — sign in again to sync this change.');
           await releaseClaim(write.id!);
           report.push({ ...describeWrite(write), status: 'auth', reason: 'Your session expired — sign in again to sync this change.' });
+          outcomes.push({ write, status: 'auth', reason: 'Your session expired. Sign in again to sync this change.' });
           notifyQueueChange();
           break;
         } else {
@@ -169,6 +177,7 @@ export async function processQueue(): Promise<void> {
           );
           await releaseClaim(write.id!);
           report.push({ ...describeWrite(write), status: 'failed', reason: result.status === 404 ? 'The record was archived or removed while you were offline.' : result.message ?? `The server rejected this change (error ${result.status}).` });
+          outcomes.push({ write, status: 'failed', reason: result.status === 404 ? 'The record was archived or removed while you were offline.' : result.message ?? `The server rejected this change (error ${result.status}).` });
           notifyQueueChange();
           break;
         }
@@ -185,7 +194,11 @@ export async function processQueue(): Promise<void> {
     }
   } finally {
     processing = false;
-    if (report.length > 0) notifySyncReport({ items: report, finishedAt: Date.now() });
+    if (report.length > 0) {
+      // History first, so the report dialog finds its rows when it opens.
+      await recordSync(runId, outcomes);
+      notifySyncReport({ runId, items: report, finishedAt: Date.now() });
+    }
   }
 }
 

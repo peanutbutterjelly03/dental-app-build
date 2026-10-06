@@ -1,4 +1,5 @@
 import { enqueueWrite, getQueue } from '../offline/db';
+import { chainBaseline } from '../offline/baseline';
 import { saveRead, loadRead, findCachedRecord, isCacheablePath, referencesPendingRecord } from '../offline/readCache';
 import { applyPendingWrites, parsePath, OVERLAY_RESOURCES } from '../offline/overlay';
 import { notifyQueueChange } from '../offline/queueEvents';
@@ -133,13 +134,17 @@ async function registerBackgroundSync(): Promise<void> {
 }
 
 async function queueWrite<T>(path: string, method: 'POST' | 'PUT' | 'PATCH', body: unknown): Promise<T> {
-  const baselineSnapshot = method === 'POST' ? undefined : await captureBaselineSnapshot(path);
+  const originalSnapshot = method === 'POST' ? undefined : await captureBaselineSnapshot(path);
+  // A second edit of the same record starts from what the first will have
+  // written, so it cannot clash with the device's own earlier edit (baseline.ts).
+  const earlierBodies = originalSnapshot ? (await getQueue()).filter((w) => w.endpoint === path && w.method !== 'POST').map((w) => w.body) : [];
+  const baselineSnapshot = chainBaseline(originalSnapshot, earlierBodies);
   // SEC-27: stamp the owner at enqueue, so this write can only ever sync under
   // the account that made it. `authCache` is the right source — it is written
   // at login and cleared at logout, and it is readable synchronously here,
   // where there is no React context to ask.
   const userId = loadUserCache()?.id;
-  const queued = await enqueueWrite({ endpoint: path, method, body, baselineSnapshot, userId });
+  const queued = await enqueueWrite({ endpoint: path, method, body, baselineSnapshot, originalSnapshot, userId });
   notifyQueueChange();
   registerBackgroundSync();
   // Synthetic optimistic response so calling code (which expects the
