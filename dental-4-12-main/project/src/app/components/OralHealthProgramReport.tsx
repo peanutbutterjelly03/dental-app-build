@@ -642,7 +642,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
             <tr>
               <th className={`${th} text-left align-bottom`} rowSpan={3} colSpan={2}>INDICATORS</th>
               {visibleGroups.map((g, i) => (
-                <th key={`${g.label}-${i}`} className={`${th} bg-gray-100`} colSpan={g.span * SEXES.length}>
+                <th key={`${g.label}-${i}`} className={`${th} ${FORM_SECTION_BAND}`} colSpan={g.span * SEXES.length}>
                   {g.label}
                 </th>
               ))}
