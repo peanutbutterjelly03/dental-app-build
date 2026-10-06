@@ -629,7 +629,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
         </div>
       )}
 
-      <div ref={printableRef} className="form-print bg-card rounded-xl border border-border overflow-x-auto">
+      <div ref={printableRef} className="form-print bg-card rounded-xl border border-[#F3DC8B] overflow-x-auto">
         <table className="border-collapse w-full">
           <thead className="bg-gray-50">
             {/* Three header levels, matching the paper form: population group
