@@ -174,6 +174,7 @@ const UserMenu = ({ user, schoolLabel, onAccountSettings }: { user: { name: stri
 
 export const Root = () => {
   const { user, logout, selectedSchool } = useAuth();
+  const [confirmLogout, setConfirmLogout] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
@@ -795,7 +796,7 @@ export const Root = () => {
           </div>
 
           <button
-            onClick={handleLogout}
+            onClick={() => setConfirmLogout(true)}
             title={collapsed ? 'Logout' : undefined}
             className={`w-full h-11 flex items-center gap-3 px-3.5 text-[0.875rem] font-medium ${SB.logout} rounded-[9px] transition-colors justify-start ${collapsed ? 'md:justify-center' : 'md:justify-start'}`}
           >
@@ -820,6 +821,25 @@ export const Root = () => {
           <Outlet />
         </div>
       </main>
+
+      {/* Confirm Logout (user pick, 2026-10-06): logging out is one guarded step, not a single click. */}
+      {confirmLogout && (
+        <Modal onClose={() => setConfirmLogout(false)} maxWidth="max-w-sm" rounded="rounded-3xl">
+          <div role="alertdialog" aria-label="Confirm Logout" className="p-6">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FFE9EE]">
+              <LogOut className="h-5 w-5 text-[#E11D48]" />
+            </div>
+            <h3 className="mt-6 text-xl font-bold text-foreground">Confirm Logout</h3>
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">Are you sure you want to log out of your Floral account?</p>
+            <div className="mt-6 flex justify-end gap-2.5">
+              <button autoFocus onClick={() => setConfirmLogout(false)}
+                className="rounded-lg border border-border bg-card px-5 py-2.5 text-sm font-medium text-foreground hover:bg-gray-50">Cancel</button>
+              <button onClick={() => { setConfirmLogout(false); void handleLogout(); }}
+                className="rounded-lg bg-[#E11D48] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#BE123C]">Logout</button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* Change Password Modal */}
       {showChangePassword && (

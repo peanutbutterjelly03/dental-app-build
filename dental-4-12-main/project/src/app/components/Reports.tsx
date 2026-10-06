@@ -657,15 +657,15 @@ export const Reports = () => {
               onChange={chooseSchool}
             />
           </div>
-          {/* Two outlined groups (user pick, 2026-10-06): each has its name on its top edge, and the open tab is white
-              with curved inside corners so it flows into the controls card below. */}
-          <div className="mt-8 flex items-end gap-4 overflow-x-auto no-scrollbar pt-2">
+          {/* Two groups (user pick, 2026-10-06): each has its name above it with a thin rule over the group's width,
+              and the open tab is white with curved inside corners so it flows into the controls card below. */}
+          <div className="mt-8 flex items-end gap-7 overflow-x-auto no-scrollbar">
             {([
               { label: 'For the clinic', tabs: reportCategories[0].tabs },
               { label: 'For the City Health Office', tabs: reportCategories[1].tabs },
             ]).map((g) => (
-              <div key={g.label} className="relative flex-shrink-0 rounded-t-2xl border border-b-0 border-white/25 px-3 pt-4">
-                <span className="absolute -top-[7px] left-4 bg-primary px-2 text-[9.5px] font-bold uppercase tracking-[0.09em] text-white/85">{g.label}</span>
+              <div key={g.label} className="flex-shrink-0">
+                <div className="mb-1 border-b border-white/25 pb-1 text-[9.5px] font-bold uppercase tracking-[0.09em] text-white/85">{g.label}</div>
                 <div className="flex items-end" role="tablist" aria-label={g.label}>
                   {g.tabs.filter((t) => t.visible).map((tab) => {
                     const on = activeReportTab === tab.id;
