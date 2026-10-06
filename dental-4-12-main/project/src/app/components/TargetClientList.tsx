@@ -8,11 +8,11 @@ import { useRPCTracking, SOUND_TEMPORARY, SOUND_PERMANENT } from '../hooks/useRP
 import type { VisitServices } from '../../../shared/rpcTracking';
 import { SkeletonTable } from './Skeleton';
 import { formatDate, toLocalDateString } from '../utils/localDate';
-import { FORM_SECTION_BAND } from '../utils/dohFormStyle';
 import { buildSheetsXlsx } from '../utils/exportXlsx';
 import { usePreviewModal } from '../hooks/usePreviewModal';
 import { PreviewModal } from './PreviewModal';
-import { FileSpreadsheet } from 'lucide-react';
+import { FileSpreadsheet, FileText } from 'lucide-react';
+import { buildPagesPdf } from '../utils/exportPdf';
 import { ageOn, ageBracketIndex, DOH_AGE_BRACKETS } from '../../../shared/age';
 import { cariesStatus } from '../../../shared/cariesStatus';
 
@@ -377,7 +377,7 @@ export const TargetClientList = () => {
   const [period, setPeriod] = useState<Period>('monthly');
   const [anchor, setAnchor] = useState(() => toLocalDateString(new Date()));
 
-  const { preview, building, previewExcel, closePreview, confirmDownload } = usePreviewModal();
+  const { preview, building, previewPdf, previewExcel, closePreview, confirmDownload } = usePreviewModal();
   const [orals, setOrals] = useState<ApiOralHealthCondition[]>([]);
   const [iptrs, setIptrs] = useState<ApiStudentIptr[]>([]);
 
@@ -470,6 +470,7 @@ export const TargetClientList = () => {
   }, [rows]);
 
   const didAlignAnchor = useRef(false);
+  const sheetsRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (didAlignAnchor.current || !latestConsult) return;
     const { start: s0, end: e0 } = periodRange(anchor, period);
@@ -579,6 +580,11 @@ export const TargetClientList = () => {
   const ruledRows = Math.max(FORM_ROWS, Math.ceil(visible.length / FORM_ROWS) * FORM_ROWS);
   const blankRowIndexes = Array.from({ length: ruledRows - visible.length }, (_, n) => visible.length + n);
 
+  const onPdf = () => {
+    const els = Array.from(sheetsRef.current?.querySelectorAll<HTMLElement>('.tcl-sheet') ?? []);
+    previewPdf('Target Client List', `${exportBaseName}.pdf`, () => buildPagesPdf(els));
+  };
+
   const onXlsx = () => {
     previewExcel('Target Client List', `${exportBaseName}.xlsx`, async () => {
       // `row: null` is one of the form's blank ruled rows — numbered, empty.
@@ -664,13 +670,6 @@ export const TargetClientList = () => {
    *  the only thing joining a row of ticks back to the student named on page 1.
    *  Not subject to the column picker for that reason. */
   const NUMBER_COLUMN: IdentityCol = { key: 'no', label: 'No.', value: (_r, i) => i + 1 };
-  const groupBands = (cols: typeof visibleServices) =>
-    cols.reduce<{ label: string; span: number }[]>((acc, c) => {
-      const last = acc[acc.length - 1];
-      if (last && last.label === c.group) last.span += 1;
-      else acc.push({ label: c.group, span: 1 });
-      return acc;
-    }, []);
 
   /** The paper form groups the three caries-risk answers under ONE
    *  "Caries Risk assessment" caption (Low / Moderate / High). The column list
@@ -701,165 +700,118 @@ export const TargetClientList = () => {
     return { top, bottom, hasRisk };
   };
 
-  /** One PAGE of the paper form: its own group band, its own tall caption
-   *  band, its own rows, in its own horizontal scroller.
-   *
-   *  Confirmed against the filed sample (Bagong Tanyag Grade 1, 8-5-25):
-   *  page 1 ends at "Caries Free" / "Orally Fit Child", and page 2 opens with a
-   *  repeated `No.` before ROUTINE PREVENTIVE CARE. */
-  const formPage = (
-    page: 1 | 2,
-    identity: IdentityCol[],
-    services: typeof visibleServices,
-    withRemarks: boolean,
-  ) => {
-    const bands = groupBands(services);
-    const span = identity.length + services.length + (withRemarks ? 1 : 0);
-    const rpcSpan = services.filter((c) => c.group === 'FIRST' || c.group === 'SECOND').length;
-    const nonRpcSpan = services.length - rpcSpan;
+  // ── THE PRINTED / PDF FORM: an exact copy of the paper sheets ─────────────
+  // (user, 2026-10-06: "exact copy ... the same physical copy when printed").
+  // Plain white, black ruled grid, the form's centred title, rotated captions on
+  // the narrow columns, 25 numbered rows a sheet, page 1 = identity + ORAL
+  // HEALTH STATUS, page 2 = repeated No. + ROUTINE PREVENTIVE CARE (FIRST /
+  // SECOND) + OTHER SERVICES + REMARKS. Styles live in index.css (`.tcl-sheet`)
+  // at a FIXED 1200 x 760px so the print, the PDF preview and the PDF are the
+  // same picture. The sheets sit off-screen until printed or captured.
+  const SHEET_TITLE = 'Target Client List for Oral Health Care and Services';
+  // Column weights (px at the 1200px sheet), read off the paper form's photo.
+  const WIDE_W: Record<string, number> = { no: 30, consult: 66, philhealth: 64, name: 138, address: 118, contact: 60, dob: 60, age: 22, agegroup: 44, sex: 22 };
+  const sheetCols = (identity: IdentityCol[], services: ServiceCol[], narrow: number, remarks: boolean) => {
+    const w = [...identity.map((c) => WIDE_W[c.key] ?? 60), ...services.map(() => narrow), ...(remarks ? [150] : [])];
+    const total = w.reduce((a, b) => a + b, 0);
+    return <colgroup>{w.map((x, i) => <col key={i} style={{ width: `${(x / total) * 100}%` }} />)}</colgroup>;
+  };
+  const rotCell = (label: string, key: string, rowSpan?: number) => (
+    <th key={key} rowSpan={rowSpan} className="rot"><div>{label}</div></th>
+  );
+  const bandCell = (label: string, span: number, rowSpan?: number, sub?: string) => (
+    <th key={label} colSpan={span} rowSpan={rowSpan}>{label}{sub && <div className="sub">{sub}</div>}</th>
+  );
+  const dataCell = (r: Row | null, c: ServiceCol, k: string) => (
+    <td key={k}>{r ? (c.value ? c.value(r) : NO_SOURCE) : ''}</td>
+  );
+  const sheetPage1 = (rows: { r: Row | null; n: number }[], key: string) => {
+    const ohsCols = page1Services.filter((c) => c.group === 'ORAL HEALTH STATUS');
+    const ofcCols = page1Services.filter((c) => c.group === 'ORALLY FIT CHILD');
     return (
-      <div className={`bg-card rounded-xl border border-border overflow-x-auto ${page === 2 ? 'form-page-break' : ''}`}>
-        {/* Screen-only. The paper form has no such caption, and .print-hide is
-            how a note lives inside a printable root without reaching paper. */}
-        <div className="print-hide px-3 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          Page {page} of 2
-        </div>
-        <table className="tcl-table border-collapse">
-          <thead className="bg-gray-50">
-            {/* ⚠ SUPER-BAND, page 2 only. On the paper form FIRST and SECOND are
-                not top-level headings — they sit UNDER one band reading ROUTINE
-                PREVENTIVE CARE, with OTHER SERVICES and REMARKS beside it. The
-                app ran FIRST and SECOND as peers of OTHER SERVICES, which loses
-                the form's own statement that the two visits are one programme.
-                SECOND carries the form's parenthetical about the interval. */}
-            {rpcSpan > 0 && (
-              <tr>
-                {identity.length > 0 && <th className={th} colSpan={identity.length} />}
-                <th className={`${th} bg-blue-50`} colSpan={rpcSpan}>ROUTINE PREVENTIVE CARE</th>
-                {nonRpcSpan > 0 && <th className={th} colSpan={nonRpcSpan} />}
-                {withRemarks && <th className={th} />}
-              </tr>
-            )}
-            {/* Group band — thin, above the tall caption band, exactly as the
-                paper form runs FIRST / SECOND / OTHER SERVICES across the top.
-                Spans are computed from the VISIBLE columns. */}
-            <tr>
-              {identity.length > 0 && <th className={th} colSpan={identity.length} />}
-              {bands.map((g) => (
-                <th key={g.label} colSpan={g.span}
-                    className={`${th} ${g.label === 'OTHER SERVICES' ? FORM_SECTION_BAND : 'bg-blue-50'}`}>
-                  {g.label}
-                  {g.label === 'SECOND' && (
-                    <div className="font-normal text-[10px]">at least 4 months interval from the first visit</div>
-                  )}
-                </th>
-              ))}
-              {withRemarks && <th className={th} />}
+      <section key={key} className="tcl-sheet">
+        <h3>{SHEET_TITLE}</h3>
+        <table>
+          {sheetCols(visibleIdentity, page1Services, 28.8, false)}
+          <thead>
+            <tr style={{ height: 16 }}>
+              {visibleIdentity.map((c) => (c.rotate
+                ? rotCell(c.label, c.key, 2)
+                : <th key={c.key} rowSpan={2}>{c.head ?? c.label}</th>))}
+              {ohsCols.length > 0 && bandCell('ORAL HEALTH STATUS', ohsCols.length)}
+              {ofcCols.map((c, i) => rotCell(c.label, `ofc-${i}`, 2))}
             </tr>
-            {(() => {
-              const L = leafLayout(
-                services,
-                (c, label, key, rs) => (
-                  <RotHead key={key} label={label} rowSpan={rs}
-                    tone={c.group === 'OTHER SERVICES' ? FORM_SECTION_BAND : 'bg-blue-50'} unverified={c.unverified} />
-                ),
-                (span, key) => <th key={key} colSpan={span} className={`${th} bg-blue-50`}>Caries Risk assessment</th>,
-              );
-              const rs = L.hasRisk ? 2 : 1;
-              return (
-                <>
-                  <tr className={L.hasRisk ? 'h-32' : HEADER_H}>
-                    {identity.map((c) => (
-                      c.rotate
-                        ? <RotHead key={c.key} label={c.label} rowSpan={rs} />
-                        : <th key={c.key} rowSpan={rs} className={thFlat}>{c.head ?? c.label}</th>
-                    ))}
-                    {L.top}
-                    {withRemarks && <th rowSpan={rs} className={thFlat}>Remarks</th>}
-                  </tr>
-                  {L.hasRisk && (
-                    <tr className="h-12">
-                      {L.bottom}
-                    </tr>
-                  )}
-                </>
-              );
-            })()}
+            <tr style={{ height: 174 }}>{ohsCols.map((c, i) => rotCell(c.label, `ohs-${i}`))}</tr>
           </thead>
           <tbody>
-            {visible.map((r, i) => (
-              <tr key={r.id} className="hover:bg-gray-50">
-                {identity.map((c) => (
-                  <td key={c.key} className={`${td} ${c.cls ?? ''}`}
-                      title={c.key === 'address' ? r.address : undefined}>
-                    {c.value(r, i)}
+            {rows.map(({ r, n }) => (
+              <tr key={n}>
+                {visibleIdentity.map((c) => (
+                  <td key={c.key} className={c.key === 'name' || c.key === 'address' ? 'l' : undefined}>
+                    {c.key === 'no' ? n + 1 : r ? c.value(r, n) : ''}
                   </td>
                 ))}
-                {services.map((c, n) => (
-                  <td key={`${c.group}-${c.label}-${n}`}
-                      className={`${td} text-center ${c.value ? '' : 'text-muted-foreground'}`}>
-                    {c.value ? c.value(r) : NO_SOURCE}
-                  </td>
-                ))}
-                {withRemarks && <td className={td} />}
-              </tr>
-            ))}
-            {/* The form's remaining ruled rows. Numbered, because the paper
-                form numbers them — that is what lets page 2 be joined to page
-                1 — and otherwise empty. */}
-            {blankRowIndexes.map((n) => (
-              <tr key={`blank-${n}`}>
-                {identity.map((c) => (
-                  <td key={c.key} className={td}>{c.key === 'no' ? n + 1 : ''}</td>
-                ))}
-                {services.map((c, k) => <td key={`b-${c.group}-${c.label}-${k}`} className={td} />)}
-                {withRemarks && <td className={td} />}
+                {[...ohsCols, ...ofcCols].map((c, k) => dataCell(r, c, `${c.label}-${k}`))}
               </tr>
             ))}
           </tbody>
         </table>
-      </div>
+      </section>
     );
   };
+  const sheetPage2 = (rows: { r: Row | null; n: number }[], key: string) => {
+    const first = page2Services.filter((c) => c.group === 'FIRST');
+    const second = page2Services.filter((c) => c.group === 'SECOND');
+    const other = page2Services.filter((c) => c.group === 'OTHER SERVICES');
+    const body = [...first, ...second, ...other];
+    const L = leafLayout(
+      body,
+      (c, label, k, rs) => rotCell(label, k, rs),
+      (span, k) => <th key={k} colSpan={span}>Caries Risk assessment</th>,
+    );
+    const head = L.hasRisk ? 4 : 3;
+    return (
+      <section key={key} className="tcl-sheet">
+        <h3>{SHEET_TITLE}</h3>
+        <table>
+          {sheetCols([NUMBER_COLUMN], body, 35, remarksVisible)}
+          <thead>
+            <tr style={{ height: 16 }}>
+              <th rowSpan={head}>No.</th>
+              {first.length + second.length > 0 && bandCell('ROUTINE PREVENTIVE CARE', first.length + second.length)}
+              {other.length > 0 && bandCell('OTHER SERVICES', other.length, 2)}
+              {remarksVisible && <th rowSpan={head}>REMARKS (Specify other findings)</th>}
+            </tr>
+            <tr style={{ height: 26 }}>
+              {first.length > 0 && bandCell('FIRST', first.length)}
+              {second.length > 0 && bandCell('SECOND', second.length, undefined, 'at least 4 months interval from the first visit')}
+            </tr>
+            <tr style={{ height: L.hasRisk ? 16 : 148 }}>{L.top}</tr>
+            {L.hasRisk && <tr style={{ height: 132 }}>{L.bottom}</tr>}
+          </thead>
+          <tbody>
+            {rows.map(({ r, n }) => (
+              <tr key={n}>
+                <td>{n + 1}</td>
+                {body.map((c, k) => dataCell(r, c, `${c.group}-${c.label}-${k}`))}
+                {remarksVisible && <td />}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+    );
+  };
+  /** The form runs to whole sheets of 25 rows; each sheet is page 1 then page 2. */
+  const sheetRows: { r: Row | null; n: number }[] = [
+    ...visible.map((r, n) => ({ r: r as Row | null, n })),
+    ...blankRowIndexes.map((n) => ({ r: null as Row | null, n })),
+  ];
+  const sheetChunks = Array.from({ length: Math.ceil(sheetRows.length / FORM_ROWS) }, (_, i) => sheetRows.slice(i * FORM_ROWS, (i + 1) * FORM_ROWS));
 
   const tick = (on: boolean) => (on ? '✓' : '');
   const hasCode = (codes: string[], code: string) => (codes.includes(code) ? '✓' : '');
 
-  // Header geometry copied from the paper form (Appendix E, both sheets).
-  // There, the header is ONE uniform tall band across the whole width: wide
-  // identity columns carry horizontal labels centred in that band, and the
-  // narrow service columns carry labels rotated to read bottom-to-top. That is
-  // what lets ~26 columns fit a printable width without the labels setting the
-  // column widths. Rendering them all horizontally, as this did before, made
-  // the band short and every service column at least as wide as its caption.
-  const HEADER_H = 'h-44';
-  const th = 'px-2 py-2 text-[11px] font-semibold text-foreground border border-border whitespace-nowrap';
-  // Horizontal caption, vertically centred in the tall band.
-  const thFlat = `${th} align-middle text-center`;
-  // Rotated caption. `vertical-rl` + 180° reads bottom-to-top, matching the
-  // form; the fixed width is what actually narrows the column.
-  const thRot = `${th} align-bottom p-1 w-8`;
-  const rotStyle: CSSProperties = {
-    writingMode: 'vertical-rl',
-    transform: 'rotate(180deg)',
-    // Keeps the glyphs upright inside the rotated flow rather than laid on
-    // their side, which is how the printed form reads.
-    textOrientation: 'mixed',
-    whiteSpace: 'nowrap',
-    margin: '0 auto',
-  };
-  /** A rotated column caption, sized to the shared band height. */
-  const RotHead = ({ label, tone = '', unverified = false, rowSpan }: { label: string; tone?: string; unverified?: boolean; rowSpan?: number }) => (
-    <th rowSpan={rowSpan} className={`${thRot} ${tone}`}>
-      {/* Dotted underline marks a caption read off the low-res Appendix E scan
-          that still needs checking against the paper form. */}
-      <div
-        style={rotStyle}
-        className={`mx-auto leading-tight ${unverified ? 'border-b border-dotted border-amber-500' : ''}`}
-        title={unverified ? 'Caption unverified — check against the paper DOH form' : undefined}
-      >{label}</div>
-    </th>
-  );
   const td = 'px-2 py-1.5 text-xs text-foreground border border-border whitespace-nowrap';
 
   // ── ON SCREEN: the whole form as ONE continuous table (user, 2026-10-06) ──
@@ -978,13 +930,22 @@ export const TargetClientList = () => {
               className="border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </label>
-          {/* Excel ONLY, deliberately — no PDF button here (decided
-              2026-09-03). This table is 66 columns; Excel paginates columns
+          {/* PDF added 2026-10-06 at the user's request: it is the exact two-page
+              form, previewed before download like the other reports. (Excel
+              was the ONLY export from 2026-09-03 to then.)
+              Original note on Excel: This table is 66 columns; Excel paginates columns
               natively where a PDF is either unreadably small or sprayed across
               pages, which is the same width problem the print stylesheet has
               never solved. It is also the format the City Health Office
               requires. Do not "add the missing PDF export". */}
           <div className="flex items-center gap-2">
+            <button
+              onClick={onPdf}
+              disabled={building}
+              className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-gray-50 disabled:opacity-50"
+            >
+              <FileText className="w-3.5 h-3.5" />{building ? 'Preparing…' : 'PDF'}
+            </button>
             <button
               onClick={onXlsx}
               disabled={building || visible.length === 0}
@@ -1077,12 +1038,11 @@ export const TargetClientList = () => {
 
           Each page scrolls inside its own container — the form is wider than any
           screen and the page itself must never scroll sideways. */}
-      {/* ON SCREEN: one table. IN PRINT: the two-page form below (the screen
-          table is `print-hide`, and the page tables are screen-hidden). */}
+      {/* ON SCREEN: one table. IN PRINT AND IN THE PDF: the exact two-page
+          form (`.tcl-sheets`, off-screen until printed or captured). */}
       <div className="print-hide">{screenTable}</div>
-      <div className="form-print hidden print:block space-y-4">
-        {formPage(1, visibleIdentity, page1Services, false)}
-        {formPage(2, [NUMBER_COLUMN], page2Services, remarksVisible)}
+      <div ref={sheetsRef} className="form-print tcl-sheets" aria-hidden="true">
+        {sheetChunks.flatMap((chunk, i) => [sheetPage1(chunk, `p1-${i}`), sheetPage2(chunk, `p2-${i}`)])}
       </div>
       <PreviewModal
         open={preview.open}

@@ -234,50 +234,6 @@ input::-ms-clear {
      With the rules below the two pages measure 1201 × 686 and 1201 × 729.
      Every value here is what made those numbers fit; changing one means
      re-measuring, not eyeballing. */
-  .tcl-table {
-    table-layout: fixed;
-  }
-
-  .tcl-table th,
-  .tcl-table td {
-    padding: 0 1px !important;
-    line-height: 1.05 !important;
-  }
-
-  .tcl-table th {
-    font-size: 6pt !important;
-  }
-
-  /* nowrap is load-bearing: letting a long address wrap made every row in the
-     sheet 50px tall and pushed the form onto a second page. */
-  .tcl-table td {
-    font-size: 6.5pt !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis;
-    max-width: none !important;
-    height: 20px !important;
-  }
-
-  .tcl-table tbody tr {
-    height: 20px !important;
-  }
-
-  /* The rotated captions' fixed 2rem column width is a screen affordance; on
-     paper the columns share the sheet. */
-  .tcl-table .w-8 {
-    width: auto !important;
-  }
-
-  /* A form that is TWO PAGES on paper starts its second page on a new sheet
-     (Sprint 185, Target Client List). Without this the two tables print one
-     after the other on whatever sheet they land on, which is the same wrong
-     document the single long table was. */
-  .form-page-break {
-    break-before: page;
-    page-break-before: always;
-  }
-
   /* Hide navigation and UI chrome */
   aside,
   header,
@@ -326,4 +282,82 @@ input::-ms-clear {
   .shadow-md {
     box-shadow: none !important;
   }
+}
+
+
+/* ── Target Client List: the exact paper form (print + PDF) ───────────────────
+   Fixed 1200 x 760px sheets so the browser print, the PDF preview and the
+   downloaded PDF are one picture. Off-screen until printed (the print rules
+   above move `.form-print` to the page origin) or captured for the PDF. Plain
+   white, black ruled grid, as the paper form: no theme colors. */
+.tcl-sheets {
+  position: absolute;
+  left: -20000px;
+  top: 0;
+  background: #fff;
+}
+.tcl-sheet {
+  width: 1200px;
+  height: 760px;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: #fff;
+  color: #000;
+  font-family: Arial, Helvetica, sans-serif;
+  break-after: page;
+  page-break-after: always;
+}
+.tcl-sheet:last-child {
+  break-after: auto;
+  page-break-after: auto;
+}
+.tcl-sheet h3 {
+  margin: 0;
+  height: 26px;
+  line-height: 26px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+}
+.tcl-sheet table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+.tcl-sheet th,
+.tcl-sheet td {
+  border: 1px solid #000;
+  padding: 0 2px;
+  font-size: 8px;
+  line-height: 1.1;
+  text-align: center;
+  overflow: hidden;
+  background: #fff;
+  color: #000;
+}
+.tcl-sheet th {
+  font-weight: 700;
+}
+.tcl-sheet td {
+  height: 20px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.tcl-sheet td.l {
+  text-align: left;
+}
+.tcl-sheet .sub {
+  font-weight: 400;
+  font-size: 6.5px;
+}
+.tcl-sheet th.rot {
+  vertical-align: bottom;
+  padding: 3px 0;
+}
+.tcl-sheet th.rot > div {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  margin: 0 auto;
+  max-height: 140px;
+  line-height: 1.1;
 }
