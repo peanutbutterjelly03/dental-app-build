@@ -799,7 +799,7 @@ export const Reports = () => {
             {/* ref goes on the scrollable inner div, not the overflow-hidden outer
                 one — html2canvas clips to the ref'd element's own rendered box,
                 so ref'ing the outer div only captured the already-clipped width. */}
-            <div ref={dohReportRef} className="overflow-x-auto">
+            <div ref={dohReportRef} className="overflow-x-auto [container-type:inline-size]">
               {/* INSIDE the ref'd element deliberately. html2canvas captures
                   `dohReportRef.current` itself, so a banner placed as a sibling
                   above it would show on screen and be missing from the PDF —
@@ -816,15 +816,22 @@ export const Reports = () => {
                   <tr>
                     <th colSpan={1 + cols.length*2 + sumCols.length*2 + 2}
                       className="text-center py-2 px-3 bg-[#E3ECFB] border-b border-border text-[11px] font-bold text-[#273A78] uppercase tracking-wide">
-                      DENTAL SECTION — CONSOLIDATED ORAL HEALTH STATUS AND SERVICE REPORT
+                      {/* Pinned to the visible width (100cqw = this scroller) so the title stays centred on screen
+                          instead of in the middle of a table several screens wide; in the PDF capture the scroller
+                          is the full table, so it centres over the whole table there. */}
+                      <div className="sticky left-0" style={{ width: '100cqw' }}>
+                        DENTAL SECTION — CONSOLIDATED ORAL HEALTH STATUS AND SERVICE REPORT
+                      </div>
                     </th>
                   </tr>
                   <tr>
                     <th colSpan={1 + cols.length*2 + sumCols.length*2 + 2}
                       className="text-center py-1 px-3 bg-gray-50 border-b border-border text-[10px] text-muted-foreground">
-                      SCHOOL: {reportSchool ? getSchoolShortName(reportSchool) : 'All Schools'} &nbsp;·&nbsp;
-                      MONTH: {MONTHS[reportMonth-1]} {reportYear} &nbsp;·&nbsp;
-                      GRADES: {bandLabel}
+                      <div className="sticky left-0" style={{ width: '100cqw' }}>
+                        SCHOOL: {reportSchool ? getSchoolShortName(reportSchool) : 'All Schools'} &nbsp;·&nbsp;
+                        MONTH: {MONTHS[reportMonth-1]} {reportYear} &nbsp;·&nbsp;
+                        GRADES: {bandLabel}
+                      </div>
                     </th>
                   </tr>
 
@@ -955,14 +962,6 @@ export const Reports = () => {
                   })}
                 </tbody>
               </table>
-              {/* Footer lives INSIDE the ref'd (captured) div so it appears in
-                  the PDF. sticky left-0 keeps it from scrolling horizontally
-                  with the table on screen (same trick as the Indicator column),
-                  and it still renders at the left in the capture (scrollLeft 0). */}
-              <div className="sticky left-0 bg-card px-4 py-2 border-t border-gray-100 flex items-center justify-between gap-4 text-[10px] text-muted-foreground">
-                <span>Prepared by: Dr. Maria Santos, Dentist · Barangay Tanyag Dental Clinic</span>
-                <span>{MONTHS[reportMonth-1]} {reportYear}</span>
-              </div>
             </div>
           </div>
         </div>
