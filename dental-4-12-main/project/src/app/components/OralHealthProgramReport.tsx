@@ -433,7 +433,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
         const v = cell(r.field, c, s);
         const key = `${c.group}-${c.label}-${s}`;
         // A blocked cell carries no value and no dash: the paper form fills it solid, meaning "do not write here".
-        if (isBlocked(r, c)) return <td key={key} className={`${td} ${PR_BLOCKED}`} title={BLOCKED_TITLE} />;
+        if (isBlocked(r, c)) return <td key={key} className={`${td} ${PR_BLOCKED} !border-0`} title={BLOCKED_TITLE} />;
         return (
           <td key={key} className={`${td} ${c.label.startsWith('Total') ? PR_TOTAL : ''} ${v === null ? 'text-muted-foreground' : ''}`}>
             {show(v)}
@@ -441,7 +441,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
         );
       }))}
       {r.blocked ? (
-        <td className={`${td} ${PR_BLOCKED}`} title={BLOCKED_TITLE} />
+        <td className={`${td} ${PR_BLOCKED} !border-0`} title={BLOCKED_TITLE} />
       ) : (
         <td className={`${td} ${PR_GRAND}`}>
           {show(rowTotal(r.field))}
