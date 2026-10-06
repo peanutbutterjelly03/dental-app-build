@@ -889,8 +889,8 @@ export const TargetClientList = () => {
   const idWidth: Record<string, string> = { consult: 'min-w-28', philhealth: 'min-w-28', name: 'min-w-48', address: 'min-w-56', contact: 'min-w-28', dob: 'min-w-24' };
   const sTd = `border border-[#CBD5E1] px-2 py-1.5 text-xs text-foreground whitespace-nowrap`;
   const screenTable = (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className="max-h-[70vh] overflow-auto">
+    <div className="w-full min-w-0 max-w-full rounded-xl border border-border bg-card overflow-hidden">
+      <div className="max-h-[70vh] w-full overflow-auto">
         <table className="border-separate border-spacing-0 w-max min-w-full">
           <thead className="sticky top-0 z-20">
             <tr>
@@ -953,7 +953,7 @@ export const TargetClientList = () => {
   );
 
   return (
-    <div className="space-y-3">
+    <div className="min-w-0 max-w-full space-y-3">
       <div className="bg-card rounded-xl border border-border p-4">
         <h2 className="text-sm font-bold text-foreground">Target Client List for Oral Health Care and Services</h2>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

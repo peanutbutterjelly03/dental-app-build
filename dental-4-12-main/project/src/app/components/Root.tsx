@@ -815,7 +815,7 @@ export const Root = () => {
           header inside the page (the IPTR toolbar and tab strip) was pinning to
           a box that never scrolls, i.e. silently not sticking at all. `clip`
           clips the same overflow without becoming a scroll container. */}
-      <main className={`flex-1 ml-0 ${collapsed ? 'md:ml-[89px]' : 'md:ml-[252px]'} overflow-x-clip transition-[margin] duration-200`}>
+      <main className={`flex-1 min-w-0 ml-0 ${collapsed ? 'md:ml-[89px]' : 'md:ml-[252px]'} overflow-x-clip transition-[margin] duration-200`}>
         <div className="p-4 md:p-8">
           <Outlet />
         </div>
