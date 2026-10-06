@@ -160,16 +160,6 @@ export const SyncStatus = ({ schoolLabel }: { schoolLabel?: string }) => {
         >
           <p className="font-semibold text-foreground mb-2">{label}</p>
 
-          {tone === 'offline' && (
-            <p className="text-xs text-muted-foreground">
-              Changes are being saved on this device and will sync automatically once you're back online.
-            </p>
-          )}
-
-          {tone === 'syncing' && (
-            <p className="text-xs text-muted-foreground">Sending your queued changes to the server…</p>
-          )}
-
           {blocked.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">
