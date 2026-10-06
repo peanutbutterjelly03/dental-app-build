@@ -672,6 +672,35 @@ export const TargetClientList = () => {
       return acc;
     }, []);
 
+  /** The paper form groups the three caries-risk answers under ONE
+   *  "Caries Risk assessment" caption (Low / Moderate / High). The column list
+   *  keeps flat labels ("Caries Risk assessment - Low"), so this splits them
+   *  back into the form's two-line header. `cell` draws one leaf caption. */
+  const RISK_PFX = 'Caries Risk assessment - ';
+  const leafLayout = (
+    cols: ServiceCol[],
+    cell: (c: ServiceCol, label: string, key: string, rowSpan: number) => ReactNode,
+    bandCell: (span: number, key: string) => ReactNode,
+  ) => {
+    const hasRisk = cols.some((c) => c.label.startsWith(RISK_PFX));
+    const top: ReactNode[] = [];
+    const bottom: ReactNode[] = [];
+    for (let i = 0; i < cols.length;) {
+      const c = cols[i];
+      if (c.label.startsWith(RISK_PFX)) {
+        let j = i;
+        while (j < cols.length && cols[j].label.startsWith(RISK_PFX)) j += 1;
+        top.push(bandCell(j - i, `risk-${i}`));
+        for (let k = i; k < j; k += 1) bottom.push(cell(cols[k], cols[k].label.slice(RISK_PFX.length), `${cols[k].group}-${k}`, 1));
+        i = j;
+      } else {
+        top.push(cell(c, c.label, `${c.group}-${i}`, hasRisk ? 2 : 1));
+        i += 1;
+      }
+    }
+    return { top, bottom, hasRisk };
+  };
+
   /** One PAGE of the paper form: its own group band, its own tall caption
    *  band, its own rows, in its own horizontal scroller.
    *
@@ -727,22 +756,35 @@ export const TargetClientList = () => {
               ))}
               {withRemarks && <th className={th} />}
             </tr>
-            <tr className={HEADER_H}>
-              {identity.map((c) => (
-                c.rotate
-                  ? <RotHead key={c.key} label={c.label} />
-                  : <th key={c.key} className={thFlat}>{c.head ?? c.label}</th>
-              ))}
-              {services.map((c, i) => (
-                <RotHead
-                  key={`${c.group}-${c.label}-${i}`}
-                  label={c.label}
-                  tone={c.group === 'OTHER SERVICES' ? FORM_SECTION_BAND : 'bg-blue-50'}
-                  unverified={c.unverified}
-                />
-              ))}
-              {withRemarks && <th className={thFlat}>Remarks</th>}
-            </tr>
+            {(() => {
+              const L = leafLayout(
+                services,
+                (c, label, key, rs) => (
+                  <RotHead key={key} label={label} rowSpan={rs}
+                    tone={c.group === 'OTHER SERVICES' ? FORM_SECTION_BAND : 'bg-blue-50'} unverified={c.unverified} />
+                ),
+                (span, key) => <th key={key} colSpan={span} className={`${th} bg-blue-50`}>Caries Risk assessment</th>,
+              );
+              const rs = L.hasRisk ? 2 : 1;
+              return (
+                <>
+                  <tr className={L.hasRisk ? 'h-32' : HEADER_H}>
+                    {identity.map((c) => (
+                      c.rotate
+                        ? <RotHead key={c.key} label={c.label} rowSpan={rs} />
+                        : <th key={c.key} rowSpan={rs} className={thFlat}>{c.head ?? c.label}</th>
+                    ))}
+                    {L.top}
+                    {withRemarks && <th rowSpan={rs} className={thFlat}>Remarks</th>}
+                  </tr>
+                  {L.hasRisk && (
+                    <tr className="h-12">
+                      {L.bottom}
+                    </tr>
+                  )}
+                </>
+              );
+            })()}
           </thead>
           <tbody>
             {visible.map((r, i) => (
@@ -807,8 +849,8 @@ export const TargetClientList = () => {
     margin: '0 auto',
   };
   /** A rotated column caption, sized to the shared band height. */
-  const RotHead = ({ label, tone = '', unverified = false }: { label: string; tone?: string; unverified?: boolean }) => (
-    <th className={`${thRot} ${tone}`}>
+  const RotHead = ({ label, tone = '', unverified = false, rowSpan }: { label: string; tone?: string; unverified?: boolean; rowSpan?: number }) => (
+    <th rowSpan={rowSpan} className={`${thRot} ${tone}`}>
       {/* Dotted underline marks a caption read off the low-res Appendix E scan
           that still needs checking against the paper form. */}
       <div
@@ -836,12 +878,14 @@ export const TargetClientList = () => {
   const other = sOf('OTHER SERVICES');
   const rpcN = first.length + second.length;
   const hCell = 'border border-white/20 px-2 py-1.5 text-[11px] font-bold text-white text-center';
-  const hRot = `${hCell} align-bottom p-1 min-w-9`;
-  const leafHead = (c: ServiceCol, k: string) => (
-    <th key={k} className={hRot} style={{ background: NAVY }}>
-      <div style={{ ...rotStyle, whiteSpace: 'normal', maxHeight: '11.5rem' }} className="mx-auto leading-tight">{c.label}</div>
-    </th>
+  // Captions read LEFT-TO-RIGHT on screen (user, 2026-10-06); only the printed form rotates them.
+  const hLeaf = `${hCell} align-middle whitespace-normal min-w-[4.5rem] max-w-[8rem] leading-tight`;
+  const sLayout = leafLayout(
+    [...ohs, ...first, ...second, ...other],
+    (c, label, key, rs) => <th key={key} rowSpan={rs} className={hLeaf} style={{ background: NAVY }}>{label}</th>,
+    (span, key) => <th key={key} colSpan={span} className={hCell} style={{ background: '#34499A' }}>Caries Risk assessment</th>,
   );
+  const headRows = sLayout.hasRisk ? 4 : 3;
   const idWidth: Record<string, string> = { consult: 'min-w-28', philhealth: 'min-w-28', name: 'min-w-48', address: 'min-w-56', contact: 'min-w-28', dob: 'min-w-24' };
   const sTd = `border border-[#CBD5E1] px-2 py-1.5 text-xs text-foreground whitespace-nowrap`;
   const screenTable = (
@@ -850,28 +894,20 @@ export const TargetClientList = () => {
         <table className="border-separate border-spacing-0 w-max min-w-full">
           <thead className="sticky top-0 z-20">
             <tr>
-              {visibleIdentity.map((c) => c.rotate
-                ? (
-                  <th key={c.key} rowSpan={3} className={hRot} style={{ background: NAVY }}>
-                    <div style={rotStyle} className="mx-auto leading-tight">{c.label}</div>
-                  </th>
-                )
-                : (
-                  <th key={c.key} rowSpan={3} style={{ background: NAVY }}
-                      className={`${hCell} align-middle ${idWidth[c.key] ?? ''} ${c.key === 'no' ? 'sticky left-0 z-30 min-w-12' : ''}`}>
-                    {c.head ?? c.label}
-                  </th>
-                ))}
+              {visibleIdentity.map((c) => (
+                <th key={c.key} rowSpan={headRows} style={{ background: NAVY }}
+                    className={`${hCell} align-middle ${idWidth[c.key] ?? 'min-w-14'} ${c.key === 'no' ? 'sticky left-0 z-30 min-w-12' : ''}`}>
+                  {c.head ?? c.label}
+                </th>
+              ))}
               {ohs.length > 0 && <th colSpan={ohs.length} rowSpan={2} className={hCell} style={{ background: '#1E2D63' }}>ORAL HEALTH STATUS</th>}
               {ofc.map((c, i) => (
-                <th key={`ofc-${i}`} rowSpan={3} className={hRot} style={{ background: NAVY }}>
-                  <div style={rotStyle} className="mx-auto leading-tight">{c.label}</div>
-                </th>
+                <th key={`ofc-${i}`} rowSpan={headRows} className={hLeaf} style={{ background: NAVY }}>{c.label}</th>
               ))}
               {rpcN > 0 && <th colSpan={rpcN} className={hCell} style={{ background: '#1E2D63' }}>ROUTINE PREVENTIVE CARE</th>}
               {other.length > 0 && <th colSpan={other.length} rowSpan={2} className={hCell} style={{ background: '#1E2D63' }}>OTHER SERVICES</th>}
               {remarksVisible && (
-                <th rowSpan={3} className={`${hCell} align-middle min-w-48`} style={{ background: NAVY }}>Remarks</th>
+                <th rowSpan={headRows} className={`${hCell} align-middle min-w-48`} style={{ background: NAVY }}>Remarks</th>
               )}
             </tr>
             <tr>
@@ -883,9 +919,8 @@ export const TargetClientList = () => {
                 </th>
               )}
             </tr>
-            <tr>
-              {[...ohs, ...first, ...second, ...other].map((c, i) => leafHead(c, `${c.group}-${c.label}-${i}`))}
-            </tr>
+            <tr>{sLayout.top}</tr>
+            {sLayout.hasRisk && <tr>{sLayout.bottom}</tr>}
           </thead>
           <tbody>
             {visible.map((r, i) => (
