@@ -406,7 +406,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
 
   const th = 'px-2 py-2 text-[11px] font-semibold text-foreground border border-t-0 border-l-0 border-black whitespace-nowrap';
   const td = 'px-2 py-1.5 text-xs text-foreground border border-t-0 border-l-0 border-black text-center tabular-nums';
-  const labelTd = 'bg-[#FFF2CC] pl-7 pr-2 py-1.5 text-xs text-foreground border border-t-0 border-l-0 border-black whitespace-normal text-left';
+  const labelTd = 'bg-white pl-7 pr-2 py-1.5 text-xs text-foreground border border-t-0 border-l-0 border-black whitespace-normal text-left';
 
   const section = (title: string) => (
     // Orange band across the full width, as printed. Painted on the TD as well as the TR: html2canvas (the PDF
@@ -685,7 +685,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
                 rendered — see the note above about the adult / senior citizen /
                 pregnant-women sections. */}
             <tr ref={row1Ref} className="[&>th]:sticky [&>th]:top-0 [&>th]:z-20">
-              <th className={`${th} text-left align-bottom !left-0 !z-30 bg-[#FFF2CC]`} rowSpan={3} colSpan={2}>INDICATORS</th>
+              <th className={`${th} text-left align-bottom !left-0 !z-30 !bg-[#FFC000] text-black`} rowSpan={3} colSpan={2}>INDICATORS</th>
               {visibleGroups.map((g, i) => (
                 <th key={`${g.label}-${i}`} className={`${th} ${PR_ORANGE}`} colSpan={g.span * SEXES.length}>
                   {g.label}
