@@ -206,13 +206,14 @@ const getCount = (matrix: Record<string,GX>, key: string, grade: string, gender:
 };
 
 // The school shown in the header band: a round badge with the school's initials. A fixed label when there is
-// nothing to choose (one school), a dropdown otherwise. "All schools" appears first only when `allowAll`.
-function SchoolBadge({ schools, value, allowAll, onChange }: {
-  schools: string[]; value: string | null; allowAll: boolean; onChange: (school: string | null) => void;
+// nothing to choose (one school, or a non-admin whose school follows the app), a dropdown otherwise. "All schools" appears first only when `allowAll`.
+function SchoolBadge({ schools, value, allowAll, fixed = false, onChange }: {
+  schools: string[]; value: string | null; allowAll: boolean; fixed?: boolean; onChange: (school: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
   const options: (string | null)[] = [...(allowAll ? [null] : []), ...schools];
-  const choosable = options.length > 1;
+  // `fixed`: the school follows the app's current school, so there is nothing to choose.
+  const choosable = !fixed && options.length > 1;
   const initials = value ? getSchoolAcronym(value) : 'ALL';
   const name = value ?? 'All schools';
   const body = (
@@ -476,6 +477,16 @@ export const Reports = () => {
   // The header badge picks the school for EVERY report at once (one source of truth).
   const activeSchool = reportSchool;
   const chooseSchool = (name: string | null) => { setReportSchool(name); setIntSchoolFilter(name ?? 'all'); };
+  // Only the System Admin picks a school here (user, 2026-10-06). Everyone else's reports follow the school
+  // they are viewing in the app, automatically: the same school as the rest of the screens, no dropdown.
+  const canPickSchool = user?.role === 'system_admin';
+  useEffect(() => {
+    if (canPickSchool) return;
+    const auto = canSeeAllSchools ? selectedSchool : ownSchool();
+    setReportSchool(auto);
+    setIntSchoolFilter(auto ?? 'all');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canPickSchool, canSeeAllSchools, selectedSchool, user, schoolNames]);
   const [intGradeFilter, setIntGradeFilter] = useState('all');
   const [intGenderFilter, setIntGenderFilter] = useState('all');
   const [intAgeFilter, setIntAgeFilter] = useState('all');
@@ -636,6 +647,7 @@ export const Reports = () => {
               schools={schoolNames}
               value={activeSchool}
               allowAll={canSeeAllSchools}
+              fixed={!canPickSchool}
               onChange={chooseSchool}
             />
           </div>
