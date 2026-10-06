@@ -657,23 +657,28 @@ export const Reports = () => {
               onChange={chooseSchool}
             />
           </div>
-          <div className="mt-10 flex items-end gap-4 overflow-x-auto no-scrollbar">
+          {/* Two outlined groups (user pick, 2026-10-06): each has its name on its top edge, and the open tab is white
+              with curved inside corners so it flows into the controls card below. */}
+          <div className="mt-8 flex items-end gap-4 overflow-x-auto no-scrollbar pt-2">
             {([
-              { label: 'For the clinic', dot: '#FFFFFF', color: '#0F9D74', tabs: reportCategories[0].tabs },
-              { label: 'For the City Health Office', dot: '#93C5FD', color: '#3B6FE0', tabs: reportCategories[1].tabs },
+              { label: 'For the clinic', tabs: reportCategories[0].tabs },
+              { label: 'For the City Health Office', tabs: reportCategories[1].tabs },
             ]).map((g) => (
-              <div key={g.label} className="grid flex-shrink-0 gap-1.5">
-                <div className="flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-[0.07em] text-white/85">
-                  <i className="inline-block h-[0.5625rem] w-[0.5625rem] rounded-full" style={{ background: g.dot }} />{g.label}
-                </div>
-                <div className="flex gap-[0.1875rem]" role="tablist" aria-label={g.label}>
+              <div key={g.label} className="relative flex-shrink-0 rounded-t-2xl border border-b-0 border-white/25 px-3 pt-4">
+                <span className="absolute -top-[7px] left-4 bg-primary px-2 text-[9.5px] font-bold uppercase tracking-[0.09em] text-white/85">{g.label}</span>
+                <div className="flex items-end" role="tablist" aria-label={g.label}>
                   {g.tabs.filter((t) => t.visible).map((tab) => {
                     const on = activeReportTab === tab.id;
                     return (
                       <button key={tab.id} type="button" role="tab" aria-selected={on} onClick={() => setActiveReportTab(tab.id)}
-                        style={on ? { boxShadow: `inset 0 4px 0 ${g.color}` } : { background: g.color }}
-                        className={`whitespace-nowrap rounded-t-[0.625rem] px-3 text-[13px] font-bold ${on ? 'bg-card pb-2.5 pt-3 text-foreground' : 'py-2.5 text-white hover:brightness-110'}`}>
+                        className={`relative whitespace-nowrap rounded-t-xl px-4 py-2.5 text-[13px] font-bold ${on ? 'bg-card text-foreground' : 'text-white hover:bg-white/10'}`}>
                         {tab.label}
+                        {on && (
+                          <>
+                            <i aria-hidden="true" className="pointer-events-none absolute -left-3 bottom-0 h-3 w-3" style={{ background: 'radial-gradient(circle at 0 0, transparent 12px, var(--card) 12.5px)' }} />
+                            <i aria-hidden="true" className="pointer-events-none absolute -right-3 bottom-0 h-3 w-3" style={{ background: 'radial-gradient(circle at 100% 0, transparent 12px, var(--card) 12.5px)' }} />
+                          </>
+                        )}
                       </button>
                     );
                   })}
