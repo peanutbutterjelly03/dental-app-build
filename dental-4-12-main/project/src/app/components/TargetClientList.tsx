@@ -477,7 +477,7 @@ export const TargetClientList = () => {
   const sheetsRef = useRef<HTMLDivElement>(null);
   // The pane fills the screen below the status strip, so once the page is scrolled to the table the
   // label row and No. column stay put and only the cells scroll.
-  const paneOffset = TOPBAR_H + 10;
+  const paneOffset = TOPBAR_H + 28;
   useEffect(() => {
     if (didAlignAnchor.current || !latestConsult) return;
     const { start: s0, end: e0 } = periodRange(anchor, period);
@@ -915,7 +915,7 @@ export const TargetClientList = () => {
   );
 
   return (
-    <div className="min-w-0 max-w-full space-y-5">
+    <div className="min-w-0 max-w-full space-y-8">
       <div className="bg-card rounded-xl border border-border p-4">
         <h2 className="text-sm font-bold text-foreground">Target Client List for Oral Health Care and Services</h2>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
