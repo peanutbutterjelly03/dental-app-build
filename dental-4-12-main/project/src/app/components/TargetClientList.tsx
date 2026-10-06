@@ -741,10 +741,9 @@ export const TargetClientList = () => {
               {visibleIdentity.map((c) => (c.rotate
                 ? rotCell(c.label, c.key, 2)
                 : <th key={c.key} rowSpan={2}>{c.head ?? c.label}</th>))}
-              {ohsCols.length > 0 && bandCell('ORAL HEALTH STATUS', ohsCols.length)}
-              {ofcCols.map((c, i) => rotCell(c.label, `ofc-${i}`, 2))}
+              {ohsCols.length + ofcCols.length > 0 && bandCell('ORAL HEALTH STATUS', ohsCols.length + ofcCols.length)}
             </tr>
-            <tr style={{ height: 174 }}>{ohsCols.map((c, i) => rotCell(c.label, `ohs-${i}`))}</tr>
+            <tr style={{ height: 174 }}>{[...ohsCols, ...ofcCols].map((c, i) => rotCell(c.label, `ohs-${i}`))}</tr>
           </thead>
           <tbody>
             {rows.map(({ r, n }) => (
@@ -834,10 +833,17 @@ export const TargetClientList = () => {
   const rpcN = first.length + second.length;
   const hCell = 'border border-white/20 px-2 py-1.5 text-[11px] font-bold text-white text-center';
   // Captions read LEFT-TO-RIGHT on screen (user, 2026-10-06); only the printed form rotates them.
-  const hLeaf = `${hCell} align-middle whitespace-normal min-w-[4.5rem] max-w-[8rem] leading-tight`;
+  const hLeaf = `${hCell} align-middle whitespace-normal leading-tight`;
+  // Lighter blue than the bands, and wide enough that a caption wraps to TWO lines at most
+  // (user, 2026-10-06), so the label row stays thin.
+  const LEAF_BG = '#4A62B3';
+  const leafStyle = (label: string): CSSProperties => {
+    const w = `clamp(6rem, ${(label.length * 0.27 + 1.6).toFixed(2)}rem, 13.5rem)`;
+    return { background: LEAF_BG, width: w, minWidth: w, maxWidth: w };
+  };
   const sLayout = leafLayout(
-    [...ohs, ...first, ...second, ...other],
-    (c, label, key, rs) => <th key={key} rowSpan={rs} className={hLeaf} style={{ background: NAVY }}>{label}</th>,
+    [...ohs, ...ofc, ...first, ...second, ...other],
+    (_c, label, key, rs) => <th key={key} rowSpan={rs} className={hLeaf} style={leafStyle(label)}>{label}</th>,
     (span, key) => <th key={key} colSpan={span} className={hCell} style={{ background: '#34499A' }}>Caries Risk assessment</th>,
   );
   const headRows = sLayout.hasRisk ? 4 : 3;
@@ -845,7 +851,7 @@ export const TargetClientList = () => {
   const sTd = `border border-[#CBD5E1] px-2 py-1.5 text-xs text-foreground whitespace-nowrap`;
   const screenTable = (
     <div className="w-full min-w-0 max-w-full rounded-xl border border-border bg-card overflow-hidden">
-      <div className="max-h-[70vh] w-full overflow-auto">
+      <div className="max-h-[max(320px,calc(100vh_-_348px))] w-full overflow-auto">
         <table className="border-separate border-spacing-0 w-max min-w-full">
           <thead className="sticky top-0 z-20">
             <tr>
@@ -855,10 +861,7 @@ export const TargetClientList = () => {
                   {c.head ?? c.label}
                 </th>
               ))}
-              {ohs.length > 0 && <th colSpan={ohs.length} rowSpan={2} className={hCell} style={{ background: '#1E2D63' }}>ORAL HEALTH STATUS</th>}
-              {ofc.map((c, i) => (
-                <th key={`ofc-${i}`} rowSpan={headRows} className={hLeaf} style={{ background: NAVY }}>{c.label}</th>
-              ))}
+              {ohs.length + ofc.length > 0 && <th colSpan={ohs.length + ofc.length} rowSpan={2} className={hCell} style={{ background: '#1E2D63' }}>ORAL HEALTH STATUS</th>}
               {rpcN > 0 && <th colSpan={rpcN} className={hCell} style={{ background: '#1E2D63' }}>ROUTINE PREVENTIVE CARE</th>}
               {other.length > 0 && <th colSpan={other.length} rowSpan={2} className={hCell} style={{ background: '#1E2D63' }}>OTHER SERVICES</th>}
               {remarksVisible && (
