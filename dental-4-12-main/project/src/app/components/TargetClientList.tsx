@@ -477,7 +477,7 @@ export const TargetClientList = () => {
   const sheetsRef = useRef<HTMLDivElement>(null);
   // The pane fills the screen below the status strip, so once the page is scrolled to the table the
   // label row and No. column stay put and only the cells scroll.
-  const paneOffset = TOPBAR_H + 16;
+  const paneOffset = TOPBAR_H + 4;
   useEffect(() => {
     if (didAlignAnchor.current || !latestConsult) return;
     const { start: s0, end: e0 } = periodRange(anchor, period);
