@@ -2,7 +2,15 @@ import { useMemo, useState, useRef, Fragment } from 'react';
 import { usePrintOrientation } from '../hooks/usePrintOrientation';
 import { useDohReportData } from '../hooks/useDohReportData';
 import { SkeletonTable } from './Skeleton';
-import { FORM_SECTION_BAND, BLOCKED_CELL, BLOCKED_TITLE, FORM_SUBROW_LABEL } from '../utils/dohFormStyle';
+import { BLOCKED_TITLE } from '../utils/dohFormStyle';
+
+// Colour coding copied cell for cell from the filed Excel form (user, 2026-10-06): orange section bands,
+// solid BLACK blocked cells, light-blue total columns, yellow grand total, pink sub-row captions.
+const PR_ORANGE = 'bg-[#FFC000] text-black';
+const PR_BLOCKED = 'bg-black';
+const PR_TOTAL = 'bg-[#DDEBF7] font-bold';
+const PR_GRAND = 'bg-[#FFFF00] font-bold';
+const PR_SUBROW = 'bg-[#EAD1DC]';
 import { buildDohReportPdf } from '../utils/exportPdf';
 import { buildXlsx } from '../utils/exportXlsx';
 import { usePreviewModal } from '../hooks/usePreviewModal';
@@ -137,6 +145,8 @@ type Row = {
    *  a number and this system has no source for it. Conflating the two would
    *  claim the form forbids a cell it merely leaves empty. */
   blocked?: boolean;
+  /** The form blocks the FIRST cells of this row: every column up to and including this index of COLUMNS. */
+  blockedThrough?: number;
   /** ⚠ FORM-MANDATED SUB-ROWS, AND THEY ARE ALWAYS SHOWN (Sprint 89).
    *
    *  On the printed form these indicators do not have cells of their own: the
@@ -161,9 +171,9 @@ type Row = {
  *  numbers the RPC module has always recorded. */
 const UTILIZATION_ROWS: Row[] = [
   { key: 'visit_facility_1st', label: 'No. of patients who visited the DENTAL FACILITY for the 1st time', field: 'visit_facility_1st' },
-  { key: 'visit_nonfacility_1st', label: 'No. of patients who visited NON-FACILITY for the 1st time', field: 'visit_nonfacility_1st' },
-  { key: 'rpoc_visit1', label: 'No. of Patients who availed the Routine Preventive Oral Care (RPOC) - 1ST VISIT', field: 'rpoc_visit1' },
-  { key: 'rpoc_visit2', label: 'No. of Patients who availed the Routine Preventive Oral Care (RPOC) - 2ND VISIT', field: 'rpoc_visit2' },
+  { key: 'visit_nonfacility_1st', label: 'No. of patients who visited NON-FACILITY for the 1st time', field: 'visit_nonfacility_1st', blockedThrough: 0 },
+  { key: 'rpoc_visit1', label: 'No. of Patients who availed the Routine Preventive Oral Care (RPOC) - 1ST VISIT', field: 'rpoc_visit1', blockedThrough: 0 },
+  { key: 'rpoc_visit2', label: 'No. of Patients who availed the Routine Preventive Oral Care (RPOC) - 2ND VISIT', field: 'rpoc_visit2', blockedThrough: 0 },
 ];
 
 const STATUS_ROWS: Row[] = [
@@ -173,8 +183,8 @@ const STATUS_ROWS: Row[] = [
   // would double-count every patient who has both.
   // ⚠ "Calcular", not "Calculus" — the filed form's own wording (Sprint 89,
   // read off the January 2026 return). Same rule as the other DOH spellings.
-  { key: 'debris_or_calculus', label: 'Number of patients with Oral Debris / Calcular Deposits', field: 'debris_or_calculus' },
-  { key: 'gingivitis', label: 'Number of patients with Gingivitis', field: 'gingivitis' },
+  { key: 'debris_or_calculus', label: 'Number of patients with Oral Debris / Calcular Deposits', field: 'debris_or_calculus', blockedThrough: 2 },
+  { key: 'gingivitis', label: 'Number of patients with Gingivitis', field: 'gingivitis', blockedThrough: 2 },
   // Was absent although ORAL_HEALTH_CONDITION has carried the boolean all
   // along — it was simply never mapped in useDohReportData.
   { key: 'periodontitis', label: 'Number of patients with Periodontitis', field: 'periodontitis' },
@@ -183,11 +193,11 @@ const STATUS_ROWS: Row[] = [
   // children and carries no adult or elderly column at all. Blocked (dark
   // grey) rather than "—" — the form itself blocks these cells, which is a
   // different statement from "we have no data".
-  { key: 'edentulous', label: 'Number of Completely Edentulous Adults / Elderly', field: null, blocked: true },
-  { key: 'ofc_exam', label: 'OFC Upon Oral Examination', field: 'ofc_exam' },
+  { key: 'edentulous', label: 'Number of Completely Edentulous Adults / Elderly', field: null, blockedThrough: 10 },
+  { key: 'ofc_exam', label: 'OFC Upon Oral Examination', field: 'ofc_exam', blockedThrough: 2 },
   // No completed mouth rehabilitation is recorded anywhere, so this is a
   // genuine no-source row, not a blocked one.
-  { key: 'ofc_rehab', label: 'OFC Upon Complete Oral Rehabilitation', field: null },
+  { key: 'ofc_rehab', label: 'OFC Upon Complete Oral Rehabilitation', field: null, blockedThrough: 2 },
 ];
 
 /** Section C, TRANSCRIBED FROM THE FILED FORM (Sprint 89).
@@ -218,8 +228,8 @@ const SERVICE_ROWS: Row[] = [
     label: 'Number of patients given OP / Scaling',
     field: null,
     subRows: [
-      { key: 'op_scaling_1st', label: '1st Scaling', field: 'op_scaling_1st' },
-      { key: 'op_scaling_2nd', label: '2nd Scaling', field: 'op_scaling_2nd' },
+      { key: 'op_scaling_1st', label: '1st Scaling', field: 'op_scaling_1st', blockedThrough: 0 },
+      { key: 'op_scaling_2nd', label: '2nd Scaling', field: 'op_scaling_2nd', blockedThrough: 0 },
     ],
   },
   {
@@ -228,7 +238,7 @@ const SERVICE_ROWS: Row[] = [
     field: null,
     subRows: [
       { key: 'fluoride_1st', label: '1st Application', field: 'fv_1st' },
-      { key: 'fluoride_2nd', label: '2nd Application', field: 'fv_2nd' },
+      { key: 'fluoride_2nd', label: '2nd Application', field: 'fv_2nd', blockedThrough: 0 },
     ],
   },
   {
@@ -236,8 +246,8 @@ const SERVICE_ROWS: Row[] = [
     label: 'Number of patients given Silver Diamine Fluoride (SDF)',
     field: null,
     subRows: [
-      { key: 'sdf_1st', label: '1st Application', field: 'sdf_1st' },
-      { key: 'sdf_2nd', label: '2nd Application', field: 'sdf_2nd' },
+      { key: 'sdf_1st', label: '1st Application', field: 'sdf_1st', blockedThrough: 0 },
+      { key: 'sdf_2nd', label: '2nd Application', field: 'sdf_2nd', blockedThrough: 0 },
     ],
   },
   {
@@ -245,8 +255,8 @@ const SERVICE_ROWS: Row[] = [
     label: 'Number of patients given ART',
     field: null,
     subRows: [
-      { key: 'art_head', label: 'Head Count', field: 'art_head' },
-      { key: 'art_tooth', label: 'Tooth Count', field: 'art_tooth' },
+      { key: 'art_head', label: 'Head Count', field: 'art_head', blockedThrough: 0 },
+      { key: 'art_tooth', label: 'Tooth Count', field: 'art_tooth', blockedThrough: 0 },
     ],
   },
   {
@@ -254,8 +264,8 @@ const SERVICE_ROWS: Row[] = [
     label: 'Number of patients given Sealants',
     field: null,
     subRows: [
-      { key: 'sealants_head', label: 'Head Count', field: 'sealant_head' },
-      { key: 'sealants_tooth', label: 'Tooth Count', field: 'sealant_tooth' },
+      { key: 'sealants_head', label: 'Head Count', field: 'sealant_head', blockedThrough: 0 },
+      { key: 'sealants_tooth', label: 'Tooth Count', field: 'sealant_tooth', blockedThrough: 0 },
     ],
   },
   {
@@ -264,7 +274,7 @@ const SERVICE_ROWS: Row[] = [
     label: 'Number of patient given Root Surface Protection',
     field: null,
     subRows: [
-      { key: 'rsp_head', label: 'Head Count', field: null },
+      { key: 'rsp_head', label: 'Head Count', field: null, blockedThrough: 0 },
       { key: 'rsp_tooth', label: 'Tooth Count', field: null },
     ],
   },
@@ -289,7 +299,7 @@ const OTHER_ROWS: Row[] = [
   // sub-kind; see useDohReportData for why that is not double-counting.
   { key: 'ref_primary', label: 'No. of patients referred to other Primary Care Facilities', field: 'ref_primary' },
   { key: 'ref_higher', label: 'Total no. of patients referred to Higher Level of Care', field: 'ref_higher' },
-  { key: 'ref_cancer', label: 'a. No. of patients for Oral Cancer Screening Referrals', field: 'ref_cancer', indent: true },
+  { key: 'ref_cancer', label: 'a. No. of patients for Oral Cancer Screening Referrals', field: 'ref_cancer', indent: true, blockedThrough: 1 },
   { key: 'ref_surgical', label: 'b. No. of patients for Surgical Procedures', field: 'ref_surgical', indent: true },
   { key: 'ref_private', label: 'c. No. of Referrals to Private Facilities', field: 'ref_private', indent: true },
   { key: 'prescriptions', label: 'No. of patients given Dental Prescriptions', field: null },
@@ -378,15 +388,20 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
   const labelTd = 'px-2 py-1.5 text-xs text-foreground border border-border whitespace-nowrap text-left';
 
   const section = (title: string) => (
-    // Amber band across the full width, as printed — was bg-amber-50, a tint
-    // so light the sections read as ordinary rows.
-    // Band painted on the TD, not only the TR: html2canvas (the PDF export
-    // path) resolves cell backgrounds reliably and row backgrounds not always,
-    // so a tr-only fill can vanish from the exported form.
-    <tr className={FORM_SECTION_BAND}>
-      <td className={`${labelTd} font-bold ${FORM_SECTION_BAND}`} colSpan={visibleCols.length * 2 + 3}>{title}</td>
+    // Orange band across the full width, as printed. Painted on the TD as well as the TR: html2canvas (the PDF
+    // path) resolves cell backgrounds reliably and row backgrounds not always.
+    <tr className={PR_ORANGE}>
+      <td className={`${labelTd} font-bold ${PR_ORANGE}`} colSpan={visibleCols.length * 2 + 3}>{title}</td>
     </tr>
   );
+  /** The solid black rule the filed form runs between its sections. */
+  const spacer = (key: string) => (
+    <tr key={key}><td className={`${PR_BLOCKED} p-0 h-4`} colSpan={visibleCols.length * 2 + 3} /></tr>
+  );
+  /** A blocked cell: the whole row, or the form's blocked leading columns. */
+  const isBlocked = (r: Row, c: Col) => !!r.blocked || (r.blockedThrough !== undefined && COLUMNS.indexOf(c) <= r.blockedThrough);
+  /** Zero shows EMPTY, a count shows as a number, and "—" is still "no source" (user, 2026-10-06). */
+  const show = (v: number | null) => (v === null ? '—' : v === 0 ? '' : v);
 
   /** The value cells for one line — every age/sex column plus the grand total.
    *  Shared by plain rows and sub-rows, which carry identical value grids. */
@@ -394,24 +409,21 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
     <>
       {visibleCols.map((c) => SEXES.map((s) => {
         const v = cell(r.field, c, s);
+        const key = `${c.group}-${c.label}-${s}`;
+        // A blocked cell carries no value and no dash: the paper form fills it solid, meaning "do not write here".
+        if (isBlocked(r, c)) return <td key={key} className={`${td} ${PR_BLOCKED}`} title={BLOCKED_TITLE} />;
         return (
-          // A blocked cell carries no value and no dash — the paper form fills
-          // it solid, meaning "do not write here". `—` would invite a number.
-          r.blocked ? (
-            <td key={`${c.group}-${c.label}-${s}`} className={`${td} ${BLOCKED_CELL}`} title={BLOCKED_TITLE} />
-          ) : (
-          <td key={`${c.group}-${c.label}-${s}`} className={`${td} ${v === null ? 'text-muted-foreground' : ''}`}>
-            {v === null ? '—' : v}
+          <td key={key} className={`${td} ${c.label.startsWith('Total') ? PR_TOTAL : ''} ${v === null ? 'text-muted-foreground' : ''}`}>
+            {show(v)}
           </td>
-          )
         );
       }))}
       {r.blocked ? (
-        <td className={`${td} ${BLOCKED_CELL}`} title={BLOCKED_TITLE} />
+        <td className={`${td} ${PR_BLOCKED}`} title={BLOCKED_TITLE} />
       ) : (
-      <td className={`${td} font-semibold bg-gray-50`}>
-        {rowTotal(r.field) === null ? <span className="text-muted-foreground">—</span> : rowTotal(r.field)}
-      </td>
+        <td className={`${td} ${PR_GRAND}`}>
+          {rowTotal(r.field) === null ? <span className="text-muted-foreground">—</span> : show(rowTotal(r.field))}
+        </td>
       )}
     </>
   );
@@ -430,7 +442,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
               {i === 0 && (
                 <td className={`${labelTd} align-middle`} rowSpan={r.subRows!.length}>{r.label}</td>
               )}
-              <td className={`${labelTd} ${FORM_SUBROW_LABEL} text-[11px]`}>{sub.label}</td>
+              <td className={`${labelTd} ${PR_SUBROW} text-[11px]`}>{sub.label}</td>
               {valueCells(sub)}
             </tr>
           ))}
@@ -476,11 +488,11 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
               indicator,
               sub,
               cells: visibleCols.flatMap((c) => SEXES.map((s) => {
-                if (row.blocked) return '';
+                if (isBlocked(row, c)) return '';
                 const v = cell(row.field, c, s);
-                return v === null ? NO_SOURCE_MARK : v;
+                return v === null ? NO_SOURCE_MARK : v === 0 ? '' : v;
               })),
-              total: row.blocked ? '' : (rowTotal(row.field) ?? NO_SOURCE_MARK),
+              total: row.blocked ? '' : (rowTotal(row.field) ?? NO_SOURCE_MARK) === 0 ? '' : (rowTotal(row.field) ?? NO_SOURCE_MARK),
             });
           };
           // A parent with sub-rows has no values of its own on the form, so it
@@ -642,7 +654,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
             <tr>
               <th className={`${th} text-left align-bottom`} rowSpan={3} colSpan={2}>INDICATORS</th>
               {visibleGroups.map((g, i) => (
-                <th key={`${g.label}-${i}`} className={`${th} ${FORM_SECTION_BAND}`} colSpan={g.span * SEXES.length}>
+                <th key={`${g.label}-${i}`} className={`${th} ${PR_ORANGE}`} colSpan={g.span * SEXES.length}>
                   {g.label}
                 </th>
               ))}
@@ -671,28 +683,18 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
                 I/II/III and was missing section A entirely. */}
             {section('A. Patient Seeking Behaviour')}
             {UTILIZATION_ROWS.map(renderRow)}
+            {spacer('sp-a')}
             {section('B. Oral Health Status')}
             {STATUS_ROWS.map(renderRow)}
+            {spacer('sp-b')}
             {section('C. Services Rendered')}
             {SERVICE_ROWS.map(renderRow)}
+            {spacer('sp-c')}
             {section('Other Procedures')}
             {OTHER_ROWS.map(renderRow)}
           </tbody>
         </table>
       </div>
-      {/* Sprint 129 — said on the form rather than left for an inspector to
-          find. Rows a/b/c print indented under the Higher Level total, so the
-          arithmetic looks like it should cross-foot. It does not always: each
-          row counts PATIENTS, and one student referred for both a surgical
-          procedure and a private facility in the same school year is counted
-          once in the total and once in EACH sub-row. Adding a+b+c would
-          double-count that student, so the total is deliberately not their sum. */}
-      <p className="text-xs text-muted-foreground mt-2">
-        Every referral row counts <span className="font-medium text-foreground">patients, not referral slips</span>.
-        A student referred more than once in the school year is counted once per row, so the
-        Higher Level of Care total is <span className="font-medium text-foreground">not necessarily a + b + c</span> —
-        a student appearing in two sub-rows is still one patient in the total.
-      </p>
       <PreviewModal
         open={preview.open}
         kind={preview.kind}
