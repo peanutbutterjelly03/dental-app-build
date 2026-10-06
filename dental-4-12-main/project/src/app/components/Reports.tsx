@@ -657,7 +657,7 @@ export const Reports = () => {
               onChange={chooseSchool}
             />
           </div>
-          <div className="mt-6 flex items-end gap-4 overflow-x-auto no-scrollbar">
+          <div className="mt-10 flex items-end gap-4 overflow-x-auto no-scrollbar">
             {([
               { label: 'For the clinic', dot: '#FFFFFF', color: '#0F9D74', tabs: reportCategories[0].tabs },
               { label: 'For the City Health Office', dot: '#93C5FD', color: '#3B6FE0', tabs: reportCategories[1].tabs },
