@@ -827,7 +827,7 @@ export const TargetClientList = () => {
   // pages laid side by side: identity + ORAL HEALTH STATUS + ORALLY FIT CHILD,
   // then ROUTINE PREVENTIVE CARE (FIRST / SECOND), OTHER SERVICES, REMARKS.
   // Only the label rows and the No. column are pinned; everything else scrolls.
-  const NAVY = '#273A78';
+  const NAVY = '#E3ECFB'; // header fill: light blue (user, 2026-10-06), dark-blue text
   const sOf = (g: ServiceCol['group']) => visibleServices.filter((c) => c.group === g);
   const ohs = sOf('ORAL HEALTH STATUS');
   const ofc = sOf('ORALLY FIT CHILD');
@@ -835,12 +835,12 @@ export const TargetClientList = () => {
   const second = sOf('SECOND');
   const other = sOf('OTHER SERVICES');
   const rpcN = first.length + second.length;
-  const hCell = 'border border-white/20 px-2 py-1.5 text-[11px] font-bold text-white text-center';
+  const hCell = 'border border-[#A9BDE6] px-2 py-0.5 text-[11px] font-bold text-[#273A78] text-center leading-tight';
   // Captions read LEFT-TO-RIGHT on screen (user, 2026-10-06); only the printed form rotates them.
   const hLeaf = `${hCell} align-middle whitespace-normal leading-tight`;
   // Lighter blue than the bands, and wide enough that a caption wraps to TWO lines at most
   // (user, 2026-10-06), so the label row stays thin.
-  const LEAF_BG = '#4A62B3';
+  const LEAF_BG = '#E3ECFB';
   const leafStyle = (label: string): CSSProperties => {
     const w = `clamp(6rem, ${(label.length * 0.27 + 1.6).toFixed(2)}rem, 13.5rem)`;
     return { background: LEAF_BG, width: w, minWidth: w, maxWidth: w };
@@ -848,7 +848,7 @@ export const TargetClientList = () => {
   const sLayout = leafLayout(
     [...ohs, ...ofc, ...first, ...second, ...other],
     (_c, label, key, rs) => <th key={key} rowSpan={rs} className={hLeaf} style={leafStyle(label)}>{label}</th>,
-    (span, key) => <th key={key} colSpan={span} className={hCell} style={{ background: '#34499A' }}>Caries Risk assessment</th>,
+    (span, key) => <th key={key} colSpan={span} className={hCell} style={{ background: '#D2E0F7' }}>Caries Risk assessment</th>,
   );
   const headRows = sLayout.hasRisk ? 4 : 3;
   const idWidth: Record<string, string> = { consult: 'min-w-28', philhealth: 'min-w-28', name: 'min-w-48', address: 'min-w-56', contact: 'min-w-28', dob: 'min-w-24' };
@@ -865,17 +865,17 @@ export const TargetClientList = () => {
                   {c.head ?? c.label}
                 </th>
               ))}
-              {ohs.length + ofc.length > 0 && <th colSpan={ohs.length + ofc.length} rowSpan={2} className={hCell} style={{ background: '#1E2D63' }}>ORAL HEALTH STATUS</th>}
-              {rpcN > 0 && <th colSpan={rpcN} className={hCell} style={{ background: '#1E2D63' }}>ROUTINE PREVENTIVE CARE</th>}
-              {other.length > 0 && <th colSpan={other.length} rowSpan={2} className={hCell} style={{ background: '#1E2D63' }}>OTHER SERVICES</th>}
+              {ohs.length + ofc.length > 0 && <th colSpan={ohs.length + ofc.length} rowSpan={2} className={hCell} style={{ background: '#BCCFF0' }}>ORAL HEALTH STATUS</th>}
+              {rpcN > 0 && <th colSpan={rpcN} className={hCell} style={{ background: '#BCCFF0' }}>ROUTINE PREVENTIVE CARE</th>}
+              {other.length > 0 && <th colSpan={other.length} rowSpan={2} className={hCell} style={{ background: '#BCCFF0' }}>OTHER SERVICES</th>}
               {remarksVisible && (
                 <th rowSpan={headRows} className={`${hCell} align-middle min-w-48`} style={{ background: NAVY }}>Remarks</th>
               )}
             </tr>
             <tr>
-              {first.length > 0 && <th colSpan={first.length} className={hCell} style={{ background: '#34499A' }}>FIRST</th>}
+              {first.length > 0 && <th colSpan={first.length} className={hCell} style={{ background: '#D2E0F7' }}>FIRST</th>}
               {second.length > 0 && (
-                <th colSpan={second.length} className={hCell} style={{ background: '#34499A' }}>
+                <th colSpan={second.length} className={hCell} style={{ background: '#D2E0F7' }}>
                   SECOND
                   <div className="font-normal text-[10px]">at least 4 months interval from the first visit</div>
                 </th>
