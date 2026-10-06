@@ -382,9 +382,9 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
 
   if (loading) return <SkeletonTable rows={10} />;
 
-  const th = 'px-2 py-2 text-[11px] font-semibold text-foreground border border-black whitespace-nowrap';
-  const td = 'px-2 py-1.5 text-xs text-foreground border border-black text-center tabular-nums';
-  const labelTd = 'px-2 py-1.5 text-xs text-foreground border border-black whitespace-nowrap text-left';
+  const th = 'px-2 py-2 text-[11px] font-semibold text-foreground border border-t-0 border-l-0 border-black whitespace-nowrap';
+  const td = 'px-2 py-1.5 text-xs text-foreground border border-t-0 border-l-0 border-black text-center tabular-nums';
+  const labelTd = 'px-2 py-1.5 text-xs text-foreground border border-t-0 border-l-0 border-black whitespace-nowrap text-left';
 
   const section = (title: string) => (
     // Orange band across the full width, as printed. Painted on the TD as well as the TR: html2canvas (the PDF
@@ -641,7 +641,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
       )}
 
       <div ref={printableRef} className="form-print bg-card rounded-xl border border-black overflow-x-auto">
-        <table className="border-collapse w-full">
+        <table className="border-separate border-spacing-0 w-full">
           <thead className="bg-gray-50">
             {/* Three header levels, matching the paper form: population group
                 → age column → M/F. This file previously had only the lower two,
