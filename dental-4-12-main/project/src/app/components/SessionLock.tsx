@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Lock, Eye, EyeOff } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
   IDLE_MINUTES,
@@ -12,15 +12,14 @@ import {
   setLockedFlag,
 } from '../utils/sessionIdle';
 
-// Idle timeout lock screen (2026-10-01). Design from the user's reference
-// screenshot ("Session Expired"), with one change the user chose: a password
-// field instead of a bare Log Out, so the SAME person signs back in and keeps
-// whatever they had not saved yet.
+// Idle timeout screen. Matches the user's reference screenshot exactly
+// (2026-10-06): "Session Expired", a plain Log Out button, 15 minutes. It
+// replaced the 2026-10-01 version that had a password box so the same person
+// could continue; that is gone, so unsaved work is lost when this appears.
 //
 // ⚠ "Your session has expired" is TRUE when this appears, not decoration
 // (CLAUDE.md: nothing cosmetic): locking ends this device's session on the
-// server first, so a new tab cannot walk in. The page stays mounted behind an
-// opaque layer, so unsaved work survives but nothing on it is readable.
+// server first, so a new tab cannot walk in.
 //
 // Shared across tabs through localStorage (see utils/sessionIdle.ts): working in
 // one tab keeps every tab alive; locking or unlocking in one does it in all.
@@ -31,13 +30,8 @@ const ACTIVITY_WRITE_EVERY_MS = 5000;
 const CHECK_EVERY_MS = 15000;
 
 export function SessionLock() {
-  const { user, lockSession, unlock, logout } = useAuth();
+  const { user, lockSession, logout } = useAuth();
   const [locked, setLocked] = useState(false);
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [twofa, setTwofa] = useState(false);
-  const [busy, setBusy] = useState(false);
   const lastWrite = useRef(0);
   const lockedRef = useRef(false);
   lockedRef.current = locked;
@@ -73,7 +67,7 @@ export function SessionLock() {
     const onStorage = (e: StorageEvent) => {
       if (e.key === LOCK_KEY) {
         if (e.newValue === '1') setLocked(true);
-        else { setLocked(false); setPassword(''); setError(null); setTwofa(false); }
+        else setLocked(false);
       }
       if (e.key === ACTIVITY_KEY) check();
     };
@@ -91,86 +85,27 @@ export function SessionLock() {
     };
   }, [check]);
 
-  const handleUnlock = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!password || busy) return;
-    setBusy(true);
-    setError(null);
-    const result = await unlock(password);
-    setBusy(false);
-    if (result.ok) {
-      setLocked(false);
-      setPassword('');
-      return;
-    }
-    if (result.twofaRequired) { setTwofa(true); return; }
-    setError(result.error ?? 'Incorrect password.');
-  };
-
   if (!locked || !user) return null;
 
   return (
-    // Opaque on purpose: a blurred page still shows names and tooth charts to
-    // whoever walks up to an idle clinic PC.
-    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/95 p-4 backdrop-blur-xl"
+    // Dimmed and heavily blurred so names and tooth charts behind it cannot be
+    // read by whoever walks up to an idle clinic PC.
+    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-700/60 p-4 backdrop-blur-xl"
       role="dialog" aria-modal="true" aria-labelledby="session-lock-title">
-      <div className="w-full max-w-md rounded-2xl bg-card px-6 py-8 text-center shadow-2xl sm:px-8">
-        <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-red-50">
-          <Lock className="h-8 w-8 text-red-600" fill="currentColor" strokeWidth={1.5} aria-hidden="true" />
+      <div className="w-full max-w-sm rounded-2xl bg-card px-6 py-8 text-center shadow-2xl">
+        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-red-50">
+          <Lock className="h-7 w-7 text-red-600" fill="currentColor" strokeWidth={1.5} aria-hidden="true" />
         </div>
         <h2 id="session-lock-title" className="text-xl font-bold text-foreground">Session Expired</h2>
-        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+        <p className="mt-4 text-sm leading-relaxed text-foreground">
           You have been inactive for {IDLE_MINUTES} minutes. For your security, your session has expired.
         </p>
-
-        {twofa ? (
-          <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-            This account uses two-step verification, so it cannot be unlocked here. Log out and sign in again
-            from the login page.
-          </p>
-        ) : (
-          <form onSubmit={handleUnlock} className="mt-5 space-y-3 text-left">
-            <p className="text-sm text-muted-foreground">
-              Enter your password to continue where you left off.
-            </p>
-            <div className="rounded-lg bg-muted px-3 py-2 text-sm">
-              <span className="font-semibold text-foreground">{user.name}</span>
-              <span className="block truncate text-xs text-muted-foreground">{user.email}</span>
-            </div>
-            <label htmlFor="session-lock-password" className="sr-only">Password</label>
-            <div className="relative">
-              <input
-                id="session-lock-password"
-                type={showPassword ? 'text' : 'password'}
-                autoComplete="current-password"
-                autoFocus
-                value={password}
-                onChange={(e) => { setPassword(e.target.value); setError(null); }}
-                placeholder="Password"
-                className="w-full rounded-lg border border-border bg-card px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-              <button type="button" onClick={() => setShowPassword((v) => !v)}
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
-                className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground">
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-            {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
-            <button type="submit" disabled={!password || busy}
-              className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-60">
-              {busy ? 'Signing in...' : 'Log In'}
-            </button>
-          </form>
-        )}
-
-        {/* Not a full-account logout: this device's session is already over,
-            and the server has no session to stamp, so other devices are left
-            alone (see authController.logout). */}
+        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">Please log in again to continue using FLORAL.</p>
+        {/* This device's session is already over (see lockNow), so the server
+            has nothing to stamp and other devices are left alone. */}
         <button type="button" onClick={() => { void logout(); }}
-          className={twofa
-            ? 'mt-6 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-white hover:bg-primary-hover'
-            : 'mt-4 text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline'}>
-          {twofa ? 'Log Out' : 'Not you? Log out'}
+          className="mt-6 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-hover">
+          Log Out
         </button>
       </div>
     </div>

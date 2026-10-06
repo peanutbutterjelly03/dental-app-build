@@ -5,7 +5,7 @@
 // hold a timestamp and a flag, nothing that identifies anyone.
 
 /** Minutes without mouse, keyboard, touch or scroll before the session locks. */
-export const IDLE_MINUTES = 30;
+export const IDLE_MINUTES = 15;
 export const IDLE_MS = IDLE_MINUTES * 60 * 1000;
 
 export const ACTIVITY_KEY = 'floral-last-activity';
