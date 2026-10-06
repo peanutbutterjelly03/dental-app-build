@@ -395,6 +395,37 @@ export const Reports = () => {
     if (el.firstElementChild) ro?.observe(el.firstElementChild);
     return () => { el.removeEventListener('scroll', update); window.removeEventListener('resize', update); ro?.disconnect(); };
   }, [activeReportTab]);
+  // Grab-and-drag scrolling for the DOH table, as in the OCR grid (mouse only; touch already scrolls natively).
+  useEffect(() => {
+    const el = dohReportRef.current;
+    if (!el) return;
+    let down = false, moved = false, x0 = 0, y0 = 0, sl = 0, st = 0;
+    const onDown = (e: PointerEvent) => {
+      if (e.button !== 0 || e.pointerType === 'touch') return;
+      down = true; moved = false; x0 = e.clientX; y0 = e.clientY; sl = el.scrollLeft; st = el.scrollTop;
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!down) return;
+      const dx = e.clientX - x0, dy = e.clientY - y0;
+      if (!moved && Math.abs(dx) + Math.abs(dy) < 4) return;
+      moved = true;
+      el.style.cursor = 'grabbing';
+      el.style.userSelect = 'none';
+      el.scrollLeft = sl - dx;
+      el.scrollTop = st - dy;
+    };
+    const end = () => { down = false; el.style.cursor = ''; el.style.userSelect = ''; };
+    el.addEventListener('pointerdown', onDown);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
+    return () => {
+      el.removeEventListener('pointerdown', onDown);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('pointercancel', end);
+    };
+  }, [activeReportTab]);
   const stepDoh = (dir: 1 | -1) => {
     const el = dohReportRef.current;
     if (!el) return;
@@ -837,7 +868,7 @@ export const Reports = () => {
             {/* ref goes on the scrollable inner div, not the overflow-hidden outer
                 one — html2canvas clips to the ref'd element's own rendered box,
                 so ref'ing the outer div only captured the already-clipped width. */}
-            <div ref={dohReportRef} className="no-scrollbar overflow-auto [container-type:inline-size] max-h-[max(320px,calc(100vh_-_94px))] print:max-h-none">
+            <div ref={dohReportRef} className="no-scrollbar cursor-grab rounded-xl overflow-auto [container-type:inline-size] max-h-[max(320px,calc(100vh_-_94px))] print:max-h-none">
               {/* INSIDE the ref'd element deliberately. html2canvas captures
                   `dohReportRef.current` itself, so a banner placed as a sibling
                   above it would show on screen and be missing from the PDF —
@@ -1003,9 +1034,9 @@ export const Reports = () => {
             </div>
             {/* Outside the captured scroller, so they never reach the PDF; hidden on paper. */}
             <button type="button" aria-label="Show previous columns" title="Show previous columns" disabled={!dohEdge.left} onClick={() => stepDoh(-1)}
-              className="print:hidden absolute left-px top-1/2 z-40 grid h-[2.875rem] w-5 -translate-y-1/2 place-items-center rounded-r-[0.5625rem] bg-primary text-base font-bold leading-none text-white opacity-90 shadow-md hover:opacity-100 disabled:cursor-default disabled:opacity-30">‹</button>
+              className="print:hidden absolute left-px top-1/2 z-40 grid h-[2.875rem] w-5 -translate-y-1/2 place-items-center rounded-r-[0.5625rem] !rounded-l-none bg-primary text-base font-bold leading-none text-white opacity-90 shadow-md hover:opacity-100 disabled:cursor-default disabled:opacity-30">‹</button>
             <button type="button" aria-label="Show next columns" title="Show next columns" disabled={!dohEdge.right} onClick={() => stepDoh(1)}
-              className="print:hidden absolute right-px top-1/2 z-40 grid h-[2.875rem] w-5 -translate-y-1/2 place-items-center rounded-l-[0.5625rem] bg-primary text-base font-bold leading-none text-white opacity-90 shadow-md hover:opacity-100 disabled:cursor-default disabled:opacity-30">›</button>
+              className="print:hidden absolute right-px top-1/2 z-40 grid h-[2.875rem] w-5 -translate-y-1/2 place-items-center rounded-l-[0.5625rem] !rounded-r-none bg-primary text-base font-bold leading-none text-white opacity-90 shadow-md hover:opacity-100 disabled:cursor-default disabled:opacity-30">›</button>
           </div>
         </div>
       )}
