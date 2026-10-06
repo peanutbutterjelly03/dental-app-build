@@ -18,6 +18,17 @@
 // zoomable snapshot. To print it on standard paper, use the viewer's
 // "Fit to page" (whole thing, small) or "Poster/Tile" (split across sheets).
 export async function buildDohReportPdf(element: HTMLElement): Promise<Blob | null> {
+  // The on-screen table can be height-limited and scroll; the PDF is the WHOLE report.
+  const prevMaxHeight = element.style.maxHeight;
+  element.style.maxHeight = 'none';
+  try {
+    return await captureDohReport(element);
+  } finally {
+    element.style.maxHeight = prevMaxHeight;
+  }
+}
+
+async function captureDohReport(element: HTMLElement): Promise<Blob | null> {
   const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
     import('jspdf'),
     import('html2canvas-pro'),

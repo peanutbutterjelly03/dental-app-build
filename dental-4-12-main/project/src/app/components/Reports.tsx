@@ -375,6 +375,23 @@ export const Reports = () => {
   const [reportYear,  setReportYear]  = useState(new Date().getFullYear());
   // Local school override — defaults to All Schools regardless of global context
   const dohReportRef = useRef<HTMLDivElement>(null);
+  // Heights of the DOH table's first two header rows, so rows 2 and 3 can pin directly under the one above
+  // while the body scrolls (user, 2026-10-06). Measured, since the rows' heights depend on wrapping.
+  const dohRow1Ref = useRef<HTMLTableRowElement>(null);
+  const dohRow2Ref = useRef<HTMLTableRowElement>(null);
+  const [dohRowH, setDohRowH] = useState({ r1: 24, r2: 24 });
+  useEffect(() => {
+    const r1 = dohRow1Ref.current;
+    const r2 = dohRow2Ref.current;
+    if (!r1 || !r2) return;
+    const measure = () => setDohRowH({ r1: r1.offsetHeight, r2: r2.offsetHeight });
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(r1);
+    ro.observe(r2);
+    return () => ro.disconnect();
+  });
   const { preview, building, previewPdf, previewExcel, closePreview, confirmDownload } = usePreviewModal();
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const { students: realStudents } = useStudents();
@@ -795,11 +812,11 @@ export const Reports = () => {
           )}
 
           {/* Table */}
-          <div id="doh-report-printable" className="form-print bg-card rounded-xl border border-border overflow-hidden">
+          <div id="doh-report-printable" className="form-print bg-card rounded-xl border border-border overflow-hidden -mb-4 md:-mb-8">
             {/* ref goes on the scrollable inner div, not the overflow-hidden outer
                 one — html2canvas clips to the ref'd element's own rendered box,
                 so ref'ing the outer div only captured the already-clipped width. */}
-            <div ref={dohReportRef} className="overflow-x-auto [container-type:inline-size]">
+            <div ref={dohReportRef} className="overflow-auto [container-type:inline-size] max-h-[max(320px,calc(100vh_-_94px))] print:max-h-none">
               {/* INSIDE the ref'd element deliberately. html2canvas captures
                   `dohReportRef.current` itself, so a banner placed as a sibling
                   above it would show on screen and be missing from the PDF —
@@ -810,7 +827,7 @@ export const Reports = () => {
                   {hiddenGrades.size} grade(s) hidden.
                 </p>
               )}
-              <table style={{borderCollapse:'collapse', fontSize:'10px', whiteSpace:'nowrap'}}>
+              <table style={{borderCollapse:'separate', borderSpacing:0, fontSize:'10px', whiteSpace:'nowrap', ['--doh-r2' as string]: `${dohRowH.r1}px`, ['--doh-r3' as string]: `${dohRowH.r1 + dohRowH.r2}px`}}>
                 {/* ── TITLE ── */}
                 <thead>
                   <tr>
@@ -836,13 +853,13 @@ export const Reports = () => {
                   </tr>
 
                   {/* ── ROW 1: GRADE HEADERS ── */}
-                  <tr className="bg-gray-50 border-b border-border">
+                  <tr ref={dohRow1Ref} className="bg-gray-50 border-b border-border [&>th]:sticky [&>th]:top-0 [&>th]:z-10">
                     {/* Phones (< sm): the frozen label column is a fixed 9rem and
                         wraps, so data columns show beside it (it used to take
                         321 of 346 px at 390 px wide, user-reported 2026-10-04).
                         sm and up are unchanged. The PDF export renders at the
                         table's full width, so it always gets the sm+ layout. */}
-                    <th data-doh="indicator" rowSpan={3} className="sticky left-0 bg-gray-50 z-20 text-left px-2 py-1 border-r border-border text-[10px] font-semibold text-muted-foreground min-w-[240px] max-sm:w-36 max-sm:min-w-36">
+                    <th data-doh="indicator" rowSpan={3} className="sticky left-0 bg-gray-50 !z-20 text-left px-2 py-1 border-r border-border text-[10px] font-semibold text-muted-foreground min-w-[240px] max-sm:w-36 max-sm:min-w-36">
                       Indicator
                     </th>
                     {visibleGrades.map(g => {
@@ -863,7 +880,7 @@ export const Reports = () => {
                   </tr>
 
                   {/* ── ROW 2: AGE BRACKET HEADERS ── */}
-                  <tr className="bg-gray-50 border-b border-border">
+                  <tr ref={dohRow2Ref} className="bg-gray-50 border-b border-border [&>th]:sticky [&>th]:top-[var(--doh-r2)] [&>th]:z-10 [&>th]:bg-gray-50">
                     {visibleGrades.map(g =>
                       [...GRADE_BRACKETS[g].ages.map(a => (
                         <th key={g+a} colSpan={2}
@@ -885,7 +902,7 @@ export const Reports = () => {
                   </tr>
 
                   {/* ── ROW 3: M/F HEADERS ── */}
-                  <tr className="bg-gray-50 border-b-2 border-border">
+                  <tr className="bg-gray-50 border-b-2 border-border [&>th]:sticky [&>th]:top-[var(--doh-r3)] [&>th]:z-10 [&>th]:bg-gray-50">
                     {visibleGrades.map(g =>
                       [...GRADE_BRACKETS[g].ages.flatMap(a => [
                         <th key={g+a+'M'} className={`${thBase} text-blue-600 w-6`}>M</th>,
