@@ -1,11 +1,10 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { FileSpreadsheet, FileText, Printer, Download, AlertTriangle, AlertCircle, CheckCircle, Users, Calendar, X, FileBarChart } from 'lucide-react';
-import { PageHeader } from './PageHeader';
+import { FileSpreadsheet, FileText, Printer, Download, AlertTriangle, AlertCircle, CheckCircle, Users, Calendar, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ChartTooltip } from './ChartTooltip';
 import { LiveUpdatedStamp } from './LiveUpdatedStamp';
 import { useAuth } from '../context/AuthContext';
-import { getSchoolShortName } from '../utils/schoolColors';
+import { getSchoolShortName, getSchoolAcronym } from '../utils/schoolColors';
 import { CHART } from '../utils/chartColors';
 import { GradePill } from './GradePill';
 import { useDohReportData } from '../hooks/useDohReportData';
@@ -204,8 +203,59 @@ const getCount = (matrix: Record<string,GX>, key: string, grade: string, gender:
   }, 0);
 };
 
+// The school shown in the header band: a round badge with the school's initials. A fixed label when there is
+// nothing to choose (one school), a dropdown otherwise. "All schools" appears first only when `allowAll`.
+function SchoolBadge({ schools, value, allowAll, onChange }: {
+  schools: string[]; value: string | null; allowAll: boolean; onChange: (school: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const options: (string | null)[] = [...(allowAll ? [null] : []), ...schools];
+  const choosable = options.length > 1;
+  const initials = value ? getSchoolAcronym(value) : 'ALL';
+  const name = value ?? 'All schools';
+  const body = (
+    <>
+      <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-white text-[10px] font-extrabold text-primary">{initials.slice(0, 4)}</span>
+      <span className="grid min-w-0 text-left leading-tight">
+        <small className="text-[11px] text-white/75">{choosable ? 'Showing' : 'Reporting for'}</small>
+        <b className="truncate text-[13px]">{name}{choosable ? ' ▾' : ''}</b>
+      </span>
+    </>
+  );
+  if (!choosable) return <div className="flex max-w-full items-center gap-2.5 rounded-full bg-white/15 py-1 pl-1 pr-4">{body}</div>;
+  return (
+    <div className="relative max-w-full">
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label="Choose the school"
+        className="flex max-w-full items-center gap-2.5 rounded-full bg-white/15 py-1 pl-1 pr-4 hover:bg-white/20">{body}</button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-full z-20 mt-2 grid min-w-[16rem] max-w-[90vw] rounded-xl border border-border bg-card p-1.5 text-foreground shadow-lg" role="listbox">
+            {options.map((o) => (
+              <button key={o ?? 'all'} type="button" role="option" aria-selected={o === value}
+                onClick={() => { onChange(o); setOpen(false); }}
+                className={`rounded-lg px-3 py-2 text-left text-sm ${o === value ? 'bg-primary-surface font-bold text-primary' : 'hover:bg-muted'}`}>
+                {o ?? 'All schools'}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export const Reports = () => {
   const { selectedSchool, user } = useAuth();
+  // Reports are PER SCHOOL (user, 2026-10-06). "All Schools" is offered only to a
+  // System Admin and to Barangay Health Office staff, whose job is the consolidated
+  // view; everyone else starts on, and can only switch between, their own school(s).
+  const canSeeAllSchools = user?.role === 'system_admin' || user?.role === 'bho_staff';
+  const ownSchool = (): string | null => (
+    user && user.schools.length
+      ? (selectedSchool && user.schools.includes(selectedSchool) ? selectedSchool : user.schools[0])
+      : selectedSchool ?? null
+  );
   // The DOH report covers a school year — this year's report is not next
   // year's (Sprint 57b). It used to count every record ever created, so it
   // could not answer "what did we do this year?" at all.
@@ -217,7 +267,7 @@ export const Reports = () => {
   //   "SCHOOL: All Schools" above figures that were only ever their own school's.
   //   A wrong school name on a DOH return is a different document.
   const [reportSchool, setReportSchool] = useState<string|null>(
-    () => (user && user.schools.length === 1 ? user.schools[0] : null),
+    () => (canSeeAllSchools ? null : ownSchool()),
   );
   // School list comes from the DB now, not a hardcoded array (Sprint 60).
   const { schoolNames: allSchoolNames } = useSchools();
@@ -230,6 +280,12 @@ export const Reports = () => {
     [allSchoolNames, user],
   );
   const isPinnedToOneSchool = !!user && user.schools.length === 1;
+  // A user with no school assignment (an empty list means every school) who is not allowed the
+  // consolidated view still needs ONE school selected: take the first, once the list has loaded.
+  useEffect(() => {
+    if (!canSeeAllSchools && !reportSchool && schoolNames.length) setReportSchool(ownSchool() ?? schoolNames[0]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canSeeAllSchools, reportSchool, schoolNames]);
   const [dohSchoolYear, setDohSchoolYear] = useState<string | null>(() => schoolYearLabel());
   const { getRealCount, years: dohYears, unplacedCount, loading: dohLoading, lastUpdated: dohLastUpdated } = useDohReportData(dohSchoolYear, reportSchool);
 
@@ -391,7 +447,14 @@ export const Reports = () => {
   const [internalSection, setInternalSection] = useState<'treatment'|'conditions'|'admin'>('treatment');
   const [periodType, setPeriodType] = useState<'monthly'|'quarterly'|'biannual'|'annual'>('monthly');
   // Same rule as the DOH tab above: pinned to their own school when they hold one.
-  const [intSchoolFilter, setIntSchoolFilter] = useState(() => (user && user.schools.length === 1 ? user.schools[0] : 'all'));
+  const [intSchoolFilter, setIntSchoolFilter] = useState(() => (canSeeAllSchools ? 'all' : ownSchool() ?? 'all'));
+  useEffect(() => {
+    if (!canSeeAllSchools && intSchoolFilter === 'all' && schoolNames.length) setIntSchoolFilter(ownSchool() ?? schoolNames[0]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canSeeAllSchools, intSchoolFilter, schoolNames]);
+  // The header badge picks the school for EVERY report at once (one source of truth).
+  const activeSchool = reportSchool;
+  const chooseSchool = (name: string | null) => { setReportSchool(name); setIntSchoolFilter(name ?? 'all'); };
   const [intGradeFilter, setIntGradeFilter] = useState('all');
   const [intGenderFilter, setIntGenderFilter] = useState('all');
   const [intAgeFilter, setIntAgeFilter] = useState('all');
@@ -536,106 +599,87 @@ export const Reports = () => {
   }
 
   return (
-    <div className="space-y-4">
-      {/* Header — title left, controls right */}
-      <PageHeader
-        icon={FileBarChart}
-        eyebrow="Reporting"
-        title="Reports"
-        description="DOH Consolidated Report and internal reports for every school year on file."
-        action={
-          <div className="doh-report-controls flex items-center gap-2 flex-shrink-0 flex-wrap">
-            <select value={reportMonth} onChange={e => setReportMonth(Number(e.target.value))}
-              className="text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring">
-              {MONTHS.map((m,i) => <option key={m} value={i+1}>{m}</option>)}
-            </select>
-            <select value={reportYear} onChange={e => setReportYear(Number(e.target.value))}
-              className="text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring">
-              {[2023,2024,2025,2026].map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
-            <button onClick={() => window.print()}
-              className="flex items-center gap-2 px-4 py-2 bg-card border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium whitespace-nowrap">
-              <Printer className="w-4 h-4" /> Print
-            </button>
-            {activeReportTab === 'doh' && (
-              <button onClick={handleDownloadPdf} disabled={building}
-                className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-60 text-sm font-medium whitespace-nowrap">
-                <Download className="w-4 h-4" /> {building && preview.kind === 'pdf' ? 'Generating…' : 'Download PDF'}
-              </button>
-            )}
-            {activeReportTab === 'doh' && (
-              <button onClick={handleDownloadExcel} disabled={building}
-                className="flex items-center gap-2 px-4 py-2 bg-green-700 text-white rounded-lg hover:bg-green-800 disabled:opacity-60 text-sm font-medium whitespace-nowrap">
-                <FileSpreadsheet className="w-4 h-4" /> {building && preview.kind === 'excel' ? 'Generating…' : 'Download Excel'}
-              </button>
-            )}
+    <div className="min-w-0 space-y-4">
+      {/* Header band (user pick, 2026-10-06): the title and the school on top, the seven reports as tabs in two
+          labelled groups (clinic, City Health Office), the open tab white. One school at a time: the badge is a
+          fixed label for a person with one school, a dropdown for several, and "All schools" is offered only when
+          canSeeAllSchools. The band replaces the two category cards, the "Other reports" row and the page header. */}
+      <div className="min-w-0">
+        <div className="rounded-t-2xl bg-primary px-4 pt-4 text-white sm:px-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-white/75">Reporting</div>
+              <h1 className="text-[22px] font-extrabold leading-tight">Reports</h1>
+            </div>
+            <SchoolBadge
+              schools={schoolNames}
+              value={activeSchool}
+              allowAll={canSeeAllSchools}
+              onChange={chooseSchool}
+            />
           </div>
-        }
-      />
-      {downloadError && (
-        <div className="text-sm text-destructive bg-red-50 border border-red-200 rounded-lg px-4 py-2">{downloadError}</div>
-      )}
-
-      {/* Two-tier report navigation: a primary card per category (Internal
-          Reports, DOH Consolidated), then an ordered pill row of the
-          selected category's own reports underneath. Replaces the flat
-          7-tab strip, which no longer fit a 390px phone and read as
-          scattered rather than grouped. */}
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col sm:flex-row gap-3">
-          {reportCategories.map(cat => {
-            const isActiveCat = activeCategory.id === cat.id;
-            return (
-              <button
-                key={cat.id}
-                onClick={() => setActiveReportTab(cat.tabs.find(t => t.visible)?.id ?? cat.id)}
-                className={`w-full sm:w-72 flex items-center gap-3 px-5 py-4 rounded-2xl border text-left transition-colors ${
-                  isActiveCat
-                    ? 'bg-primary border-primary text-white shadow-[0_6px_16px_rgba(39,58,120,0.25)]'
-                    : 'bg-card border-border text-foreground hover:bg-gray-50'
-                }`}
-              >
-                <span className={`w-9 h-9 rounded-[10px] flex items-center justify-center flex-shrink-0 ${isActiveCat ? 'bg-white/15' : 'bg-primary-surface'}`}>
-                  <FileSpreadsheet className={`w-4 h-4 ${isActiveCat ? 'text-white' : 'text-primary'}`} />
-                </span>
-                <span>
-                  <span className="block text-sm font-bold">{cat.label}</span>
-                  <span className={`block text-xs mt-0.5 ${isActiveCat ? 'text-white/65' : 'text-muted-foreground'}`}>{cat.subtitle}</span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground mb-2 pl-0.5">Other reports</p>
-          <div className="flex items-center gap-2 flex-wrap">
-            {activeCategory.tabs.filter(t => t.visible).map(tab => (
-              <button key={tab.id} onClick={() => setActiveReportTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-colors whitespace-nowrap border ${
-                  activeReportTab === tab.id
-                    ? 'bg-card text-primary border-primary/30 shadow-sm'
-                    : 'bg-card text-muted-foreground border-border hover:text-foreground'
-                }`}>
-                <tab.icon className="w-3.5 h-3.5" /> {tab.label}
-              </button>
+          <div className="mt-3 flex items-end gap-4 overflow-x-auto no-scrollbar">
+            {([
+              { label: 'For the clinic', dot: '#FFFFFF', color: '#0F9D74', tabs: reportCategories[0].tabs },
+              { label: 'For the City Health Office', dot: '#93C5FD', color: '#3B6FE0', tabs: reportCategories[1].tabs },
+            ]).map((g) => (
+              <div key={g.label} className="grid flex-shrink-0 gap-1.5">
+                <div className="flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-[0.07em] text-white/85">
+                  <i className="inline-block h-[0.5625rem] w-[0.5625rem] rounded-full" style={{ background: g.dot }} />{g.label}
+                </div>
+                <div className="flex gap-[0.1875rem]" role="tablist" aria-label={g.label}>
+                  {g.tabs.filter((t) => t.visible).map((tab) => {
+                    const on = activeReportTab === tab.id;
+                    return (
+                      <button key={tab.id} type="button" role="tab" aria-selected={on} onClick={() => setActiveReportTab(tab.id)}
+                        style={on ? { boxShadow: `inset 0 4px 0 ${g.color}` } : { background: g.color }}
+                        className={`whitespace-nowrap rounded-t-[0.625rem] px-3 text-[13px] font-bold ${on ? 'bg-card pb-2.5 pt-3 text-foreground' : 'py-2.5 text-white hover:brightness-110'}`}>
+                        {tab.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             ))}
           </div>
         </div>
+        <div className="doh-report-controls flex flex-wrap items-center gap-2 rounded-b-2xl border border-t-0 border-border bg-card p-3">
+          <select value={reportMonth} onChange={e => setReportMonth(Number(e.target.value))} aria-label="Month"
+            className="text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring">
+            {MONTHS.map((m,i) => <option key={m} value={i+1}>{m}</option>)}
+          </select>
+          <select value={reportYear} onChange={e => setReportYear(Number(e.target.value))} aria-label="Year"
+            className="text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring">
+            {[2023,2024,2025,2026].map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <span className="flex-1" />
+          <button onClick={() => window.print()}
+            className="flex items-center gap-2 px-4 py-2 bg-card border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium whitespace-nowrap">
+            <Printer className="w-4 h-4" /> Print
+          </button>
+          {activeReportTab === 'doh' && (
+            <button onClick={handleDownloadPdf} disabled={building}
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-60 text-sm font-medium whitespace-nowrap">
+              <Download className="w-4 h-4" /> {building && preview.kind === 'pdf' ? 'Generating…' : 'Download PDF'}
+            </button>
+          )}
+          {activeReportTab === 'doh' && (
+            <button onClick={handleDownloadExcel} disabled={building}
+              className="flex items-center gap-2 px-4 py-2 bg-green-700 text-white rounded-lg hover:bg-green-800 disabled:opacity-60 text-sm font-medium whitespace-nowrap">
+              <FileSpreadsheet className="w-4 h-4" /> {building && preview.kind === 'excel' ? 'Generating…' : 'Download Excel'}
+            </button>
+          )}
+        </div>
       </div>
+      {downloadError && (
+        <div className="text-sm text-destructive bg-red-50 border border-red-200 rounded-lg px-4 py-2">{downloadError}</div>
+      )}
 
       {/* ── DOH CONSOLIDATED ── */}
       {activeReportTab === 'doh' && (
         <div className="space-y-3">
           {/* School filter — thin bar, doesn't scroll */}
           <div className="doh-report-controls flex flex-wrap items-center gap-x-3 gap-y-2">
-            <label className="text-sm text-muted-foreground whitespace-nowrap" htmlFor="doh-school">School:</label>
-            <select id="doh-school" aria-label="School" value={reportSchool ?? ''} onChange={e => setReportSchool(e.target.value || null)}
-              className="text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring">
-              {!isPinnedToOneSchool && <option value="">All Schools</option>}
-              {schoolNames.map(s => <option key={s} value={s}>{getSchoolShortName(s)}</option>)}
-            </select>
-
             {/* School year, not calendar month: the DOH figures below are
                 per-IPTR, and an IPTR belongs to a school year. */}
             <label className="text-sm text-muted-foreground whitespace-nowrap" htmlFor="doh-school-year">School year:</label>
@@ -950,11 +994,6 @@ export const Reports = () => {
                     </button>
                   ))}
                 </div>
-                <select value={intSchoolFilter} onChange={e => setIntSchoolFilter(e.target.value)}
-                  className="text-sm border border-border rounded-lg px-3 py-1.5 bg-card focus:outline-none focus:ring-2 focus:ring-ring">
-                  {!isPinnedToOneSchool && <option value="all">All Schools</option>}
-                  {schoolNames.map(s => <option key={s} value={s}>{getSchoolShortName(s)}</option>)}
-                </select>
                 <select value={intAgeFilter} onChange={e => { setIntAgeFilter(e.target.value); setIntGradeFilter('all'); }}
                   className="text-sm border border-border rounded-lg px-3 py-1.5 bg-card focus:outline-none focus:ring-2 focus:ring-ring">
                   <option value="all">All Ages</option>
