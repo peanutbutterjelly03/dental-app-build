@@ -4,12 +4,16 @@ import { useCallback, useEffect, useState, type RefObject } from 'react';
 // buttons that move about a screen of columns past a frozen first column. The scroll bars themselves are hidden
 // by the caller (`no-scrollbar`), so the buttons also tell the reader whether there is more to the left / right.
 export function useGridScroll(ref: RefObject<HTMLElement | null>, pinnedSelector: string, deps: unknown[] = []) {
-  const [edge, setEdge] = useState({ left: false, right: true });
+  const [edge, setEdge] = useState({ left: false, right: true, pinned: 0 });
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const update = () => setEdge({ left: el.scrollLeft > 2, right: el.scrollLeft < el.scrollWidth - el.clientWidth - 2 });
+    const update = () => setEdge({
+      left: el.scrollLeft > 2,
+      right: el.scrollLeft < el.scrollWidth - el.clientWidth - 2,
+      pinned: (el.querySelector(pinnedSelector) as HTMLElement | null)?.offsetWidth ?? 0,
+    });
     update();
     el.addEventListener('scroll', update, { passive: true });
     window.addEventListener('resize', update);

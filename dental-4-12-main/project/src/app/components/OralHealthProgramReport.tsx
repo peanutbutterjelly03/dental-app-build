@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState, useRef, Fragment } from 'react';
 import { TOPBAR_H } from '../utils/layout';
+import { useGridScroll } from '../hooks/useGridScroll';
+import { GridEdgeButtons } from './GridEdgeButtons';
 import { usePrintOrientation } from '../hooks/usePrintOrientation';
 import { useDohReportData } from '../hooks/useDohReportData';
 import { SkeletonTable } from './Skeleton';
@@ -339,6 +341,8 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
   const { preview, building, previewPdf, previewExcel, closePreview, confirmDownload } = usePreviewModal();
   // Wraps only the table, so the PDF carries the form and not the toolbar.
   const printableRef = useRef<HTMLDivElement>(null);
+  // Step buttons, hidden scroll bars and grab-and-drag, as on the OCR grid (user, 2026-10-06).
+  const { edge, step } = useGridScroll(printableRef, 'thead th', [loading]);
   // Heights of the first two header rows, so rows 2 and 3 pin directly under the one above while the body
   // scrolls (user, 2026-10-06). Measured, since the rows' heights depend on wrapping.
   const row1Ref = useRef<HTMLTableRowElement>(null);
@@ -664,9 +668,10 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
       {/* The box fills the screen below the top strip and touches its bottom edge (negative bottom margin
           cancels the page padding), so the header rows and the two label columns stay frozen and only the
           cells scroll. The PDF capture lifts the height limit. */}
+      <div className="relative -mb-4 md:-mb-8">
       <div
         ref={printableRef}
-        className="form-print bg-card rounded-xl border border-black overflow-auto -mb-4 md:-mb-8 print:max-h-none"
+        className="form-print no-scrollbar cursor-grab bg-card rounded-t-xl border border-black overflow-auto print:max-h-none"
         style={{ maxHeight: `max(320px, calc(100vh - ${TOPBAR_H + 18}px))`, ['--ohp-r2' as string]: `${rowH.r1}px`, ['--ohp-r3' as string]: `${rowH.r1 + rowH.r2}px` }}
       >
         <table className="border-separate border-spacing-0 w-full">
@@ -722,6 +727,8 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
             {OTHER_ROWS.map(renderRow)}
           </tbody>
         </table>
+      </div>
+      <GridEdgeButtons edge={edge} onStep={step} />
       </div>
       <PreviewModal
         open={preview.open}
