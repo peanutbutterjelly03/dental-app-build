@@ -10,8 +10,7 @@ import { BLOCKED_TITLE } from '../utils/dohFormStyle';
 // Colour coding copied cell for cell from the filed Excel form (user, 2026-10-06): orange section bands,
 // solid BLACK blocked cells, light-blue total columns, yellow grand total, pink sub-row captions.
 const PR_ORANGE = '!bg-[#FFC000] text-black';
-// Blocked cells keep their place but are no longer filled black (user, 2026-10-06).
-const PR_BLOCKED = 'bg-white';
+const PR_BLOCKED = 'bg-black';
 const PR_TOTAL = 'bg-[#DDEBF7] font-bold';
 const PR_GRAND = 'bg-[#FFFF00] font-bold';
 const PR_SUBROW = '!bg-[#EAD1DC]';
@@ -405,9 +404,9 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
 
   if (loading) return <SkeletonTable rows={10} />;
 
-  const th = 'px-2 py-2 text-[11px] font-semibold text-foreground border border-t-0 border-l-0 border-border whitespace-nowrap';
-  const td = 'px-2 py-1.5 text-xs text-foreground border border-t-0 border-l-0 border-border text-center tabular-nums';
-  const labelTd = 'bg-white pl-7 pr-2 py-1.5 text-xs text-foreground border border-t-0 border-l-0 border-border whitespace-normal text-left';
+  const th = 'px-2 py-2 text-[11px] font-semibold text-foreground border border-t-0 border-l-0 border-black whitespace-nowrap';
+  const td = 'px-2 py-1.5 text-xs text-foreground border border-t-0 border-l-0 border-black text-center tabular-nums';
+  const labelTd = 'bg-white pl-7 pr-2 py-1.5 text-xs text-foreground border border-t-0 border-l-0 border-black whitespace-normal text-left';
 
   const section = (title: string) => (
     // Orange band across the full width, as printed. Painted on the TD as well as the TR: html2canvas (the PDF
@@ -419,8 +418,10 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
       <td className={`${td} ${PR_ORANGE}`} colSpan={visibleCols.length * 2 + 1} />
     </tr>
   );
-  /** The black rule between sections was removed (user, 2026-10-06); the orange section bars separate them. */
-  const spacer = (_key: string): React.ReactNode => null;
+  /** The solid black rule the filed form runs between its sections. */
+  const spacer = (key: string) => (
+    <tr key={key}><td className={`${PR_BLOCKED} p-0 h-4`} colSpan={visibleCols.length * 2 + 3} /></tr>
+  );
   /** A blocked cell: the whole row, or the form's blocked leading columns. */
   const isBlocked = (r: Row, c: Col) => !!r.blocked || (r.blockedThrough !== undefined && COLUMNS.indexOf(c) <= r.blockedThrough);
   /** Zero shows EMPTY, a count shows as a number, and "—" is still "no source" (user, 2026-10-06). */
@@ -670,7 +671,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
       <div className="relative -mb-4 md:-mb-8">
       <div
         ref={printableRef}
-        className="form-print no-scrollbar cursor-grab bg-card rounded-t-xl border border-border overflow-auto print:max-h-none [&_tbody>tr:last-child>td]:border-b-0"
+        className="form-print no-scrollbar cursor-grab bg-card rounded-t-xl border border-black overflow-auto print:max-h-none [&_tbody>tr:last-child>td]:border-b-0"
         style={{ maxHeight: `max(320px, calc(100vh - ${TOPBAR_H + 18}px))`, ['--ohp-r2' as string]: `${rowH.r1}px`, ['--ohp-r3' as string]: `${rowH.r1 + rowH.r2}px` }}
       >
         <table className="border-separate border-spacing-0 w-full">
@@ -684,9 +685,9 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
                 rendered — see the note above about the adult / senior citizen /
                 pregnant-women sections. */}
             <tr ref={row1Ref} className="[&>th]:sticky [&>th]:top-0 [&>th]:z-20">
-              <th className={`${th} text-left align-bottom !left-0 !z-30 bg-gray-50`} rowSpan={3} colSpan={2}>INDICATORS</th>
+              <th className={`${th} text-left align-bottom !left-0 !z-30 !bg-[#FFC000] text-black`} rowSpan={3} colSpan={2}>INDICATORS</th>
               {visibleGroups.map((g, i) => (
-                <th key={`${g.label}-${i}`} className={`${th} bg-gray-100`} colSpan={g.span * SEXES.length}>
+                <th key={`${g.label}-${i}`} className={`${th} ${PR_ORANGE}`} colSpan={g.span * SEXES.length}>
                   {g.label}
                 </th>
               ))}
