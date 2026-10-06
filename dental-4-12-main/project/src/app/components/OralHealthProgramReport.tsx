@@ -406,7 +406,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
 
   const th = 'px-2 py-2 text-[11px] font-semibold text-foreground border border-t-0 border-l-0 border-black whitespace-nowrap';
   const td = 'px-2 py-1.5 text-xs text-foreground border border-t-0 border-l-0 border-black text-center tabular-nums';
-  const labelTd = 'bg-[#FFF2CC] pl-7 pr-2 py-1.5 text-xs text-foreground border border-t-0 border-l-0 border-black whitespace-nowrap text-left';
+  const labelTd = 'bg-[#FFF2CC] pl-7 pr-2 py-1.5 text-xs text-foreground border border-t-0 border-l-0 border-black whitespace-normal text-left';
 
   const section = (title: string) => (
     // Orange band across the full width, as printed. Painted on the TD as well as the TR: html2canvas (the PDF
@@ -466,7 +466,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
               {i === 0 && (
                 <td className={`${labelTd} align-middle !whitespace-normal sticky left-0 z-10`} rowSpan={r.subRows!.length}>{r.label}</td>
               )}
-              <td className={`${labelTd} ${PR_SUBROW} text-[11px] sticky left-[21rem] z-10`}>{sub.label}</td>
+              <td className={`${labelTd} ${PR_SUBROW} text-[11px] sticky left-[26rem] z-10`}>{sub.label}</td>
               {valueCells(sub)}
             </tr>
           ))}
@@ -675,7 +675,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
         style={{ maxHeight: `max(320px, calc(100vh - ${TOPBAR_H + 18}px))`, ['--ohp-r2' as string]: `${rowH.r1}px`, ['--ohp-r3' as string]: `${rowH.r1 + rowH.r2}px` }}
       >
         <table className="border-separate border-spacing-0 w-full">
-          <colgroup><col style={{ width: '21rem', minWidth: '21rem' }} /><col style={{ width: '8rem', minWidth: '8rem' }} /></colgroup>
+          <colgroup><col style={{ width: '26rem', minWidth: '26rem', maxWidth: '26rem' }} /><col style={{ width: '9rem', minWidth: '9rem', maxWidth: '9rem' }} /></colgroup>
           <thead className="bg-gray-50">
             {/* Three header levels, matching the paper form: population group
                 → age column → M/F. This file previously had only the lower two,
