@@ -1,4 +1,5 @@
-import { useMemo, useState, useRef, Fragment } from 'react';
+import { useEffect, useMemo, useState, useRef, Fragment } from 'react';
+import { TOPBAR_H } from '../utils/layout';
 import { usePrintOrientation } from '../hooks/usePrintOrientation';
 import { useDohReportData } from '../hooks/useDohReportData';
 import { SkeletonTable } from './Skeleton';
@@ -6,11 +7,11 @@ import { BLOCKED_TITLE } from '../utils/dohFormStyle';
 
 // Colour coding copied cell for cell from the filed Excel form (user, 2026-10-06): orange section bands,
 // solid BLACK blocked cells, light-blue total columns, yellow grand total, pink sub-row captions.
-const PR_ORANGE = 'bg-[#FFC000] text-black';
+const PR_ORANGE = '!bg-[#FFC000] text-black';
 const PR_BLOCKED = 'bg-black';
 const PR_TOTAL = 'bg-[#DDEBF7] font-bold';
 const PR_GRAND = 'bg-[#FFFF00] font-bold';
-const PR_SUBROW = 'bg-[#EAD1DC]';
+const PR_SUBROW = '!bg-[#EAD1DC]';
 import { buildDohReportPdf } from '../utils/exportPdf';
 import { buildXlsx } from '../utils/exportXlsx';
 import { usePreviewModal } from '../hooks/usePreviewModal';
@@ -338,6 +339,23 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
   const { preview, building, previewPdf, previewExcel, closePreview, confirmDownload } = usePreviewModal();
   // Wraps only the table, so the PDF carries the form and not the toolbar.
   const printableRef = useRef<HTMLDivElement>(null);
+  // Heights of the first two header rows, so rows 2 and 3 pin directly under the one above while the body
+  // scrolls (user, 2026-10-06). Measured, since the rows' heights depend on wrapping.
+  const row1Ref = useRef<HTMLTableRowElement>(null);
+  const row2Ref = useRef<HTMLTableRowElement>(null);
+  const [rowH, setRowH] = useState({ r1: 36, r2: 36 });
+  useEffect(() => {
+    const r1 = row1Ref.current;
+    const r2 = row2Ref.current;
+    if (!r1 || !r2) return;
+    const measure = () => setRowH({ r1: r1.offsetHeight, r2: r2.offsetHeight });
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(r1);
+    ro.observe(r2);
+    return () => ro.disconnect();
+  });
 
   const persist = (key: string, next: Set<string>) => {
     try { window.localStorage.setItem(key, JSON.stringify([...next])); } catch { /* private mode */ }
@@ -384,13 +402,13 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
 
   const th = 'px-2 py-2 text-[11px] font-semibold text-foreground border border-t-0 border-l-0 border-black whitespace-nowrap';
   const td = 'px-2 py-1.5 text-xs text-foreground border border-t-0 border-l-0 border-black text-center tabular-nums';
-  const labelTd = 'px-2 py-1.5 text-xs text-foreground border border-t-0 border-l-0 border-black whitespace-nowrap text-left';
+  const labelTd = 'bg-white px-2 py-1.5 text-xs text-foreground border border-t-0 border-l-0 border-black whitespace-nowrap text-left';
 
   const section = (title: string) => (
     // Orange band across the full width, as printed. Painted on the TD as well as the TR: html2canvas (the PDF
     // path) resolves cell backgrounds reliably and row backgrounds not always.
     <tr className={PR_ORANGE}>
-      <td className={`${labelTd} font-bold ${PR_ORANGE}`} colSpan={visibleCols.length * 2 + 3}>{title}</td>
+      <td className={`${labelTd} font-bold ${PR_ORANGE}`} colSpan={visibleCols.length * 2 + 3}><div className="sticky left-0 w-max">{title}</div></td>
     </tr>
   );
   /** The solid black rule the filed form runs between its sections. */
@@ -439,9 +457,9 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
           {r.subRows.map((sub, i) => (
             <tr key={sub.key} className="hover:bg-gray-50">
               {i === 0 && (
-                <td className={`${labelTd} align-middle`} rowSpan={r.subRows!.length}>{r.label}</td>
+                <td className={`${labelTd} align-middle !whitespace-normal sticky left-0 z-10`} rowSpan={r.subRows!.length}>{r.label}</td>
               )}
-              <td className={`${labelTd} ${PR_SUBROW} text-[11px]`}>{sub.label}</td>
+              <td className={`${labelTd} ${PR_SUBROW} text-[11px] sticky left-[21rem] z-10`}>{sub.label}</td>
               {valueCells(sub)}
             </tr>
           ))}
@@ -452,7 +470,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
     // A plain indicator spans both label columns, as the form does.
     return (
       <tr key={r.key} className="hover:bg-gray-50">
-        <td className={`${labelTd} ${r.indent ? 'pl-6' : ''}`} colSpan={2}>{r.label}</td>
+        <td className={`${labelTd} sticky left-0 z-10 ${r.indent ? 'pl-6' : ''}`} colSpan={2}>{r.label}</td>
         {valueCells(r)}
       </tr>
     );
@@ -520,7 +538,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-8">
       <div className="bg-card rounded-xl border border-border p-4">
         <h2 className="text-sm font-bold text-foreground">Oral Health Program Reporting Form</h2>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -640,8 +658,16 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
         </div>
       )}
 
-      <div ref={printableRef} className="form-print bg-card rounded-xl border border-black overflow-x-auto">
+      {/* The box fills the screen below the top strip and touches its bottom edge (negative bottom margin
+          cancels the page padding), so the header rows and the two label columns stay frozen and only the
+          cells scroll. The PDF capture lifts the height limit. */}
+      <div
+        ref={printableRef}
+        className="form-print bg-card rounded-xl border border-black overflow-auto -mb-4 md:-mb-8 print:max-h-none"
+        style={{ maxHeight: `max(320px, calc(100vh - ${TOPBAR_H + 18}px))`, ['--ohp-r2' as string]: `${rowH.r1}px`, ['--ohp-r3' as string]: `${rowH.r1 + rowH.r2}px` }}
+      >
         <table className="border-separate border-spacing-0 w-full">
+          <colgroup><col style={{ width: '21rem', minWidth: '21rem' }} /><col style={{ width: '8rem', minWidth: '8rem' }} /></colgroup>
           <thead className="bg-gray-50">
             {/* Three header levels, matching the paper form: population group
                 → age column → M/F. This file previously had only the lower two,
@@ -650,18 +676,18 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
                 where they are. Only the groups Floral can actually populate are
                 rendered — see the note above about the adult / senior citizen /
                 pregnant-women sections. */}
-            <tr>
-              <th className={`${th} text-left align-bottom`} rowSpan={3} colSpan={2}>INDICATORS</th>
+            <tr ref={row1Ref} className="[&>th]:sticky [&>th]:top-0 [&>th]:z-20">
+              <th className={`${th} text-left align-bottom !left-0 !z-30 bg-gray-50`} rowSpan={3} colSpan={2}>INDICATORS</th>
               {visibleGroups.map((g, i) => (
                 <th key={`${g.label}-${i}`} className={`${th} ${PR_ORANGE}`} colSpan={g.span * SEXES.length}>
                   {g.label}
                 </th>
               ))}
-              <th className={`${th} align-bottom`} rowSpan={3}>Grand<br />Total</th>
+              <th className={`${th} align-bottom bg-gray-50`} rowSpan={3}>Grand<br />Total</th>
             </tr>
-            <tr>
+            <tr ref={row2Ref} className="[&>th]:sticky [&>th]:top-[var(--ohp-r2)] [&>th]:z-20">
               {visibleCols.map((c, i) => (
-                <th key={`${c.label}-${i}`} className={th} colSpan={2}>
+                <th key={`${c.label}-${i}`} className={`${th} bg-white`} colSpan={2}>
                   {/* Dotted underline marks a caption read off the low-res scan
                       that still needs checking against the paper form. */}
                   <span className={c.unverified ? 'border-b border-dotted border-amber-500' : ''}
@@ -671,9 +697,9 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
                 </th>
               ))}
             </tr>
-            <tr>
+            <tr className="[&>th]:sticky [&>th]:top-[var(--ohp-r3)] [&>th]:z-20">
               {visibleCols.map((c, i) => SEXES.map((s) => (
-                <th key={`${c.label}-${i}-${s}`} className={`${th} w-10`}>{s}</th>
+                <th key={`${c.label}-${i}-${s}`} className={`${th} w-10 bg-white`}>{s}</th>
               )))}
             </tr>
           </thead>
