@@ -1,3 +1,5 @@
+/** Fired whenever either queue changes; offline/offlineCache.ts pre-reads new students. */
+export const QUEUE_CHANGED_EVENT = 'floral-queue-changed';
 const QUEUED_STUDENT_IDS_KEY = 'queued-student-ids';
 
 // Real students have 24-hex Mongo ids; anything shorter is the removed demo
@@ -21,6 +23,7 @@ export const getQueuedStudentIds = (): string[] => {
 export const setQueuedStudentIds = (ids: string[]) => {
   if (typeof window === 'undefined') return;
   window.localStorage.setItem(QUEUED_STUDENT_IDS_KEY, JSON.stringify(normalizeIds(ids)));
+  window.dispatchEvent(new Event(QUEUE_CHANGED_EVENT));
 };
 
 export const addQueuedStudentId = (id: string) => {

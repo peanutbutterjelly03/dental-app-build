@@ -1,26 +1,18 @@
 // Warming and clearing what this device holds for offline use.
 //
-// Two layers (see readCache.ts and records.ts). EVERY student's chart data is
-// downloaded in the background by bulkSync.ts, so any chart opens offline even if
-// nobody opened it here. This file also pre-reads the charts of the students in
-// the Charting and Treatment queues straight away (a handful, picked by staff), so
-// the day's children are ready within seconds while the full download is still
-// running.
-//
-// The cost of the full download is real: the server decrypts every student on the
-// way (see utils/apiCache.ts). bulkSync therefore runs only when the server says
-// something changed since the last complete run.
+// Offline data is the students staff queued in Dental Charts or Treatment, plus
+// any student already opened on this device (readCache.ts saves every read). A
+// student is pre-read the moment they are queued, and again on sign-in, so the
+// day's children are ready before the connection goes. Nobody else is downloaded.
 import { apiClient } from '../api/client';
 import { clearReadCache, clearOfflineRecords } from './db';
-import { startBulkSync, resetOfflineDataStatus } from './bulkSync';
-import { getQueuedStudentIds } from '../utils/queueStorage';
+import { getQueuedStudentIds, QUEUE_CHANGED_EVENT } from '../utils/queueStorage';
 import { getTreatmentQueueStudentIds } from '../utils/treatmentQueueStorage';
 
 // Cache Storage copies left by earlier service workers (they cached API reads).
 const LEGACY_CACHES = ['api-cache', 'stats-cache'];
 const WARM_STAMP_KEY = 'floral_offline_warm_at';
 const WARM_EVERY_MS = 10 * 60 * 1000;
-const MAX_STUDENTS = 25;
 
 /** Goes through apiClient.get on purpose: that is what saves the response. */
 async function readJson(path: string): Promise<unknown> {
@@ -52,29 +44,42 @@ async function warmStudentChart(studentId: string): Promise<void> {
   if (chartIds.length) await readJson(`/tooth-records?chart_id=${chartIds.join(',')}`);
 }
 
-/** Best-effort, never throws, never blocks. Skips when offline, and when it ran
- *  within the last few minutes (every page load would otherwise repeat it). */
+const queuedIds = () => [...new Set([...getQueuedStudentIds(), ...getTreatmentQueueStudentIds()])];
+const warmedThisSession = new Set<string>();
+
+/** Pre-reads every queued student not yet read this session, one at a time
+ *  (background work must not compete with what the person is doing). */
+async function warmQueuedStudents(): Promise<void> {
+  for (const id of queuedIds()) {
+    if (!navigator.onLine) return;
+    if (warmedThisSession.has(id)) continue;
+    warmedThisSession.add(id);
+    await warmStudentChart(id).catch(() => warmedThisSession.delete(id));
+  }
+}
+
+/** Best-effort, never throws, never blocks. Skips when offline, and the school
+ *  lists when it ran within the last few minutes. */
 export async function warmOfflineCache(): Promise<void> {
   try {
     if (!navigator.onLine) return;
-    // EVERY student's chart, in the background (bulkSync.ts). It decides for itself
-    // whether anything has changed, so it is not held back by the throttle below.
-    void startBulkSync();
     const last = Number(localStorage.getItem(WARM_STAMP_KEY) ?? 0);
-    if (Date.now() - last < WARM_EVERY_MS) return;
-    localStorage.setItem(WARM_STAMP_KEY, String(Date.now()));
-
-    const ids = [...new Set([...getQueuedStudentIds(), ...getTreatmentQueueStudentIds()])].slice(0, MAX_STUDENTS);
-    await Promise.all([readJson('/schools'), readJson('/dentists')]);
-    // One student at a time: this is background work and must not compete with
-    // whatever the person is actually doing.
-    for (const id of ids) {
-      if (!navigator.onLine) return;
-      await warmStudentChart(id).catch(() => {});
+    if (Date.now() - last >= WARM_EVERY_MS) {
+      localStorage.setItem(WARM_STAMP_KEY, String(Date.now()));
+      await Promise.all([readJson('/schools'), readJson('/dentists')]);
+      warmedThisSession.clear(); // a fresh read picks up changes made elsewhere
     }
+    await warmQueuedStudents();
   } catch {
     // Warming is an optimisation. Failing to do it changes nothing.
   }
+}
+
+// A student added to either queue is read straight away. Only while signed in
+// (warming needs the session); signed-out reads would just fail quietly.
+if (typeof window !== 'undefined') {
+  window.addEventListener(QUEUE_CHANGED_EVENT, () => { void warmQueuedStudents().catch(() => {}); });
+  window.addEventListener('online', () => { void warmQueuedStudents().catch(() => {}); });
 }
 
 /** Sign-out on a shared clinic PC: the saved reads hold decrypted student
@@ -84,7 +89,7 @@ export async function clearOfflineReadCaches(): Promise<void> {
   try {
     await clearReadCache();
     await clearOfflineRecords();
-    resetOfflineDataStatus();
+    warmedThisSession.clear();
     localStorage.removeItem(WARM_STAMP_KEY);
   } catch {
     // Nothing was saved to clear.

@@ -11,7 +11,6 @@ import { createUser, resetPassword, sendResetLink, initiateTwofa, confirmTwofa, 
 import { createCrudRouter } from "./crudFactory.js";
 import authRoutes from "./authRoutes.js";
 import syncConflictRoutes from "./syncConflictRoutes.js";
-import offlineRoutes from "./offlineRoutes.js";
 import predictionRoutes from "./predictionRoutes.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { scopeFilter, userSchools } from "../utils/schoolScope.js";
@@ -92,7 +91,6 @@ router.post("/school-year/requests/:id/approve", requireAuth, requireRole(...ADM
 router.post("/school-year/requests/:id/decline", requireAuth, requireRole(...ADMIN_ONLY), asyncHandler(declineEarlyStart));
 router.use("/auth", authRoutes);
 router.use("/sync-conflicts", syncConflictRoutes);
-router.use("/offline", offlineRoutes);
 // Predictive analytics (Sprint 21e) — proxies to the Python ML service;
 // dentist + system_admin only, every assessment audit-logged.
 router.use("/predictions", predictionRoutes);

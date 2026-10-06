@@ -14,7 +14,6 @@ import { validateStudentValues } from '../../../shared/studentValidation';
 import { useDentalChartData } from '../hooks/useDentalChartData';
 import { apiClient, ApiError, isQueuedResponse, QUEUED_SAVE_MESSAGE } from '../api/client';
 import { subscribeSyncReport } from '../offline/syncReport';
-import { OfflineDataStatus } from './OfflineDataStatus';
 import { toLocalDateString, formatDate } from '../utils/localDate';
 import { ageOn, calculateAge } from '../utils/age';
 import { schoolYearLabel } from '../utils/schoolYear';
@@ -1653,9 +1652,6 @@ export const DentalChart = () => {
     return (
       <div className="bg-card rounded-xl border border-border p-12 text-center">
         <p className="text-destructive">{error ?? 'Student not found.'}</p>
-        {/* Offline and this student is not on the device: say how far the download
-            of everyone's chart has got, so it is clear whether to wait or retry. */}
-        {!navigator.onLine && <OfflineDataStatus />}
         <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1">
           <Link to="/patients" className="text-sm text-blue-600 hover:underline inline-block">← Back to Student Records</Link>
           <Link to="/dental-charts" className="text-sm text-blue-600 hover:underline inline-block">← Back to Dental Charts</Link>

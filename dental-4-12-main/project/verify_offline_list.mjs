@@ -14,8 +14,6 @@ import { chromium } from 'playwright';
 const row = (n, last, first) => ({ id: String(n).repeat(24).slice(0, 24), name: `${last}, ${first}`, lastName: last, firstName: first, middleName: '', birthdate: '2015-01-01', gender: 'Male', grade: 'Grade 3', section: 'A', school: 'Bagong Tanyag Integrated School', lastVisit: null, oralStatus: 'Not Yet Screened', riskLevel: null, recommendation: '', pipelineStatus: 'For Oral Exam', consentStatus: 'pending' });
 const school = { _id: 'a'.repeat(24), school_name: 'Bagong Tanyag Integrated School', isArchived: false };
 const user = { _id: 'b'.repeat(24), school_ids: [], role: 'dentist', full_name: 'Dr Test', email: 'd@floral.com', is_enrolled: true, last_login: null, isArchived: false };
-let bundleHits = 0;
-let bundleMode = 'missing'; // 'missing': the server has no offline download yet (404); 'ok': it answers
 const api = http.createServer((req, res) => {
   const p = req.url.split('?')[0];
   const send = (c, o) => { res.writeHead(c, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(o)); };
@@ -24,13 +22,6 @@ const api = http.createServer((req, res) => {
   if (p === '/api/stats/student-rows') return send(200, [row(1, 'Cruz', 'Juan'), row(2, 'Reyes', 'Maria'), row(3, 'Santos', 'Pedro')]);
   if (p === '/api/stats/rpc-rows') return send(200, { rows: [], total: 0, limit: 1000, offset: 0 });
   if (p === '/api/config') return send(200, {});
-  if (p === '/api/offline/version') return send(200, { at: '2026-10-03T00:00:00.000Z' });
-  if (p === '/api/offline/bundle') {
-    bundleHits++;
-    if (bundleMode === 'missing') return send(404, { error: 'Not found' });
-    const empty = Object.fromEntries(['student-iptrs', 'medical-histories', 'dietary-social-habits', 'oral-health-conditions', 'dental-charts', 'tooth-records', 'preventive-care-records', 'treatments', 'referrals'].map((k) => [k, []]));
-    return send(200, { students: [{ _id: '1'.repeat(24), school_id: 'a'.repeat(24), last_name: 'Cruz', first_name: 'Juan' }], ...empty, next: null, total: 1 });
-  }
   send(200, p.startsWith('/api/stats/') ? {} : []);
 });
 await new Promise((r) => api.listen(4000, r));
@@ -87,32 +78,6 @@ async function run(mode) {
       await page.waitForTimeout(1500);
       const chartText = await page.evaluate(() => document.body.innerText);
       check(`[${mode}] a student added offline opens in the Dental Chart`, chartText.includes('Offlina'), chartText.slice(0, 200).replace(/\n/g, ' | '));
-
-      // A failed download says why, and a chart that is not on the device explains itself.
-      await goto('/patients');
-      const paused = await page.evaluate(() => document.body.innerText);
-      check(`[${mode}] a download the server cannot serve says WHY, not just "paused"`, /Offline data paused/.test(paused) && /does not have the offline download yet/.test(paused), paused.slice(0, 400).replace(/\n/g, ' | '));
-      await goto(`/dental-chart/${'9'.repeat(24)}`);
-      const missing = await page.evaluate(() => document.body.innerText);
-      check(`[${mode}] a chart that was never downloaded explains itself and offers both ways back`, /not been downloaded/.test(missing) && /Back to Student Records/.test(missing) && /Back to Dental Charts/.test(missing) && /Offline data paused/.test(missing), missing.slice(0, 400).replace(/\n/g, ' | '));
-      // The connection returns: the download retries BY ITSELF (still failing: the server has no download yet).
-      const hitsBefore = bundleHits;
-      await ctx.setOffline(false);
-      await page.waitForTimeout(2500);
-      check(`[${mode}] when the connection returns, the download retries by itself`, bundleHits > hitsBefore, `${hitsBefore} -> ${bundleHits}`);
-      await goto('/patients');
-      // The offline-created student synced on reconnect, so the back-online summary is open: dismiss it.
-      if (await page.getByRole('button', { name: 'Close' }).count()) await page.getByRole('button', { name: 'Close' }).first().click();
-      // "Try again" while the server still cannot serve it: stays honest, no crash.
-      await page.getByRole('button', { name: 'Try again' }).click();
-      await page.waitForTimeout(1500);
-      check(`[${mode}] "Try again" against a server that still cannot serve it keeps saying why`, /does not have the offline download yet/.test(await page.evaluate(() => document.body.innerText)));
-      // The server is updated: "Try again" now completes the download.
-      bundleMode = 'ok';
-      await page.getByRole('button', { name: 'Try again' }).click();
-      await page.waitForTimeout(2500);
-      const recovered = await page.evaluate(() => document.body.innerText);
-      check(`[${mode}] "Try again" completes the download once the server can serve it`, /Offline data ready: 1 students/.test(recovered), recovered.slice(0, 400).replace(/\n/g, ' | '));
     }
   } finally {
     await ctx.close();

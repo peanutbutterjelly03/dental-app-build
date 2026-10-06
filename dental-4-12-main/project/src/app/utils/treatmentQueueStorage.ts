@@ -17,6 +17,8 @@
 // left is "Clear queue" (setTreatmentQueueStudentIds([])), for a student
 // queued in error.
 
+import { QUEUE_CHANGED_EVENT } from './queueStorage';
+
 const TREATMENT_QUEUE_STUDENT_IDS_KEY = 'treatment-queue-student-ids';
 
 // Real students have 24-hex Mongo ids; anything shorter is stale/demo data.
@@ -39,6 +41,7 @@ export const getTreatmentQueueStudentIds = (): string[] => {
 export const setTreatmentQueueStudentIds = (ids: string[]) => {
   if (typeof window === 'undefined') return;
   window.localStorage.setItem(TREATMENT_QUEUE_STUDENT_IDS_KEY, JSON.stringify(normalizeIds(ids)));
+  window.dispatchEvent(new Event(QUEUE_CHANGED_EVENT));
 };
 
 export const addTreatmentQueueStudentId = (id: string) => {
