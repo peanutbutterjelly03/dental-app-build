@@ -984,7 +984,7 @@ export const Reports = () => {
                 </tbody>
               </table>
             </div>
-            <GridEdgeButtons edge={dohEdge} onStep={stepDoh} />
+            <GridEdgeButtons edge={dohEdge} onStep={stepDoh} leftInFirstColumn />
           </div>
         </div>
       )}

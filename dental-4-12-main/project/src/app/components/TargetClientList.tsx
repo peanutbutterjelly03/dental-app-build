@@ -915,7 +915,7 @@ export const TargetClientList = () => {
           </tbody>
         </table>
       </div>
-      <GridEdgeButtons edge={edge} onStep={step} />
+      <GridEdgeButtons edge={edge} onStep={step} leftInFirstColumn />
     </div>
   );
 
