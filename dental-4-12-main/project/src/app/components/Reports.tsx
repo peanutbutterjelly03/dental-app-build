@@ -815,7 +815,7 @@ export const Reports = () => {
                 <thead>
                   <tr>
                     <th colSpan={1 + cols.length*2 + sumCols.length*2 + 2}
-                      className="text-center py-2 px-3 bg-gray-50 border-b border-border text-[11px] font-bold text-foreground uppercase tracking-wide">
+                      className="text-center py-2 px-3 bg-[#E3ECFB] border-b border-border text-[11px] font-bold text-[#273A78] uppercase tracking-wide">
                       DENTAL SECTION — CONSOLIDATED ORAL HEALTH STATUS AND SERVICE REPORT
                     </th>
                   </tr>
