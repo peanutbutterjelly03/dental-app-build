@@ -380,6 +380,27 @@ export const Reports = () => {
   const dohRow1Ref = useRef<HTMLTableRowElement>(null);
   const dohRow2Ref = useRef<HTMLTableRowElement>(null);
   const [dohRowH, setDohRowH] = useState({ r1: 24, r2: 24 });
+  // Left / right step buttons for the wide DOH table (the OCR grid's pattern, user 2026-10-06): the scroll bars
+  // are hidden, each press moves about a screen of columns, and a button dims at its end.
+  const [dohEdge, setDohEdge] = useState({ left: false, right: true });
+  useEffect(() => {
+    const el = dohReportRef.current;
+    if (!el) return;
+    const update = () => setDohEdge({ left: el.scrollLeft > 2, right: el.scrollLeft < el.scrollWidth - el.clientWidth - 2 });
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null;
+    ro?.observe(el);
+    if (el.firstElementChild) ro?.observe(el.firstElementChild);
+    return () => { el.removeEventListener('scroll', update); window.removeEventListener('resize', update); ro?.disconnect(); };
+  }, [activeReportTab]);
+  const stepDoh = (dir: 1 | -1) => {
+    const el = dohReportRef.current;
+    if (!el) return;
+    const pinned = (el.querySelector('[data-doh="indicator"]') as HTMLElement | null)?.offsetWidth ?? 0;
+    el.scrollBy({ left: dir * Math.max(200, el.clientWidth - pinned - 48), behavior: 'smooth' });
+  };
   useEffect(() => {
     const r1 = dohRow1Ref.current;
     const r2 = dohRow2Ref.current;
@@ -812,11 +833,11 @@ export const Reports = () => {
           )}
 
           {/* Table */}
-          <div id="doh-report-printable" className="form-print bg-card rounded-xl border border-border overflow-hidden -mb-4 md:-mb-8">
+          <div id="doh-report-printable" className="form-print relative bg-card rounded-xl border border-border overflow-hidden -mb-4 md:-mb-8">
             {/* ref goes on the scrollable inner div, not the overflow-hidden outer
                 one — html2canvas clips to the ref'd element's own rendered box,
                 so ref'ing the outer div only captured the already-clipped width. */}
-            <div ref={dohReportRef} className="overflow-auto [container-type:inline-size] max-h-[max(320px,calc(100vh_-_94px))] print:max-h-none">
+            <div ref={dohReportRef} className="no-scrollbar overflow-auto [container-type:inline-size] max-h-[max(320px,calc(100vh_-_94px))] print:max-h-none">
               {/* INSIDE the ref'd element deliberately. html2canvas captures
                   `dohReportRef.current` itself, so a banner placed as a sibling
                   above it would show on screen and be missing from the PDF —
@@ -980,6 +1001,11 @@ export const Reports = () => {
                 </tbody>
               </table>
             </div>
+            {/* Outside the captured scroller, so they never reach the PDF; hidden on paper. */}
+            <button type="button" aria-label="Show previous columns" title="Show previous columns" disabled={!dohEdge.left} onClick={() => stepDoh(-1)}
+              className="print:hidden absolute left-px top-1/2 z-40 grid h-[2.875rem] w-5 -translate-y-1/2 place-items-center rounded-r-[0.5625rem] bg-primary text-base font-bold leading-none text-white opacity-90 shadow-md hover:opacity-100 disabled:cursor-default disabled:opacity-30">‹</button>
+            <button type="button" aria-label="Show next columns" title="Show next columns" disabled={!dohEdge.right} onClick={() => stepDoh(1)}
+              className="print:hidden absolute right-px top-1/2 z-40 grid h-[2.875rem] w-5 -translate-y-1/2 place-items-center rounded-l-[0.5625rem] bg-primary text-base font-bold leading-none text-white opacity-90 shadow-md hover:opacity-100 disabled:cursor-default disabled:opacity-30">›</button>
           </div>
         </div>
       )}
