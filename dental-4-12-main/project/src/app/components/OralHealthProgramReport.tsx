@@ -402,7 +402,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
 
   const th = 'px-2 py-2 text-[11px] font-semibold text-foreground border border-t-0 border-l-0 border-black whitespace-nowrap';
   const td = 'px-2 py-1.5 text-xs text-foreground border border-t-0 border-l-0 border-black text-center tabular-nums';
-  const labelTd = 'bg-white px-2 py-1.5 text-xs text-foreground border border-t-0 border-l-0 border-black whitespace-nowrap text-left';
+  const labelTd = 'bg-[#FFF2CC] px-2 py-1.5 text-xs text-foreground border border-t-0 border-l-0 border-black whitespace-nowrap text-left';
 
   const section = (title: string) => (
     // Orange band across the full width, as printed. Painted on the TD as well as the TR: html2canvas (the PDF
