@@ -19,7 +19,6 @@ import { Download, FileSpreadsheet } from 'lucide-react';
 
 /** What a no-source cell says in the exported workbook — the same mark the
  *  screen shows, so the file makes the identical claims as the report. */
-const NO_SOURCE_MARK = '—';
 
 // ─── Oral Health Program Reporting Form ──────────────────────────────────────
 // Transcribed from the manuscript's APPENDIX F (the user said E; E is the
@@ -383,9 +382,9 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
 
   if (loading) return <SkeletonTable rows={10} />;
 
-  const th = 'px-2 py-2 text-[11px] font-semibold text-foreground border border-border whitespace-nowrap';
-  const td = 'px-2 py-1.5 text-xs text-foreground border border-border text-center tabular-nums';
-  const labelTd = 'px-2 py-1.5 text-xs text-foreground border border-border whitespace-nowrap text-left';
+  const th = 'px-2 py-2 text-[11px] font-semibold text-foreground border border-black whitespace-nowrap';
+  const td = 'px-2 py-1.5 text-xs text-foreground border border-black text-center tabular-nums';
+  const labelTd = 'px-2 py-1.5 text-xs text-foreground border border-black whitespace-nowrap text-left';
 
   const section = (title: string) => (
     // Orange band across the full width, as printed. Painted on the TD as well as the TR: html2canvas (the PDF
@@ -401,7 +400,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
   /** A blocked cell: the whole row, or the form's blocked leading columns. */
   const isBlocked = (r: Row, c: Col) => !!r.blocked || (r.blockedThrough !== undefined && COLUMNS.indexOf(c) <= r.blockedThrough);
   /** Zero shows EMPTY, a count shows as a number, and "—" is still "no source" (user, 2026-10-06). */
-  const show = (v: number | null) => (v === null ? '—' : v === 0 ? '' : v);
+  const show = (v: number | null) => (v === null || v === 0 ? '' : v);
 
   /** The value cells for one line — every age/sex column plus the grand total.
    *  Shared by plain rows and sub-rows, which carry identical value grids. */
@@ -422,7 +421,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
         <td className={`${td} ${PR_BLOCKED}`} title={BLOCKED_TITLE} />
       ) : (
         <td className={`${td} ${PR_GRAND}`}>
-          {rowTotal(r.field) === null ? <span className="text-muted-foreground">—</span> : show(rowTotal(r.field))}
+          {show(rowTotal(r.field))}
         </td>
       )}
     </>
@@ -490,9 +489,9 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
               cells: visibleCols.flatMap((c) => SEXES.map((s) => {
                 if (isBlocked(row, c)) return '';
                 const v = cell(row.field, c, s);
-                return v === null ? NO_SOURCE_MARK : v === 0 ? '' : v;
+                return v === null || v === 0 ? '' : v;
               })),
-              total: row.blocked ? '' : (rowTotal(row.field) ?? NO_SOURCE_MARK) === 0 ? '' : (rowTotal(row.field) ?? NO_SOURCE_MARK),
+              total: row.blocked ? '' : (rowTotal(row.field) || ''),
             });
           };
           // A parent with sub-rows has no values of its own on the form, so it
@@ -568,13 +567,13 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
         <p className="text-xs text-muted-foreground mt-2">
           The paper form covers the whole city population; Floral holds school children only, so its
           <span className="font-medium text-foreground"> adult, senior citizen and pregnant-women </span>
-          columns stay empty here. Rows marked
-          <span className="font-semibold text-foreground"> — </span>
+          columns stay empty here. Rows that stay
+          <span className="font-semibold text-foreground"> blank </span>
           exist on the form but have no source in the system yet: per-visit services are not recorded, only visit dates.
         </p>
         <p className="text-xs text-muted-foreground mt-2">
           Every column and row of the paper form is shown, including those a school clinic can never fill —
-          a blank cell on this form is meaningful. Cells read <span className="font-semibold text-foreground">—</span>{' '}
+          a blank cell on this form is meaningful. Cells are left <span className="font-semibold text-foreground">blank</span>{' '}
           where the system has no source at that granularity: it records a birthdate, not an age in months,
           and records no pregnancy at all.
           {hiddenCount > 0 && (
