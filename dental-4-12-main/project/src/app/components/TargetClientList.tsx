@@ -835,7 +835,7 @@ export const TargetClientList = () => {
   const second = sOf('SECOND');
   const other = sOf('OTHER SERVICES');
   const rpcN = first.length + second.length;
-  const hCell = 'border border-[#A9BDE6] px-2 py-0.5 text-[11px] font-bold text-[#273A78] text-center leading-tight';
+  const hCell = 'border border-t-0 border-l-0 border-[#A9BDE6] px-2 py-0.5 text-[11px] font-bold text-[#273A78] text-center leading-tight';
   // Captions read LEFT-TO-RIGHT on screen (user, 2026-10-06); only the printed form rotates them.
   const hLeaf = `${hCell} align-middle whitespace-normal leading-tight`;
   // Lighter blue than the bands, and wide enough that a caption wraps to TWO lines at most
@@ -852,7 +852,7 @@ export const TargetClientList = () => {
   );
   const headRows = sLayout.hasRisk ? 4 : 3;
   const idWidth: Record<string, string> = { consult: 'min-w-28', philhealth: 'min-w-28', name: 'min-w-48', address: 'min-w-56', contact: 'min-w-28', dob: 'min-w-24' };
-  const sTd = `border border-[#CBD5E1] px-2 py-1.5 text-xs text-foreground whitespace-nowrap`;
+  const sTd = `border border-t-0 border-l-0 border-[#CBD5E1] px-2 py-1.5 text-xs text-foreground whitespace-nowrap`;
   const screenTable = (
     <div className="w-full min-w-0 max-w-full rounded-xl border border-[#A9BDE6] bg-card overflow-hidden">
       <div className="w-full overflow-auto" style={{ maxHeight: `max(320px, calc(100vh - ${paneOffset}px))` }}>
