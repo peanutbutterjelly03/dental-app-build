@@ -2268,7 +2268,7 @@ export const DentalChart = () => {
         )}
 
         {/* ── TAB 4: Dental Records (DMFT History) ── */}
-        {activeTab === 'records' && <DmftHistoryTab years={years} />}
+        {activeTab === 'records' && student && <DmftHistoryTab years={years} studentId={student._id} birthday={student.birthday} />}
 
         {/* ── TAB 5: Treatment History ── */}
         {activeTab === 'treatments' && (
