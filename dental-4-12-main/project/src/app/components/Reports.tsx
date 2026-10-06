@@ -1023,37 +1023,6 @@ export const Reports = () => {
                 <span className="text-xs text-muted-foreground ml-auto">{periodLabel}</span>
               </div>
 
-              {/* Summary cards */}
-              {(() => {
-                const totals = TREATMENT_ROWS.map(p => cnt(realTreatmentMatrix, p, intGenderFilter));
-                const grandTotal = totals.reduce((a,b) => a+b, 0);
-                const topIdx = totals.indexOf(Math.max(...totals));
-                // With no real per-procedure breakdown, every total is 0 --
-                // indexOf(max) would misleadingly point at PROCEDURES[0] as
-                // if it were genuinely "most common". Only claim a most-
-                // common procedure when there's real data behind it.
-                const mostCommon = grandTotal > 0 ? (labelForCode.get(TREATMENT_ROWS[topIdx]) ?? TREATMENT_ROWS[topIdx]) : 'N/A';
-                return (
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    {[
-                      { label:'Total Procedures', value: grandTotal, color:'text-blue-700 bg-blue-50 border-blue-200' },
-                      { label:'Most Common', value: mostCommon, color:'text-green-700 bg-green-50 border-green-200', small: true },
-                      // ⚠ "—", not 0. This tile sits between three REAL computed
-                      // numbers, so a zero here reads as "we measured, and it is
-                      // none" — the same convention the DOH tables use for a cell
-                      // with no source (Sprints 89/90).
-                      { label:'Sessions (not tracked)', value: '—', color:'text-cyan-700 bg-cyan-50 border-cyan-200' },
-                      { label:'Students Treated', value: periodTreatmentCount, color:'text-purple-700 bg-purple-50 border-purple-200' },
-                    ].map((c,i) => (
-                      <div key={i} className={`rounded-xl border p-4 ${c.color}`}>
-                        <div className={`font-bold mt-1 ${(c as any).small ? 'text-sm' : 'text-2xl'}`}>{c.value}</div>
-                        <div className="text-xs mt-0.5 opacity-70">{c.label}</div>
-                      </div>
-                    ))}
-                  </div>
-                );
-              })()}
-
               {/* Table */}
               <div className="bg-card rounded-xl border border-border overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
@@ -1287,7 +1256,7 @@ export const Reports = () => {
                         <tr><td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
                           There is no bulk-session model in the system, so nothing can be recorded here yet —
                           this is not an empty period. Individual treatments ARE recorded, and are counted
-                          in Total Procedures above.
+                          in the Procedure Counts table.
                         </td></tr>
                       ) : sessionRows.map((s, i) => {
                         const pct = Math.round((s.treated / s.students) * 100);
