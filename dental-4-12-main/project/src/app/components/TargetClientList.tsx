@@ -865,7 +865,7 @@ export const TargetClientList = () => {
             <tr>
               {visibleIdentity.map((c) => (
                 <th key={c.key} rowSpan={headRows} style={{ background: NAVY }}
-                    className={`${hCell} align-middle ${idWidth[c.key] ?? 'min-w-14'} ${c.key === 'no' ? 'sticky left-0 z-30 min-w-12' : ''}`}>
+                    className={`${hCell} align-middle ${idWidth[c.key] ?? 'min-w-14'} ${c.key === 'no' ? 'sticky left-0 z-30 min-w-14' : ''}`}>
                   {c.head ?? c.label}
                 </th>
               ))}
