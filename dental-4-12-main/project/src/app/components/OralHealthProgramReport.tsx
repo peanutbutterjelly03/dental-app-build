@@ -406,7 +406,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
 
   const th = 'px-2 py-2 text-[11px] font-semibold text-foreground border border-t-0 border-l-0 border-black whitespace-nowrap';
   const td = 'px-2 py-1.5 text-xs text-foreground border border-t-0 border-l-0 border-black text-center tabular-nums';
-  const labelTd = 'bg-[#FFF2CC] px-2 py-1.5 text-xs text-foreground border border-t-0 border-l-0 border-black whitespace-nowrap text-left';
+  const labelTd = 'bg-[#FFF2CC] pl-7 pr-2 py-1.5 text-xs text-foreground border border-t-0 border-l-0 border-black whitespace-nowrap text-left';
 
   const section = (title: string) => (
     // Orange band across the full width, as printed. Painted on the TD as well as the TR: html2canvas (the PDF
@@ -477,7 +477,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
     // A plain indicator spans both label columns, as the form does.
     return (
       <tr key={r.key} className="hover:bg-gray-50">
-        <td className={`${labelTd} sticky left-0 z-10 ${r.indent ? 'pl-6' : ''}`} colSpan={2}>{r.label}</td>
+        <td className={`${labelTd} sticky left-0 z-10 ${r.indent ? '!pl-11' : ''}`} colSpan={2}>{r.label}</td>
         {valueCells(r)}
       </tr>
     );
@@ -728,7 +728,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
           </tbody>
         </table>
       </div>
-      <GridEdgeButtons edge={edge} onStep={step} />
+      <GridEdgeButtons edge={edge} onStep={step} yellow leftInFirstColumn />
       </div>
       <PreviewModal
         open={preview.open}
