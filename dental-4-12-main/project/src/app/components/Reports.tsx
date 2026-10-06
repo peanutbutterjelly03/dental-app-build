@@ -864,11 +864,11 @@ export const Reports = () => {
           )}
 
           {/* Table */}
-          <div id="doh-report-printable" className="form-print relative bg-card rounded-xl border border-border overflow-hidden -mb-4 md:-mb-8">
+          <div id="doh-report-printable" className="form-print relative bg-card rounded-t-xl border border-border overflow-hidden -mb-4 md:-mb-8">
             {/* ref goes on the scrollable inner div, not the overflow-hidden outer
                 one — html2canvas clips to the ref'd element's own rendered box,
                 so ref'ing the outer div only captured the already-clipped width. */}
-            <div ref={dohReportRef} className="no-scrollbar cursor-grab rounded-xl overflow-auto [container-type:inline-size] max-h-[max(320px,calc(100vh_-_94px))] print:max-h-none">
+            <div ref={dohReportRef} className="no-scrollbar cursor-grab rounded-t-xl overflow-auto [container-type:inline-size] max-h-[max(320px,calc(100vh_-_94px))] print:max-h-none">
               {/* INSIDE the ref'd element deliberately. html2canvas captures
                   `dohReportRef.current` itself, so a banner placed as a sibling
                   above it would show on screen and be missing from the PDF —
