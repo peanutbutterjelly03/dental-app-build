@@ -820,6 +820,103 @@ export const TargetClientList = () => {
   );
   const td = 'px-2 py-1.5 text-xs text-foreground border border-border whitespace-nowrap';
 
+  // ── ON SCREEN: the whole form as ONE continuous table (user, 2026-10-06) ──
+  // The paper form is two sheets and still PRINTS as two (the `formPage`
+  // tables below, shown only in print), but a screen reads it better as one
+  // grid, in the OCR bulk-scan grid's colors. Same column order as the two
+  // pages laid side by side: identity + ORAL HEALTH STATUS + ORALLY FIT CHILD,
+  // then ROUTINE PREVENTIVE CARE (FIRST / SECOND), OTHER SERVICES, REMARKS.
+  // Only the label rows and the No. column are pinned; everything else scrolls.
+  const NAVY = '#273A78';
+  const sOf = (g: ServiceCol['group']) => visibleServices.filter((c) => c.group === g);
+  const ohs = sOf('ORAL HEALTH STATUS');
+  const ofc = sOf('ORALLY FIT CHILD');
+  const first = sOf('FIRST');
+  const second = sOf('SECOND');
+  const other = sOf('OTHER SERVICES');
+  const rpcN = first.length + second.length;
+  const hCell = 'border border-white/20 px-2 py-1.5 text-[11px] font-bold text-white text-center';
+  const hRot = `${hCell} align-bottom p-1 min-w-9`;
+  const leafHead = (c: ServiceCol, k: string) => (
+    <th key={k} className={hRot} style={{ background: NAVY }}>
+      <div style={{ ...rotStyle, whiteSpace: 'normal', maxHeight: '11.5rem' }} className="mx-auto leading-tight">{c.label}</div>
+    </th>
+  );
+  const idWidth: Record<string, string> = { consult: 'min-w-28', philhealth: 'min-w-28', name: 'min-w-48', address: 'min-w-56', contact: 'min-w-28', dob: 'min-w-24' };
+  const sTd = `border border-[#CBD5E1] px-2 py-1.5 text-xs text-foreground whitespace-nowrap`;
+  const screenTable = (
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="max-h-[70vh] overflow-auto">
+        <table className="border-separate border-spacing-0 w-max min-w-full">
+          <thead className="sticky top-0 z-20">
+            <tr>
+              {visibleIdentity.map((c) => c.rotate
+                ? (
+                  <th key={c.key} rowSpan={3} className={hRot} style={{ background: NAVY }}>
+                    <div style={rotStyle} className="mx-auto leading-tight">{c.label}</div>
+                  </th>
+                )
+                : (
+                  <th key={c.key} rowSpan={3} style={{ background: NAVY }}
+                      className={`${hCell} align-middle ${idWidth[c.key] ?? ''} ${c.key === 'no' ? 'sticky left-0 z-30 min-w-12' : ''}`}>
+                    {c.head ?? c.label}
+                  </th>
+                ))}
+              {ohs.length > 0 && <th colSpan={ohs.length} rowSpan={2} className={hCell} style={{ background: '#1E2D63' }}>ORAL HEALTH STATUS</th>}
+              {ofc.map((c, i) => (
+                <th key={`ofc-${i}`} rowSpan={3} className={hRot} style={{ background: NAVY }}>
+                  <div style={rotStyle} className="mx-auto leading-tight">{c.label}</div>
+                </th>
+              ))}
+              {rpcN > 0 && <th colSpan={rpcN} className={hCell} style={{ background: '#1E2D63' }}>ROUTINE PREVENTIVE CARE</th>}
+              {other.length > 0 && <th colSpan={other.length} rowSpan={2} className={hCell} style={{ background: '#1E2D63' }}>OTHER SERVICES</th>}
+              {remarksVisible && (
+                <th rowSpan={3} className={`${hCell} align-middle min-w-48`} style={{ background: NAVY }}>Remarks</th>
+              )}
+            </tr>
+            <tr>
+              {first.length > 0 && <th colSpan={first.length} className={hCell} style={{ background: '#34499A' }}>FIRST</th>}
+              {second.length > 0 && (
+                <th colSpan={second.length} className={hCell} style={{ background: '#34499A' }}>
+                  SECOND
+                  <div className="font-normal text-[10px]">at least 4 months interval from the first visit</div>
+                </th>
+              )}
+            </tr>
+            <tr>
+              {[...ohs, ...first, ...second, ...other].map((c, i) => leafHead(c, `${c.group}-${c.label}-${i}`))}
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map((r, i) => (
+              <tr key={r.id} className="even:bg-[#F5F8FF] hover:bg-[#E8EEFB]">
+                {visibleIdentity.map((c) => c.key === 'no'
+                  ? <td key={c.key} className={`${sTd} sticky left-0 z-10 bg-[#E8EEFB] text-center text-muted-foreground`}>{i + 1}</td>
+                  : <td key={c.key} className={`${sTd} ${c.cls ?? ''}`} title={c.key === 'address' ? r.address : undefined}>{c.value(r, i)}</td>)}
+                {[...ohs, ...ofc, ...first, ...second, ...other].map((c, n) => (
+                  <td key={`${c.group}-${c.label}-${n}`} className={`${sTd} text-center ${c.value ? '' : 'text-muted-foreground'}`}>
+                    {c.value ? c.value(r) : NO_SOURCE}
+                  </td>
+                ))}
+                {remarksVisible && <td className={sTd} />}
+              </tr>
+            ))}
+            {/* The form's remaining ruled rows: numbered, otherwise empty. */}
+            {blankRowIndexes.map((n) => (
+              <tr key={`blank-${n}`} className="even:bg-[#F5F8FF]">
+                {visibleIdentity.map((c) => c.key === 'no'
+                  ? <td key={c.key} className={`${sTd} sticky left-0 z-10 bg-[#E8EEFB] text-center text-muted-foreground`}>{n + 1}</td>
+                  : <td key={c.key} className={sTd} />)}
+                {[...ohs, ...ofc, ...first, ...second, ...other].map((c, k) => <td key={`b-${c.group}-${c.label}-${k}`} className={sTd} />)}
+                {remarksVisible && <td className={sTd} />}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-3">
       <div className="bg-card rounded-xl border border-border p-4">
@@ -945,7 +1042,10 @@ export const TargetClientList = () => {
 
           Each page scrolls inside its own container — the form is wider than any
           screen and the page itself must never scroll sideways. */}
-      <div className="form-print space-y-4">
+      {/* ON SCREEN: one table. IN PRINT: the two-page form below (the screen
+          table is `print-hide`, and the page tables are screen-hidden). */}
+      <div className="print-hide">{screenTable}</div>
+      <div className="form-print hidden print:block space-y-4">
         {formPage(1, visibleIdentity, page1Services, false)}
         {formPage(2, [NUMBER_COLUMN], page2Services, remarksVisible)}
       </div>
