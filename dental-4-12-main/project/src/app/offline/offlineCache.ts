@@ -26,13 +26,18 @@ async function readJson(path: string): Promise<unknown> {
   }
 }
 
-/** The same requests, in the same shape, as hooks/useDentalChartData.ts. If
- *  that hook's URLs change, change them here — a mismatch only costs a cache
- *  miss offline, never a wrong answer. */
+/** The same requests, in the same shape, as hooks/useDentalChartData.ts. The
+ *  cache is keyed by the EXACT url, so the order of ids matters: that hook sorts
+ *  the IPTRs oldest school year first and keeps only the charts of those IPTRs.
+ *  If it changes, change this too; a mismatch is a cache miss offline for every
+ *  student with more than one IPTR year. */
 async function warmStudentChart(studentId: string): Promise<void> {
   const [, iptrs] = await Promise.all([readJson(`/students/${studentId}`), readJson(`/student-iptrs?student_id=${studentId}`)]);
-  const iptrList = Array.isArray(iptrs) ? (iptrs as { _id: string }[]) : [];
+  const iptrList = (Array.isArray(iptrs) ? (iptrs as { _id: string; school_year: string }[]) : [])
+    .slice()
+    .sort((a, b) => a.school_year.localeCompare(b.school_year));
   if (iptrList.length === 0) return;
+  const ids = new Set(iptrList.map((i) => i._id));
   const q = iptrList.map((i) => i._id).join(',');
   const [, , , charts] = await Promise.all([
     readJson(`/medical-histories?iptr_id=${q}`),
@@ -43,7 +48,7 @@ async function warmStudentChart(studentId: string): Promise<void> {
     readJson(`/referrals?iptr_id=${q}`),
     readJson(`/preventive-care-records?iptr_id=${q}`),
   ]);
-  const chartIds = Array.isArray(charts) ? (charts as { _id: string }[]).map((c) => c._id) : [];
+  const chartIds = (Array.isArray(charts) ? (charts as { _id: string; iptr_id: string }[]) : []).filter((c) => ids.has(c.iptr_id)).map((c) => c._id);
   if (chartIds.length) await readJson(`/tooth-records?chart_id=${chartIds.join(',')}`);
 }
 
