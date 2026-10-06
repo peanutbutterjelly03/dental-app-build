@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { FileSpreadsheet, FileText, Printer, Download, AlertTriangle, AlertCircle, CheckCircle, Users, Calendar, X } from 'lucide-react';
+import { FileBarChart, FileSpreadsheet, FileText, Printer, Download, AlertTriangle, AlertCircle, CheckCircle, Users, Calendar, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ChartTooltip } from './ChartTooltip';
 import { LiveUpdatedStamp } from './LiveUpdatedStamp';
@@ -639,9 +639,15 @@ export const Reports = () => {
       <div className="min-w-0">
         <div className="rounded-t-2xl bg-primary px-4 pt-4 text-white sm:px-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-white/75">Reporting</div>
-              <h1 className="text-[22px] font-extrabold leading-tight">Reports</h1>
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl bg-white/15">
+                <FileBarChart className="h-7 w-7 text-white" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-white/75">Reporting</div>
+                <h1 className="text-[22px] font-extrabold leading-tight">Reports</h1>
+                <p className="text-xs text-white/75">DOH Consolidated Report and internal reports for every school year on file.</p>
+              </div>
             </div>
             <SchoolBadge
               schools={schoolNames}
