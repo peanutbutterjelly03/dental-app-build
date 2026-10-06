@@ -364,6 +364,9 @@ const TCL_UNVERIFIED = SERVICE_COLUMNS.filter((c) => c.unverified).length;
 // is what a hideable table needs), and Sprint 82 took identity to 13 — a dead
 // constant that was now also wrong.
 
+/** 8.5 x 13in long bond, landscape, 6mm margins: the sheet and margin the print rules use. */
+const LONG_BOND_LANDSCAPE = { widthMm: 330.2, heightMm: 215.9, marginMm: 6 };
+
 export const TargetClientList = () => {
   // → The filed sample is a wide landscape sheet: 30 columns on page 1, 31 on page 2.
   usePrintOrientation('landscape');
@@ -582,7 +585,7 @@ export const TargetClientList = () => {
 
   const onPdf = () => {
     const els = Array.from(sheetsRef.current?.querySelectorAll<HTMLElement>('.tcl-sheet') ?? []);
-    previewPdf('Target Client List', `${exportBaseName}.pdf`, () => buildPagesPdf(els));
+    previewPdf('Target Client List', `${exportBaseName}.pdf`, () => buildPagesPdf(els, LONG_BOND_LANDSCAPE));
   };
 
   const onXlsx = () => {

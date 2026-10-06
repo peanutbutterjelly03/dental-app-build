@@ -78,7 +78,13 @@ export async function buildDohReportPdf(element: HTMLElement): Promise<Blob | nu
  * the white JPEG background, the explicit width/height so nothing past the
  * on-screen size is cropped.
  */
-export async function buildPagesPdf(elements: HTMLElement[]): Promise<Blob | null> {
+export async function buildPagesPdf(
+  elements: HTMLElement[],
+  /** Optional real paper (mm). Each page is then that sheet with the margin
+   *  around it and the capture scaled to fit inside, like a printed page,
+   *  instead of a page sized to the image. */
+  paper?: { widthMm: number; heightMm: number; marginMm: number },
+): Promise<Blob | null> {
   const pages = elements.filter(Boolean);
   if (pages.length === 0) return null;
 
@@ -114,6 +120,16 @@ export async function buildPagesPdf(elements: HTMLElement[]): Promise<Blob | nul
     ctx.drawImage(canvas, 0, 0);
     const imgData = out.toDataURL('image/jpeg', 0.95);
 
+    if (paper) {
+      const { widthMm, heightMm, marginMm } = paper;
+      const orientation = widthMm >= heightMm ? 'landscape' : 'portrait';
+      if (!pdf) pdf = new jsPDF({ orientation, unit: 'mm', format: [widthMm, heightMm] });
+      else pdf.addPage([widthMm, heightMm], orientation);
+      // Fit inside the margins, keep the aspect, anchor top-left as a print does.
+      const fit = Math.min((widthMm - 2 * marginMm) / out.width, (heightMm - 2 * marginMm) / out.height);
+      pdf.addImage(imgData, 'JPEG', marginMm, marginMm, out.width * fit, out.height * fit);
+      continue;
+    }
     const orientation = out.width >= out.height ? 'landscape' : 'portrait';
     if (!pdf) {
       pdf = new jsPDF({ orientation, unit: 'px', format: [out.width, out.height] });
