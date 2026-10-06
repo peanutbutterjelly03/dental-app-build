@@ -10,7 +10,7 @@ import { BLOCKED_TITLE } from '../utils/dohFormStyle';
 // Colour coding copied cell for cell from the filed Excel form (user, 2026-10-06): orange section bands,
 // solid BLACK blocked cells, light-blue total columns, yellow grand total, pink sub-row captions.
 const PR_ORANGE = '!bg-[#FFC000] text-black';
-const PR_BLOCKED = 'bg-gray-400';
+const PR_BLOCKED = 'bg-gray-300';
 const PR_TOTAL = 'bg-[#DDEBF7] font-bold';
 const PR_GRAND = 'bg-[#FFFF00] font-bold';
 const PR_SUBROW = '!bg-[#EAD1DC]';
