@@ -11,6 +11,8 @@ import { SkeletonTable } from './Skeleton';
 import { formatDate, toLocalDateString } from '../utils/localDate';
 import { buildSheetsXlsx } from '../utils/exportXlsx';
 import { usePreviewModal } from '../hooks/usePreviewModal';
+import { useGridScroll } from '../hooks/useGridScroll';
+import { GridEdgeButtons } from './GridEdgeButtons';
 import { PreviewModal } from './PreviewModal';
 import { FileSpreadsheet, FileText } from 'lucide-react';
 import { buildPagesPdf } from '../utils/exportPdf';
@@ -475,6 +477,8 @@ export const TargetClientList = () => {
 
   const didAlignAnchor = useRef(false);
   const sheetsRef = useRef<HTMLDivElement>(null);
+  const paneRef = useRef<HTMLDivElement>(null);
+  const { edge, step } = useGridScroll(paneRef, 'thead th', [studentsLoading, rpcLoading]);
   // The pane fills the screen below the status strip, so once the page is scrolled to the table the
   // label row and No. column stay put and only the cells scroll.
   const paneOffset = TOPBAR_H + 18;
@@ -854,8 +858,8 @@ export const TargetClientList = () => {
   const idWidth: Record<string, string> = { consult: 'min-w-28', philhealth: 'min-w-28', name: 'min-w-48', address: 'min-w-56', contact: 'min-w-28', dob: 'min-w-24' };
   const sTd = `border border-t-0 border-l-0 border-[#CBD5E1] px-2 py-1.5 text-xs text-foreground whitespace-nowrap`;
   const screenTable = (
-    <div className="w-full min-w-0 max-w-full rounded-xl border border-[#A9BDE6] bg-card overflow-hidden">
-      <div className="w-full overflow-auto" style={{ maxHeight: `max(320px, calc(100vh - ${paneOffset}px))` }}>
+    <div className="relative w-full min-w-0 max-w-full rounded-t-xl border border-[#A9BDE6] bg-card overflow-hidden">
+      <div ref={paneRef} className="no-scrollbar cursor-grab w-full overflow-auto rounded-t-xl" style={{ maxHeight: `max(320px, calc(100vh - ${paneOffset}px))` }}>
         <table className="border-separate border-spacing-0 w-max min-w-full">
           <thead className="sticky top-0 z-20">
             <tr>
@@ -911,6 +915,7 @@ export const TargetClientList = () => {
           </tbody>
         </table>
       </div>
+      <GridEdgeButtons edge={edge} onStep={step} />
     </div>
   );
 

@@ -11,6 +11,8 @@ import { useDohReportData } from '../hooks/useDohReportData';
 import { buildDohReportPdf } from '../utils/exportPdf';
 import { buildDohReportXlsx } from '../utils/exportDohXlsx';
 import { usePreviewModal } from '../hooks/usePreviewModal';
+import { useGridScroll } from '../hooks/useGridScroll';
+import { GridEdgeButtons } from './GridEdgeButtons';
 import { PreviewModal } from './PreviewModal';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
 import { activatable } from '../utils/a11y';
@@ -380,58 +382,8 @@ export const Reports = () => {
   const dohRow1Ref = useRef<HTMLTableRowElement>(null);
   const dohRow2Ref = useRef<HTMLTableRowElement>(null);
   const [dohRowH, setDohRowH] = useState({ r1: 24, r2: 24 });
-  // Left / right step buttons for the wide DOH table (the OCR grid's pattern, user 2026-10-06): the scroll bars
-  // are hidden, each press moves about a screen of columns, and a button dims at its end.
-  const [dohEdge, setDohEdge] = useState({ left: false, right: true });
-  useEffect(() => {
-    const el = dohReportRef.current;
-    if (!el) return;
-    const update = () => setDohEdge({ left: el.scrollLeft > 2, right: el.scrollLeft < el.scrollWidth - el.clientWidth - 2 });
-    update();
-    el.addEventListener('scroll', update, { passive: true });
-    window.addEventListener('resize', update);
-    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null;
-    ro?.observe(el);
-    if (el.firstElementChild) ro?.observe(el.firstElementChild);
-    return () => { el.removeEventListener('scroll', update); window.removeEventListener('resize', update); ro?.disconnect(); };
-  }, [activeReportTab]);
-  // Grab-and-drag scrolling for the DOH table, as in the OCR grid (mouse only; touch already scrolls natively).
-  useEffect(() => {
-    const el = dohReportRef.current;
-    if (!el) return;
-    let down = false, moved = false, x0 = 0, y0 = 0, sl = 0, st = 0;
-    const onDown = (e: PointerEvent) => {
-      if (e.button !== 0 || e.pointerType === 'touch') return;
-      down = true; moved = false; x0 = e.clientX; y0 = e.clientY; sl = el.scrollLeft; st = el.scrollTop;
-    };
-    const onMove = (e: PointerEvent) => {
-      if (!down) return;
-      const dx = e.clientX - x0, dy = e.clientY - y0;
-      if (!moved && Math.abs(dx) + Math.abs(dy) < 4) return;
-      moved = true;
-      el.style.cursor = 'grabbing';
-      el.style.userSelect = 'none';
-      el.scrollLeft = sl - dx;
-      el.scrollTop = st - dy;
-    };
-    const end = () => { down = false; el.style.cursor = ''; el.style.userSelect = ''; };
-    el.addEventListener('pointerdown', onDown);
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', end);
-    window.addEventListener('pointercancel', end);
-    return () => {
-      el.removeEventListener('pointerdown', onDown);
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', end);
-      window.removeEventListener('pointercancel', end);
-    };
-  }, [activeReportTab]);
-  const stepDoh = (dir: 1 | -1) => {
-    const el = dohReportRef.current;
-    if (!el) return;
-    const pinned = (el.querySelector('[data-doh="indicator"]') as HTMLElement | null)?.offsetWidth ?? 0;
-    el.scrollBy({ left: dir * Math.max(200, el.clientWidth - pinned - 48), behavior: 'smooth' });
-  };
+  // Step buttons, hidden scroll bars and grab-and-drag for the wide DOH table (the OCR grid's pattern, user 2026-10-06).
+  const { edge: dohEdge, step: stepDoh } = useGridScroll(dohReportRef, '[data-doh="indicator"]', [activeReportTab]);
   useEffect(() => {
     const r1 = dohRow1Ref.current;
     const r2 = dohRow2Ref.current;
@@ -1032,11 +984,7 @@ export const Reports = () => {
                 </tbody>
               </table>
             </div>
-            {/* Outside the captured scroller, so they never reach the PDF; hidden on paper. */}
-            <button type="button" aria-label="Show previous columns" title="Show previous columns" disabled={!dohEdge.left} onClick={() => stepDoh(-1)}
-              className="print:hidden absolute left-px top-1/2 z-40 grid h-[2.875rem] w-5 -translate-y-1/2 place-items-center rounded-r-[0.5625rem] !rounded-l-none bg-primary text-base font-bold leading-none text-white opacity-90 shadow-md hover:opacity-100 disabled:cursor-default disabled:opacity-30">‹</button>
-            <button type="button" aria-label="Show next columns" title="Show next columns" disabled={!dohEdge.right} onClick={() => stepDoh(1)}
-              className="print:hidden absolute right-px top-1/2 z-40 grid h-[2.875rem] w-5 -translate-y-1/2 place-items-center rounded-l-[0.5625rem] !rounded-r-none bg-primary text-base font-bold leading-none text-white opacity-90 shadow-md hover:opacity-100 disabled:cursor-default disabled:opacity-30">›</button>
+            <GridEdgeButtons edge={dohEdge} onStep={stepDoh} />
           </div>
         </div>
       )}
