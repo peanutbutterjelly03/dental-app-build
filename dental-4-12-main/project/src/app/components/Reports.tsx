@@ -1054,21 +1054,6 @@ export const Reports = () => {
                 );
               })()}
 
-              {/* Chart */}
-              <div className="bg-card rounded-xl border border-border p-4">
-                <h3 className="text-sm font-bold text-foreground mb-3">Procedures Performed</h3>
-                <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={TREATMENT_ROWS.map(p => ({ name: labelForCode.get(p) ?? p, count: cnt(realTreatmentMatrix, p, intGenderFilter) }))}
-                    margin={{top:4,right:8,bottom:40,left:0}}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
-                    <XAxis dataKey="name" tick={{fontSize:10}} angle={-25} textAnchor="end" interval={0} />
-                    <YAxis tick={{fontSize:11}} />
-                    <Tooltip content={<ChartTooltip />} />
-                    <Bar dataKey="count" name="Count" fill={CHART.brand} radius={[4,4,0,0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
               {/* Table */}
               <div className="bg-card rounded-xl border border-border overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
