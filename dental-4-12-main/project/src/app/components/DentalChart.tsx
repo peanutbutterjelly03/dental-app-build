@@ -2300,6 +2300,8 @@ export const DentalChart = () => {
         {activeTab === 'referrals' && (
           <ReferralsTab
             referrals={allReferrals}
+            years={years}
+            dentistNameById={dentistNameById}
             schoolYear={currentYearData?.iptr.school_year}
             canEdit={canEdit}
             addForm={{

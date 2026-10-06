@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { formatDate } from '../utils/localDate';
 import type { ApiReferral, ReferralType } from '../api/types';
+import type { IptrYearData } from '../hooks/useDentalChartData';
 
 // The Referrals tab (Sprint 127) — issue-only by design: a referral is recorded
 // when it is written, and nothing here pretends to know whether the family went.
@@ -35,17 +37,53 @@ export interface ReferralAddForm {
   onSave: () => void;
 }
 
+const KIND_TONE: Record<ReferralType, string> = {
+  primary_care: 'border-teal-300 bg-teal-100 text-teal-800',
+  higher_level: 'border-primary-surface bg-primary-surface text-primary',
+  oral_cancer_screening: 'border-fuchsia-300 bg-fuchsia-100 text-fuchsia-800',
+  surgical: 'border-amber-300 bg-amber-100 text-amber-800',
+  private_facility: 'border-sky-300 bg-sky-100 text-sky-800',
+};
+const KindChip = ({ type }: { type: ReferralType }) => (
+  <span className={`inline-block max-w-full rounded-full border px-2.5 py-0.5 text-[11px] font-bold leading-snug ${KIND_TONE[type]}`}>{REFERRAL_TYPE_LABELS[type]}</span>
+);
+const dayStart = (iso: string) => new Date(`${iso.slice(0, 10)}T00:00:00`);
+/** Whole days from today to the follow-up date; negative once it has passed. */
+const daysUntil = (iso: string) => {
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  return Math.round((dayStart(iso).getTime() - t.getTime()) / 86400000);
+};
+// ⚠ Issue-only: nothing records whether the family went, so a date in the past is
+// "date passed", never "overdue" or "missed".
+const FollowUp = ({ iso }: { iso: string | null }) => {
+  if (!iso) return <span className="inline-flex rounded-full border border-border bg-muted/40 px-2.5 py-0.5 text-xs font-semibold">No follow-up date</span>;
+  const n = daysUntil(iso);
+  const tone = n < 0 ? 'border-red-300 bg-red-100 text-red-700' : n <= 14 ? 'border-amber-300 bg-amber-100 text-amber-800' : 'border-border bg-muted/40 text-foreground';
+  const text = n < 0 ? `Follow-up date passed ${-n} day${n === -1 ? '' : 's'} ago, ${formatDate(iso)}` : n === 0 ? 'Follow-up today' : `Follow-up in ${n} day${n === 1 ? '' : 's'}, ${formatDate(iso)}`;
+  return <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold ${tone}`}>{text}</span>;
+};
+
 export function ReferralsTab({
   referrals,
+  years,
+  dentistNameById,
   schoolYear,
   canEdit,
   addForm,
 }: {
   referrals: ApiReferral[];
+  years: IptrYearData[];
+  dentistNameById: Map<string, string>;
   schoolYear: string | undefined;
   canEdit: boolean;
   addForm: ReferralAddForm;
 }) {
+  const [selId, setSelId] = useState<string | null>(null);
+  const yearOfIptr = new Map(years.map((y) => [y.iptr._id, y.iptr.school_year]));
+  const selected = referrals.find((r) => r._id === selId) ?? referrals[0] ?? null;
+  const thisYear = referrals.filter((r) => yearOfIptr.get(r.iptr_id) === schoolYear).length;
+  const coming = referrals.filter((r) => r.follow_up_date && daysUntil(r.follow_up_date) >= 0).length;
+  const passed = referrals.filter((r) => r.follow_up_date && daysUntil(r.follow_up_date) < 0).length;
   return (
     <div className="p-4 space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -88,46 +126,51 @@ export function ReferralsTab({
           </div>
         </div>
       )}
-      {referrals.length === 0 ? (
-        <p className="text-center text-muted-foreground text-sm py-12">No referrals recorded yet.</p>
+      {referrals.length === 0 || !selected ? (
+        <div className="space-y-1.5 rounded-xl border border-dashed border-border bg-muted/30 p-8 text-center">
+          <div className="text-sm font-bold">No referrals recorded yet</div>
+          <p className="mx-auto max-w-prose text-xs text-muted-foreground">When the child is sent to another facility, record it here. It also counts the child in the matching row of the DOH Oral Health Program Report.</p>
+        </div>
       ) : (
-      <>
-      <div className="hidden md:block overflow-x-auto rounded-lg border border-border">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-border">
-            <tr>{['Date Issued', 'Referred For', 'Facility', 'Reason', 'Follow-up'].map((h) => (
-              <th key={h} className="px-4 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">{h}</th>
-            ))}</tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 bg-card">
-            {referrals.map((r) => (
-              <tr key={r._id} className="hover:bg-gray-50">
-                <td className="px-4 py-2 whitespace-nowrap font-medium text-foreground text-xs">{formatDate(r.date_issued)}</td>
-                <td className="px-4 py-2 text-xs text-foreground">{REFERRAL_TYPE_LABELS[r.referral_type]}</td>
-                <td className="px-4 py-2 text-xs text-foreground">{r.facility_name}</td>
-                <td className="px-4 py-2 text-xs text-foreground">{r.reason}</td>
-                <td className="px-4 py-2 whitespace-nowrap text-xs text-muted-foreground">{r.follow_up_date ? formatDate(r.follow_up_date) : '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="md:hidden space-y-3">
-        {referrals.map((r) => (
-          <div key={r._id} className="rounded-lg border bg-card border-border p-3 space-y-1.5">
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-medium text-foreground text-xs">{formatDate(r.date_issued)}</span>
-              <span className="text-xs text-muted-foreground text-right">{REFERRAL_TYPE_LABELS[r.referral_type]}</span>
-            </div>
-            <p className="text-xs text-muted-foreground"><span className="font-medium">To:</span> {r.facility_name}</p>
-            <p className="text-xs text-muted-foreground"><span className="font-medium">Reason:</span> {r.reason}</p>
-            {r.follow_up_date && <p className="text-xs text-muted-foreground"><span className="font-medium">Follow-up:</span> {formatDate(r.follow_up_date)}</p>}
-            {r.notes && <p className="text-xs text-muted-foreground italic">{r.notes}</p>}
+        <>
+          <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
+            <div className="rounded-xl border border-border bg-card p-3"><div className="text-[10.5px] font-bold tracking-wide text-muted-foreground">Referrals this school year</div><div className="text-2xl font-extrabold tabular-nums">{thisYear}</div><div className="text-xs text-muted-foreground">all years: {referrals.length}</div></div>
+            <div className="rounded-xl border border-border bg-card p-3"><div className="text-[10.5px] font-bold tracking-wide text-muted-foreground">Follow-ups coming</div><div className="text-2xl font-extrabold tabular-nums">{coming}</div><div className="text-xs text-muted-foreground">date not yet reached</div></div>
+            <div className="rounded-xl border border-border bg-card p-3"><div className="text-[10.5px] font-bold tracking-wide text-muted-foreground">Follow-up dates passed</div><div className={`text-2xl font-extrabold tabular-nums ${passed ? 'text-red-600' : ''}`}>{passed}</div><div className="text-xs text-muted-foreground">nothing records the outcome</div></div>
+            <div className="rounded-xl border border-border bg-card p-3"><div className="text-[10.5px] font-bold tracking-wide text-muted-foreground">Last referral</div><div className="text-base font-extrabold">{formatDate(referrals[0].date_issued)}</div><div className="text-xs text-muted-foreground">{REFERRAL_TYPE_LABELS[referrals[0].referral_type]}</div></div>
           </div>
-        ))}
-      </div>
-      </>
+          <div className="grid items-start gap-3.5 md:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
+            <div className="grid min-w-0 gap-2">
+              {referrals.map((r) => (
+                <button key={r._id} type="button" onClick={() => setSelId(r._id)} aria-pressed={selected._id === r._id}
+                  className={`grid gap-1 rounded-xl border bg-card p-3 text-left ${selected._id === r._id ? 'border-primary ring-2 ring-primary-surface' : 'border-border hover:bg-muted/40'}`}>
+                  <b className="text-[13px]">{formatDate(r.date_issued)}</b>
+                  <span className="truncate text-xs text-muted-foreground">{r.facility_name}</span>
+                  <KindChip type={r.referral_type} />
+                </button>
+              ))}
+            </div>
+            <div className="min-w-0 space-y-2.5 rounded-xl border border-border bg-card p-4">
+              <div>
+                <div className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">Referral of {formatDate(selected.date_issued)}</div>
+                <div className="text-base font-extrabold">{selected.facility_name}</div>
+              </div>
+              <KindChip type={selected.referral_type} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div><div className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">Reason</div><p className="text-[13px]">{selected.reason}</p></div>
+                <div><div className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">Notes</div>{selected.notes ? <p className="text-[13px]">{selected.notes}</p> : <p className="text-xs text-muted-foreground">None</p>}</div>
+              </div>
+              <FollowUp iso={selected.follow_up_date} />
+              <p className="text-xs text-muted-foreground">Counted in the DOH Program Report under: <b className="text-foreground">{REFERRAL_TYPE_LABELS[selected.referral_type]}</b></p>
+              <p className="text-xs text-muted-foreground">
+                {selected.dentist_id ? `Recorded by ${dentistNameById.get(selected.dentist_id) ?? 'a dentist'}` : 'Recorded by clinic staff'}
+                {yearOfIptr.get(selected.iptr_id) ? `, school year ${yearOfIptr.get(selected.iptr_id)}` : ''}.
+              </p>
+            </div>
+          </div>
+        </>
       )}
+      <p className="border-t border-border pt-3 text-xs text-muted-foreground">Reasons and notes are private patient information. Only staff with access to this record can see them.</p>
     </div>
   );
 }
