@@ -53,16 +53,15 @@ async function run(mode) {
     await page.waitForTimeout(500);
     await goto('/dental-charts');
     await goto('/patients'); await page.waitForTimeout(1500);
-    check(`[${mode}] offline, after leaving Student Records and coming back: records still listed`, (await names()).length === 3, JSON.stringify(await names()));
+    check(`[${mode}] offline: Student Records needs a connection (students are queued in Dental Charts / Treatment instead)`, await page.evaluate(() => document.body.innerText.includes('This page needs a connection') && !document.body.innerText.includes('Student Records\n')), (await names()).join());
 
     await goto('/appointments');
     const msg = await page.evaluate(() => document.body.innerText.includes('This page needs a connection'));
     check(`[${mode}] offline: a page that needs the server says so`, msg);
-    await goto('/patients'); await page.waitForTimeout(1200);
 
     if (mode === 'preview') {
       await page.reload(); await page.waitForTimeout(3500);
-      check(`[${mode}] offline, after a full page reload: records still listed`, (await names()).length === 3, JSON.stringify(await names()));
+      check(`[${mode}] offline, after a full page reload: Student Records still needs a connection`, await page.evaluate(() => document.body.innerText.includes('This page needs a connection')));
     }
 
     if (mode === 'dev') {

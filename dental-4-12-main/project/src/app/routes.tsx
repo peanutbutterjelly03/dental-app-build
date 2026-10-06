@@ -24,8 +24,8 @@ import { ScanStudentForm } from './components/ScanStudentForm';
 import { VerifyStudentForm } from './components/VerifyStudentForm';
 import { BulkScanReview } from './components/BulkScanReview';
 
-// Pages that need the server. Student Records, Dental Charts, the Dental Chart and
-// Treatment are the offline modules, so they are the only routes NOT wrapped.
+// Pages that need the server. Dental Charts, the Dental Chart and Treatment are the
+// offline modules (students are queued there beforehand), so they are the only routes NOT wrapped.
 const needsConnection = (Page: ComponentType): ComponentType => () => <OnlineOnly><Page /></OnlineOnly>;
 
 const DentalChartKeyed = () => { const { id } = useParams(); return <DentalChart key={id} />; };
@@ -39,7 +39,7 @@ export const router = createBrowserRouter([
     Component: RootLayout,
     children: [
       { index: true, Component: needsConnection(Dashboard) },
-      { path: "patients", Component: PatientList },
+      { path: "patients", Component: needsConnection(PatientList) },
       { path: "students/update-school-year", Component: needsConnection(UpdateSchoolYear) },
       { path: "students/scan", Component: needsConnection(ScanStudentForm) },
       { path: "students/scan/review", Component: needsConnection(VerifyStudentForm) },

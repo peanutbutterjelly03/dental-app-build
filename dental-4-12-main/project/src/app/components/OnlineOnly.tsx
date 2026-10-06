@@ -1,10 +1,9 @@
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import { ChevronRight, Stethoscope, Users, WifiOff } from 'lucide-react';
+import { ChevronRight, Stethoscope, WifiOff } from 'lucide-react';
 import { useOfflineQueue } from '../hooks/useOfflineQueue';
 
-// Offline works for Student Records, Dental Charts, the Dental Chart and Treatment
-// only (offline/ stores their reads and queues their writes). Every other page needs
+// Offline works for Dental Charts, the Dental Chart and Treatment only (offline/ stores their reads and queues their writes). Every other page needs
 // the server, so while offline it says so plainly instead of loading forever or
 // showing an empty list that looks like missing data.
 //
@@ -39,7 +38,6 @@ export const OnlineOnly = ({ children }: { children: ReactNode }) => {
             </p>
             <div className="mt-5 grid gap-2.5 text-left">
               {([
-                ['/patients', 'Student Records', Users],
                 ['/dental-charts', 'Dental Charts', ToothIcon],
                 ['/treatment-records', 'Treatment', Stethoscope],
               ] as const).map(([to, label, Icon]) => (
