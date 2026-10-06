@@ -14,12 +14,15 @@ const LEGACY_CACHES = ['api-cache', 'stats-cache'];
 const WARM_STAMP_KEY = 'floral_offline_warm_at';
 const WARM_EVERY_MS = 10 * 60 * 1000;
 
-/** Goes through apiClient.get on purpose: that is what saves the response. */
+class WarmFailed extends Error {}
+
+/** Goes through apiClient.get on purpose: that is what saves the response.
+ *  A failed read throws, so a half-read student is never counted as ready. */
 async function readJson(path: string): Promise<unknown> {
   try {
     return await apiClient.get(path);
   } catch {
-    return null;
+    throw new WarmFailed(path);
   }
 }
 
@@ -46,16 +49,30 @@ async function warmStudentChart(studentId: string): Promise<void> {
 
 const queuedIds = () => [...new Set([...getQueuedStudentIds(), ...getTreatmentQueueStudentIds()])];
 const warmedThisSession = new Set<string>();
+const inFlight = new Set<string>();
+const WARM_PARALLEL = 3;
 
-/** Pre-reads every queued student not yet read this session, one at a time
- *  (background work must not compete with what the person is doing). */
+/** Pre-reads every queued student not yet fully read this session, a few at a
+ *  time (one at a time left the last students of a long queue unread when the
+ *  connection went). A student counts as ready only when EVERY read succeeded;
+ *  one that failed is tried again on the next queue change or reconnect. */
 async function warmQueuedStudents(): Promise<void> {
-  for (const id of queuedIds()) {
-    if (!navigator.onLine) return;
-    if (warmedThisSession.has(id)) continue;
-    warmedThisSession.add(id);
-    await warmStudentChart(id).catch(() => warmedThisSession.delete(id));
-  }
+  const todo = queuedIds().filter((id) => !warmedThisSession.has(id) && !inFlight.has(id));
+  const worker = async () => {
+    for (let id = todo.shift(); id; id = todo.shift()) {
+      if (!navigator.onLine) return;
+      inFlight.add(id);
+      try {
+        await warmStudentChart(id);
+        warmedThisSession.add(id);
+      } catch {
+        /* left unmarked: retried later */
+      } finally {
+        inFlight.delete(id);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: WARM_PARALLEL }, worker));
 }
 
 /** Best-effort, never throws, never blocks. Skips when offline, and the school
@@ -66,7 +83,7 @@ export async function warmOfflineCache(): Promise<void> {
     const last = Number(localStorage.getItem(WARM_STAMP_KEY) ?? 0);
     if (Date.now() - last >= WARM_EVERY_MS) {
       localStorage.setItem(WARM_STAMP_KEY, String(Date.now()));
-      await Promise.all([readJson('/schools'), readJson('/dentists')]);
+      await Promise.allSettled([readJson('/schools'), readJson('/dentists')]);
       warmedThisSession.clear(); // a fresh read picks up changes made elsewhere
     }
     await warmQueuedStudents();
