@@ -52,16 +52,40 @@ const warmedThisSession = new Set<string>();
 const inFlight = new Set<string>();
 const WARM_PARALLEL = 3;
 
+/** How many of the queued students are saved on this device, for the screens. */
+export interface OfflineReadiness {
+  ready: number;
+  total: number;
+  /** A read is in progress right now. */
+  busy: boolean;
+}
+let readiness: OfflineReadiness = { ready: 0, total: 0, busy: false };
+const listeners = new Set<() => void>();
+export const getOfflineReadiness = () => readiness;
+export function subscribeOfflineReadiness(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+function refreshReadiness() {
+  const ids = queuedIds();
+  const next = { ready: ids.filter((id) => warmedThisSession.has(id)).length, total: ids.length, busy: inFlight.size > 0 };
+  if (next.ready === readiness.ready && next.total === readiness.total && next.busy === readiness.busy) return;
+  readiness = next;
+  for (const listener of listeners) listener();
+}
+
 /** Pre-reads every queued student not yet fully read this session, a few at a
  *  time (one at a time left the last students of a long queue unread when the
  *  connection went). A student counts as ready only when EVERY read succeeded;
  *  one that failed is tried again on the next queue change or reconnect. */
 async function warmQueuedStudents(): Promise<void> {
   const todo = queuedIds().filter((id) => !warmedThisSession.has(id) && !inFlight.has(id));
+  refreshReadiness();
   const worker = async () => {
     for (let id = todo.shift(); id; id = todo.shift()) {
       if (!navigator.onLine) return;
       inFlight.add(id);
+      refreshReadiness();
       try {
         await warmStudentChart(id);
         warmedThisSession.add(id);
@@ -69,11 +93,16 @@ async function warmQueuedStudents(): Promise<void> {
         /* left unmarked: retried later */
       } finally {
         inFlight.delete(id);
+        refreshReadiness();
       }
     }
   };
   await Promise.all(Array.from({ length: WARM_PARALLEL }, worker));
+  refreshReadiness();
 }
+
+/** For the "Try again" button when some queued students did not get saved. */
+export const retryOfflineWarm = () => warmQueuedStudents().catch(() => {});
 
 /** Best-effort, never throws, never blocks. Skips when offline, and the school
  *  lists when it ran within the last few minutes. */
@@ -107,6 +136,7 @@ export async function clearOfflineReadCaches(): Promise<void> {
     await clearReadCache();
     await clearOfflineRecords();
     warmedThisSession.clear();
+    refreshReadiness();
     localStorage.removeItem(WARM_STAMP_KEY);
   } catch {
     // Nothing was saved to clear.

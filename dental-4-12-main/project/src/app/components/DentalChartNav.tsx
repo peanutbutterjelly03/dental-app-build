@@ -12,6 +12,7 @@ import { useStudents } from '../hooks/useStudents';
 import { useRPCTracking } from '../hooks/useRPCTracking';
 import { useAuth } from '../context/AuthContext';
 import { apiClient } from '../api/client';
+import { OfflineReadiness } from './OfflineReadiness';
 import type { ApiAppointment, ApiStudentIptr, ApiTreatment } from '../api/types';
 import { toLocalDateString, formatDate } from '../utils/localDate';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
@@ -463,6 +464,7 @@ export const DentalChartNav = () => {
           <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Clinical Services</div>
           <h1 className="text-2xl font-bold text-foreground mt-0.5">Dental Charts</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Manage student dental charts and the charting queue.</p>
+          <OfflineReadiness />
         </div>
       </div>
 
