@@ -557,9 +557,13 @@ export const BulkScanReview = () => {
         + '.bulk-edge:disabled{opacity:.3;cursor:default}.bulk-edge:focus-visible{outline:0.125rem solid #7AA2FF;outline-offset:0.125rem}'
         + '@media (pointer: coarse){.bulk-edge{width:2rem;height:3.5rem}}'
         + '@media (max-width: 639px){.bulk-shell{height:auto !important;overflow:visible !important;padding:0.25rem 0 1rem 1rem !important;margin-bottom:0 !important}'
+        + '.bulk-head{gap:0.75rem !important}.bulk-head>div:first-child{display:none !important}.bulk-head>div:nth-child(2){flex:1 1 0 !important}.bulk-head h1{font-size:1.375rem !important}'
+        + '.bulk-bar{padding:1rem !important;gap:0.875rem !important}.bulk-bar-left{flex:1 1 100% !important;width:100%}.bulk-bar-left>div{max-width:none !important}'
+        + '.bulk-bar-right{margin-left:0 !important;width:100%;align-items:stretch !important}.bulk-view{display:flex !important}.bulk-view button{flex:1;justify-content:center}'
+        + '.bulk-actions{flex-direction:column !important;width:100%}.bulk-actions button{width:100%;justify-content:center}'
         + '.bulk-pr{padding-right:1rem !important}.bulk-scroll{flex:none !important;max-height:75vh}.bulk-sticky{position:static !important;height:auto !important}}'}</style>
       {/* Header, same shape as the Scan and Verify pages */}
-      <div className="bulk-pr" style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem', flexShrink: 0, paddingRight: '3.5rem' }}>
+      <div className="bulk-pr bulk-head" style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem', flexShrink: 0, paddingRight: '3.5rem' }}>
         <div style={{ width: '3.5rem', height: '3.5rem', borderRadius: '1rem', background: '#F4F7FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           <svg width="23.8" height="23.8" viewBox="0 0 24 24" fill="none" stroke={NAVY} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>
         </div>
@@ -583,8 +587,8 @@ export const BulkScanReview = () => {
           switch sits above Review one by one and Import. Back stays in the header, top right.
           Only "Needs fixes" filters the list (the other counts are plain). */}
       <div className="bulk-pr" style={{ flexShrink: 0, paddingRight: '3.5rem', marginBottom: '0.75rem' }}>
-      <div style={{ display: 'flex', gap: '1.125rem', flexWrap: 'wrap', alignItems: 'center', background: '#fff', border: `0.0625rem solid ${LINE}`, borderRadius: '1rem', padding: '1.5rem 1.5rem' }}>
-        <div style={{ flex: '1 1 22rem', minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'flex-start', paddingLeft: 0 }}>
+      <div className="bulk-bar" style={{ display: 'flex', gap: '1.125rem', flexWrap: 'wrap', alignItems: 'center', background: '#fff', border: `0.0625rem solid ${LINE}`, borderRadius: '1rem', padding: '1.5rem 1.5rem' }}>
+        <div className="bulk-bar-left" style={{ flex: '1 1 22rem', minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'flex-start', paddingLeft: 0 }}>
         <div style={{ width: '100%', maxWidth: '44rem', textAlign: 'left' }}>
           <b style={{ fontSize: '1.0625rem' }}>{ready} of {rows.length} student{rows.length === 1 ? ' is' : 's are'} ready</b>
           <div role="img" aria-label={`${ready} ready, ${fixes} need fixes, ${saved.size} saved`} style={{ display: 'flex', height: '1rem', borderRadius: '62.4375rem', overflow: 'hidden', background: '#E8EDF6', margin: '0.875rem 0 0.75rem' }}>
@@ -605,8 +609,8 @@ export const BulkScanReview = () => {
           </div>
         </div>
         </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.625rem' }}>
-          <div style={{ display: 'inline-flex', gap: '0.125rem', background: '#EEF2F8', borderRadius: '0.75rem', padding: '0.1875rem' }} role="group" aria-label="View">
+        <div className="bulk-bar-right" style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.625rem' }}>
+          <div className="bulk-view" style={{ display: 'inline-flex', gap: '0.125rem', background: '#EEF2F8', borderRadius: '0.75rem', padding: '0.1875rem' }} role="group" aria-label="View">
             {(['grid', 'cards'] as const).map((v) => (
               <button
                 key={v}
@@ -622,7 +626,7 @@ export const BulkScanReview = () => {
               </button>
             ))}
           </div>
-          <div style={{ display: 'flex', gap: '0.625rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <div className="bulk-actions" style={{ display: 'flex', gap: '0.625rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <button type="button" onClick={() => open(firstOpen)} disabled={!!importing} style={{ ...secondaryBtn, background: '#DC2626', borderColor: '#DC2626', color: '#fff', fontWeight: 700 }}>Review one by one</button>
             <button
               type="button"
