@@ -67,6 +67,16 @@ import {
 const ALL_SCHOOL_YEARS = ['2023-2024', '2024-2025', '2025-2026', '2026-2027', '2027-2028', '2028-2029', '2029-2030', '2030-2031', '2031-2032', '2032-2033', '2033-2034'];
 const GRADES = ['Kinder', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'];
 
+// Popup styling shared with the Edit Account dialog (AccountManagement.tsx).
+// The border is inline because styles/index.css forces a grey border on every input.
+const POPUP_FIELD = 'w-full px-4 py-3 text-sm text-[#475569] bg-[#F8FAFC] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#16214F]/30 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground';
+const POPUP_FIELD_STYLE = { border: '1px solid #E2E8F0' } as const;
+const POPUP_LABEL = 'block text-sm font-semibold text-foreground mb-2';
+const POPUP_OPTIONAL = <span className="font-normal text-muted-foreground"> (Optional)</span>;
+const POPUP_SECTION = 'text-sm font-semibold uppercase tracking-[0.08em] text-[#64748B]';
+const POPUP_CANCEL = 'px-5 py-2.5 rounded-xl border border-[#E2E8F0] bg-white text-sm font-bold text-foreground hover:bg-gray-50 transition-colors disabled:opacity-60';
+const POPUP_PRIMARY = 'px-5 py-2.5 rounded-xl bg-primary text-sm font-bold text-white hover:bg-primary-hover disabled:opacity-60 transition-colors';
+
 // The draft shapes and their empty factories moved to `iptrDrafts.ts` in
 // Sprint 162c — shared by this host, the History tab and the Dental Chart tab.
 
@@ -2416,113 +2426,128 @@ export const DentalChart = () => {
           own Grade/Section pair was removed from this window (user,
           2026-09-25); it is saved back unchanged. */}
       {editingInfo && draftInfo && (
-        <Modal onClose={() => setEditingInfo(false)} maxWidth="max-w-4xl" closeDisabled={infoSaving}>
-          <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b bg-card p-6">
+        <Modal onClose={() => setEditingInfo(false)} maxWidth="max-w-4xl" rounded="rounded-3xl" closeDisabled={infoSaving}>
+          <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-border bg-card px-8 py-6">
             <div>
-              <div className="mb-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-primary">
-                <span className="h-1.5 w-1.5 rounded-full bg-primary" /> Basic Information
-              </div>
-              <h2 className="text-lg font-bold text-foreground">Edit Student Basic Information</h2>
+              <h2 className="text-xl font-bold text-foreground">Edit Student Basic Information</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Update this student's details. Fields marked * are required.</p>
             </div>
-            <button type="button" onClick={() => setEditingInfo(false)} aria-label="Close" className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+            <button type="button" aria-label="Close" onClick={() => setEditingInfo(false)} disabled={infoSaving}
+              className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-xl border border-[#E2E8F0] bg-white text-[#475569] hover:bg-gray-50 disabled:opacity-60">
+              <X className="h-5 w-5" />
+            </button>
           </div>
-          {/* "Not a Student", as on Add New Student: a person treated here who
-              is not enrolled. Grade and Section do not apply, so ticking it
-              clears and locks both pairs (this year's and current). */}
-          <div className="mx-6 mt-4 flex items-center gap-2">
-            <input type="checkbox" id="edit-not-student" checked={!!draftInfo.is_not_student}
-              onChange={(e) => {
-                const checked = e.target.checked;
-                setDraftInfo((p) => ({ ...p, is_not_student: checked, ...(checked ? { grade_level: '', section: '' } : { not_student_role: '' }) }));
-                if (checked) setDraftYear((p) => ({ ...p, grade_level: '', section: '' }));
-              }}
-              className="h-4 w-4 rounded accent-primary" />
-            <label htmlFor="edit-not-student" className="text-sm font-medium text-foreground">Not a Student</label>
-          </div>
-          <div className="space-y-4 p-6">
+          <div className="space-y-6 px-8 py-6">
+            {/* "Not a Student", as on Add New Student: a person treated here who
+                is not enrolled. Grade and Section do not apply, so ticking it
+                clears and locks both pairs (this year's and current). */}
+            <label htmlFor="edit-not-student" className="flex cursor-pointer items-center gap-3 rounded-2xl border border-[#DCE3F5] bg-[#F4F7FF] px-4 py-3">
+              <input type="checkbox" id="edit-not-student" checked={!!draftInfo.is_not_student}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setDraftInfo((p) => ({ ...p, is_not_student: checked, ...(checked ? { grade_level: '', section: '' } : { not_student_role: '' }) }));
+                  if (checked) setDraftYear((p) => ({ ...p, grade_level: '', section: '' }));
+                }}
+                className="h-4 w-4 rounded accent-primary" />
+              <span className="text-sm font-semibold text-primary">Not a Student</span>
+            </label>
             {draftInfo.is_not_student && (
               <div>
-                <label htmlFor="edit-not-student-role" className="block text-sm font-medium text-foreground mb-1">Relation to the School{infoReq('not_student_role')}</label>
-                <input id="edit-not-student-role" type="text" maxLength={40} value={draftInfo.not_student_role ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, not_student_role: e.target.value }))} placeholder="Teacher, Guard, Staff, etc." className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                <label htmlFor="edit-not-student-role" className={POPUP_LABEL}>Relation to the School{infoReq('not_student_role')}</label>
+                <input id="edit-not-student-role" type="text" maxLength={40} value={draftInfo.not_student_role ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, not_student_role: e.target.value }))} placeholder="Teacher, Guard, Staff, etc." className={POPUP_FIELD} style={POPUP_FIELD_STYLE} />
                 {infoMiss('not_student_role')}
               </div>
             )}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div><label className="block text-sm font-medium text-foreground mb-1">Last Name{infoReq('last_name')}</label><input type="text" value={draftInfo.last_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, last_name: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />{infoMiss('last_name')}</div>
-              <div><label className="block text-sm font-medium text-foreground mb-1">First Name{infoReq('first_name')}</label><input type="text" value={draftInfo.first_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, first_name: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />{infoMiss('first_name')}</div>
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <div><label className="block text-sm font-medium text-foreground mb-1">Middle Name</label><input type="text" value={draftInfo.middle_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, middle_name: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
-              <div><label className="block text-sm font-medium text-foreground mb-1">Birthdate{infoReq('birthday')}</label><input type="date" value={draftInfo.birthday ? String(draftInfo.birthday).slice(0, 10) : ''} onChange={(e) => setDraftInfo((p) => ({ ...p, birthday: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />{infoMiss('birthday')}</div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Age</label>
-                <input type="text" readOnly disabled value={draftInfo.birthday ? (computeAge(String(draftInfo.birthday).slice(0, 10), new Date()) ?? '') : ''} placeholder="Automatically calculated" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring cursor-not-allowed bg-muted text-muted-foreground" />
+
+            <div className="space-y-5">
+              <div className={POPUP_SECTION}>Personal information</div>
+              <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
+                <div><label className={POPUP_LABEL}>Last Name{infoReq('last_name')}</label><input type="text" value={draftInfo.last_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, last_name: e.target.value }))} className={POPUP_FIELD} style={POPUP_FIELD_STYLE} />{infoMiss('last_name')}</div>
+                <div><label className={POPUP_LABEL}>First Name{infoReq('first_name')}</label><input type="text" value={draftInfo.first_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, first_name: e.target.value }))} className={POPUP_FIELD} style={POPUP_FIELD_STYLE} />{infoMiss('first_name')}</div>
               </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Sex{infoReq('sex')}</label>
-              <div className="grid grid-cols-2 gap-2">
-                {(['Male', 'Female'] as const).map((g) => (
-                  <button key={g} type="button" onClick={() => setDraftInfo((p) => ({ ...p, sex: g }))}
-                    className={`rounded-lg border-2 px-3 py-2 text-sm font-medium transition-colors ${draftInfo.sex === g ? 'border-primary-hover bg-primary text-white' : 'border-border text-foreground hover:bg-canvas'}`}>{g}</button>
-                ))}
-              </div>
-              {infoMiss('sex')}
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Grade{infoReq('grade_level')}</label>
-                <select value={draftInfo.grade_level ?? ''} disabled={!!draftInfo.is_not_student} onChange={(e) => setDraftInfo((p) => ({ ...p, grade_level: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-card disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground">
-                  <option value="">Select Grade</option>{GRADES.map((g) => <option key={g}>{g}</option>)}
-                </select>
-                {infoMiss('grade_level')}
+              <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-3">
+                <div><label className={POPUP_LABEL}>Middle Name</label><input type="text" value={draftInfo.middle_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, middle_name: e.target.value }))} className={POPUP_FIELD} style={POPUP_FIELD_STYLE} /></div>
+                <div><label className={POPUP_LABEL}>Birthdate{infoReq('birthday')}</label><input type="date" value={draftInfo.birthday ? String(draftInfo.birthday).slice(0, 10) : ''} onChange={(e) => setDraftInfo((p) => ({ ...p, birthday: e.target.value }))} className={POPUP_FIELD} style={POPUP_FIELD_STYLE} />{infoMiss('birthday')}</div>
+                <div>
+                  <label className={POPUP_LABEL}>Age</label>
+                  <input type="text" readOnly disabled value={draftInfo.birthday ? (computeAge(String(draftInfo.birthday).slice(0, 10), new Date()) ?? '') : ''} placeholder="Automatically calculated" className={POPUP_FIELD} style={POPUP_FIELD_STYLE} />
+                </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Section{infoReq('section')}</label>
-                <input type="text" value={draftInfo.section ?? ''} disabled={!!draftInfo.is_not_student} onChange={(e) => setDraftInfo((p) => ({ ...p, section: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground" />
-                {infoMiss('section')}
+                <label className={POPUP_LABEL}>Sex{infoReq('sex')}</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {(['Male', 'Female'] as const).map((g) => (
+                    <button key={g} type="button" aria-pressed={draftInfo.sex === g} onClick={() => setDraftInfo((p) => ({ ...p, sex: g }))}
+                      className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition-colors ${draftInfo.sex === g ? 'border-primary bg-[#F4F7FF] text-primary ring-1 ring-primary' : 'border-[#E2E8F0] bg-[#F8FAFC] text-[#475569] hover:bg-white'}`}>{g}</button>
+                  ))}
+                </div>
+                {infoMiss('sex')}
               </div>
             </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div><label className="block text-sm font-medium text-foreground mb-1">Place of Birth<span className="font-normal text-muted-foreground"> (Optional)</span></label><input type="text" value={draftInfo.place_of_birth ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, place_of_birth: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
-              <div><label className="block text-sm font-medium text-foreground mb-1">Contact Number<span className="font-normal text-muted-foreground"> (Optional)</span></label><input type="text" value={draftInfo.contact_number ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, contact_number: e.target.value }))} placeholder="09XX-XXX-XXXX" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div><label className="block text-sm font-medium text-foreground mb-1">Guardian Name<span className="font-normal text-muted-foreground"> (Optional)</span></label><input type="text" value={draftInfo.guardian_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, guardian_name: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
-              <div><label className="block text-sm font-medium text-foreground mb-1">Guardian Contact<span className="font-normal text-muted-foreground"> (Optional)</span></label><input type="text" value={draftInfo.guardian_contact ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, guardian_contact: e.target.value }))} placeholder="09XX-XXX-XXXX" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
-            </div>
-            <div><label className="block text-sm font-medium text-foreground mb-1">Occupation<span className="font-normal text-muted-foreground"> (Optional)</span></label><input type="text" value={draftInfo.guardian_occupation ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, guardian_occupation: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div><label className="block text-sm font-medium text-foreground mb-1">PhilHealth Number<span className="font-normal text-muted-foreground"> (Optional)</span></label><input type="text" value={draftInfo.philhealth_number ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, philhealth_number: e.target.value, ...(e.target.value.trim() === '' ? { philhealth_status: 'None' as const } : {}) }))} placeholder="XX-XXXXXXXXX-X" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">PhilHealth Status</label>
-                {/* Only meaningful with a number (user, 2026-09-24). */}
-                <select value={(draftInfo.philhealth_number ?? '').trim() ? (draftInfo.philhealth_status ?? 'None') : 'None'}
-                  disabled={!(draftInfo.philhealth_number ?? '').trim()}
-                  title={(draftInfo.philhealth_number ?? '').trim() ? undefined : 'Enter a PhilHealth number first'}
-                  onChange={(e) => setDraftInfo((p) => ({ ...p, philhealth_status: e.target.value as 'None' | 'Principal' | 'Dependent' }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-card disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground">
-                  <option value="None">None</option><option value="Principal">Principal</option><option value="Dependent">Dependent</option>
-                </select>
+
+            <div className="space-y-5 border-t border-border pt-6">
+              <div className={POPUP_SECTION}>Enrolment</div>
+              <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
+                <div>
+                  <label className={POPUP_LABEL}>Grade{infoReq('grade_level')}</label>
+                  <select value={draftInfo.grade_level ?? ''} disabled={!!draftInfo.is_not_student} onChange={(e) => setDraftInfo((p) => ({ ...p, grade_level: e.target.value }))} className={POPUP_FIELD} style={POPUP_FIELD_STYLE}>
+                    <option value="">Select Grade</option>{GRADES.map((g) => <option key={g}>{g}</option>)}
+                  </select>
+                  {infoMiss('grade_level')}
+                </div>
+                <div>
+                  <label className={POPUP_LABEL}>Section{infoReq('section')}</label>
+                  <input type="text" value={draftInfo.section ?? ''} disabled={!!draftInfo.is_not_student} onChange={(e) => setDraftInfo((p) => ({ ...p, section: e.target.value }))} className={POPUP_FIELD} style={POPUP_FIELD_STYLE} />
+                  {infoMiss('section')}
+                </div>
               </div>
             </div>
-            <div><label className="block text-sm font-medium text-foreground mb-1">Address<span className="font-normal text-muted-foreground"> (Optional)</span></label><input type="text" value={draftInfo.address ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, address: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
-            <div className="flex items-center gap-3">
-              <input type="checkbox" id="edit-is4ps" checked={!!draftInfo.is_4ps} onChange={(e) => setDraftInfo((p) => ({ ...p, is_4ps: e.target.checked }))} className="h-4 w-4 rounded accent-primary" />
-              <label htmlFor="edit-is4ps" className="text-sm font-medium text-foreground">4Ps / NHTS Member</label>
+
+            <div className="space-y-5 border-t border-border pt-6">
+              <div className={POPUP_SECTION}>Contact and guardian</div>
+              <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
+                <div><label className={POPUP_LABEL}>Place of Birth{POPUP_OPTIONAL}</label><input type="text" value={draftInfo.place_of_birth ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, place_of_birth: e.target.value }))} className={POPUP_FIELD} style={POPUP_FIELD_STYLE} /></div>
+                <div><label className={POPUP_LABEL}>Contact Number{POPUP_OPTIONAL}</label><input type="text" value={draftInfo.contact_number ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, contact_number: e.target.value }))} placeholder="09XX-XXX-XXXX" className={POPUP_FIELD} style={POPUP_FIELD_STYLE} /></div>
+                <div><label className={POPUP_LABEL}>Guardian Name{POPUP_OPTIONAL}</label><input type="text" value={draftInfo.guardian_name ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, guardian_name: e.target.value }))} className={POPUP_FIELD} style={POPUP_FIELD_STYLE} /></div>
+                <div><label className={POPUP_LABEL}>Guardian Contact{POPUP_OPTIONAL}</label><input type="text" value={draftInfo.guardian_contact ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, guardian_contact: e.target.value }))} placeholder="09XX-XXX-XXXX" className={POPUP_FIELD} style={POPUP_FIELD_STYLE} /></div>
+                <div><label className={POPUP_LABEL}>Occupation{POPUP_OPTIONAL}</label><input type="text" value={draftInfo.guardian_occupation ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, guardian_occupation: e.target.value }))} className={POPUP_FIELD} style={POPUP_FIELD_STYLE} /></div>
+                <div><label className={POPUP_LABEL}>Address{POPUP_OPTIONAL}</label><input type="text" value={draftInfo.address ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, address: e.target.value }))} className={POPUP_FIELD} style={POPUP_FIELD_STYLE} /></div>
+              </div>
             </div>
-            {draftInfo.is_4ps && (
-              <div><label className="block text-sm font-medium text-foreground mb-1">4Ps ID{infoReq('fourps_id')}</label><input type="text" value={draftInfo.fourps_id ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, fourps_id: e.target.value }))} placeholder="4PS-XXXXXXXX" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />{infoMiss('fourps_id')}</div>
-            )}
+
+            <div className="space-y-5 border-t border-border pt-6">
+              <div className={POPUP_SECTION}>Health coverage and programs</div>
+              <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
+                <div><label className={POPUP_LABEL}>PhilHealth Number{POPUP_OPTIONAL}</label><input type="text" value={draftInfo.philhealth_number ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, philhealth_number: e.target.value, ...(e.target.value.trim() === '' ? { philhealth_status: 'None' as const } : {}) }))} placeholder="XX-XXXXXXXXX-X" className={POPUP_FIELD} style={POPUP_FIELD_STYLE} /></div>
+                <div>
+                  <label className={POPUP_LABEL}>PhilHealth Status</label>
+                  {/* Only meaningful with a number (user, 2026-09-24). */}
+                  <select value={(draftInfo.philhealth_number ?? '').trim() ? (draftInfo.philhealth_status ?? 'None') : 'None'}
+                    disabled={!(draftInfo.philhealth_number ?? '').trim()}
+                    title={(draftInfo.philhealth_number ?? '').trim() ? undefined : 'Enter a PhilHealth number first'}
+                    onChange={(e) => setDraftInfo((p) => ({ ...p, philhealth_status: e.target.value as 'None' | 'Principal' | 'Dependent' }))}
+                    className={POPUP_FIELD} style={POPUP_FIELD_STYLE}>
+                    <option value="None">None</option><option value="Principal">Principal</option><option value="Dependent">Dependent</option>
+                  </select>
+                </div>
+              </div>
+              <label htmlFor="edit-is4ps" className="flex cursor-pointer items-center gap-3 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3">
+                <input type="checkbox" id="edit-is4ps" checked={!!draftInfo.is_4ps} onChange={(e) => setDraftInfo((p) => ({ ...p, is_4ps: e.target.checked }))} className="h-4 w-4 rounded accent-primary" />
+                <span className="text-sm font-semibold text-foreground">4Ps / NHTS Member</span>
+              </label>
+              {draftInfo.is_4ps && (
+                <div><label className={POPUP_LABEL}>4Ps ID{infoReq('fourps_id')}</label><input type="text" value={draftInfo.fourps_id ?? ''} onChange={(e) => setDraftInfo((p) => ({ ...p, fourps_id: e.target.value }))} placeholder="4PS-XXXXXXXX" className={POPUP_FIELD} style={POPUP_FIELD_STYLE} />{infoMiss('fourps_id')}</div>
+              )}
+            </div>
           </div>
-          <div className="sticky bottom-0 z-10 border-t bg-card p-6">
+          <div className="sticky bottom-0 z-10 border-t border-border bg-card px-8 py-5">
             {/* Next to the buttons, not at the top of a long form: a save that
                 is refused must say why where the user is looking. */}
-            {infoError && <p role="alert" className="mb-3 rounded-lg border border-destructive/20 bg-danger-surface px-3 py-2 text-sm text-destructive">{infoError}</p>}
-            <div className="flex gap-3">
-            <button type="button" onClick={() => setEditingInfo(false)} disabled={infoSaving} className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-gray-50 disabled:opacity-60">Cancel</button>
-            <button type="button" onClick={handleSaveInfoClick} disabled={infoSaving || !infoDirty}
-              title={infoDirty ? undefined : 'No changes to save'} className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-60">{infoSaving ? 'Saving…' : 'Save Changes'}</button>
+            {infoError && <p role="alert" className="mb-3 rounded-2xl border border-destructive/20 bg-danger-surface px-4 py-2.5 text-sm text-destructive">{infoError}</p>}
+            <div className="flex justify-end gap-3">
+              <button type="button" onClick={() => setEditingInfo(false)} disabled={infoSaving} className={POPUP_CANCEL}>Cancel</button>
+              <button type="button" onClick={handleSaveInfoClick} disabled={infoSaving || !infoDirty}
+                title={infoDirty ? undefined : 'No changes to save'} className={POPUP_PRIMARY}>{infoSaving ? 'Saving…' : 'Save Changes'}</button>
             </div>
           </div>
         </Modal>
