@@ -90,18 +90,18 @@ function MedChip({ label, checked, onToggle, disabled, details, med, setText }: 
 }) {
   const open = checked && !!details?.length;
   return (
-    <div className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border px-3 py-2 text-xs transition-colors ${open ? 'sm:col-span-2' : ''} ${checked ? 'border-primary bg-primary/10' : 'border-border'} ${disabled ? 'opacity-70' : 'hover:bg-canvas'}`}>
-      <label className={`flex shrink-0 items-center gap-2 text-xs ${checked ? 'text-primary font-medium' : 'text-foreground'} ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+    <div className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border px-3 py-3 text-sm transition-colors ${open ? 'sm:col-span-2' : ''} ${checked ? 'border-primary bg-primary/10' : 'border-border'} ${disabled ? 'opacity-70' : 'hover:bg-canvas'}`}>
+      <label className={`flex shrink-0 items-center gap-2 text-sm ${checked ? 'text-primary font-medium' : 'text-foreground'} ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
         <input type="checkbox" disabled={disabled} checked={checked}
           onChange={(e) => onToggle(e.target.checked)}
-          className="w-4 h-4 shrink-0 rounded accent-primary disabled:cursor-not-allowed" />
+          className="w-5 h-5 shrink-0 rounded accent-primary disabled:cursor-not-allowed" />
         {label}
       </label>
       {open && details!.map((d) => (
         <input key={d.field} type="text" disabled={disabled} value={med[d.field]}
           placeholder={d.placeholder ? `${d.label}, ${d.placeholder}` : d.label} aria-label={`${label}: ${d.label}`} title={d.label}
           onChange={(e) => setText(d.field, e.target.value)}
-          className="min-w-[160px] flex-1 bg-card text-xs border border-border rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+          className="min-w-[160px] flex-1 bg-card text-sm border border-border rounded-md px-2 py-2.5 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
       ))}
     </div>
   );
@@ -155,7 +155,7 @@ export function HistoryTab({
     setMeasure((p) => ({ ...p, height_cm: cm }));
   };
   const noSpin = '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';
-  const heightInput = `min-w-0 flex-1 text-sm border border-border rounded px-2 py-1.5 ${noSpin} focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed`;
+  const heightInput = `min-w-0 flex-1 text-base border border-border rounded px-2 py-2.5 ${noSpin} focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed`;
 
   return (
     <div className="p-4 space-y-4">
@@ -169,10 +169,10 @@ export function HistoryTab({
           — true, but its siblings are all nested cards inside it, so this
           was the one section sitting bare. */}
       <div className="bg-card rounded-xl border border-border p-3">
-        <div className="text-base font-bold text-foreground mb-2">Physical Measurements</div>
+        <div className="text-lg font-bold text-foreground mb-2">Physical Measurements</div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-2">
           <div>
-            <label className="block text-xs text-muted-foreground mb-0.5">Height</label>
+            <label className="block text-sm text-muted-foreground mb-0.5">Height</label>
             <div className="flex gap-1">
               {heightUnit === 'ftin' ? (
                 <>
@@ -194,7 +194,7 @@ export function HistoryTab({
               )}
               {/* Display unit only — switching never rewrites the stored cm. */}
               <select value={heightUnit} onChange={(e) => setHeightUnit(e.target.value as HeightUnit)} aria-label="Height unit"
-                className="shrink-0 text-sm border border-border rounded bg-card px-1 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring">
+                className="shrink-0 text-base border border-border rounded bg-card px-1 py-2.5 focus:outline-none focus:ring-1 focus:ring-ring">
                 <option value="ftin">ft/in</option>
                 <option value="cm">cm</option>
                 <option value="m">m</option>
@@ -202,27 +202,27 @@ export function HistoryTab({
             </div>
           </div>
           <div>
-            <label className="block text-xs text-muted-foreground mb-0.5">Weight (kg)</label>
+            <label className="block text-sm text-muted-foreground mb-0.5">Weight (kg)</label>
             <input type="number" min="0" max="500" step="0.1" inputMode="decimal" disabled={!editing}
               value={measure.weight_kg}
               onChange={(e) => setMeasure((p) => ({ ...p, weight_kg: e.target.value }))}
-              placeholder="e.g. 25" className="w-full text-sm border border-border rounded px-2 py-1.5 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+              placeholder="e.g. 25" className="w-full text-base border border-border rounded px-2 py-2.5 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
           </div>
           <div>
-            <label className="block text-xs text-muted-foreground mb-0.5">Temperature (°C)</label>
+            <label className="block text-sm text-muted-foreground mb-0.5">Temperature (°C)</label>
             <input type="number" min="0" max="45" step="0.1" inputMode="decimal" disabled={!editing}
               value={measure.temperature_c}
               onChange={(e) => setMeasure((p) => ({ ...p, temperature_c: e.target.value }))}
-              placeholder="e.g. 36.5" className="w-full text-sm border border-border rounded px-2 py-1.5 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+              placeholder="e.g. 36.5" className="w-full text-base border border-border rounded px-2 py-2.5 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
           </div>
           <div>
-            <label className="block text-xs text-muted-foreground mb-0.5">Blood Pressure</label>
+            <label className="block text-sm text-muted-foreground mb-0.5">Blood Pressure</label>
             {/* Text, not two numbers: read and written as one pair, and
                 nothing here queries systolic alone. */}
             <input type="text" disabled={!editing}
               value={measure.blood_pressure}
               onChange={(e) => setMeasure((p) => ({ ...p, blood_pressure: e.target.value }))}
-              placeholder="e.g. 110/70" className="w-full text-sm border border-border rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+              placeholder="e.g. 110/70" className="w-full text-base border border-border rounded px-2 py-2.5 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
           </div>
           {(() => {
             const bmiValue = computeBmi(Number(measure.height_cm) || null, Number(measure.weight_kg) || null);
@@ -243,14 +243,14 @@ export function HistoryTab({
             return (
               <>
                 <div>
-                  <label className="block text-xs text-muted-foreground mb-0.5">BMI</label>
-                  <div className="w-full text-sm border border-border rounded px-2 py-1.5 bg-muted text-muted-foreground" title={BMI_NOTE}>
+                  <label className="block text-sm text-muted-foreground mb-0.5">BMI</label>
+                  <div className="w-full text-base border border-border rounded px-2 py-2.5 bg-muted text-muted-foreground" title={BMI_NOTE}>
                     {bmiValue ?? 'Automatic'}
                   </div>
                 </div>
                 <div className="col-span-2 sm:col-span-1">
-                  <label className="block text-xs text-muted-foreground mb-0.5">Nutritional Status</label>
-                  <div className={`w-full text-sm border border-border rounded px-2 py-1.5 ${statusColor}`}
+                  <label className="block text-sm text-muted-foreground mb-0.5">Nutritional Status</label>
+                  <div className={`w-full text-base border border-border rounded px-2 py-2.5 ${statusColor}`}
                     title="DOH/DepEd BMI-for-Age classification, 6-19 years old — blank outside that range.">
                     {status ?? statusFallback}
                   </div>
@@ -263,10 +263,10 @@ export function HistoryTab({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-card rounded-xl border border-border p-4">
-          {/* Her heading: sentence case at text-base with the instruction
+          {/* Her heading: sentence case at text-lg with the instruction
               under it, not a small uppercase label. */}
-          <div className="text-base font-bold text-foreground">Medical History</div>
-          <p className="text-xs text-muted-foreground mb-3">Select all applicable conditions.</p>
+          <div className="text-lg font-bold text-foreground">Medical History</div>
+          <p className="text-sm text-muted-foreground mb-3">Select all applicable conditions.</p>
           {/* ⚠ Sprint 165 — chips, not label-left/checkbox-right rows.
               Removing the record page's width cap stretched those rows to
               the full content width and left every checkbox a hand-span
@@ -301,25 +301,25 @@ export function HistoryTab({
             })}
           </div>
           <div className="mt-3">
-            <label className="block text-xs text-muted-foreground mb-1">Others (please specify)</label>
+            <label className="block text-sm text-muted-foreground mb-1">Others (please specify)</label>
             <input type="text" disabled={!editing} value={med.others}
               onChange={(e) => setMed((p) => ({ ...p, others: e.target.value }))}
-              className="w-full text-xs border border-border rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
+              className="w-full text-sm border border-border rounded px-2 py-2.5 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
           </div>
         </div>
         <div className="bg-card rounded-xl border border-border p-4">
-          <div className="text-base font-bold text-foreground">Dietary Habits and Social History</div>
-          <p className="text-xs text-muted-foreground mb-3">Select all applicable conditions.</p>
+          <div className="text-lg font-bold text-foreground">Dietary Habits and Social History</div>
+          <p className="text-sm text-muted-foreground mb-3">Select all applicable conditions.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {([
               ['Sugar Sweetened Beverages/Food', 'sugarSweetened'], ['Alcohol Drinker', 'alcoholDrinker'],
               ['Tobacco User', 'tobaccoUser'], ['Betel Nut Chewer', 'betelNut'],
               ['Body Piercing', 'bodyPiercing'], ['Nail Biting', 'nailBiting'], ['Thumbsucking', 'thumbsucking'],
             ] as [string, keyof DietDraft][]).map(([label, field]) => (
-              <label key={field} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors ${!!diet[field] ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-border text-foreground'} ${editing ? 'cursor-pointer hover:bg-canvas' : 'cursor-not-allowed opacity-70'}`}>
+              <label key={field} className={`flex items-center gap-2 rounded-lg border px-3 py-3 text-sm transition-colors ${!!diet[field] ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-border text-foreground'} ${editing ? 'cursor-pointer hover:bg-canvas' : 'cursor-not-allowed opacity-70'}`}>
                 <input type="checkbox" disabled={!editing} checked={!!diet[field]}
                   onChange={(e) => setDiet((p) => ({ ...p, [field]: e.target.checked }))}
-                  className="w-4 h-4 rounded accent-primary disabled:cursor-not-allowed" />
+                  className="w-5 h-5 rounded accent-primary disabled:cursor-not-allowed" />
                 {label}
               </label>
             ))}
