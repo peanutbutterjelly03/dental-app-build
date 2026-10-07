@@ -1422,7 +1422,7 @@ export const Appointments = () => {
                       onChange={e => setGuardianContactNumber(e.target.value)}
                       placeholder="09XX XXX XXXX"
                       className={POPUP_FIELD} style={POPUP_FIELD_STYLE} />
-                    <p className="text-[11px] text-muted-foreground mt-1.5">Who the clinic can reach about this booking.</p>
+                    <p className="text-[10px] text-muted-foreground mt-1.5">Who the clinic can reach about this booking.</p>
                   </div>
                 </div>
                 <div className="space-y-5">
