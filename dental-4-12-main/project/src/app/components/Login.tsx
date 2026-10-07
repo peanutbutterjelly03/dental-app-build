@@ -99,7 +99,7 @@ export const Login = () => {
   const linkBtn = 'text-xs font-normal text-sky-300 hover:underline';
 
   return (
-    <div className="mx-auto grid w-full max-w-6xl flex-1 content-center items-center gap-10 px-5 py-12 lg:grid-cols-[minmax(0,1fr)_400px]">
+    <div className="mx-auto grid w-full max-w-6xl flex-1 content-center items-center gap-10 px-5 py-6 lg:grid-cols-[minmax(0,1fr)_400px]">
       <div className="hidden lg:block">
         <Tag>Staff access</Tag>
         <h1 className="mt-3.5 text-balance text-5xl font-extrabold leading-[1.05] tracking-tight">Sign in to your clinic.</h1>
@@ -160,7 +160,7 @@ export const Login = () => {
               <div className="mb-8 mt-6 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 text-xs font-normal text-blue-100/85">
                 <label htmlFor="login-remember" className="flex cursor-pointer items-center gap-2 text-xs font-normal">
                   <input id="login-remember" type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="h-4 w-4 accent-sky-400" />
-                  Keep me signed in on this device
+                  Remember Me
                 </label>
                 <button type="button" onClick={() => { setStep('forgot'); setError(null); }} className={linkBtn}>Forgot password?</button>
               </div>

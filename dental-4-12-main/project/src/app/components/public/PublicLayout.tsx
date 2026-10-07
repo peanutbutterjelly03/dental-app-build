@@ -60,19 +60,25 @@ export const PublicLayout = () => {
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `rounded-lg px-3.5 py-2 text-sm font-medium transition ${isActive ? 'bg-white/15 text-white font-semibold' : 'text-white/85 hover:bg-white/10'}`;
 
+  // The sign-in page is exactly one screen: it never scrolls, except on a screen too
+  // short to hold the card, where scrolling is the only way to reach the button.
+  const oneScreen = pathname === '/login';
+
   return (
-    <div className="relative flex min-h-screen flex-col overflow-x-hidden text-white" style={{ background: PUBLIC_GROUND }}>
+    <div
+      className={`relative flex flex-col overflow-x-hidden text-white ${oneScreen ? 'h-dvh overflow-y-hidden [@media(max-height:640px)]:overflow-y-auto' : 'min-h-screen'}`}
+      style={{ background: PUBLIC_GROUND }}>
       <svg aria-hidden="true" viewBox="30 20 150 190" className="pointer-events-none absolute -right-28 top-20 hidden w-[560px] fill-white opacity-[0.07] md:block">
         <path d={TOOTH_PATH} />
       </svg>
 
-      <header className="relative z-20 mx-auto w-full max-w-6xl px-3 pt-3.5">
+      <header className="relative z-20 mx-auto w-full max-w-[1400px] px-4 pt-8 sm:px-6">
         <div className="relative flex items-center justify-between gap-3 rounded-2xl border border-white/15 bg-white/[0.07] px-4 py-2.5 backdrop-blur-md">
           <Link to="/home" className="flex items-center gap-2.5" aria-label="Floral home">
             <img src="/logo.svg" alt="" aria-hidden="true" className="h-9 w-9 object-contain" />
             <span className="leading-tight">
               <span className="block text-lg font-extrabold tracking-tight">Floral</span>
-              <span className="block text-[11px] text-white/65">School dental health records</span>
+              <span className="block text-[11px] text-white/65">Dental Health Record Management System</span>
             </span>
           </Link>
 
