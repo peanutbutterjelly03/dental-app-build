@@ -21,7 +21,7 @@ const Faq = () => {
 
 export const ClinicPage = () => (
   <>
-    <section className="relative flex min-h-[520px] items-center pt-12">
+    <section className="relative -mt-24 flex min-h-[600px] items-center pt-24">
       <div className="absolute inset-0">
         <img src="/landing/clinic/team.jpg" alt="The school dental clinic team" className="h-full w-full object-cover [object-position:50%_35%]" />
         <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(23,52,140,0.82)_0%,rgba(37,84,200,0.55)_45%,rgba(56,130,230,0.12)_100%),linear-gradient(0deg,rgba(18,38,107,0.9)_0%,transparent_28%)]" />
