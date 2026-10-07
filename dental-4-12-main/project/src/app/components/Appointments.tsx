@@ -1331,7 +1331,7 @@ export const Appointments = () => {
           );
         };
         return (
-        <Modal onClose={closeCreate} maxWidth="max-w-4xl" rounded="rounded-3xl" closeDisabled={creating}>
+        <Modal onClose={closeCreate} maxWidth="max-w-4xl" rounded="rounded-3xl" closeDisabled={creating} className="max-sm:[scrollbar-width:none] max-sm:[&::-webkit-scrollbar]:hidden">
           <div className="flex items-start justify-between gap-4 px-8 py-6 border-b border-border">
             <div>
               <h2 className="text-xl font-bold text-foreground">New Appointment</h2>
