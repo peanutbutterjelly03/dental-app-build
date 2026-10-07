@@ -1968,7 +1968,7 @@ export const DentalChart = () => {
               {visibleTabs.map((tab) => (
                 <button key={tab.key} onClick={() => setActiveTab(tab.key as TabKey)}
                   aria-current={activeTab === tab.key ? 'page' : undefined}
-                  className={`${visibleTabs.length > 1 ? 'flex-1' : 'px-6'} whitespace-nowrap px-3 py-2.5 my-1 mx-1 rounded-xl text-base text-center transition-colors focus:outline-none focus-visible:outline-none ${activeTab === tab.key ? 'font-bold bg-primary text-white' : 'font-medium text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
+                  className={`${visibleTabs.length > 1 ? 'flex-1' : 'px-6'} whitespace-nowrap px-3 py-2.5 my-1 mx-1 rounded-xl text-sm text-center transition-colors focus:outline-none focus-visible:outline-none ${activeTab === tab.key ? 'font-bold bg-primary text-white' : 'font-medium text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
                   {tab.label}
                 </button>
               ))}
@@ -1997,11 +1997,11 @@ export const DentalChart = () => {
                     </button>
                   ) : (
                     <>
-                      <button onClick={cancelEdit} disabled={saving} className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-60">
+                      <button onClick={cancelEdit} disabled={saving} className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-60">
                         Cancel
                       </button>
-                      <button onClick={handleSave} disabled={saving} className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-sm font-medium transition-colors disabled:opacity-60 ${saved ? 'bg-green-600 text-white' : 'bg-destructive text-white hover:opacity-90'}`}>
-                        <Save className="w-4 h-4" />
+                      <button onClick={handleSave} disabled={saving} className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-60 ${saved ? 'bg-green-600 text-white' : 'bg-destructive text-white hover:opacity-90'}`}>
+                        <Save className="w-3.5 h-3.5" />
                         {saving ? 'Saving…' : saved ? 'Saved!' : 'Save'}
                       </button>
                     </>
@@ -2009,7 +2009,7 @@ export const DentalChart = () => {
                 </div>
               )}
             </div>
-            {saveError && <p className="px-4 pb-2 text-sm text-destructive">{saveError}</p>}
+            {saveError && <p className="px-4 pb-2 text-xs text-destructive">{saveError}</p>}
           </div>
           {showStickyYearBar && years.length > 0 && (
             <div className="border-t border-gray-100 bg-card px-4 pt-3">
@@ -2036,16 +2036,16 @@ export const DentalChart = () => {
                 const isCurrentYear = y.iptr.school_year === schoolYearLabel();
                 return (
                   <div key={y.iptr._id} className={`relative mr-1 flex flex-shrink-0 items-stretch border-b-2 ${isActive ? 'border-blue-700 bg-blue-50 text-blue-700' : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
-                    <button type="button" onClick={() => { setSelectedYear(idx); setSelectedChartId(null); setExplicitVisit(null); }} className={`py-2.5 pl-4 text-left text-sm font-medium transition-all ${canEdit ? 'pr-9' : 'pr-4'}`}>
+                    <button type="button" onClick={() => { setSelectedYear(idx); setSelectedChartId(null); setExplicitVisit(null); }} className={`py-2.5 pl-4 text-left text-xs font-medium transition-all ${canEdit ? 'pr-9' : 'pr-4'}`}>
                       {isCurrentYear ? (
                         <span className="inline-block rounded-full bg-emerald-600 px-2 py-0.5 text-white">{y.iptr.school_year}</span>
                       ) : (
                         <div>{y.iptr.school_year}</div>
                       )}
                       {activeTab === 'chart' && (
-                        <div style={{ fontSize: '12px', marginTop: '2px' }} className={isActive ? 'text-blue-600' : 'text-muted-foreground'} >{yrDmftLabel}</div>
+                        <div style={{ fontSize: '10px', marginTop: '2px' }} className={isActive ? 'text-blue-600' : 'text-muted-foreground'} >{yrDmftLabel}</div>
                       )}
-                      <div style={{ fontSize: '12px', marginTop: '2px' }} className={isActive ? 'text-blue-600' : 'text-muted-foreground'}>
+                      <div style={{ fontSize: '10px', marginTop: '2px' }} className={isActive ? 'text-blue-600' : 'text-muted-foreground'}>
                         {formatDateStamp(examinedDate(y.oralCondition, y.dentalChart, y.toothRecords))}
                       </div>
                     </button>
@@ -2088,11 +2088,11 @@ export const DentalChart = () => {
                     {years.length > 1 ? (
                       <button type="button"
                         onClick={() => { setYearMenuOpen(false); setConfirmDeleteYear(yearMenuIdx); }}
-                        className="block w-full text-left px-3 py-2 text-sm text-destructive hover:bg-danger-surface">
+                        className="block w-full text-left px-3 py-2 text-xs text-destructive hover:bg-danger-surface">
                         Archive record
                       </button>
                     ) : (
-                      <div className="px-3 py-2 text-sm text-muted-foreground">The only school year cannot be archived.</div>
+                      <div className="px-3 py-2 text-xs text-muted-foreground">The only school year cannot be archived.</div>
                     )}
                   </div>
                 </>
@@ -2109,7 +2109,7 @@ export const DentalChart = () => {
                       type="button"
                       onClick={() => setChartingMode(true)}
                       title="Full-screen charting — Escape exits"
-                      className="flex items-center gap-1.5 rounded-lg border border-primary px-2.5 py-1.5 text-sm font-semibold text-primary transition-colors hover:bg-primary/10"
+                      className="flex items-center gap-1.5 rounded-lg border border-primary px-2.5 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
                     >
                       <Maximize2 className="w-3.5 h-3.5" /> Charting Mode
                     </button>
@@ -2117,7 +2117,7 @@ export const DentalChart = () => {
                   <button
                     type="button"
                     onClick={() => setLegendOpen(true)}
-                    className="flex items-center gap-1.5 rounded-lg bg-primary px-2.5 py-1.5 text-sm font-semibold text-white transition-colors hover:opacity-90"
+                    className="flex items-center gap-1.5 rounded-lg bg-primary px-2.5 py-1.5 text-xs font-semibold text-white transition-colors hover:opacity-90"
                   >
                     <FileText className="w-3.5 h-3.5" /> Legend
                   </button>
@@ -2144,15 +2144,15 @@ export const DentalChart = () => {
         // full (user pick "D", 2026-09-25 — no separate coloured icon block;
         // the shield moves into a status pill next to the text).
         <div className="overflow-hidden rounded-xl border border-slate-300 bg-card shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
-        <div className="bg-primary px-4 py-2 text-[13px] font-semibold uppercase tracking-wider text-white">Consent</div>
+        <div className="bg-primary px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-white">Consent</div>
         <div className="flex items-center gap-3 px-4 py-3 min-w-0">
-          <span className={`inline-flex flex-shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[13px] font-semibold ${consentComplete ? 'border-[#86EFAC] bg-[#F0FDF4] text-[#15803D]' : 'border-[#FCD34D] bg-[#FFFBEB] text-[#B45309]'}`}>
-            {consentComplete ? <ShieldCheck className="h-4 w-4" /> : <ShieldAlert className="h-4 w-4" />}
+          <span className={`inline-flex flex-shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${consentComplete ? 'border-[#86EFAC] bg-[#F0FDF4] text-[#15803D]' : 'border-[#FCD34D] bg-[#FFFBEB] text-[#B45309]'}`}>
+            {consentComplete ? <ShieldCheck className="h-3.5 w-3.5" /> : <ShieldAlert className="h-3.5 w-3.5" />}
             {consentComplete ? 'Obtained' : 'Pending'}
           </span>
           <div className="flex-1 flex items-center justify-between gap-3 min-w-0">
             <div className="min-w-0 flex flex-col justify-center gap-0.5">
-              <div className="text-[16px] font-bold leading-tight text-foreground">
+              <div className="text-[13.5px] font-bold leading-tight text-foreground">
                 {consentComplete
                   ? `Physical copy of consent obtained for ${yearIptr.school_year}`
                   : `Consent pending for ${yearIptr.school_year}`}
@@ -2161,11 +2161,11 @@ export const DentalChart = () => {
                 {/* Same plain "Grade 6-Rose" text as the patient card header,
                     all in the grade's colour-coding colour, no pill (user, 2026-09-24). */}
                 {yearGrade ? (
-                  <span className="whitespace-nowrap text-sm font-normal" style={{ color: getGradeColor(yearGrade).solid }}>
+                  <span className="whitespace-nowrap text-xs font-normal" style={{ color: getGradeColor(yearGrade).solid }}>
                     {yearGrade}{yearSection ? `-${yearSection}` : ''}
                   </span>
                 ) : (
-                  <span className="text-[12.5px] text-muted-foreground">Grade/section not recorded for this year</span>
+                  <span className="text-[10.5px] text-muted-foreground">Grade/section not recorded for this year</span>
                 )}
               </div>
             </div>
@@ -2181,10 +2181,10 @@ export const DentalChart = () => {
               disabled={!canEdit}
               className={`flex items-center gap-2 pl-1.5 pr-2 py-1 rounded-full flex-shrink-0 disabled:opacity-60 disabled:cursor-not-allowed ${canEdit ? 'cursor-pointer' : 'cursor-default'} ${consentComplete ? 'bg-[#F0FDF4]' : 'bg-[#F1F5F9]'}`}
             >
-              <span className={`w-10 h-[22px] rounded-full relative inline-block ${consentComplete ? 'bg-[#15803D]' : 'bg-[#E2E8F0]'}`}>
-                <span className={`absolute top-0.5 w-[18px] h-[18px] rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.15)] ${consentComplete ? 'right-0.5' : 'left-0.5'}`} />
+              <span className={`w-8 h-[18px] rounded-full relative inline-block ${consentComplete ? 'bg-[#15803D]' : 'bg-[#E2E8F0]'}`}>
+                <span className={`absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.15)] ${consentComplete ? 'right-0.5' : 'left-0.5'}`} />
               </span>
-              <span className={`text-[13px] font-semibold ${consentComplete ? 'text-[#15803D]' : 'text-[#475569]'}`}>
+              <span className={`text-[11px] font-semibold ${consentComplete ? 'text-[#15803D]' : 'text-[#475569]'}`}>
                 {consentComplete ? 'Obtained' : 'Mark obtained'}
               </span>
             </button>
