@@ -50,7 +50,16 @@ export const SecondaryLink = ({ to, children }: { to: string; children: ReactNod
 
 export const PublicLayout = () => {
   const [open, setOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const { pathname } = useLocation();
+
+  // The bar glows and takes a sky gradient once content scrolls under it.
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   useEffect(() => {
     setOpen(false);
@@ -76,7 +85,9 @@ export const PublicLayout = () => {
           saturates what is behind it, so it takes on the colour of whatever section is
           scrolling underneath instead of staying one flat shade. */}
       <header className="fixed inset-x-0 top-0 z-50 px-4 pt-6 sm:px-6">
-        <div className="relative mx-auto flex max-w-7xl items-center justify-between gap-3 rounded-2xl border border-white/25 bg-[linear-gradient(90deg,rgba(255,255,255,.16),rgba(255,255,255,.06),rgba(255,255,255,.16)),linear-gradient(rgba(10,19,48,.62),rgba(10,19,48,.62))] px-4 py-2.5 shadow-xl shadow-blue-950/30 backdrop-blur-2xl backdrop-brightness-125 backdrop-saturate-150">
+        <div className={`relative mx-auto flex max-w-7xl items-center justify-between gap-3 rounded-2xl border px-4 py-2.5 backdrop-blur-2xl backdrop-brightness-125 backdrop-saturate-150 transition-all duration-500 ${scrolled
+            ? 'border-sky-300/50 bg-[linear-gradient(90deg,rgba(56,189,248,.30),rgba(99,102,241,.16),rgba(56,189,248,.30)),linear-gradient(rgba(10,19,48,.55),rgba(10,19,48,.55))] shadow-[0_0_34px_rgba(56,189,248,.45),0_8px_30px_rgba(10,19,48,.5)]'
+            : 'border-white/25 bg-[linear-gradient(90deg,rgba(255,255,255,.16),rgba(255,255,255,.06),rgba(255,255,255,.16)),linear-gradient(rgba(10,19,48,.62),rgba(10,19,48,.62))] shadow-[0_0_22px_rgba(56,189,248,.18)]'}`}>
           <Link to="/home" className="flex items-center gap-2.5" aria-label="Floral home">
             <img src="/logo.svg" alt="" aria-hidden="true" className="h-9 w-9 object-contain" />
             <span className="leading-tight">
