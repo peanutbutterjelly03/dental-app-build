@@ -42,6 +42,17 @@
   }
 }
 
+/* Browser autofill paints a pale fill and dark text over any field, which turned the
+   sign-in fields light on a dark card. Hold the dark fill and white text instead. */
+input.field-dark:-webkit-autofill,
+input.field-dark:-webkit-autofill:hover,
+input.field-dark:-webkit-autofill:focus {
+  -webkit-text-fill-color: #fff;
+  caret-color: #fff;
+  box-shadow: 0 0 0 1000px #131f4d inset;
+  transition: background-color 9999s ease-out 0s;
+}
+
 /* Edge/IE add their own built-in reveal/clear icons inside <input
    type="password">, which visually stacks on top of our custom show/hide
    toggle (Login.tsx). Suppress the native ones so only ours shows. */
