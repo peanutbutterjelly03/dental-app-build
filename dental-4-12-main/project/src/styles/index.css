@@ -29,6 +29,19 @@
   }
 }
 
+/* Sign-in fields sit on a dark glass card. Same specificity as the shared rules
+   above, placed after them so the light border and dark focus ring do not win. */
+@media screen {
+  input.field-dark:not(:disabled, [aria-disabled="true"], [aria-invalid="true"]) {
+    border: 1px solid rgba(255, 255, 255, 0.22);
+  }
+  input.field-dark:not(:disabled, [aria-disabled="true"], [aria-invalid="true"]):focus {
+    border-color: #38bdf8;
+    outline: 2px solid #38bdf8;
+    outline-offset: -1px;
+  }
+}
+
 /* Edge/IE add their own built-in reveal/clear icons inside <input
    type="password">, which visually stacks on top of our custom show/hide
    toggle (Login.tsx). Suppress the native ones so only ours shows. */

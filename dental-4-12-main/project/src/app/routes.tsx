@@ -43,9 +43,9 @@ export const router = createBrowserRouter([
       { path: "/home", Component: LandingHome },
       { path: "/about", Component: AboutFloral },
       { path: "/clinic", Component: ClinicPage },
+      { path: "/login", Component: Login },
     ],
   },
-  { path: "/login", Component: Login },
   { path: "/reset-password", Component: ResetPassword },
   { path: "/select-school", Component: SchoolSelect },
   {

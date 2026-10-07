@@ -5,7 +5,7 @@
 ## ⭐ PUBLIC PAGES + LOGIN RESTYLE (2026-10-07, branch `claude/student-records-layout`)
 - **Design:** user picked "Option B, Night Clinic" (navy glass, RAMHIS-V3 structure) from interactive prototypes (artifacts `VYZQ9aoypYQ13CcHFtxbvn`, `3dzm6RGnZ4uFNg1d8r2PWS`). Public routes `/home`, `/about`, `/clinic` under `components/public/` (`PublicLayout`, `LandingHome`, `AboutFloral`, `ClinicPage`, `Demos`, `publicContent.ts`). `/` is STILL the dashboard (signed-out goes to `/login`), so installed-app users reach sign-in directly; the login has an "About Floral" link back.
 - **Rules kept:** public copy states only fixed facts (3 schools, 5 roles, 7 modules, 2 visits); no student counts or statistics; the DOH report sample uses the real `DOH_AGE_BRACKETS` and blank cells. Demos (tooth chart, RPC, risk, sync queue) hold local state and never call the API.
-- **Login:** logic untouched; ground now `PUBLIC_GROUND` (shared with the public pages) + back link.
+- **Login (redone to the user's screenshot):** now a child of `PublicLayout` (shared navbar, two-column Staff access copy + glass card). Logic and all four steps untouched. The checkbox keeps the honest label "Keep me signed in on this device" (it sets the 7-day cookie), NOT the mock-up's "Remember my email". Dark fields use `.field-dark` in `index.css` to beat the shared field-border rule.
 - **Verified:** tsc clean; Playwright screenshots at 390/768/1280, no horizontal scroll on any of the four pages. NOT checked: the role table is my reading of CLAUDE.md's role list, confirm against the Chapter 3 use cases.
 
 ## ⭐ DENTAL CHART: SELECT THE TEETH FIRST, THEN PICK A CODE (2026-10-07, branch `claude/student-records-layout`) - REPLACES the Single/Bulk version

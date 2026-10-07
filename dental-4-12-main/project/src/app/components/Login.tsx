@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
-import { Mail, Lock, Eye, EyeOff, ShieldCheck, ArrowLeft } from 'lucide-react';
-import { Link } from 'react-router';
-import { PUBLIC_GROUND } from './public/PublicLayout';
+import { ShieldCheck, ArrowLeft } from 'lucide-react';
+import { Tag } from './public/PublicLayout';
 import { apiClient, ApiError } from '../api/client';
 import { Notice } from './Notice';
 import { useOfflineQueue } from '../hooks/useOfflineQueue';
@@ -80,7 +79,7 @@ export const Login = () => {
       await apiClient.post('/auth/forgot-password', { email });
       setStep('forgot-sent');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'No connection — try again when back online.');
+      setError(err instanceof ApiError ? err.message : 'No connection. Try again when back online.');
     } finally {
       setSubmitting(false);
     }
@@ -92,230 +91,112 @@ export const Login = () => {
     setCode('');
   };
 
-  const inputClass =
-    'w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1E40AF] focus:border-transparent text-sm';
+  // Night Clinic sign-in, matching the public pages. Fields carry `field-dark` so the
+  // app-wide field border/focus rule in index.css does not turn them light-on-dark.
+  const fieldClass = 'field-dark h-11 w-full rounded-xl bg-black/25 px-3.5 text-sm text-white placeholder:text-white/45';
+  const labelClass = 'mb-1.5 block text-[13px] font-semibold text-white';
+  const primaryBtn = 'mt-1 h-[46px] w-full rounded-xl bg-sky-400 text-[15px] font-extrabold text-[#06204A] transition hover:brightness-110 disabled:opacity-60';
+  const linkBtn = 'font-bold text-sky-300 hover:underline';
 
   return (
-    // RAMHIS-derived layout (their real AuthLayout.jsx: dark navy ground,
-    // glass branding panel, a light card for the form) -- content is
-    // FLORAL's own, not copied. No background photo: their layout uses one,
-    // FLORAL has no equivalent asset to use in its place, so this is a plain
-    // gradient instead of inventing a stock image.
-    <div
-      className="relative min-h-screen overflow-x-hidden"
-      style={{ background: PUBLIC_GROUND }}
-    >
-      <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-white/[0.03]" />
+    <div className="mx-auto grid max-w-6xl items-center gap-10 px-5 py-12 lg:min-h-[calc(100vh-200px)] lg:grid-cols-[minmax(0,1fr)_440px] lg:py-14">
+      <div className="hidden lg:block">
+        <Tag>Staff access</Tag>
+        <h1 className="mt-3.5 text-balance text-5xl font-extrabold leading-[1.05] tracking-tight">Sign in to your clinic.</h1>
+        <p className="mt-3.5 max-w-[50ch] text-lg text-blue-100/85">
+          Accounts are created by the System Admin. Your role decides what you see: clinical records, school reports, or consolidated reports.
+        </p>
+        <ul className="mt-4 grid gap-2 text-[15px] text-blue-100/85">
+          {['Every action is written to the audit trail.', 'Sessions lock after inactivity.', 'Patient fields are encrypted before they are stored.'].map((t) => (
+            <li key={t} className="flex gap-2.5"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-400" />{t}</li>
+          ))}
+        </ul>
+      </div>
 
-      <Link
-        to="/home"
-        className="absolute left-4 top-4 z-20 flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-medium text-white backdrop-blur-md transition hover:bg-white/20 sm:left-6 sm:top-6"
-      >
-        <ArrowLeft className="h-4 w-4" /> About Floral
-      </Link>
-
-      <div className="relative z-10 flex min-h-screen w-full flex-col justify-center gap-8 px-6 py-12 sm:px-10 lg:flex-row lg:items-center lg:justify-between lg:gap-0 lg:px-16 xl:px-20">
-        {/* ── Identity ───────────────────────────────────────────────────── */}
-        <div className="hidden w-full max-w-2xl lg:block lg:w-[46%] lg:-translate-y-4">
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-8 backdrop-blur-md">
-            <div className="flex items-center gap-5">
-              <img src="/logo.svg" alt="" aria-hidden="true" className="w-20 h-20 object-contain drop-shadow-2xl" />
-              <div className="h-16 w-px bg-gradient-to-b from-transparent via-white/20 to-transparent" />
-              <div>
-                <h1 className="text-4xl font-extrabold tracking-tight text-white">FLORAL</h1>
-                <p className="mt-1.5 text-sm font-medium leading-snug text-white/70">
-                  Dental Health Record
-                  <br />
-                  Management System
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-6 border-t border-white/10 pt-6">
-              <span className="inline-flex items-center rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-wide text-blue-300">
-                BARANGAY TANYAG · TAGUIG CITY
-              </span>
-              <h2 className="mt-3 text-2xl font-light leading-snug text-white/95">
-                Built for the barangay's{' '}
-                <span className="font-semibold text-white">three public schools</span>,
-                offline-first and always ready.
-              </h2>
-              <p className="mt-4 max-w-sm text-sm leading-relaxed text-white/60">
-                Dental records, two-visit preventive-care monitoring and caries-risk analytics
-                for clinic staff only. Every record access is logged.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Sign in ────────────────────────────────────────────────────── */}
-        <div className="flex w-full items-center justify-center lg:w-[42%] lg:justify-end">
-      <div className="w-full max-w-md">
-        {/* Compact identity for screens without the brand pane. */}
-        <div className="text-center mb-4 lg:hidden">
-          <div className="flex justify-center mb-2">
-            <img src="/logo.svg" alt="FLORAL" className="w-14 h-14 object-contain" />
-          </div>
-          <h1 className="text-2xl font-bold text-white mb-1">FLORAL</h1>
-          <p className="text-sm text-white/70">Dental Health Record Management System</p>
-          <p className="text-xs text-white/50 mt-0.5">Barangay Tanyag, Taguig City</p>
-        </div>
-
-        <h2 className="hidden lg:block text-lg font-bold text-white mb-3">Sign in</h2>
-
-        {/* Signing in is the one action that genuinely cannot work offline —
-            it needs the server to issue a token — so a failed attempt would
-            otherwise read as a wrong password. Shown only when offline: there
-            is no write queue on this screen, so a permanent "Online" chip
-            would be noise. */}
+      <div className="w-full">
+        {/* Signing in is the one action that cannot work offline: it needs the server to
+            issue a token, so a failed attempt would otherwise read as a wrong password. */}
         {!isOnline && (
           <div className="mb-3">
-            <Notice variant="warning">
-              You're offline. Signing in needs a connection — reconnect and try again.
-            </Notice>
+            <Notice variant="warning">You're offline. Signing in needs a connection. Reconnect and try again.</Notice>
           </div>
         )}
 
-        <div className="bg-white rounded-3xl shadow-[0_25px_80px_rgba(0,0,0,0.35)] p-5 sm:p-7 border border-white/10">
+        <div className="rounded-3xl border border-white/20 bg-white/[0.09] p-6 shadow-[0_25px_80px_rgba(0,0,30,0.4)] backdrop-blur-xl sm:p-7">
+          <div className="mb-3 flex items-center gap-3">
+            <img src="/logo.svg" alt="" aria-hidden="true" className="h-9 w-9 object-contain" />
+            <span className="text-lg font-extrabold">Floral</span>
+          </div>
+
           {step === 'credentials' && (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label htmlFor="login-email" className="block text-sm font-medium text-foreground mb-1">
-                  Email Address
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  {/* autoComplete hands sign-in autofill to the BROWSER's own
-                      credential manager (backlog 0d). The app deliberately
-                      stores nothing itself — keeping a password in
-                      localStorage would undo Sprint 37 and is an OWASP finding
-                      waiting to happen. These fields carried no autoComplete
-                      at all until 2026-09-02, so browsers never offered to
-                      save or fill them. */}
-                  <input
-                    id="login-email"
-                    type="email"
-                    name="email"
-                    autoComplete="username"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className={inputClass}
-                    placeholder="your.email@floral.com"
-                    required
-                  />
-                </div>
+            <form onSubmit={handleSubmit}>
+              <h2 className="text-2xl font-extrabold tracking-tight">Welcome back</h2>
+              <p className="text-sm text-blue-100/80">Use your clinic email and password.</p>
+
+              <div className="mt-4">
+                <label htmlFor="login-email" className={labelClass}>Email</label>
+                {/* autoComplete hands sign-in autofill to the BROWSER's own credential
+                    manager. The app stores nothing itself: a password in localStorage would
+                    undo Sprint 37 and is an OWASP finding waiting to happen. */}
+                <input id="login-email" type="email" name="email" autoComplete="username" value={email}
+                  onChange={(e) => setEmail(e.target.value)} className={fieldClass} placeholder="name@clinic.ph" required />
               </div>
 
-              <div>
-                <label htmlFor="login-password" className="block text-sm font-medium text-foreground mb-1">
-                  Password
-                </label>
+              <div className="mt-4">
+                <label htmlFor="login-password" className={labelClass}>Password</label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <input
-                    id="login-password"
-                    type={showPassword ? 'text' : 'password'}
-                    name="password"
-                    autoComplete="current-password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className={`${inputClass} pr-9`}
-                    placeholder="••••••••"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground"
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  <input id="login-password" type={showPassword ? 'text' : 'password'} name="password" autoComplete="current-password"
+                    value={password} onChange={(e) => setPassword(e.target.value)} className={`${fieldClass} pr-16`} placeholder="Your password" required />
+                  <button type="button" onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-1.5 top-1.5 h-8 rounded-lg px-2.5 text-xs font-bold text-white/75 hover:text-white"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}>
+                    {showPassword ? 'Hide' : 'Show'}
                   </button>
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-                <label htmlFor="login-remember" className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-                  <input
-                    id="login-remember"
-                    type="checkbox"
-                    checked={remember}
-                    onChange={(e) => setRemember(e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-300 accent-[#1E40AF]"
-                  />
+              <div className="my-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 text-[13px] text-blue-100/85">
+                <label htmlFor="login-remember" className="flex cursor-pointer items-center gap-2">
+                  <input id="login-remember" type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="h-4 w-4 accent-sky-400" />
                   Keep me signed in on this device
                 </label>
-                <button
-                  type="button"
-                  onClick={() => { setStep('forgot'); setError(null); }}
-                  className="text-xs text-[#1E40AF] hover:underline"
-                >
-                  Forgot password?
-                </button>
+                <button type="button" onClick={() => { setStep('forgot'); setError(null); }} className={linkBtn}>Forgot password?</button>
               </div>
               {remember && (
-                <p className="text-xs text-muted-foreground -mt-2">
-                  Only use this on your own device — on a shared clinic PC, leave it unticked so closing the browser signs you out.
+                <p className="-mt-2 mb-3 text-xs text-blue-100/70">
+                  Only use this on your own device. On a shared clinic PC, leave it unticked so closing the browser signs you out.
                 </p>
               )}
 
-              {error && <Notice variant="error">{error}</Notice>}
+              {error && <Notice variant="error" className="mb-3">{error}</Notice>}
 
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full bg-[#1E40AF] hover:bg-blue-700 disabled:opacity-60 text-white font-medium py-2 rounded-lg transition-colors text-sm"
-              >
-                {submitting ? 'Signing in…' : 'Sign In'}
-              </button>
+              <button type="submit" disabled={submitting} className={primaryBtn}>{submitting ? 'Signing in…' : 'Sign in'}</button>
             </form>
           )}
 
           {step === 'otp' && (
             <form onSubmit={handleVerifyOtp} className="space-y-4">
-              <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-800">
-                <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0" />
+              <h2 className="text-2xl font-extrabold tracking-tight">Verify it's you</h2>
+              <div className="flex items-start gap-2 rounded-xl border border-sky-300/30 bg-sky-400/10 px-3 py-2 text-xs text-blue-100">
+                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>A 6-digit verification code was emailed to <strong>{email}</strong>. It expires in 10 minutes.</span>
               </div>
               <div>
-                <label htmlFor="login-otp" className="block text-sm font-medium text-foreground mb-1">
-                  Verification Code
-                </label>
-                <input
-                  id="login-otp"
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  maxLength={6}
-                  value={code}
+                <label htmlFor="login-otp" className={labelClass}>Verification code</label>
+                <input id="login-otp" type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code}
                   onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1E40AF] focus:border-transparent text-center text-xl tracking-[0.4em] font-semibold"
-                  placeholder="••••••"
-                  autoFocus
-                  required
-                />
+                  className={`${fieldClass} text-center text-xl font-semibold tracking-[0.4em]`} placeholder="••••••" autoFocus required />
               </div>
 
               {error && <Notice variant="error">{error}</Notice>}
 
-              <button
-                type="submit"
-                disabled={submitting || code.length !== 6}
-                className="w-full bg-[#1E40AF] hover:bg-blue-700 disabled:opacity-60 text-white font-medium py-2 rounded-lg transition-colors text-sm"
-              >
-                {submitting ? 'Verifying…' : 'Verify & Sign In'}
-              </button>
+              <button type="submit" disabled={submitting || code.length !== 6} className={primaryBtn}>{submitting ? 'Verifying…' : 'Verify and sign in'}</button>
 
               <div className="flex items-center justify-between text-xs">
-                <button type="button" onClick={backToSignIn} className="flex items-center gap-1 text-muted-foreground hover:text-foreground">
-                  <ArrowLeft className="w-3 h-3" /> Back to sign in
+                <button type="button" onClick={backToSignIn} className="flex items-center gap-1 text-white/75 hover:text-white">
+                  <ArrowLeft className="h-3 w-3" /> Back to sign in
                 </button>
-                <button
-                  type="button"
-                  onClick={handleResend}
-                  disabled={resendCooldown > 0}
-                  className="text-[#1E40AF] hover:underline disabled:text-muted-foreground disabled:no-underline"
-                >
+                <button type="button" onClick={handleResend} disabled={resendCooldown > 0} className={`${linkBtn} disabled:text-white/45 disabled:no-underline`}>
                   {resendCooldown > 0 ? `Resend code (${resendCooldown}s)` : 'Resend code'}
                 </button>
               </div>
@@ -324,35 +205,20 @@ export const Login = () => {
 
           {step === 'forgot' && (
             <form onSubmit={handleForgot} className="space-y-4">
-              <p className="text-sm text-foreground font-medium">Reset your password</p>
-              <p className="text-xs text-muted-foreground">
-                Enter your account email — if it has a real mailbox on file, you'll receive a reset link.
-                No email set up? Contact your System Admin instead.
+              <h2 className="text-2xl font-extrabold tracking-tight">Reset your password</h2>
+              <p className="text-sm text-blue-100/80">
+                Enter your account email. If it has a real mailbox on file, you'll receive a reset link. No email set up? Contact your System Admin instead.
               </p>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className={inputClass}
-                  placeholder="your.email@floral.com"
-                  autoFocus
-                  required
-                />
+              <div>
+                <label htmlFor="forgot-email" className={labelClass}>Email</label>
+                <input id="forgot-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={fieldClass} placeholder="name@clinic.ph" autoFocus required />
               </div>
 
               {error && <Notice variant="error">{error}</Notice>}
 
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full bg-[#1E40AF] hover:bg-blue-700 disabled:opacity-60 text-white font-medium py-2 rounded-lg transition-colors text-sm"
-              >
-                {submitting ? 'Sending…' : 'Send Reset Link'}
-              </button>
-              <button type="button" onClick={backToSignIn} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-                <ArrowLeft className="w-3 h-3" /> Back to sign in
+              <button type="submit" disabled={submitting} className={primaryBtn}>{submitting ? 'Sending…' : 'Send reset link'}</button>
+              <button type="button" onClick={backToSignIn} className="flex items-center gap-1 text-xs text-white/75 hover:text-white">
+                <ArrowLeft className="h-3 w-3" /> Back to sign in
               </button>
             </form>
           )}
@@ -360,19 +226,13 @@ export const Login = () => {
           {step === 'forgot-sent' && (
             <div className="space-y-4">
               <Notice variant="success">
-                If that email has an account, a reset link is on its way. The link expires in 30 minutes — check spam if it doesn't arrive.
+                If that email has an account, a reset link is on its way. The link expires in 30 minutes. Check spam if it doesn't arrive.
               </Notice>
-              <button type="button" onClick={backToSignIn} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-                <ArrowLeft className="w-3 h-3" /> Back to sign in
+              <button type="button" onClick={backToSignIn} className="flex items-center gap-1 text-xs text-white/75 hover:text-white">
+                <ArrowLeft className="h-3 w-3" /> Back to sign in
               </button>
             </div>
           )}
-        </div>
-
-        <p className="text-center text-xs text-white/50 mt-3">
-          © 2026 Barangay Tanyag Health Office. All rights reserved.
-        </p>
-      </div>
         </div>
       </div>
     </div>
