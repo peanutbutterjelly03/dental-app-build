@@ -53,6 +53,7 @@ import {
   conditionCodes,
   treatmentCodes,
   treatmentLabel,
+  BULK_SCOPES,
   type ChartEntry,
 } from '../utils/dentalChartCodes';
 
@@ -281,6 +282,13 @@ export const DentalChart = () => {
 
   const [selectedCondition, setSelectedCondition] = useState<string | null>(null);
   const [selectedTreatment, setSelectedTreatment] = useState<string | null>(null);
+  // Single: click a tooth and pick its code from a popover. Bulk: arm a code in
+  // the palette, then paint teeth by dragging or apply it to whole areas.
+  const [markMode, setMarkMode] = useState<'single' | 'bulk'>('single');
+  const [picker, setPicker] = useState<{ tooth: number; x: number; top: number; bottom: number } | null>(null);
+  const [bulkScopes, setBulkScopes] = useState<Set<string>>(new Set());
+  const [bulkSkipFilled, setBulkSkipFilled] = useState(true);
+  const [bulkUndo, setBulkUndo] = useState<Record<number, ChartEntry> | null>(null);
   const [confirmClear, setConfirmClear] = useState<'condition' | 'treatment' | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -914,7 +922,89 @@ export const DentalChart = () => {
     syncDatesFromChart({ ...currentChart, [toothNumber]: nextEntry });
   };
 
-  const handleToothPointerDown = (toothNumber: number) => {
+  // Single mode: one tooth, one popover. No paint stroke starts.
+  const openToothPicker = (toothNumber: number, el: HTMLElement) => {
+    const r = el.getBoundingClientRect();
+    setChartError(null);
+    setPicker({ tooth: toothNumber, x: r.left + r.width / 2, top: r.top, bottom: r.bottom });
+  };
+
+  const pickToothCode = (toothNumber: number, kind: 'condition' | 'treatment', key: string) => {
+    const entry = currentChart[toothNumber];
+    let value = key;
+    if (kind === 'condition') {
+      const codeObj = conditionCodes.find((c) => c.code === key);
+      const code = codeObj ? (temporaryTeeth.has(toothNumber) ? codeObj.temp : codeObj.perm) : key;
+      if (entry?.condition === code) value = '';
+      if (value) stampConditionDate();
+    } else {
+      if (entry?.treatment === key) value = '';
+      if (value) stampTreatmentDate();
+    }
+    applyToothPaint(toothNumber, kind, value);
+    setPicker(null);
+  };
+
+  const clearPickedTooth = (toothNumber: number) => {
+    applyToothPaint(toothNumber, 'erase', '');
+    setPicker(null);
+  };
+
+  const changeMarkMode = (mode: 'single' | 'bulk') => {
+    setMarkMode(mode);
+    setPicker(null);
+    setSelectedCondition(null);
+    setSelectedTreatment(null);
+  };
+
+  // The popover belongs to editing: leaving edit mode closes it.
+  useEffect(() => { if (!editingChart) setPicker(null); }, [editingChart]);
+
+  const bulkField: 'condition' | 'treatment' | null = selectedCondition ? 'condition' : selectedTreatment ? 'treatment' : null;
+  const bulkTargets = (() => {
+    if (!bulkField) return [] as number[];
+    const set = new Set<number>();
+    BULK_SCOPES.forEach((sc) => { if (bulkScopes.has(sc.id)) sc.teeth.forEach((n) => set.add(n)); });
+    return [...set].filter((n) => {
+      const e = currentChart[n];
+      // Same rule as the palette: no treatment on a tooth without a condition.
+      if (bulkField === 'treatment' && !e?.condition) return false;
+      return !(bulkSkipFilled && e?.[bulkField]);
+    });
+  })();
+
+  const applyBulk = () => {
+    if (!bulkField || bulkTargets.length === 0) return;
+    setBulkUndo(currentChart);
+    const next = { ...currentChart };
+    bulkTargets.forEach((n) => {
+      const entry = next[n] || { condition: '', treatment: '', visitNumber: null };
+      if (bulkField === 'condition') {
+        const codeObj = conditionCodes.find((c) => c.code === selectedCondition);
+        const code = codeObj ? (temporaryTeeth.has(n) ? codeObj.temp : codeObj.perm) : (selectedCondition as string);
+        next[n] = { ...entry, condition: code, visitNumber: activeVisit };
+      } else {
+        next[n] = { ...entry, treatment: selectedTreatment as string, visitNumber: activeVisit };
+      }
+    });
+    setDraftChart(next);
+    if (bulkField === 'condition') stampConditionDate(); else stampTreatmentDate();
+    syncDatesFromChart(next);
+    toast.success(`Marked ${bulkTargets.length} teeth. Not saved until Save Chart.`);
+  };
+
+  const undoBulk = () => {
+    if (!bulkUndo) return;
+    setDraftChart(bulkUndo);
+    syncDatesFromChart(bulkUndo);
+    setBulkUndo(null);
+  };
+
+  const handleToothPointerDown = (toothNumber: number, el?: HTMLElement) => {
+    if (markMode === 'single') {
+      if (el) openToothPicker(toothNumber, el);
+      return;
+    }
     isPaintingRef.current = true;
     setChartError(null);
     if (selectedCondition) {
@@ -2247,6 +2337,12 @@ export const DentalChart = () => {
             visit1HasDataLive={visit1HasDataLive}
             treatmentTeethVisit1={treatmentTeethVisit1}
             treatmentTeethVisit2={treatmentTeethVisit2}
+            marking={{
+              markMode, changeMarkMode, picker, closePicker: () => setPicker(null), pickToothCode, clearPickedTooth,
+              bulkScopes,
+              toggleBulkScope: (id: string) => setBulkScopes((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; }),
+              bulkSkipFilled, setBulkSkipFilled, bulkField, bulkTargetCount: bulkTargets.length, applyBulk, hasBulkUndo: !!bulkUndo, undoBulk,
+            }}
             actions={{
               setChartingMode, goToStudent, setEditMode, cancelEdit, handleSave, setExplicitVisit, setConfirmClear,
               handleToothPointerDown, syncChartDateFromConditions, syncVisitDateFromServices,
