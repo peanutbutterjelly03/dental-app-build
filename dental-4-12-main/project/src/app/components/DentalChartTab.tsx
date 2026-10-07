@@ -395,7 +395,7 @@ export function DentalChartTab({
           </div>
         </div>
       )}
-      <div className="p-4 space-y-4">
+      <div className="space-y-4">
       {/* ── ORAL CONDITIONS / TREATMENTS GIVEN (Sprint 154) ──────────
           Card, columns, chips, inline dates and the Others expander are
           the collaborator's, from `majorUpdates`, and it opens the tab

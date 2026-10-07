@@ -2207,7 +2207,8 @@ export const DentalChart = () => {
       )}
 
       {/* Tab Content */}
-      <div className="relative overflow-hidden bg-card rounded-xl border border-border shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+      <div className={activeTab === 'chart' ? 'relative' : 'relative overflow-hidden bg-card rounded-xl border border-border shadow-[0_8px_24px_rgba(15,23,42,0.08)]'}>
+        {/* Dental Chart has no outer card (user, 2026-10-07): its own panels sit straight on the page. */}
         {/* Teal strip on every tab except Dental Chart, whose panels carry their own navy bars. */}
         {activeTab !== 'chart' && <div className="absolute top-0 left-0 right-0 h-1 bg-teal-600 z-10" />}
 
