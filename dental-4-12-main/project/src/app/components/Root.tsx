@@ -61,7 +61,8 @@ const SB = {
   },
   sky: {
     bg: 'linear-gradient(170deg, #F4FBFF 0%, #DFF1FD 100%)',
-    shadow: '0 15px 20px rgba(15,23,42,0.14), inset 0 0 0 1px rgba(3,105,161,0.10)',
+    // No drop shadow (user, 2026-10-07): it painted a darker band on the page beside the rail.
+    shadow: 'inset 0 0 0 1px rgba(3,105,161,0.10)',
     logo: '/logo-sky.svg',
     divider: 'bg-[#C5DFF2]',
     title: 'text-[#0B3153]',
