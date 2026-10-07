@@ -284,7 +284,7 @@ export const Appointments = () => {
   const allAppts = [...appointments].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
 
   const historyScopeBar = (label: string, tabKey: string) => (
-    <div className="sticky top-1 z-10 bg-card px-4 py-3 border-b border-border flex items-center justify-between">
+    <div className="bg-card px-4 py-3 border-b border-border flex items-center justify-between">
       <span className="text-sm font-semibold text-foreground">{label}</span>
       <TabActionsMenu tabKey={tabKey} />
     </div>
@@ -897,8 +897,8 @@ export const Appointments = () => {
           row, and the rail scrolls its own short list instead of fighting
           the page for width. Below md it stacks above the content like the
           old strip did. */}
-      <div className="flex flex-col md:flex-row gap-5 md:min-h-[calc(100vh-220px)]">
-        <nav className="flex md:flex-col gap-1 md:w-[200px] flex-shrink-0 overflow-x-auto md:overflow-visible">
+      <div className="flex flex-col lg:flex-row gap-5">
+        <nav className="flex lg:flex-col gap-1 lg:w-[200px] flex-shrink-0 overflow-x-auto lg:overflow-visible no-scrollbar">
           {[
             // Fixed brand navy for every tab's active fill -- status color
             // (red Missed, green Completed) lives on the cards themselves
@@ -929,30 +929,15 @@ export const Appointments = () => {
         </nav>
 
         {/* ── TAB CONTENT ── */}
-        {/* This box, not the page, is what scrolls: capped to the viewport
-            (minus the topbar + page header above it) so a long appointment
-            list scrolls inside its own container instead of the header,
-            rail and everything else scrolling away with it. Each tab's own
-            header bar (Today's date strip, historyScopeBar, etc.) is
-            `sticky top-0` inside it so it stays pinned while the list
-            beneath scrolls. `no-scrollbar` keeps it scrollable (wheel/touch/
-            keyboard) without drawing the OS scrollbar track.
-            220px (2026-09-25: 260 left a visible gap under the card; 180
-            overshot and ran past the sidebar's own bottom edge instead of
-            aligning with it). Tuned by eye without a live browser in this
-            session -- re-check against the sidebar's actual bottom if it's
-            still off. */}
-        <div className="no-scrollbar flex-1 min-w-0 bg-card rounded-xl border border-border shadow-[0_8px_24px_rgba(15,23,42,0.08)] overflow-y-auto max-h-[calc(100vh-220px)]">
-          {/* Top accent stripe, matching the reference card -- sticky and
-              above every other sticky header in this box (z-20 vs their
-              z-10) so it stays visible as the sole rounded band at the very
-              top while everything beneath scrolls under it. */}
-          <div className="sticky top-0 z-20 h-1 bg-primary rounded-t-xl" />
+        {/* Nothing in this box is pinned or height-capped (2026-10-07, user rule): the page scrolls as a whole and each tab's header bar scrolls with its list. Below lg the view switcher becomes a horizontal strip above the content, so tablets and phones get the full width. */}
+        <div className="no-scrollbar flex-1 min-w-0 bg-card rounded-xl border border-border shadow-[0_8px_24px_rgba(15,23,42,0.08)] overflow-x-auto">
+          {/* Top accent stripe, matching the reference card. */}
+          <div className="h-1 bg-primary rounded-t-xl" />
 
       {/* TODAY */}
       {activeTab === 'today' && (
         <>
-          <div className="sticky top-1 z-10 bg-card px-4 py-3 border-b border-border flex items-center gap-2">
+          <div className="bg-card px-4 py-3 border-b border-border flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
             <span className="text-sm font-bold text-foreground flex-1">Today, {formatDateWithWeekday(TODAY)}</span>
             <TabActionsMenu tabKey="today" />
@@ -970,7 +955,7 @@ export const Appointments = () => {
       {/* UPCOMING */}
       {activeTab === 'upcoming' && (
         <>
-          <div className="sticky top-1 z-10 bg-card px-4 py-3 border-b border-border flex items-center justify-between">
+          <div className="bg-card px-4 py-3 border-b border-border flex items-center justify-between">
             <span className="text-sm font-semibold text-foreground">Upcoming Appointments</span>
             <TabActionsMenu tabKey="upcoming" />
           </div>
@@ -1009,7 +994,7 @@ export const Appointments = () => {
       {/* ALL */}
       {activeTab === 'all' && (
         <>
-          <div className="sticky top-1 z-10 bg-card px-4 py-3 border-b border-border flex items-center justify-between">
+          <div className="bg-card px-4 py-3 border-b border-border flex items-center justify-between">
             <span className="text-sm font-semibold text-foreground">All Appointments</span>
             <TabActionsMenu tabKey="all" />
           </div>
@@ -1030,7 +1015,7 @@ export const Appointments = () => {
       {activeTab === 'rotation' && <SchoolRotationTab />}
       {activeTab === 'calendar' && (
         <>
-          <div className="sticky top-1 z-10 bg-card px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+          <div className="bg-card px-4 py-3 border-b border-gray-100 flex items-center justify-between">
             <span className="text-sm font-semibold text-foreground">Calendar Reminders</span>
             <div className="flex items-center gap-2">
               <button onClick={prevMonth} className="p-1.5 hover:bg-gray-100 rounded-lg"><ChevronLeft className="w-4 h-4 text-muted-foreground"/></button>
