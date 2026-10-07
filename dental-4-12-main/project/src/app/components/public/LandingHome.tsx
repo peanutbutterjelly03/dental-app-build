@@ -143,9 +143,9 @@ export const LandingHome = () => {
   return (
     <>
       {/* Hero */}
-      <div className="mx-auto grid max-w-6xl items-center gap-9 px-5 pb-14 pt-14 md:grid-cols-[1.15fr_0.85fr] md:pt-20">
+      <div className="mx-auto max-w-6xl px-5 pb-14 pt-14 md:pt-20">
         <div>
-          <Tag>Barangay Tanyag, Taguig City</Tag>
+          <Tag>About Floral</Tag>
           <h1 className="mt-4 text-balance text-4xl font-extrabold leading-[1.02] tracking-tight sm:text-6xl">
             Healthy smiles <span className="block text-sky-300">for every school year.</span>
           </h1>
@@ -154,13 +154,6 @@ export const LandingHome = () => {
           </p>
           <div className="mt-7 flex flex-wrap gap-2.5"><PrimaryLink to="/login">Sign in</PrimaryLink><SecondaryLink to="/about">See how it works</SecondaryLink></div>
         </div>
-        <GlassCard className="shadow-2xl">
-          <div className="mb-3 flex justify-between gap-2 border-b border-white/15 pb-2 text-[11px] font-semibold uppercase tracking-wider text-blue-100/70"><span>Individual Patient Treatment Record</span><span>Layout sample</span></div>
-          {[['School', 'Assigned at sign-in'], ['RPC visit', 'Visit 1 or Visit 2'], ['Risk level', 'Validated by the dentist']].map(([k, v]) => (
-            <div key={k} className="flex justify-between gap-2 border-b border-dashed border-white/15 py-1.5 text-sm"><span className="text-blue-100/70">{k}</span><b>{v}</b></div>
-          ))}
-          <p className="mt-3 text-xs text-blue-100/70">A sample of the layout only. No student data is shown on public pages.</p>
-        </GlassCard>
       </div>
 
       {/* Facts: fixed properties of the system, not statistics */}
