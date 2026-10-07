@@ -557,6 +557,7 @@ export const BulkScanReview = () => {
         + '.bulk-edge:disabled{opacity:.3;cursor:default}.bulk-edge:focus-visible{outline:0.125rem solid #7AA2FF;outline-offset:0.125rem}'
         + '@media (pointer: coarse){.bulk-edge{width:2rem;height:3.5rem}}'
         + '@media (max-width: 639px){.bulk-shell{height:auto !important;overflow:visible !important;padding:0.25rem 0 1rem 1rem !important;margin-bottom:0 !important}'
+        + '.bulk-edge{position:fixed !important;top:50vh !important}.bulk-edge.l{left:0 !important}.bulk-edge.r{right:0 !important}'
         + '.bulk-head{gap:0.75rem !important}.bulk-head>div:first-child{display:none !important}.bulk-head>div:nth-child(2){flex:1 1 0 !important}.bulk-head h1{font-size:1.375rem !important}'
         + '.bulk-bar{padding:1rem !important;gap:0.875rem !important}.bulk-bar-left{flex:1 1 100% !important;width:100%}.bulk-bar-left>div{max-width:none !important}'
         + '.bulk-bar-right{margin-left:0 !important;width:100%;align-items:stretch !important}.bulk-view{display:flex !important}.bulk-view button{flex:1;justify-content:center}'
