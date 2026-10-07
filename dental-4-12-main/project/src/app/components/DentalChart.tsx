@@ -1736,7 +1736,7 @@ export const DentalChart = () => {
         <div ref={iptrFormV2Ref}><IptrFormV2 student={student} schoolName={schoolName} years={years} /></div>
       </div>
       {/* Sticky header row */}
-      <div ref={headerRowRef} className="sticky z-40 bg-gray-50 pt-3 pb-2" style={{ top: TOPBAR_H }}>
+      <div ref={headerRowRef} className="sticky z-40 bg-canvas pt-3 pb-2" style={{ top: TOPBAR_H }}>
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-3 min-w-0">
           <Link to={backPath} className="p-2 hover:bg-gray-100 rounded-lg shrink-0">
