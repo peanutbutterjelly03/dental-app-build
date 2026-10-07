@@ -95,11 +95,11 @@ export const Login = () => {
   // app-wide field border/focus rule in index.css does not turn them light-on-dark.
   const fieldClass = 'field-dark h-11 w-full rounded-xl bg-black/25 px-3.5 text-sm text-white placeholder:text-white/45';
   const labelClass = 'mb-1.5 block text-[13px] font-semibold text-white';
-  const primaryBtn = 'mt-1 h-12 w-full rounded-xl bg-sky-400 text-sm font-normal text-[#06204A] transition hover:brightness-110 disabled:opacity-60';
+  const primaryBtn = 'mt-1 h-12 w-full rounded-xl bg-sky-400 text-sm font-bold text-[#06204A] transition hover:brightness-110 disabled:opacity-60';
   const linkBtn = 'text-xs font-normal text-sky-300 hover:underline';
 
   return (
-    <div className="mx-auto grid w-full max-w-6xl flex-1 content-center items-center gap-10 px-5 py-12 lg:grid-cols-[minmax(0,1fr)_440px]">
+    <div className="mx-auto grid w-full max-w-6xl flex-1 content-center items-center gap-10 px-5 py-12 lg:grid-cols-[minmax(0,1fr)_400px]">
       <div className="hidden lg:block">
         <Tag>Staff access</Tag>
         <h1 className="mt-3.5 text-balance text-5xl font-extrabold leading-[1.05] tracking-tight">Sign in to your clinic.</h1>
@@ -122,40 +122,42 @@ export const Login = () => {
           </div>
         )}
 
-        <div className="rounded-3xl border border-white/20 bg-white/[0.09] p-7 shadow-[0_25px_80px_rgba(0,0,30,0.4)] backdrop-blur-xl sm:px-8 sm:py-10">
-          <div className="mb-5 flex items-center gap-3">
+        <div className="rounded-3xl border border-white/20 bg-white/[0.09] p-7 shadow-[0_25px_80px_rgba(0,0,30,0.4)] backdrop-blur-xl sm:px-7 sm:py-12">
+          <div className="mb-6 flex items-center gap-3">
             <img src="/logo.svg" alt="" aria-hidden="true" className="h-9 w-9 object-contain" />
             <span className="text-lg font-extrabold">Floral</span>
           </div>
 
           {step === 'credentials' && (
             <form onSubmit={handleSubmit}>
-              <h2 className="text-2xl font-extrabold tracking-tight">Welcome back</h2>
+              <h2 className="text-2xl font-extrabold tracking-tight">Welcome back!</h2>
               <p className="text-sm text-blue-100/80">Use your clinic email and password.</p>
 
-              <div className="mt-6">
+              <div className="mt-7">
                 <label htmlFor="login-email" className={labelClass}>Email</label>
                 {/* autoComplete hands sign-in autofill to the BROWSER's own credential
                     manager. The app stores nothing itself: a password in localStorage would
                     undo Sprint 37 and is an OWASP finding waiting to happen. */}
                 <input id="login-email" type="email" name="email" autoComplete="username" value={email}
-                  onChange={(e) => setEmail(e.target.value)} className={fieldClass} placeholder="name@clinic.ph" required />
+                  onChange={(e) => setEmail(e.target.value)} className={fieldClass} placeholder="Enter your email" required />
               </div>
 
-              <div className="mt-5">
+              <div className="mt-6">
                 <label htmlFor="login-password" className={labelClass}>Password</label>
                 <div className="relative">
                   <input id="login-password" type={showPassword ? 'text' : 'password'} name="password" autoComplete="current-password"
-                    value={password} onChange={(e) => setPassword(e.target.value)} className={`${fieldClass} pr-11`} placeholder="Your password" required />
-                  <button type="button" onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-1.5 top-1.5 grid h-8 w-8 place-items-center rounded-lg text-white/70 hover:text-white"
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}>
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
+                    value={password} onChange={(e) => setPassword(e.target.value)} className={`${fieldClass} pr-11`} placeholder="Enter your password" required />
+                  {password && (
+                    <button type="button" onClick={() => setShowPassword((v) => !v)}
+                      className="absolute right-1.5 top-1.5 grid h-8 w-8 place-items-center rounded-lg text-white/70 hover:text-white"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}>
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  )}
                 </div>
               </div>
 
-              <div className="mb-6 mt-5 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 text-xs font-normal text-blue-100/85">
+              <div className="mb-8 mt-6 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 text-xs font-normal text-blue-100/85">
                 <label htmlFor="login-remember" className="flex cursor-pointer items-center gap-2 text-xs font-normal">
                   <input id="login-remember" type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="h-4 w-4 accent-sky-400" />
                   Keep me signed in on this device
@@ -211,7 +213,7 @@ export const Login = () => {
               </p>
               <div>
                 <label htmlFor="forgot-email" className={labelClass}>Email</label>
-                <input id="forgot-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={fieldClass} placeholder="name@clinic.ph" autoFocus required />
+                <input id="forgot-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={fieldClass} placeholder="Enter your email" autoFocus required />
               </div>
 
               {error && <Notice variant="error">{error}</Notice>}
