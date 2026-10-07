@@ -99,7 +99,7 @@ export const Login = () => {
   const linkBtn = 'font-bold text-sky-300 hover:underline';
 
   return (
-    <div className="mx-auto grid max-w-6xl items-center gap-10 px-5 py-12 lg:min-h-[calc(100vh-200px)] lg:grid-cols-[minmax(0,1fr)_440px] lg:py-14">
+    <div className="mx-auto grid w-full max-w-6xl flex-1 content-center items-center gap-10 px-5 py-12 lg:grid-cols-[minmax(0,1fr)_440px]">
       <div className="hidden lg:block">
         <Tag>Staff access</Tag>
         <h1 className="mt-3.5 text-balance text-5xl font-extrabold leading-[1.05] tracking-tight">Sign in to your clinic.</h1>
