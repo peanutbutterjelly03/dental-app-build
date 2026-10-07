@@ -90,9 +90,9 @@ export const PublicLayout = () => {
             : 'border-white/25 bg-[linear-gradient(90deg,rgba(255,255,255,.16),rgba(255,255,255,.06),rgba(255,255,255,.16)),linear-gradient(rgba(10,19,48,.62),rgba(10,19,48,.62))] shadow-[0_0_22px_rgba(56,189,248,.18)]'}`}>
           <Link to="/home" className="flex items-center gap-2.5" aria-label="Floral home">
             <img src="/logo.svg" alt="" aria-hidden="true" className="h-9 w-9 object-contain" />
-            <span className="flex flex-col justify-center gap-0 leading-[1.05]">
-              <span className="block text-lg font-extrabold tracking-tight">Floral</span>
-              <span className="block text-[10px] text-white/65">Dental Health Record Management System</span>
+            <span className="flex flex-col justify-center gap-0 leading-none">
+              <span className="block text-lg font-extrabold leading-[1] tracking-tight">Floral</span>
+              <span className="mt-px block text-[10px] leading-none text-white/65">Dental Health Record Management System</span>
             </span>
           </Link>
 
