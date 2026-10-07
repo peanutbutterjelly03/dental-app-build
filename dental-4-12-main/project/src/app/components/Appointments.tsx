@@ -521,7 +521,7 @@ export const Appointments = () => {
   const openReschedule = (session: AppointmentSession) => {
     setRescheduleTarget(session);
     setRescheduleDate(session.date);
-    setRescheduleTime(session.time);
+    setRescheduleTime(session.time || DEFAULT_TIME);
     setRescheduleError(null);
   };
 
@@ -538,7 +538,7 @@ export const Appointments = () => {
     setRescheduling(true);
     setRescheduleError(null);
     try {
-      const appointment_datetime = new Date(`${rescheduleDate}T${rescheduleTime || '08:00'}`).toISOString();
+      const appointment_datetime = new Date(`${rescheduleDate}T${rescheduleTime || DEFAULT_TIME}`).toISOString();
       await Promise.all(
         rescheduleTarget.appointmentIds.map(id =>
           apiClient.put(`/appointments/${id}`, { appointment_datetime, status: 'Scheduled' }),
