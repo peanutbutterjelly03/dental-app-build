@@ -72,10 +72,11 @@ export const PublicLayout = () => {
         <path d={TOOTH_PATH} />
       </svg>
 
-      {/* Fixed to the top and translucent with a blur, so its fill follows whatever is
-          scrolling underneath (same recipe as the RAMHIS navbar). */}
+      {/* Fixed to the top. The fill is a light tint over a blur that also brightens and
+          saturates what is behind it, so it takes on the colour of whatever section is
+          scrolling underneath instead of staying one flat shade. */}
       <header className="fixed inset-x-0 top-0 z-50 px-4 pt-6 sm:px-6">
-        <div className="relative mx-auto flex max-w-7xl items-center justify-between gap-3 rounded-2xl border border-white/15 bg-[#0a1330]/75 px-4 py-2.5 shadow-xl shadow-blue-950/30 backdrop-blur-xl">
+        <div className="relative mx-auto flex max-w-7xl items-center justify-between gap-3 rounded-2xl border border-white/25 bg-[linear-gradient(90deg,rgba(255,255,255,.16),rgba(255,255,255,.06),rgba(255,255,255,.16)),linear-gradient(rgba(10,19,48,.62),rgba(10,19,48,.62))] px-4 py-2.5 shadow-xl shadow-blue-950/30 backdrop-blur-2xl backdrop-brightness-125 backdrop-saturate-150">
           <Link to="/home" className="flex items-center gap-2.5" aria-label="Floral home">
             <img src="/logo.svg" alt="" aria-hidden="true" className="h-9 w-9 object-contain" />
             <span className="leading-tight">
