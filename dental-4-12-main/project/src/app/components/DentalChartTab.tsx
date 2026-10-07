@@ -1,5 +1,5 @@
-import type { Dispatch, SetStateAction } from 'react';
-import { Save, Pencil, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Check, AlertTriangle, Lock, Minimize2, Trash2, X } from 'lucide-react';
+import { useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { Save, Pencil, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Check, AlertTriangle, Lock, Minimize2, Trash2, X, Undo2 } from 'lucide-react';
 import { getGradeColor } from '../utils/gradeColors';
 import { formatDate } from '../utils/localDate';
 import { surnameFirst } from '../utils/studentName';
@@ -21,7 +21,6 @@ import {
   treatmentCodes,
   perToothTreatmentCodes,
   treatmentLabel,
-  BULK_SCOPES,
   type computeDMFT,
   type ChartEntry,
 } from '../utils/dentalChartCodes';
@@ -95,37 +94,24 @@ export interface ChartTabActions {
   setExplicitVisit: Dispatch<SetStateAction<1 | 2 | null>>;
   setConfirmClear: Dispatch<SetStateAction<'condition' | 'treatment' | null>>;
   /** What pressing a tooth MEANS — owned by the host, which owns the draft. */
-  handleToothPointerDown: (toothNumber: number, el?: HTMLElement) => void;
+  handleToothPointerDown: (toothNumber: number) => void;
   syncChartDateFromConditions: (oral: OralDraft, othersOpen: boolean) => void;
   syncVisitDateFromServices: (services: Record<ServiceField, boolean | null>) => void;
 }
 
-/** Single tooth vs Bulk marking, the per-tooth code popover, and bulk areas. */
+/** Select the teeth first, then pick a code from the popup (user, 2026-10-07). */
 export interface ChartTabMarking {
-  markMode: 'single' | 'bulk';
-  changeMarkMode: (mode: 'single' | 'bulk') => void;
-  picker: { tooth: number; x: number; top: number; bottom: number } | null;
-  closePicker: () => void;
-  pickToothCode: (tooth: number, kind: 'condition' | 'treatment', key: string) => void;
-  clearPickedTooth: (tooth: number) => void;
-  bulkScopes: Set<string>;
-  toggleBulkScope: (id: string) => void;
-  bulkSkipFilled: boolean;
-  setBulkSkipFilled: (v: boolean) => void;
-  bulkField: 'condition' | 'treatment' | null;
-  bulkTargetCount: number;
-  applyBulk: () => void;
-  hasBulkUndo: boolean;
-  undoBulk: () => void;
-}
-
-export interface ChartTabPalette {
-  selectedCondition: string | null;
-  setSelectedCondition: Dispatch<SetStateAction<string | null>>;
-  selectedTreatment: string | null;
-  setSelectedTreatment: Dispatch<SetStateAction<string | null>>;
-  rareConditionsOpen: boolean;
-  setRareConditionsOpen: Dispatch<SetStateAction<boolean>>;
+  markType: 'condition' | 'treatment';
+  changeMarkType: (type: 'condition' | 'treatment') => void;
+  selectedTeeth: Set<number>;
+  codesOpen: boolean;
+  closeCodes: () => void;
+  applyCode: (kind: 'condition' | 'treatment', key: string) => void;
+  toggleToothFromKeyboard: (tooth: number) => void;
+  canUndo: boolean;
+  undoMark: () => void;
+  rareOpen: boolean;
+  setRareOpen: Dispatch<SetStateAction<boolean>>;
 }
 
 export interface ChartTabDrafts {
@@ -180,7 +166,6 @@ export function DentalChartTab({
   treatmentTeethVisit1,
   treatmentTeethVisit2,
   actions,
-  palette,
   drafts,
   marking,
 }: {
@@ -220,45 +205,77 @@ export function DentalChartTab({
   treatmentTeethVisit1: Record<string, number[]>;
   treatmentTeethVisit2: Record<string, number[]>;
   actions: ChartTabActions;
-  palette: ChartTabPalette;
   drafts: ChartTabDrafts;
   marking: ChartTabMarking;
 }) {
-  const { markMode, changeMarkMode, picker, closePicker, pickToothCode, clearPickedTooth, bulkScopes, toggleBulkScope, bulkSkipFilled, setBulkSkipFilled, bulkField, bulkTargetCount, applyBulk, hasBulkUndo, undoBulk } = marking;
+  const { markType, changeMarkType, selectedTeeth, codesOpen, closeCodes, applyCode, toggleToothFromKeyboard, canUndo, undoMark, rareOpen, setRareOpen } = marking;
   const {
     setChartingMode, goToStudent, setEditMode, cancelEdit, handleSave, setExplicitVisit, setConfirmClear,
     handleToothPointerDown, syncChartDateFromConditions, syncVisitDateFromServices,
   } = actions;
-  const {
-    selectedCondition, setSelectedCondition, selectedTreatment, setSelectedTreatment,
-    rareConditionsOpen, setRareConditionsOpen,
-  } = palette;
   const {
     draftVisitDate, setDraftVisitDate, draftVisitDateByVisit, draftServices, setDraftServices,
     draftServicesByVisit, draftChartDate, setDraftChartDate, draftOral, setDraftOral,
     othersOralOpen, setOthersOralOpen,
   } = drafts;
 
+  // Where the code popup sits: centred over the selected teeth, above them when
+  // there is room inside the chart and below otherwise.
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  const popRef = useRef<HTMLDivElement | null>(null);
+  const [popPos, setPopPos] = useState<{ left: number; top: number } | null>(null);
+  useLayoutEffect(() => {
+    const stage = stageRef.current;
+    const pop = popRef.current;
+    if (!stage || !pop || !codesOpen || selectedTeeth.size === 0) { setPopPos(null); return; }
+    const sr = stage.getBoundingClientRect();
+    const rects = [...selectedTeeth]
+      .map((n) => stage.querySelector<HTMLElement>(`[data-tooth="${n}"]`)?.getBoundingClientRect())
+      .filter((r): r is DOMRect => !!r);
+    if (rects.length === 0) { setPopPos(null); return; }
+    const top = Math.min(...rects.map((r) => r.top)) - sr.top;
+    const bottom = Math.max(...rects.map((r) => r.bottom)) - sr.top;
+    const cx = (Math.min(...rects.map((r) => r.left)) + Math.max(...rects.map((r) => r.right))) / 2 - sr.left;
+    const left = Math.max(0, Math.min(cx - pop.offsetWidth / 2, sr.width - pop.offsetWidth));
+    const above = top - pop.offsetHeight - 10;
+    setPopPos({ left, top: above >= 0 ? above : bottom + 10 });
+  }, [codesOpen, selectedTeeth, markType, rareOpen, currentChart]);
+
+  // True when EVERY selected tooth already carries this code (the popup shows it
+  // pressed, and choosing it again removes it).
+  const allHave = (kind: 'condition' | 'treatment', key: string) => {
+    if (selectedTeeth.size === 0) return false;
+    const codeObj = kind === 'condition' ? conditionCodes.find((c) => c.code === key) : undefined;
+    return [...selectedTeeth].every((n) => {
+      const e = currentChart[n];
+      if (kind === 'treatment') return e?.treatment === key;
+      return e?.condition === (codeObj ? (temporaryTeeth.has(n) ? codeObj.temp : codeObj.perm) : key);
+    });
+  };
+
   const ToothButton = ({ num }: { num: number }) => {
     const data = currentChart[num];
     const cond = data?.condition || '';
     const treat = data?.treatment || '';
     const colorClass = conditionColors[cond] || conditionColors[cond.toLowerCase()] || 'bg-card border-border';
-    const isSelected = editingChart && (markMode === 'single' || selectedCondition || selectedTreatment);
+    const picked = selectedTeeth.has(num);
+    const dimmed = editingChart && markType === 'treatment' && !cond;
+    const isSelected = editingChart && !dimmed;
     const hoverClass = isSelected
-      ? 'hover:border-teal-500 hover:ring-2 hover:ring-teal-300 hover:bg-teal-50 cursor-pointer'
-      : 'cursor-default';
+      ? 'hover:border-amber-500 cursor-pointer'
+      : dimmed ? 'cursor-not-allowed opacity-40' : 'cursor-default';
     return (
       <button
         data-tooth={num}
-        onPointerDown={(e) => editingChart && handleToothPointerDown(num, e.currentTarget)}
+        onPointerDown={() => editingChart && handleToothPointerDown(num)}
         // Keyboard activation only (Enter/Space on a focused tooth) -- a real
         // mouse/touch press is already fully handled by onPointerDown above,
         // and a plain click always follows a mouse's own pointerdown, so
         // acting on it here too would toggle the tooth right back. detail===0
         // is the standard tell for a keyboard-triggered click (no mouse click
         // count behind it) versus a pointer-triggered one.
-        onClick={(e) => { if (e.detail === 0 && editingChart) handleToothPointerDown(num, e.currentTarget); }}
+        onClick={(e) => { if (e.detail === 0 && editingChart) toggleToothFromKeyboard(num); }}
+        aria-pressed={picked}
         // touch-action: none stops the browser from treating a chairside drag
         // across teeth as a page scroll, which is exactly what a paint stroke
         // looks like to a touchscreen otherwise.
@@ -267,7 +284,7 @@ export function DentalChartTab({
         // side, capped so the boxes stay tooth-shaped rather than becoming wide
         // rectangles on a large screen. flex-1 is also what keeps the primary
         // row aligned with the permanent one -- both rows are 16 equal slots.
-        className={`relative flex h-[52px] min-w-[40px] max-w-[56px] flex-1 flex-col items-center justify-between rounded-md border-2 px-0.5 py-1 text-center transition-all md:h-[64px] ${colorClass} ${hoverClass}`}
+        className={`relative flex h-[52px] min-w-[40px] max-w-[56px] flex-1 flex-col items-center justify-between rounded-md border-2 px-0.5 py-1 text-center transition-all md:h-[64px] ${colorClass} ${hoverClass} ${picked ? 'outline outline-[3px] outline-offset-1 outline-amber-500 shadow-[0_0_0_4px_rgba(245,158,11,0.25)]' : ''}`}
       >
         <div className="text-[8px] font-medium text-slate-500 leading-none">{num}</div>
         {/* The sound-tooth check is drawn larger (user, 2026-09-24): at the
@@ -569,194 +586,6 @@ export function DentalChartTab({
       </div>
       </div>
 
-      {/* ⚠ Sprint 152 — the palette is HIDDEN in view mode rather than
-          shown greyed out, adopted from the collaborator's layout. It was
-          already `pointer-events-none` when not editing, so it occupied
-          the top of the screen doing nothing while the summaries above
-          are what a dentist actually reads. The words moved to Legend.
-          It reappears, unchanged, the moment Edit Chart is pressed. */}
-      {/* ── THE PALETTE (Sprint 156) ────────────────────────────────
-          Her chairside layout: code-only pills, the words in the Legend,
-          the rare codes collapsed, and each "Applying…" banner under the
-          palette it came from rather than once at the foot of the card —
-          picking a treatment on the right used to light a message on the
-          far left. Clear All moved onto the heading row and disappears
-          when there is nothing to clear; a permanently-visible disabled
-          destructive button is noise on a blank chart. */}
-      {/* ⚠ Sprint 163 REVERSES Sprint 152. I hid this whole card in view
-          mode; hers shows it GREYED with the hint below, and hers is
-          right for this screen — a dentist opening a record sees what can
-          be charted and that they are not in edit mode yet, instead of a
-          palette that only exists after a click they have no reason to
-          expect. The `pointer-events-none` is what makes it honest. */}
-      <div className="overflow-hidden rounded-xl border border-slate-300 bg-card shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
-      {/* Grey while not editable (user, 2026-09-25): navy means "you can change this".
-          The view-mode notice itself lives on the Oral Conditions bar above. */}
-      <div className={`${editingChart ? 'bg-primary text-white' : 'bg-slate-200 text-slate-600'} flex flex-wrap items-center justify-between gap-2 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider`}>
-        <span>Charting Codes</span>
-        {editingChart && (
-          <div className="inline-flex overflow-hidden rounded-md border border-white/40 normal-case tracking-normal" role="group" aria-label="Marking mode">
-            {([['single', 'Single tooth'], ['bulk', 'Bulk']] as const).map(([m, label]) => (
-              <button key={m} type="button" aria-pressed={markMode === m} onClick={() => changeMarkMode(m)}
-                className={`px-3 py-1 text-xs font-semibold transition-colors ${markMode === m ? 'bg-white text-primary' : 'text-white/80 hover:text-white'}`}>
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-      <div className={`p-4 ${!editingChart ? 'opacity-60 pointer-events-none select-none' : ''}`}>
-        {editingChart && markMode === 'single' && (
-          <p className="mb-3 text-xs text-muted-foreground">Click a tooth on the chart to choose its condition or treatment code.</p>
-        )}
-        <div className={`grid grid-cols-1 ${layoutContext === 'default' ? 'lg:grid-cols-2' : ''} gap-4 ${markMode === 'single' ? 'opacity-60' : ''}`}>
-          {/* Unconditional -- layoutContext now collapses 'treatment'
-              into 'default' at its one declaration above, so this
-              renders the full two-column layout there too, same as
-              Students module and Dental Charts. Tooth Condition Codes
-              is a normal part of charting regardless of which module
-              opened this record. */}
-          <div className={layoutContext === 'default' ? 'lg:pr-4' : undefined}>
-            <div className="flex items-center justify-between gap-2 mb-2 min-h-[26px]">
-              <div className="text-sm font-bold text-primary uppercase tracking-wide">Tooth Condition Codes</div>
-              {editingChart && chartedConditionCount > 0 && (
-                <button onClick={() => setConfirmClear('condition')}
-                  className="flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1 text-[11px] font-semibold text-foreground transition-all hover:border-red-400 hover:text-destructive">
-                  <Trash2 className="h-3 w-3" /> Clear All ({chartedConditionCount})
-                </button>
-              )}
-            </div>
-            {/* "More" is the last item IN the same wrap row, so the rare
-                four read as a continuation of the palette rather than as
-                a separate control below it. */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              {commonConditionCodes.map((c) => (
-                <button key={c.code} title={c.label}
-                  onClick={() => { if (markMode === 'single') return; setSelectedCondition(selectedCondition === c.code ? null : c.code); setSelectedTreatment(null); }}
-                  className={`${paletteBtn} ${selectedCondition === c.code ? 'bg-teal-600 text-white ring-2 ring-teal-300 border-teal-600' : 'bg-card border-border text-foreground hover:border-teal-400'}`}>
-                  {c.perm === '✓' ? <span className="text-2xl leading-none">✓</span> : conditionCodeText(c)}
-                </button>
-              ))}
-              <button type="button" onClick={() => setRareConditionsOpen((v) => !v)}
-                className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 hover:underline">
-                {rareConditionsOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                More ({rareConditionCodes.length})
-              </button>
-            </div>
-            {rareConditionsOpen && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {rareConditionCodes.map((c) => (
-                  <button key={c.code} title={c.label}
-                    onClick={() => { if (markMode === 'single') return; setSelectedCondition(selectedCondition === c.code ? null : c.code); setSelectedTreatment(null); }}
-                    className={`${paletteBtn} ${selectedCondition === c.code ? 'bg-teal-600 text-white ring-2 ring-teal-300 border-teal-600' : 'bg-card border-border text-foreground hover:border-teal-400'}`}>
-                    {c.perm === '✓' ? <span className="text-2xl leading-none">✓</span> : conditionCodeText(c)}
-                  </button>
-                ))}
-              </div>
-            )}
-            {markMode === 'bulk' && selectedCondition && (() => {
-              const c = conditionCodes.find((x) => x.code === selectedCondition);
-              return (
-                <div className="mt-3 flex items-center gap-2">
-                  <span className="font-palette text-[10px] font-semibold px-2 py-0.5 rounded-full bg-teal-100 text-teal-800">
-                    {c ? conditionCodeText(c) : ''} · {c?.label} (Click teeth to apply)
-                  </span>
-                  <button onClick={() => setSelectedCondition(null)} className="text-xs text-muted-foreground hover:text-foreground underline">Clear</button>
-                </div>
-              );
-            })()}
-          </div>
-          {/* Conditions and treatments are different vocabularies -- one
-              records what IS, the other what was DONE -- but unselected
-              buttons in both groups look identical, so without a rule the
-              two grids read as one long palette. Divider only when both
-              are on screen: side by side from lg, stacked below it.
-              Unconditional now (user, 2026-09-27) -- was hidden for
-              iptrContext === 'dental-queue', which no longer strips
-              functionality down from the default view. */}
-          {/* The WHOLE column -- title, Clear All, and the codes --
-              hidden until a Tooth Condition Code exists, not just the
-              codes themselves (user, 2026-09-28: "these words too
-              should be hidden and only show when there are changes"),
-              same "no treatment without a condition" rule as
-              Treatments Given's column. */}
-          {chartedConditionCount > 0 && (
-          <div className={layoutContext === 'default' ? 'border-t border-border pt-4 lg:border-t-0 lg:pt-0 lg:border-l lg:pl-4' : undefined}>
-            <div className="flex items-center justify-between gap-2 mb-2 min-h-[26px]">
-              <div className="text-sm font-bold text-primary uppercase tracking-wide">Tooth Treatment Codes</div>
-              {editingChart && chartedTreatmentCount > 0 && (
-                <button onClick={() => setConfirmClear('treatment')}
-                  className="flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1 text-[11px] font-semibold text-foreground transition-all hover:border-red-400 hover:text-destructive">
-                  <Trash2 className="h-3 w-3" /> Clear All ({chartedTreatmentCount})
-                </button>
-              )}
-            </div>
-            {/* Per-tooth treatments ONLY (user, 2026-09-24). The whole-mouth
-                codes (OEX, FV, OP, CONS) and their "More" button are gone:
-                those are recorded under Treatments Given. An old tooth
-                still carrying one shows it on the chart and in the
-                Treatment Summary, and is cleared with the eraser (paint
-                the tooth with no code selected). */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              {perToothTreatmentCodes.map((t) => (
-                <button key={t.code} title={treatmentLabel(t)}
-                  onClick={() => { if (markMode === 'single') return; setSelectedTreatment(selectedTreatment === t.code ? null : t.code); setSelectedCondition(null); }}
-                  className={`${paletteBtn} ${selectedTreatment === t.code ? 'bg-blue-600 text-white ring-2 ring-blue-300 border-blue-600' : 'bg-card border-border text-foreground hover:border-blue-400'}`}>
-                  {t.code}
-                </button>
-              ))}
-            </div>
-            {markMode === 'bulk' && selectedTreatment && (() => {
-              const t = treatmentCodes.find((x) => x.code === selectedTreatment);
-              return (
-                <div className="mt-3 flex items-center gap-2">
-                  <span className="font-palette text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
-                    {selectedTreatment} · {t?.label} (Click teeth to apply)
-                  </span>
-                  <button onClick={() => setSelectedTreatment(null)} className="text-xs text-muted-foreground hover:text-foreground underline">Clear</button>
-                </div>
-              );
-            })()}
-          </div>
-          )}
-        </div>
-        {markMode === 'bulk' && editingChart && (
-          <div className="mt-4 border-t border-dashed border-border pt-3">
-            <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Apply to</div>
-            <div className="flex flex-wrap gap-1.5">
-              {BULK_SCOPES.map((sc) => {
-                const on = bulkScopes.has(sc.id);
-                return (
-                  <button key={sc.id} type="button" aria-pressed={on} onClick={() => toggleBulkScope(sc.id)}
-                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${on ? 'border-teal-600 bg-teal-100 text-teal-800' : 'border-border bg-card text-foreground hover:border-teal-400'}`}>
-                    {sc.label}
-                  </button>
-                );
-              })}
-            </div>
-            <label className="mt-3 flex items-center gap-2 text-xs text-foreground">
-              <input type="checkbox" checked={bulkSkipFilled} onChange={(e) => setBulkSkipFilled(e.target.checked)} />
-              Skip teeth that already have a {bulkField === 'treatment' ? 'treatment' : 'condition'} code
-            </label>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <button type="button" onClick={applyBulk} disabled={bulkTargetCount === 0}
-                className="rounded-lg bg-teal-600 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-40">
-                {bulkTargetCount > 0 ? `Apply to ${bulkTargetCount} teeth` : 'Apply'}
-              </button>
-              {hasBulkUndo && (
-                <button type="button" onClick={undoBulk} className="rounded-lg border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground hover:border-teal-400">
-                  Undo last bulk
-                </button>
-              )}
-              <span className="text-xs text-muted-foreground">
-                {!bulkField ? 'Pick a code above, then choose where to apply it, or drag across teeth to paint.' : bulkScopes.size === 0 ? 'Choose at least one area.' : bulkTargetCount === 0 ? 'No eligible teeth in that area.' : ''}
-              </span>
-            </div>
-          </div>
-        )}
-      </div>
-      </div>
-
       {chartError && (
         <div role="alert" className="flex items-start gap-2 rounded-xl border border-destructive/40 bg-danger-surface px-3 py-2 text-xs font-medium text-destructive">
           <AlertTriangle className="mt-px h-3.5 w-3.5 flex-shrink-0" />
@@ -778,6 +607,31 @@ export function DentalChartTab({
       )}
 
       <div className="relative bg-card rounded-xl border border-slate-300 p-4 overflow-x-auto shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+        {/* Condition | Treatment switch, in the chart's empty top-left corner (user,
+            2026-10-07). Above the chart below xl, where there is no free corner. */}
+        {editingChart && (
+          <div className="mb-3 flex flex-wrap items-center gap-2 xl:absolute xl:left-4 xl:top-4 xl:z-10 xl:mb-0 xl:w-[165px] xl:flex-col xl:items-start">
+            <div role="group" aria-label="Mark as" className="inline-flex overflow-hidden rounded-[10px] border border-border bg-card">
+              <button type="button" aria-pressed={markType === 'condition'} onClick={() => changeMarkType('condition')}
+                className={`px-2.5 py-1.5 text-[12.5px] font-bold transition-colors ${markType === 'condition' ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-muted'}`}>Condition</button>
+              <button type="button" aria-pressed={markType === 'treatment'} onClick={() => changeMarkType('treatment')} disabled={chartedConditionCount === 0}
+                title={chartedConditionCount === 0 ? 'Chart a condition on a tooth first' : undefined}
+                className={`px-2.5 py-1.5 text-[12.5px] font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${markType === 'treatment' ? 'bg-blue-600 text-white' : 'text-muted-foreground hover:bg-muted'}`}>Treatment</button>
+            </div>
+            {(markType === 'condition' ? chartedConditionCount : chartedTreatmentCount) > 0 && (
+              <button type="button" onClick={() => setConfirmClear(markType)}
+                className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1 text-[11px] font-bold text-foreground transition-all hover:border-red-400 hover:text-destructive">
+                <Trash2 className="h-3 w-3" /> Clear All ({markType === 'condition' ? chartedConditionCount : chartedTreatmentCount})
+              </button>
+            )}
+            {canUndo && (
+              <button type="button" onClick={undoMark}
+                className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1 text-[11px] font-bold text-foreground hover:border-primary">
+                <Undo2 className="h-3 w-3" /> Undo last
+              </button>
+            )}
+          </div>
+        )}
         {/* Every row is 16 equal slots, so a primary tooth sits directly
             under the permanent tooth it will replace: 55↔15, 54↔14 …
             51↔11, 61↔21 … 65↔25 (FDI). The primary rows previously used
@@ -786,7 +640,7 @@ export function DentalChartTab({
             the spacer pushed both halves outward and nothing lined up.
             Three blank slots at each end replace it, and alignment now
             holds at any tooth size because both rows flex identically. */}
-        <div className="min-w-[680px] space-y-2.5">
+        <div ref={stageRef} className="relative min-w-[680px] space-y-2.5">
           {/* DOH IPTR form order: temporary arches on the outside (rows 1
               and 4), permanent arches on the inside (rows 2 and 3). */}
           <div className="flex justify-center gap-1">{padToArch(upperTemporary)}</div>
@@ -794,6 +648,50 @@ export function DentalChartTab({
           <div className="border-t-2 border-dashed border-border my-2" />
           <div className="flex justify-center gap-1">{lowerPermanent.map((n) => <ToothButton key={n} num={n} />)}</div>
           <div className="flex justify-center gap-1">{padToArch(lowerTemporary)}</div>
+          {editingChart && codesOpen && selectedTeeth.size > 0 && (
+            <div ref={popRef} role="dialog" aria-label="Codes for the selected teeth"
+              style={{ left: popPos?.left ?? 0, top: popPos?.top ?? 0, visibility: popPos ? 'visible' : 'hidden' }}
+              className="absolute z-20 w-max max-w-[min(360px,calc(100vw-2rem))] rounded-xl border border-border bg-card p-3 shadow-[0_12px_32px_rgba(15,23,42,0.22)]">
+              <div className="mb-2 flex items-center gap-2 text-[13px]">
+                <b className="text-foreground">{selectedTeeth.size} {selectedTeeth.size === 1 ? 'tooth' : 'teeth'} selected</b>
+                <span className="text-muted-foreground">{markType === 'condition' ? 'Tooth Condition Codes' : 'Tooth Treatment Codes'}</span>
+                <button type="button" onClick={closeCodes} aria-label="Close" className="ml-auto text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+              </div>
+              {markType === 'condition' ? (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {commonConditionCodes.map((c) => (
+                    <button key={c.code} type="button" title={c.label} onClick={() => applyCode('condition', c.code)}
+                      className={`${paletteBtn} ${allHave('condition', c.code) ? 'bg-teal-600 text-white ring-2 ring-teal-300 border-teal-600' : 'bg-card border-border text-foreground hover:border-teal-400'}`}>
+                      {c.perm === '✓' ? <span className="text-2xl leading-none">✓</span> : conditionCodeText(c)}
+                    </button>
+                  ))}
+                  <button type="button" onClick={() => setRareOpen((v) => !v)} className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 hover:underline">
+                    {rareOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                    More ({rareConditionCodes.length})
+                  </button>
+                  {rareOpen && (
+                    <div className="mt-1 flex basis-full flex-wrap gap-1.5">
+                      {rareConditionCodes.map((c) => (
+                        <button key={c.code} type="button" title={c.label} onClick={() => applyCode('condition', c.code)}
+                          className={`${paletteBtn} ${allHave('condition', c.code) ? 'bg-teal-600 text-white ring-2 ring-teal-300 border-teal-600' : 'bg-card border-border text-foreground hover:border-teal-400'}`}>
+                          {conditionCodeText(c)}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {perToothTreatmentCodes.map((t) => (
+                    <button key={t.code} type="button" title={treatmentLabel(t)} onClick={() => applyCode('treatment', t.code)}
+                      className={`${paletteBtn} ${allHave('treatment', t.code) ? 'bg-blue-600 text-white ring-2 ring-blue-300 border-blue-600' : 'bg-card border-border text-foreground hover:border-blue-400'}`}>
+                      {t.code}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -991,61 +889,6 @@ export function DentalChartTab({
       )}
 
       </div>
-      {picker && editingChart && (() => {
-        const entry = currentChart[picker.tooth];
-        const isTemp = temporaryTeeth.has(picker.tooth);
-        const W = 260;
-        const left = Math.min(Math.max(picker.x - W / 2, 8), window.innerWidth - W - 8);
-        const below = picker.bottom + 330 < window.innerHeight;
-        const pos = below ? { top: picker.bottom + 6 } : { bottom: window.innerHeight - picker.top + 6 };
-        return (
-          <>
-            <div className="fixed inset-0 z-40" onClick={closePicker} />
-            <div role="dialog" aria-label={`Tooth ${picker.tooth} codes`} style={{ left, width: W, ...pos }}
-              className="fixed z-50 max-h-[80vh] overflow-y-auto rounded-xl border border-border bg-card p-3 shadow-xl">
-              <div className="mb-2 flex items-center justify-between">
-                <div className="text-sm font-bold text-foreground">Tooth {picker.tooth}</div>
-                <button type="button" onClick={closePicker} aria-label="Close" className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
-              </div>
-              <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Charting codes: condition</div>
-              <div className="mb-3 grid grid-cols-4 gap-1.5">
-                {[...commonConditionCodes, ...rareConditionCodes].map((c) => {
-                  const code = isTemp ? c.temp : c.perm;
-                  const on = entry?.condition === code;
-                  return (
-                    <button key={c.code} type="button" title={c.label} onClick={() => pickToothCode(picker.tooth, 'condition', c.code)}
-                      className={`h-9 rounded-md border font-palette text-xs font-bold transition-all ${on ? 'border-teal-600 bg-teal-600 text-white' : 'border-border bg-card text-foreground hover:border-teal-400'}`}>
-                      {code}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Tooth treatment codes</div>
-              {entry?.condition ? (
-                <div className="mb-3 grid grid-cols-3 gap-1.5">
-                  {perToothTreatmentCodes.map((t) => {
-                    const on = entry?.treatment === t.code;
-                    return (
-                      <button key={t.code} type="button" title={treatmentLabel(t)} onClick={() => pickToothCode(picker.tooth, 'treatment', t.code)}
-                        className={`h-9 rounded-md border font-palette text-xs font-bold transition-all ${on ? 'border-blue-600 bg-blue-600 text-white' : 'border-border bg-card text-foreground hover:border-blue-400'}`}>
-                        {t.code}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="mb-3 text-xs text-muted-foreground">Set a condition first. A treatment applies to a charted tooth.</p>
-              )}
-              {(entry?.condition || entry?.treatment) && (
-                <button type="button" onClick={() => clearPickedTooth(picker.tooth)}
-                  className="flex w-full items-center justify-center gap-1 rounded-md border border-border py-1.5 text-xs font-semibold text-foreground hover:border-red-400 hover:text-destructive">
-                  <Trash2 className="h-3 w-3" /> Clear tooth
-                </button>
-              )}
-            </div>
-          </>
-        );
-      })()}
     </div>
   );
 }

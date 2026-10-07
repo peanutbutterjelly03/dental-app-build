@@ -1,6 +1,6 @@
 // Dental chart marking modes, as a person uses them (mock API, no database):
-//   Single tooth: clicking a tooth opens a popover with the charting codes (condition) and
-//   the tooth treatment codes; picking one marks that tooth. Bulk: arm a code, apply to areas.
+//   Select teeth first (click or drag), then pick a code from the popup that opens at the
+//   selection; a Condition | Treatment switch in the chart's corner picks which codes it shows.
 // Usage: CHROMIUM_PATH=/opt/pw-browsers/chromium node verify_chart_marking.mjs
 import http from 'node:http';
 import { spawn } from 'node:child_process';
@@ -36,47 +36,48 @@ try {
     localStorage.setItem('floral_cached_user', JSON.stringify({ id: 'b'.repeat(24), name: 'Dr. Maria Santos', email: 'd@f.com', role: 'dentist', schools: ['Bagong Tanyag Integrated School'] }));
   });
   await page.goto(`http://localhost:5173/dental-chart/${sid}?tab=chart`); await page.waitForTimeout(3500);
-  const toggle = page.getByRole('group', { name: 'Marking mode' });
-  check('the Single tooth / Bulk toggle shows while charting, Single first', (await toggle.count()) === 1 && (await toggle.getByRole('button', { name: 'Single tooth' }).getAttribute('aria-pressed')) === 'true', (await page.evaluate(() => document.body.innerText)).slice(0, 300));
+  const sw = page.getByRole('group', { name: 'Mark as' });
+  check('the Condition | Treatment switch shows while charting, Condition first', (await sw.count()) === 1 && (await sw.getByRole('button', { name: 'Condition' }).getAttribute('aria-pressed')) === 'true', (await page.evaluate(() => document.body.innerText)).slice(0, 300));
+  check('Treatment is locked until a tooth has a condition', await sw.getByRole('button', { name: 'Treatment' }).isDisabled());
   // The tab strip and year bar scroll with the page; they are not pinned (user, 2026-10-07).
   const scrolled = await page.evaluate(async () => {
     const tab = [...document.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Medical History');
-    const scroller = document.scrollingElement;
     const before = tab.getBoundingClientRect().top;
     window.scrollTo(0, 900); document.querySelectorAll('main, [class*="overflow-y"]').forEach((el) => { el.scrollTop = 900; });
     await new Promise((r) => setTimeout(r, 300));
-    return { before, after: tab.getBoundingClientRect().top, moved: scroller.scrollTop };
+    return { before, after: tab.getBoundingClientRect().top };
   });
   check('the tab strip scrolls away with the page (not pinned)', scrolled.after < scrolled.before - 50, JSON.stringify(scrolled));
   await page.evaluate(() => { window.scrollTo(0, 0); document.querySelectorAll('main, [class*="overflow-y"]').forEach((el) => { el.scrollTop = 0; }); });
-  check('Single mode says to click a tooth', await page.getByText('Click a tooth on the chart to choose its condition or treatment code.').count() === 1);
+  const popup = page.getByRole('dialog', { name: 'Codes for the selected teeth' });
+  check('no popup before any tooth is selected', await popup.count() === 0);
+  // Select two teeth, then the popup offers the Condition codes.
   await page.locator('[data-tooth="16"]').first().click();
-  const pop = page.getByRole('dialog', { name: 'Tooth 16 codes' });
-  check('clicking a tooth opens its code popover', await pop.count() === 1);
-  check('the popover shows the charting (condition) codes', await pop.getByText('Charting codes: condition').count() === 1 && await pop.getByRole('button', { name: /^D$/ }).count() >= 1);
-  check('and the treatment codes section (locked until a condition is set)', await pop.getByText('Tooth treatment codes').count() === 1 && await pop.getByText(/Set a condition first/).count() === 1);
+  await page.locator('[data-tooth="26"]').first().click();
+  check('selecting teeth opens the popup for them', await popup.count() === 1 && /2 teeth selected/.test(await popup.innerText()), await popup.innerText().catch(() => ''));
+  check('Condition mode shows the condition codes (D/d, F/f, More)', await popup.getByRole('button', { name: 'D/d' }).count() === 1 && await popup.getByRole('button', { name: /More \(\d\)/ }).count() === 1);
   if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT });
-  await pop.getByRole('button', { name: /^D$/ }).first().click();
-  check('picking a condition marks the tooth and closes the popover', (await page.getByRole('dialog', { name: 'Tooth 16 codes' }).count()) === 0 && /D/.test(await page.locator('[data-tooth="16"]').first().innerText()), await page.locator('[data-tooth="16"]').first().innerText());
+  await popup.getByRole('button', { name: 'F/f' }).click();
+  check('picking a code marks every selected tooth and closes the popup', await popup.count() === 0 && /F/.test(await page.locator('[data-tooth="16"]').first().innerText()) && /F/.test(await page.locator('[data-tooth="26"]').first().innerText()));
+  // Drag across three teeth.
+  const a = await page.locator('[data-tooth="14"]').first().boundingBox();
+  const z = await page.locator('[data-tooth="12"]').first().boundingBox();
+  await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2); await page.mouse.down();
+  await page.mouse.move(z.x + z.width / 2, z.y + z.height / 2, { steps: 8 }); await page.mouse.up();
+  check('dragging across teeth selects all of them', /3 teeth selected/.test(await popup.innerText().catch(() => '')), await popup.innerText().catch(() => ''));
+  await page.keyboard.press('Escape');
+  check('Escape clears the selection and closes the popup', await popup.count() === 0);
+  // Treatment mode
+  await sw.getByRole('button', { name: 'Treatment' }).click();
+  await page.locator('[data-tooth="12"]').first().click({ force: true });
+  check('in Treatment mode a tooth without a condition cannot be selected', await popup.count() === 0);
   await page.locator('[data-tooth="16"]').first().click();
-  const pop2 = page.getByRole('dialog', { name: 'Tooth 16 codes' });
-  check('once a condition is set the treatment codes unlock', await pop2.getByText(/Set a condition first/).count() === 0 && await pop2.getByRole('button', { name: /^PF$/ }).count() === 1);
-  await pop2.getByRole('button', { name: /^PF$/ }).click();
+  check('Treatment mode shows the treatment codes', await popup.getByRole('button', { name: 'PFS' }).count() === 1 && await popup.getByRole('button', { name: 'SDF' }).count() === 1);
+  await popup.getByRole('button', { name: 'PF', exact: true }).click();
   check('picking a treatment marks the tooth', /PF/.test(await page.locator('[data-tooth="16"]').first().innerText()), await page.locator('[data-tooth="16"]').first().innerText());
-  await page.locator('[data-tooth="16"]').first().click();
-  await page.getByRole('button', { name: 'Clear tooth' }).click();
-  check('Clear tooth empties it', !/D|PF/.test((await page.locator('[data-tooth="16"]').first().innerText()).replace(/16/, '')));
-  // Bulk
-  await page.getByRole('button', { name: 'Bulk' }).click();
-  check('Bulk mode shows the area chooser and no popover on click', await page.getByText('Apply to').count() === 1);
-  await page.locator('[data-tooth="11"]').first().click();
-  check('in Bulk mode a tooth click opens no popover', await page.getByRole('dialog', { name: /Tooth 11 codes/ }).count() === 0);
-  await page.getByRole('button', { name: /^D\/d$/ }).first().click();
-  await page.getByRole('button', { name: 'Whole mouth' }).click();
-  const apply = page.getByRole('button', { name: /^Apply to \d+ teeth$/ });
-  check('Bulk apply counts the teeth it will mark', await apply.count() === 1, await page.locator('button:has-text("Apply")').allInnerTexts());
-  await apply.click(); await page.waitForTimeout(300);
-  check('Bulk marked the teeth', /D/.test(await page.locator('[data-tooth="21"]').first().innerText()));
+  // Clear All lives in the corner and asks first
+  await page.getByRole('button', { name: /^Clear All \(\d+\)$/ }).click();
+  check('Clear All (n) in the corner asks before clearing', await page.getByText(/Clear all 1 treatments\?/i).count() >= 1, (await page.evaluate(() => document.body.innerText)).slice(-400));
   check('no page errors', errs.length === 0, errs.join(' | '));
 } catch (e) { check('script ran to the end', false, e.message); }
 finally { await browser.close(); srv.kill(); api.close(); console.log(`\n${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0); }

@@ -53,7 +53,6 @@ import {
   conditionCodes,
   treatmentCodes,
   treatmentLabel,
-  BULK_SCOPES,
   type ChartEntry,
 } from '../utils/dentalChartCodes';
 
@@ -280,15 +279,12 @@ export const DentalChart = () => {
     if (years.length > 0) setSelectedYear(years.length - 1);
   }, [years.length, id]);
 
-  const [selectedCondition, setSelectedCondition] = useState<string | null>(null);
-  const [selectedTreatment, setSelectedTreatment] = useState<string | null>(null);
-  // Single: click a tooth and pick its code from a popover. Bulk: arm a code in
-  // the palette, then paint teeth by dragging or apply it to whole areas.
-  const [markMode, setMarkMode] = useState<'single' | 'bulk'>('single');
-  const [picker, setPicker] = useState<{ tooth: number; x: number; top: number; bottom: number } | null>(null);
-  const [bulkScopes, setBulkScopes] = useState<Set<string>>(new Set());
-  const [bulkSkipFilled, setBulkSkipFilled] = useState(true);
-  const [bulkUndo, setBulkUndo] = useState<Record<number, ChartEntry> | null>(null);
+  // Select the teeth FIRST, then pick a code (user, 2026-10-07). `markType` is
+  // which vocabulary the popup offers; the selection is a set of tooth numbers.
+  const [markType, setMarkType] = useState<'condition' | 'treatment'>('condition');
+  const [selectedTeeth, setSelectedTeeth] = useState<Set<number>>(new Set());
+  const [codesOpen, setCodesOpen] = useState(false);
+  const [lastMarkUndo, setLastMarkUndo] = useState<Record<number, ChartEntry> | null>(null);
   const [confirmClear, setConfirmClear] = useState<'condition' | 'treatment' | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -619,12 +615,6 @@ export const DentalChart = () => {
   // they could tick history boxes before, but Save was always dentist-only,
   // so those edits silently went nowhere (dead UI, now honest).
   const editingChart = canEdit && editMode;
-  // A picked code belongs to an editing session: leaving edit mode (Save,
-  // Cancel, or a view-only role) drops it, so view mode never shows a
-  // highlighted code or its "Click teeth to apply" hint.
-  useEffect(() => {
-    if (!editingChart) { setSelectedCondition(null); setSelectedTreatment(null); }
-  }, [editingChart]);
   const editingHistory = canEditHistory && editMode;
 
   const cancelEdit = async () => {
@@ -875,164 +865,100 @@ export const DentalChart = () => {
     });
   };
 
-  // Paint-stroke state (2026-09-25) -- "hold and continuously mark": pressing
-  // down on a tooth and dragging applies the same action to every tooth the
-  // pointer passes over, like a paint tool, instead of one click per tooth.
-  // The action (apply this code, or clear) is decided ONCE, from the tooth
-  // the stroke started on -- exactly what a single click already decided --
-  // and reapplied verbatim to every tooth the drag enters afterward. A later
-  // tooth is never independently re-toggled, or half a stroke would paint on
-  // and the other half paint off.
-  const isPaintingRef = useRef(false);
-  const paintActionRef = useRef<'condition' | 'treatment' | 'erase' | null>(null);
-  const paintValueRef = useRef('');
+  // Selection stroke (replaces the 2026-09-25 paint stroke): pressing a tooth and
+  // dragging selects (or deselects) every tooth the pointer passes over, decided
+  // ONCE from the tooth the stroke started on. Releasing opens the code popup.
+  const dragSelectRef = useRef<boolean | null>(null);
+  // In Treatment mode only a tooth that already has a condition can be chosen:
+  // no treatment on an uncharted tooth (the same rule Save enforces).
+  const canSelect = (n: number) => markType === 'condition' || !!currentChart[n]?.condition;
 
-  const applyToothPaint = (toothNumber: number, action: 'condition' | 'treatment' | 'erase', value: string) => {
-    const isTemp = temporaryTeeth.has(toothNumber);
-    let nextEntry: ChartEntry;
-    if (action === 'condition') {
-      const codeObj = conditionCodes.find((c) => c.code === value);
-      const code = value ? (codeObj ? (isTemp ? codeObj.temp : codeObj.perm) : value) : '';
-      nextEntry = { condition: code, treatment: currentChart[toothNumber]?.treatment || '', visitNumber: activeVisit };
-    } else if (action === 'treatment') {
-      nextEntry = { condition: currentChart[toothNumber]?.condition || '', treatment: value, visitNumber: activeVisit };
-    } else {
-      // No code selected: painting a tooth empties it. This used to be a dead
-      // click, which meant the ONLY way to remove a code was to first hunt down
-      // the matching code in the palette and click the tooth again — you had to
-      // know what was already there to get rid of it.
-      //
-      // Clears BOTH condition and treatment on purpose: with neither brush
-      // active the intent is "empty this tooth". Removing just one is still
-      // possible the precise way — select that exact code and paint the tooth
-      // to toggle it off. Nothing persists until Save Chart, and Cancel Edit
-      // discards it.
-      nextEntry = { condition: '', treatment: '', visitNumber: null };
-    }
-    setDraftChart((prev) => ({ ...prev, [toothNumber]: nextEntry }));
-    // Toggling a code OFF or erasing empties the date the instant nothing
-    // real is left -- toggling one ON is already handled by
-    // stampConditionDate/stampTreatmentDate below, which unconditionally
-    // stamp today whenever a real value is applied. Merges against
-    // `currentChart` (this render's pre-mutation snapshot) plus THIS
-    // tooth's new entry, not a re-read of draftChart, which wouldn't
-    // reflect this change yet.
-    syncDatesFromChart({ ...currentChart, [toothNumber]: nextEntry });
-  };
-
-  // Single mode: one tooth, one popover. No paint stroke starts.
-  const openToothPicker = (toothNumber: number, el: HTMLElement) => {
-    const r = el.getBoundingClientRect();
+  const handleToothPointerDown = (toothNumber: number) => {
+    if (!canSelect(toothNumber)) return;
+    const adding = !selectedTeeth.has(toothNumber);
+    dragSelectRef.current = adding;
     setChartError(null);
-    setPicker({ tooth: toothNumber, x: r.left + r.width / 2, top: r.top, bottom: r.bottom });
-  };
-
-  const pickToothCode = (toothNumber: number, kind: 'condition' | 'treatment', key: string) => {
-    const entry = currentChart[toothNumber];
-    let value = key;
-    if (kind === 'condition') {
-      const codeObj = conditionCodes.find((c) => c.code === key);
-      const code = codeObj ? (temporaryTeeth.has(toothNumber) ? codeObj.temp : codeObj.perm) : key;
-      if (entry?.condition === code) value = '';
-      if (value) stampConditionDate();
-    } else {
-      if (entry?.treatment === key) value = '';
-      if (value) stampTreatmentDate();
-    }
-    applyToothPaint(toothNumber, kind, value);
-    setPicker(null);
-  };
-
-  const clearPickedTooth = (toothNumber: number) => {
-    applyToothPaint(toothNumber, 'erase', '');
-    setPicker(null);
-  };
-
-  const changeMarkMode = (mode: 'single' | 'bulk') => {
-    setMarkMode(mode);
-    setPicker(null);
-    setSelectedCondition(null);
-    setSelectedTreatment(null);
-  };
-
-  // The popover belongs to editing: leaving edit mode closes it.
-  useEffect(() => { if (!editingChart) setPicker(null); }, [editingChart]);
-
-  const bulkField: 'condition' | 'treatment' | null = selectedCondition ? 'condition' : selectedTreatment ? 'treatment' : null;
-  const bulkTargets = (() => {
-    if (!bulkField) return [] as number[];
-    const set = new Set<number>();
-    BULK_SCOPES.forEach((sc) => { if (bulkScopes.has(sc.id)) sc.teeth.forEach((n) => set.add(n)); });
-    return [...set].filter((n) => {
-      const e = currentChart[n];
-      // Same rule as the palette: no treatment on a tooth without a condition.
-      if (bulkField === 'treatment' && !e?.condition) return false;
-      return !(bulkSkipFilled && e?.[bulkField]);
-    });
-  })();
-
-  const applyBulk = () => {
-    if (!bulkField || bulkTargets.length === 0) return;
-    setBulkUndo(currentChart);
-    const next = { ...currentChart };
-    bulkTargets.forEach((n) => {
-      const entry = next[n] || { condition: '', treatment: '', visitNumber: null };
-      if (bulkField === 'condition') {
-        const codeObj = conditionCodes.find((c) => c.code === selectedCondition);
-        const code = codeObj ? (temporaryTeeth.has(n) ? codeObj.temp : codeObj.perm) : (selectedCondition as string);
-        next[n] = { ...entry, condition: code, visitNumber: activeVisit };
-      } else {
-        next[n] = { ...entry, treatment: selectedTreatment as string, visitNumber: activeVisit };
-      }
-    });
-    setDraftChart(next);
-    if (bulkField === 'condition') stampConditionDate(); else stampTreatmentDate();
-    syncDatesFromChart(next);
-    toast.success(`Marked ${bulkTargets.length} teeth. Not saved until Save Chart.`);
-  };
-
-  const undoBulk = () => {
-    if (!bulkUndo) return;
-    setDraftChart(bulkUndo);
-    syncDatesFromChart(bulkUndo);
-    setBulkUndo(null);
-  };
-
-  const handleToothPointerDown = (toothNumber: number, el?: HTMLElement) => {
-    if (markMode === 'single') {
-      if (el) openToothPicker(toothNumber, el);
-      return;
-    }
-    isPaintingRef.current = true;
-    setChartError(null);
-    if (selectedCondition) {
-      const isTemp = temporaryTeeth.has(toothNumber);
-      const codeObj = conditionCodes.find((c) => c.code === selectedCondition);
-      const code = codeObj ? (isTemp ? codeObj.temp : codeObj.perm) : selectedCondition;
-      const current = currentChart[toothNumber]?.condition;
-      const value = current === code ? '' : selectedCondition;
-      paintActionRef.current = 'condition';
-      paintValueRef.current = value;
-      if (value) stampConditionDate();
-      applyToothPaint(toothNumber, 'condition', value);
-    } else if (selectedTreatment) {
-      const current = currentChart[toothNumber]?.treatment;
-      const value = current === selectedTreatment ? '' : selectedTreatment;
-      paintActionRef.current = 'treatment';
-      paintValueRef.current = value;
-      if (value) stampTreatmentDate();
-      applyToothPaint(toothNumber, 'treatment', value);
-    } else {
-      paintActionRef.current = 'erase';
-      paintValueRef.current = '';
-      applyToothPaint(toothNumber, 'erase', '');
-    }
+    setCodesOpen(false);
+    setSelectedTeeth((prev) => { const next = new Set(prev); if (adding) next.add(toothNumber); else next.delete(toothNumber); return next; });
   };
 
   const handleToothPointerEnter = (toothNumber: number) => {
-    if (!isPaintingRef.current || !paintActionRef.current) return;
-    applyToothPaint(toothNumber, paintActionRef.current, paintValueRef.current);
+    const adding = dragSelectRef.current;
+    if (adding === null || !canSelect(toothNumber)) return;
+    setSelectedTeeth((prev) => {
+      if (prev.has(toothNumber) === adding) return prev;
+      const next = new Set(prev);
+      if (adding) next.add(toothNumber); else next.delete(toothNumber);
+      return next;
+    });
   };
+
+  // Enter / Space on a focused tooth: toggle it and open the codes straight away
+  // (a keyboard press has no pointer-up to open them).
+  const toggleToothFromKeyboard = (toothNumber: number) => {
+    if (!canSelect(toothNumber)) return;
+    setSelectedTeeth((prev) => { const next = new Set(prev); if (next.has(toothNumber)) next.delete(toothNumber); else next.add(toothNumber); return next; });
+    setCodesOpen(true);
+  };
+
+  const changeMarkType = (type: 'condition' | 'treatment') => {
+    setMarkType(type);
+    setSelectedTeeth(new Set());
+    setCodesOpen(false);
+    setRareConditionsOpen(false);
+  };
+
+  // One code onto every selected tooth. Choosing the code every selected tooth
+  // already has removes it (the old click-again-to-clear rule). Draft only:
+  // nothing reaches the database until Save Chart.
+  const applyCodeToSelection = (kind: 'condition' | 'treatment', key: string) => {
+    const targets = [...selectedTeeth].filter(canSelect);
+    if (targets.length === 0) return;
+    setLastMarkUndo(currentChart);
+    const next = { ...currentChart };
+    let label = key;
+    let removed = false;
+    if (kind === 'condition') {
+      const codeObj = conditionCodes.find((c) => c.code === key);
+      const codeFor = (n: number) => (codeObj ? (temporaryTeeth.has(n) ? codeObj.temp : codeObj.perm) : key);
+      label = codeObj ? (codeObj.perm === codeObj.temp ? codeObj.perm : `${codeObj.perm}/${codeObj.temp}`) : key;
+      removed = targets.every((n) => next[n]?.condition === codeFor(n));
+      targets.forEach((n) => {
+        next[n] = removed
+          ? { condition: '', treatment: '', visitNumber: null }
+          : { condition: codeFor(n), treatment: next[n]?.treatment || '', visitNumber: activeVisit };
+      });
+      if (!removed) stampConditionDate();
+    } else {
+      removed = targets.every((n) => next[n]?.treatment === key);
+      targets.forEach((n) => {
+        const entry = next[n] as ChartEntry;
+        next[n] = removed ? { ...entry, treatment: '' } : { ...entry, treatment: key, visitNumber: activeVisit };
+      });
+      if (!removed) stampTreatmentDate();
+    }
+    setDraftChart(next);
+    syncDatesFromChart(next);
+    setSelectedTeeth(new Set());
+    setCodesOpen(false);
+    setRareConditionsOpen(false);
+    toast.success(`${removed ? `Removed ${label} from` : `Marked ${label} on`} ${targets.length} tooth${targets.length === 1 ? '' : 's'}. Not saved until Save Chart.`);
+  };
+
+  const undoMark = () => {
+    if (!lastMarkUndo) return;
+    setDraftChart(lastMarkUndo);
+    syncDatesFromChart(lastMarkUndo);
+    setLastMarkUndo(null);
+  };
+
+  // The selection belongs to editing, and Escape drops it.
+  useEffect(() => { if (!editingChart) { setSelectedTeeth(new Set()); setCodesOpen(false); } }, [editingChart]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setSelectedTeeth(new Set()); setCodesOpen(false); setRareConditionsOpen(false); } };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   // Drag continuation needs a WINDOW-level listener, not onPointerEnter on
   // each tooth: touch does not fire pointerenter on the elements a finger
@@ -1042,15 +968,16 @@ export const DentalChart = () => {
   // phone width, not only with a mouse.
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
-      if (!isPaintingRef.current) return;
+      if (dragSelectRef.current === null) return;
       const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
       const toothEl = el?.closest<HTMLElement>('[data-tooth]');
       const num = toothEl ? Number(toothEl.dataset.tooth) : NaN;
       if (!Number.isNaN(num)) handleToothPointerEnter(num);
     };
     const onUp = () => {
-      isPaintingRef.current = false;
-      paintActionRef.current = null;
+      if (dragSelectRef.current === null) return;
+      dragSelectRef.current = null;
+      setCodesOpen(true);
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
@@ -1060,7 +987,7 @@ export const DentalChart = () => {
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
     };
-  }, [activeVisit]);
+  }, [markType, currentChart]);
 
   const getNextSchoolYear = () => {
     if (years.length === 0) return ALL_SCHOOL_YEARS[0];
@@ -1536,12 +1463,9 @@ export const DentalChart = () => {
 
   const chartedConditionCount = Object.values(currentChart).filter((e) => e.condition).length;
   const chartedTreatmentCount = Object.values(currentChart).filter((e) => e.treatment).length;
-  // Tooth Treatment Codes hides once no tooth carries a condition (below) --
-  // an armed selectedTreatment would otherwise still apply on the next
-  // tooth click even while its own palette (and "Click teeth to apply" hint)
-  // is off screen. Cleared the instant the palette itself would hide.
+  // Treatment mode needs a charted tooth. With none left, drop back to Condition.
   useEffect(() => {
-    if (chartedConditionCount === 0) setSelectedTreatment(null);
+    if (chartedConditionCount === 0 && markType === 'treatment') changeMarkType('condition');
   }, [chartedConditionCount]);
 
   // Clears one vocabulary across every tooth, leaving the other untouched.
@@ -2317,18 +2241,13 @@ export const DentalChart = () => {
             treatmentTeethVisit1={treatmentTeethVisit1}
             treatmentTeethVisit2={treatmentTeethVisit2}
             marking={{
-              markMode, changeMarkMode, picker, closePicker: () => setPicker(null), pickToothCode, clearPickedTooth,
-              bulkScopes,
-              toggleBulkScope: (id: string) => setBulkScopes((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; }),
-              bulkSkipFilled, setBulkSkipFilled, bulkField, bulkTargetCount: bulkTargets.length, applyBulk, hasBulkUndo: !!bulkUndo, undoBulk,
+              markType, changeMarkType, selectedTeeth, codesOpen, closeCodes: () => { setSelectedTeeth(new Set()); setCodesOpen(false); setRareConditionsOpen(false); },
+              applyCode: applyCodeToSelection, toggleToothFromKeyboard, canUndo: !!lastMarkUndo, undoMark,
+              rareOpen: rareConditionsOpen, setRareOpen: setRareConditionsOpen,
             }}
             actions={{
               setChartingMode, goToStudent, setEditMode, cancelEdit, handleSave, setExplicitVisit, setConfirmClear,
               handleToothPointerDown, syncChartDateFromConditions, syncVisitDateFromServices,
-            }}
-            palette={{
-              selectedCondition, setSelectedCondition, selectedTreatment, setSelectedTreatment,
-              rareConditionsOpen, setRareConditionsOpen,
             }}
             drafts={{
               draftVisitDate, setDraftVisitDate, draftVisitDateByVisit, draftServices, setDraftServices,

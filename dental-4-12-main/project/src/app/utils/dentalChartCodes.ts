@@ -22,24 +22,10 @@
 // Re-exported unchanged; every importer keeps its import path.
 export type { ChartEntry } from '../../../shared/dmft';
 export { upperTemporary, lowerTemporary, temporaryTeeth, computeDMFT } from '../../../shared/dmft';
-import { upperTemporary as _upperTemporary, lowerTemporary as _lowerTemporary } from '../../../shared/dmft';
 
 // ─── FDI tooth layout ─────────────────────────────────────────────────────────
 export const upperPermanent = [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28];
 export const lowerPermanent = [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38];
-
-// Bulk-marking areas. Quadrant = the FDI tens digit, with primary teeth folded in
-// (5x with 1x, 6x with 2x, 7x with 3x, 8x with 4x).
-const allTeeth = [...upperPermanent, ..._upperTemporary, ...lowerPermanent, ..._lowerTemporary];
-const quadrantOf = (n: number) => ((Math.floor(n / 10) - 1) % 4) + 1;
-export const BULK_SCOPES: { id: string; label: string; teeth: number[] }[] = [
-  { id: 'upper', label: 'Upper arch', teeth: allTeeth.filter((n) => quadrantOf(n) <= 2) },
-  { id: 'lower', label: 'Lower arch', teeth: allTeeth.filter((n) => quadrantOf(n) >= 3) },
-  ...[1, 2, 3, 4].map((q) => ({ id: `q${q}`, label: `Q${q}`, teeth: allTeeth.filter((n) => quadrantOf(n) === q) })),
-  { id: 'perm', label: 'All permanent', teeth: [...upperPermanent, ...lowerPermanent] },
-  { id: 'prim', label: 'All primary', teeth: [..._upperTemporary, ..._lowerTemporary] },
-  { id: 'all', label: 'Whole mouth', teeth: allTeeth },
-];
 
 export const conditionColors: Record<string, string> = {
   '✓': 'bg-green-50 border-green-400',
