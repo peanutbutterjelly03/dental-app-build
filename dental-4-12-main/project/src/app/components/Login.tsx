@@ -104,16 +104,9 @@ export const Login = () => {
   return (
     <div className="mx-auto grid w-full max-w-6xl flex-1 content-center items-center gap-10 px-5 py-6 lg:grid-cols-[minmax(0,1fr)_400px]">
       <div className="hidden lg:block">
-        <Tag>Staff access</Tag>
-        <h1 className="mt-3.5 text-balance text-5xl font-extrabold leading-[1.05] tracking-tight">Sign in to your clinic.</h1>
-        <p className="mt-3.5 max-w-[50ch] text-lg text-blue-100/85">
-          Accounts are created by the System Admin. Your role decides what you see: clinical records, school reports, or consolidated reports.
-        </p>
-        <ul className="mt-4 grid gap-2 text-[15px] text-blue-100/85">
-          {['Every action is written to the audit trail.', 'Sessions lock after inactivity.', 'Patient fields are encrypted before they are stored.'].map((t) => (
-            <li key={t} className="flex gap-2.5"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-400" />{t}</li>
-          ))}
-        </ul>
+        <Tag>Welcome to Floral!</Tag>
+        <h1 className="mt-4 text-balance text-[clamp(2.4rem,4.6vw,4rem)] font-extrabold leading-[1] tracking-tight">Your school dental clinic’s records, ready when you are.</h1>
+        <p className="mt-4 max-w-[46ch] text-lg text-blue-100/85">Sign in to see your students, schedules and reports.</p>
       </div>
 
       <div className="w-full">
