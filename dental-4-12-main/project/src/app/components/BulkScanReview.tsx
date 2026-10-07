@@ -38,7 +38,7 @@ const LAST_COL_PAD = '1.75rem';
 // Breathing room between the pinned table and the top bar, in px.
 const TOP_GAP = 8;
 // Pinned row-number column in front of Student; Student is pinned right after it.
-const NUM_W = '2.75rem';
+const NUM_W = '3.5rem';
 
 const missingOf = (h: ExtractedHandoff): string[] =>
   REQUIRED_STUDENT_FIELDS
