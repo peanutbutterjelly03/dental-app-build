@@ -623,9 +623,7 @@ export const BulkScanReview = () => {
             {onFile === null
               ? <span style={{ color: MUTED }}>Checking for duplicates…</span>
               : dupCount > 0 && <button type="button" onClick={() => pickFilter('check')} aria-pressed={group === 'check'} title={group === 'check' ? 'Show all students' : 'Show only the students to check'} style={legendBtn(group === 'check')}><span style={countDot('#F59E0B')}>{dupCount}</span>To check</button>}
-            <button type="button" onClick={showAll} aria-pressed={!filtering} style={{ cursor: 'pointer', background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 700, color: NAVY, textDecoration: 'underline', textUnderlineOffset: '0.25rem' }}>
-              Show all {rows.length}
-            </button>
+            <button type="button" onClick={showAll} aria-pressed={!filtering} title="Show all students" style={legendBtn(!filtering)}><span style={countDot(NAVY)}>{rows.length}</span>Show all</button>
           </div>
         </div>
         </div>
