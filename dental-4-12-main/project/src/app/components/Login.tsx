@@ -164,11 +164,6 @@ export const Login = () => {
                 </label>
                 <button type="button" onClick={() => { setStep('forgot'); setError(null); }} className={linkBtn}>Forgot password?</button>
               </div>
-              {remember && (
-                <p className="-mt-2 mb-3 text-xs text-blue-100/70">
-                  Only use this on your own device. On a shared clinic PC, leave it unticked so closing the browser signs you out.
-                </p>
-              )}
 
               {error && <Notice variant="error" className="mb-3">{error}</Notice>}
 
