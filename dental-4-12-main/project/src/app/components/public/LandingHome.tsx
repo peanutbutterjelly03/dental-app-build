@@ -143,7 +143,7 @@ export const LandingHome = () => {
   return (
     <>
       {/* Hero */}
-      <div className="mx-auto max-w-6xl px-5 pb-14 pt-14 md:pt-20">
+      <div className="mx-auto grid max-w-6xl items-center gap-9 px-5 pb-14 pt-14 md:grid-cols-[1.15fr_0.85fr] md:pt-20">
         <div>
           <Tag>About Floral</Tag>
           <h1 className="mt-4 text-balance text-4xl font-extrabold leading-[1.02] tracking-tight sm:text-6xl">
