@@ -583,11 +583,11 @@ export const BulkScanReview = () => {
           switch sits above Review one by one and Import. Back stays in the header, top right.
           Only "Needs fixes" filters the list (the other counts are plain). */}
       <div className="bulk-pr" style={{ flexShrink: 0, paddingRight: '3.5rem', marginBottom: '0.75rem' }}>
-      <div style={{ display: 'flex', gap: '1.125rem', flexWrap: 'wrap', alignItems: 'center', background: '#fff', border: `0.0625rem solid ${LINE}`, borderRadius: '1rem', padding: '1rem 1.125rem' }}>
-        <div style={{ flex: '1 1 22rem', minWidth: 0, display: 'flex', justifyContent: 'center' }}>
-        <div style={{ width: 'fit-content', maxWidth: '100%', textAlign: 'left' }}>
-          <b style={{ fontSize: '0.9375rem' }}>{ready} of {rows.length} student{rows.length === 1 ? ' is' : 's are'} ready</b>
-          <div role="img" aria-label={`${ready} ready, ${fixes} need fixes, ${saved.size} saved`} style={{ display: 'flex', height: '0.75rem', borderRadius: '62.4375rem', overflow: 'hidden', background: '#E8EDF6', margin: '0.625rem 0' }}>
+      <div style={{ display: 'flex', gap: '1.125rem', flexWrap: 'wrap', alignItems: 'center', background: '#fff', border: `0.0625rem solid ${LINE}`, borderRadius: '1rem', padding: '1.5rem 1.5rem' }}>
+        <div style={{ flex: '1 1 22rem', minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'flex-start', paddingLeft: '1.5rem' }}>
+        <div style={{ width: '100%', maxWidth: '30rem', textAlign: 'left' }}>
+          <b style={{ fontSize: '1.0625rem' }}>{ready} of {rows.length} student{rows.length === 1 ? ' is' : 's are'} ready</b>
+          <div role="img" aria-label={`${ready} ready, ${fixes} need fixes, ${saved.size} saved`} style={{ display: 'flex', height: '1rem', borderRadius: '62.4375rem', overflow: 'hidden', background: '#E8EDF6', margin: '0.875rem 0 0.75rem' }}>
             <span style={{ width: `${rows.length ? (ready / rows.length) * 100 : 0}%`, background: '#16A34A' }} />
             <span style={{ width: `${rows.length ? (saved.size / rows.length) * 100 : 0}%`, background: '#2563EB' }} />
             <span style={{ width: `${rows.length ? (fixes / rows.length) * 100 : 0}%`, background: '#DC2626' }} />
