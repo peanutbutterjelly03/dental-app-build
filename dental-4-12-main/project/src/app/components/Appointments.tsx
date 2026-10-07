@@ -1614,41 +1614,44 @@ export const Appointments = () => {
 
       {/* ── RESCHEDULE MODAL ── */}
       {rescheduleTarget && (
-        <Modal onClose={closeReschedule} maxWidth="max-w-sm" closeDisabled={rescheduling}>
-          <div className="flex items-center justify-between p-5 border-b border-gray-100">
-            <h2 className="text-lg font-bold text-foreground">Reschedule Appointment</h2>
-            <button onClick={closeReschedule} disabled={rescheduling} className="p-2 hover:bg-gray-100 rounded-lg disabled:opacity-50">
-              <X className="w-4 h-4" />
+        <Modal onClose={closeReschedule} maxWidth="max-w-lg" rounded="rounded-3xl" closeDisabled={rescheduling}>
+          <div className="flex items-start justify-between gap-4 px-8 py-6 border-b border-border">
+            <div>
+              <h2 className="text-xl font-bold text-foreground">Reschedule Appointment</h2>
+              <p className="text-sm text-muted-foreground mt-1">Pick a new date and time. This also clears the missed status.</p>
+            </div>
+            <button type="button" aria-label="Close" onClick={closeReschedule} disabled={rescheduling}
+              className="w-11 h-11 flex-shrink-0 grid place-items-center rounded-xl border border-[#E2E8F0] bg-white text-[#475569] hover:bg-gray-50 disabled:opacity-60">
+              <X className="w-5 h-5" />
             </button>
           </div>
-          <div className="p-5 space-y-4">
-            <p className="text-sm text-muted-foreground">
-              {rescheduleTarget.studentCount === 1
-                ? rescheduleTarget.students[0]?.name ?? 'This student'
-                : `${rescheduleTarget.studentCount} students`}
-              {': pick a new date and time. This also clears the missed status.'}
-            </p>
-            <div className="grid grid-cols-2 gap-3">
+          <div className="px-8 py-6 space-y-5">
+            <div className="flex items-center gap-3 rounded-2xl border border-[#DCE3F5] bg-[#F4F7FF] px-4 py-3">
+              <CalendarClock className="h-5 w-5 flex-shrink-0 text-primary" />
+              <span className="text-sm font-semibold text-primary">
+                {rescheduleTarget.studentCount === 1
+                  ? rescheduleTarget.students[0]?.name ?? 'This student'
+                  : `${rescheduleTarget.studentCount} students`}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
               <div>
-                <label className="block text-xs font-medium text-foreground mb-1">New Date *</label>
-                <input type="date" value={rescheduleDate} onChange={e => setRescheduleDate(e.target.value)}
-                  className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring" />
+                <label htmlFor="resched-date" className={POPUP_LABEL}>New Date <span className="text-destructive">*</span></label>
+                <input id="resched-date" type="date" value={rescheduleDate} onChange={e => setRescheduleDate(e.target.value)}
+                  className={POPUP_FIELD} style={POPUP_FIELD_STYLE} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">New Time</label>
-                <input type="time" value={rescheduleTime} onChange={e => setRescheduleTime(e.target.value)}
-                  className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring" />
+                <label htmlFor="resched-time" className={POPUP_LABEL}>New Time</label>
+                <input id="resched-time" type="time" value={rescheduleTime} onChange={e => setRescheduleTime(e.target.value)}
+                  className={POPUP_FIELD} style={POPUP_FIELD_STYLE} />
+                <p className="text-[11px] text-muted-foreground mt-1.5">Defaults to 9:00 AM.</p>
               </div>
             </div>
             {rescheduleError && <Notice variant="error">{rescheduleError}</Notice>}
           </div>
-          <div className="flex items-center justify-end gap-2 p-5 border-t border-gray-100">
-            <button onClick={closeReschedule} disabled={rescheduling}
-              className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground disabled:opacity-50">
-              Cancel
-            </button>
-            <button onClick={submitReschedule} disabled={rescheduling}
-              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-60 text-sm font-medium">
+          <div className="flex justify-end gap-3 px-8 py-5 border-t border-border">
+            <button onClick={closeReschedule} disabled={rescheduling} className={POPUP_CANCEL}>Cancel</button>
+            <button onClick={submitReschedule} disabled={rescheduling} className={POPUP_PRIMARY}>
               {rescheduling ? 'Rescheduling…' : 'Reschedule'}
             </button>
           </div>
