@@ -551,12 +551,13 @@ export const BulkScanReview = () => {
         // No scroll bars at all on the table (user, 2026-10-05): wheel, trackpad, dragging and the edge tabs still move it.
         + '.bulk-grid{cursor:grab}.bulk-grid.dragging{cursor:grabbing;user-select:none}'
         // Slim tabs on the left and right edges of the table, at mid height (user pick 4, 2026-10-05).
-        + '.bulk-edge{position:absolute;top:50%;transform:translateY(-50%);width:1.25rem;height:2.875rem;border:0;background:#273A78;color:#fff;font-size:1rem;font-weight:700;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0;opacity:.92;z-index:6;box-shadow:0 0.125rem 0.5rem rgba(15,23,42,0.25)}'
+        + '.bulk-edge{pointer-events:auto;position:absolute;top:50%;transform:translateY(-50%);width:1.25rem;height:2.875rem;border:0;background:#273A78;color:#fff;font-size:1rem;font-weight:700;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0;opacity:.92;z-index:6;box-shadow:0 0.125rem 0.5rem rgba(15,23,42,0.25)}'
         + '.bulk-edge.l{left:0.0625rem;border-radius:0 0.5625rem 0.5625rem 0}.bulk-edge.r{border-radius:0.5625rem 0 0 0.5625rem}'
         + '.bulk-edge:hover:not(:disabled){background:#31458C;opacity:1}.bulk-edge:active:not(:disabled){background:#101A3D}'
         + '.bulk-edge:disabled{opacity:.3;cursor:default}.bulk-edge:focus-visible{outline:0.125rem solid #7AA2FF;outline-offset:0.125rem}'
         + '@media (pointer: coarse){.bulk-edge{width:2rem;height:3.5rem}}'
         + '@media (max-width: 639px){.bulk-shell{height:auto !important;overflow:visible !important;padding:0.25rem 0 1rem 1rem !important;margin-bottom:0 !important}'
+        + '.bulk-edges-in{top:calc(50vh - 1.5rem) !important;height:0 !important}.bulk-edges-in .bulk-edge{top:0 !important}'
         + '.bulk-head{gap:0.75rem !important}.bulk-head>div:first-child{display:none !important}.bulk-head>div:nth-child(2){flex:1 1 0 !important}.bulk-head h1{font-size:1.375rem !important}'
         + '.bulk-bar{padding:1rem !important;gap:0.875rem !important}.bulk-bar-left{flex:1 1 100% !important;width:100%}.bulk-bar-left>div{max-width:none !important}'
         + '.bulk-bar-right{margin-left:0 !important;width:100%;align-items:stretch !important}.bulk-view{display:flex !important}.bulk-view button{flex:1;justify-content:center}'
@@ -701,10 +702,12 @@ export const BulkScanReview = () => {
           </table>
         </div>
           {!tab.fits && (
-            <>
+            <div className="bulk-edges" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+            <div className="bulk-edges-in" style={{ position: 'sticky', top: 0, height: '100%' }}>
               <button type="button" className="bulk-edge l" aria-label="Show previous columns" title="Show previous columns" disabled={!tab.left} onClick={() => stepColumns(-1)}>‹</button>
               <button type="button" className="bulk-edge r" style={{ right: `calc(0.0625rem + ${tab.sbw}px)` }} aria-label="Show next columns" title="Show next columns" disabled={!tab.right} onClick={() => stepColumns(1)}>›</button>
-            </>
+            </div>
+            </div>
           )}
         </div>
         </div>
