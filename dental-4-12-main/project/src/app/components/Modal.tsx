@@ -16,11 +16,9 @@ interface ModalProps {
   closeDisabled?: boolean;
   /** Tailwind corner-radius class for the panel (default 'rounded-xl') */
   rounded?: string;
-  /** Extra classes for the panel (e.g. hiding the scrollbar on phones) */
-  className?: string;
 }
 
-export const Modal = ({ onClose, children, maxWidth = 'max-w-md', closeDisabled = false, rounded = 'rounded-xl', className = '' }: ModalProps) => {
+export const Modal = ({ onClose, children, maxWidth = 'max-w-md', closeDisabled = false, rounded = 'rounded-xl' }: ModalProps) => {
   const ref = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -51,7 +49,7 @@ export const Modal = ({ onClose, children, maxWidth = 'max-w-md', closeDisabled 
       // edge, since a fixed margin isn't "centered", it's "offset". Capping
       // the WIDTH short of 100% instead guarantees a gutter on phones while
       // leaving auto-margin centering (m-auto) intact on every screen size.
-      className={`w-[calc(100%-2rem)] ${maxWidth} bg-card ${rounded} shadow-xl p-0 border-0 max-h-[90vh] overflow-y-auto backdrop:bg-black/50 m-auto ${className}`}
+      className={`w-[calc(100%-2rem)] ${maxWidth} bg-card ${rounded} shadow-xl p-0 border-0 max-h-[90vh] overflow-y-auto backdrop:bg-black/50 m-auto`}
     >
       {children}
     </dialog>

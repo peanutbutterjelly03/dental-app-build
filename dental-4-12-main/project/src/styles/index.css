@@ -71,6 +71,17 @@ input::-ms-clear {
   display: none; /* Chrome/Safari/new Edge */
 }
 
+/* Phone widths (below Tailwind's `sm`, 640px): never draw a scrollbar, on the
+   page, popups or any inner scroller. Everything still scrolls by touch. */
+@media (max-width: 639px) {
+  * {
+    scrollbar-width: none; /* Firefox */
+  }
+  *::-webkit-scrollbar {
+    display: none; /* Chrome/Safari/new Edge */
+  }
+}
+
 /* ── Dashboard entrance motion (Sprint 23j / audit X4-lite) ──────────────
    Content is fully visible by default; motion is pure enhancement and only
    runs when the OS allows it. Short ease-out, no bounce, 4-step stagger. */
