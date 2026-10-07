@@ -104,7 +104,7 @@ export const Login = () => {
   return (
     <div className="mx-auto grid w-full max-w-6xl flex-1 content-center items-center gap-10 px-5 py-6 lg:grid-cols-[minmax(0,1fr)_400px]">
       <div className="hidden lg:block">
-        <Tag>Welcome to Floral!</Tag>
+        <Tag>Welcome to Floral</Tag>
         <h1 className="mt-4 text-balance text-[clamp(2.4rem,4.6vw,4rem)] font-extrabold leading-[1] tracking-tight">Your school dental clinic’s records, ready when you are.</h1>
         <p className="mt-4 max-w-[46ch] text-lg text-blue-100/85">Sign in to see your students, schedules and reports.</p>
       </div>
