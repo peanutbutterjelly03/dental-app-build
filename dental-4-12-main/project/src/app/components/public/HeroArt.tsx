@@ -1,42 +1,46 @@
-import { BarChart3, CalendarCheck, ClipboardList, WifiOff } from 'lucide-react';
-import { TOOTH_PATH } from './PublicLayout';
+// Decorative hero picture: three layered glass cards sketching appointments, treatment
+// services and risk classification. Drawn shapes only. It carries no student data and
+// the ticks and bars are not measurements. Everything glows sky blue on the navy page.
+const BOOKED = new Set([4, 10, 16, 17, 23]);
+const SOFT = new Set([5, 11, 24]);
+const SERVICES = ['Oral prophylaxis', 'Fluoride varnish', 'Pit and fissure sealant', 'Tooth restoration'] as const;
+const BARS: ReadonlyArray<readonly [string, string]> = [['22%', '#F87171'], ['46%', '#FBBF24'], ['62%', '#4ADE80']];
 
-// Decorative hero picture: the Floral tooth with its flower, ringed and glowing, with
-// feature chips floating around it. Drawn, not a photo, and it carries no data.
-const PETAL = 'M 0,3.00 C 10.80,13.15 1.80,30.26 0,32.00 C -1.80,30.26 -10.80,13.15 0,3.00 Z';
-
-const Chip = ({ icon: Icon, label, className }: { icon: typeof WifiOff; label: string; className: string }) => (
-  <div className={`absolute flex items-center gap-2 rounded-2xl border border-white/25 bg-white/10 px-3.5 py-2 text-[13px] font-semibold text-white shadow-[0_10px_30px_rgba(3,10,40,0.35)] backdrop-blur-md motion-safe:animate-[float_6s_ease-in-out_infinite] ${className}`}>
-    <Icon className="h-4 w-4 text-sky-300" />{label}
-  </div>
-);
+const card = 'absolute rounded-[22px] border border-sky-200/40 bg-gradient-to-br from-white/20 to-white/[0.06] p-[4%] text-white shadow-[0_0_44px_rgba(56,189,248,0.38),0_24px_50px_rgba(3,10,40,0.45),inset_0_0_26px_rgba(125,211,252,0.12)] backdrop-blur-xl';
+const title = 'mb-[0.9em] text-[0.8em] font-bold uppercase tracking-wider text-blue-200';
 
 export const HeroArt = () => (
-  <div className="relative mx-auto aspect-square w-full max-w-[520px]" aria-hidden="true">
-    <style>{'@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}'}</style>
-    <svg viewBox="0 0 240 240" className="absolute inset-0 h-full w-full">
-      <defs>
-        <radialGradient id="ha-glow" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#38BDF8" stopOpacity="0.55" /><stop offset="100%" stopColor="#38BDF8" stopOpacity="0" /></radialGradient>
-        <linearGradient id="ha-tooth" x1="0" y1="0" x2="0.6" y2="1"><stop offset="0%" stopColor="#FFFFFF" /><stop offset="100%" stopColor="#B6E3FB" /></linearGradient>
-        <linearGradient id="ha-ring" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#7DD3FC" stopOpacity="0.7" /><stop offset="100%" stopColor="#7DD3FC" stopOpacity="0.05" /></linearGradient>
-      </defs>
-      <circle cx="120" cy="120" r="118" fill="url(#ha-glow)" />
-      <circle cx="120" cy="120" r="104" fill="none" stroke="url(#ha-ring)" strokeWidth="1" />
-      <circle cx="120" cy="120" r="86" fill="rgba(255,255,255,0.05)" stroke="url(#ha-ring)" strokeWidth="1" strokeDasharray="2 5" />
-      <circle cx="120" cy="120" r="68" fill="rgba(255,255,255,0.06)" stroke="url(#ha-ring)" strokeWidth="1" />
-      <g transform="translate(120 122) scale(0.78) translate(-120 -116)">
-        <path d={TOOTH_PATH} fill="url(#ha-tooth)" />
-        <path d="M 96,52 C 88,62 84,78 86,96" fill="none" stroke="#fff" strokeWidth="5" strokeLinecap="round" opacity="0.8" />
-        <g fill="#1E40AF" transform="translate(120 78) rotate(-7) scale(1 0.74)">
-          {[0, 72, 144, 216, 288].map((a) => <path key={a} d={PETAL} transform={`rotate(${a})`} />)}
-          <circle r="4.5" fill="#38BDF8" />
-        </g>
-      </g>
-      <g fill="#fff" opacity="0.7"><circle cx="34" cy="70" r="1.8" /><circle cx="206" cy="58" r="1.4" /><circle cx="198" cy="190" r="2" /><circle cx="44" cy="176" r="1.4" /><circle cx="120" cy="12" r="1.6" /></g>
-    </svg>
-    <Chip icon={ClipboardList} label="Student records" className="left-0 top-[16%]" />
-    <Chip icon={CalendarCheck} label="Appointments" className="right-0 top-[8%] [animation-delay:-2s]" />
-    <Chip icon={BarChart3} label="DOH reports" className="right-[2%] bottom-[18%] [animation-delay:-4s]" />
-    <Chip icon={WifiOff} label="Works offline" className="bottom-[8%] left-[4%] [animation-delay:-1s]" />
+  <div aria-hidden="true" className="relative mx-auto aspect-square w-full max-w-[520px] [container-type:inline-size]">
+    <div className="pointer-events-none absolute -inset-[8%] rounded-full bg-[radial-gradient(closest-side,rgba(56,189,248,0.42),rgba(99,102,241,0.18)_55%,transparent)] blur-2xl" />
+    <div className="absolute inset-0 [perspective:1100px]" style={{ fontSize: 'clamp(9px, 2.7cqw, 14px)' }}>
+      <div className={`${card} left-[2%] top-[4%] w-[58%]`} style={{ transform: 'rotateY(14deg) rotateZ(-5deg)' }}>
+        <h4 className={title}>Appointments</h4>
+        <div className="grid grid-cols-7 gap-[0.45em]">
+          {Array.from({ length: 28 }, (_, i) => (
+            <i key={i} className={`aspect-square rounded-[0.5em] ${BOOKED.has(i) ? 'bg-sky-400 shadow-[0_0_14px_rgba(56,189,248,0.95)]' : SOFT.has(i) ? 'bg-sky-400/45' : 'bg-white/15'}`} />
+          ))}
+        </div>
+      </div>
+
+      <div className={`${card} right-0 top-[30%] w-[60%]`} style={{ transform: 'rotateY(-12deg) rotateZ(4deg)' }}>
+        <h4 className={title}>Treatment Services</h4>
+        {SERVICES.map((s, i) => (
+          <div key={s} className="flex items-center gap-[0.8em] border-b border-white/15 py-[0.5em]">
+            <u className={`grid h-[1.4em] w-[1.4em] shrink-0 place-items-center rounded-[0.4em] border-[1.5px] text-[0.8em] no-underline ${i < 3 ? 'border-sky-400 bg-sky-400 text-[#06204A] shadow-[0_0_12px_rgba(56,189,248,0.9)]' : 'border-sky-300'}`}>{i < 3 ? '✓' : ''}</u>
+            {s}
+          </div>
+        ))}
+      </div>
+
+      <div className={`${card} bottom-[2%] left-[8%] w-[56%]`} style={{ transform: 'rotateY(10deg) rotateZ(-2deg)' }}>
+        <h4 className={title}>Risk classification</h4>
+        <div className="grid gap-[0.7em]">
+          {BARS.map(([w, c]) => (
+            <div key={c} className="h-[0.9em] rounded-full bg-white/15"><div className="h-full rounded-full" style={{ width: w, background: c, boxShadow: `0 0 14px ${c}` }} /></div>
+          ))}
+        </div>
+        <span className="mt-[0.9em] inline-block rounded-full border border-sky-300/50 bg-sky-400/20 px-[0.9em] py-[0.3em] text-[0.9em] font-bold text-sky-200 shadow-[0_0_18px_rgba(56,189,248,0.55)]">Dentist validates</span>
+      </div>
+    </div>
   </div>
 );
