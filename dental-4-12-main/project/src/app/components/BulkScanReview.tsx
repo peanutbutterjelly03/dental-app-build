@@ -112,9 +112,9 @@ const primaryBtn: CSSProperties = {
   cursor: 'pointer', boxSizing: 'border-box', padding: '0.6875rem 1.375rem', borderRadius: '0.625rem', fontSize: '0.875rem',
   fontWeight: 700, background: NAVY, color: '#fff', border: 'none',
 };
-const chip: CSSProperties = {
-  background: '#fff', border: `0.0625rem solid ${LINE}`, borderRadius: '62.4375rem', padding: '0.3125rem 0.875rem', fontSize: '0.8125rem',
-};
+// Summary-bar legend: an item with a circled count (colour = status).
+const legendItem: CSSProperties = { display: 'inline-flex', gap: '0.5rem', alignItems: 'center', fontWeight: 600 };
+const countDot = (bg: string): CSSProperties => ({ minWidth: '1.5rem', height: '1.5rem', borderRadius: '62.4375rem', padding: '0 0.4375rem', display: 'inline-grid', placeItems: 'center', background: bg, color: '#fff', fontSize: '0.78125rem', fontWeight: 800 });
 
 export const BulkScanReview = () => {
   const navigate = useNavigate();
@@ -563,30 +563,30 @@ export const BulkScanReview = () => {
         </div>
       </div>
 
-      {/* The summary bar (user pick A, 2026-10-07): a sentence and one progress bar split by status,
-          with its legend, on the left; Review one by one, Import and, under them, the Grid / Cards
-          switch on the right. Back stays in the header, top right. Only "Needs fixes" filters the
-          list (the other legend items are plain counts). */}
+      {/* The summary bar (user pick B of the layouts, 2026-10-07): the sentence, one progress bar
+          split by status and its legend, all centred, on the left; on the right the Grid / Cards
+          switch sits above Review one by one and Import. Back stays in the header, top right.
+          Only "Needs fixes" filters the list (the other counts are plain). */}
       <div className="bulk-pr" style={{ flexShrink: 0, paddingRight: '3.5rem', marginBottom: '0.75rem' }}>
-      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-start', background: '#fff', border: `0.0625rem solid ${LINE}`, borderRadius: '1rem', padding: '0.875rem 1rem' }}>
-        <div style={{ flex: '1 1 22rem', minWidth: 0 }}>
+      <div style={{ display: 'flex', gap: '1.125rem', flexWrap: 'wrap', alignItems: 'center', background: '#fff', border: `0.0625rem solid ${LINE}`, borderRadius: '1rem', padding: '1rem 1.125rem' }}>
+        <div style={{ flex: '1 1 22rem', minWidth: 0, textAlign: 'center' }}>
           <b style={{ fontSize: '0.9375rem' }}>{ready} of {rows.length} student{rows.length === 1 ? ' is' : 's are'} ready</b>
-          <div role="img" aria-label={`${ready} ready, ${fixes} need fixes, ${saved.size} saved`} style={{ display: 'flex', height: '0.75rem', borderRadius: '62.4375rem', overflow: 'hidden', background: '#E8EDF6', margin: '0.625rem 0 0.5rem' }}>
+          <div role="img" aria-label={`${ready} ready, ${fixes} need fixes, ${saved.size} saved`} style={{ display: 'flex', height: '0.75rem', borderRadius: '62.4375rem', overflow: 'hidden', background: '#E8EDF6', margin: '0.625rem 0' }}>
             <span style={{ width: `${rows.length ? (ready / rows.length) * 100 : 0}%`, background: '#16A34A' }} />
             <span style={{ width: `${rows.length ? (saved.size / rows.length) * 100 : 0}%`, background: '#2563EB' }} />
             <span style={{ width: `${rows.length ? (fixes / rows.length) * 100 : 0}%`, background: '#DC2626' }} />
           </div>
-          <div style={{ display: 'flex', gap: '0.25rem 1rem', flexWrap: 'wrap', fontSize: '0.8125rem', alignItems: 'center' }}>
-            <span style={{ display: 'inline-flex', gap: '0.4375rem', alignItems: 'center', fontWeight: 600 }}><i style={{ width: '0.625rem', height: '0.625rem', borderRadius: '50%', background: '#16A34A' }} />Ready {ready}</span>
-            {saved.size > 0 && <span style={{ display: 'inline-flex', gap: '0.4375rem', alignItems: 'center', fontWeight: 600 }}><i style={{ width: '0.625rem', height: '0.625rem', borderRadius: '50%', background: '#2563EB' }} />Saved {saved.size}</span>}
+          <div style={{ display: 'flex', gap: '0.375rem 1.125rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', fontSize: '0.8125rem' }}>
+            <span style={legendItem}><span style={countDot('#16A34A')}>{ready}</span>Ready</span>
+            {saved.size > 0 && <span style={legendItem}><span style={countDot('#2563EB')}>{saved.size}</span>Saved</span>}
             <button type="button" onClick={() => setOnlyFixes((v) => !v)} aria-pressed={onlyFixes}
               title={onlyFixes ? 'Show all students' : 'Show only the students who need fixes'}
-              style={{ cursor: 'pointer', background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 600, display: 'inline-flex', gap: '0.4375rem', alignItems: 'center', textDecoration: onlyFixes ? 'underline' : 'none', textUnderlineOffset: '0.25rem' }}>
-              <i style={{ width: '0.625rem', height: '0.625rem', borderRadius: '50%', background: '#DC2626' }} />Needs fixes {fixes}
+              style={{ ...legendItem, cursor: 'pointer', background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 600, textDecoration: onlyFixes ? 'underline' : 'none', textUnderlineOffset: '0.25rem' }}>
+              <span style={countDot('#DC2626')}>{fixes}</span>Needs fixes
             </button>
             {onFile === null
               ? <span style={{ color: MUTED }}>Checking for duplicates…</span>
-              : dupCount > 0 && <span style={{ display: 'inline-flex', gap: '0.4375rem', alignItems: 'center', fontWeight: 600 }}><i style={{ width: '0.625rem', height: '0.625rem', borderRadius: '50%', background: '#F59E0B' }} />To check {dupCount}</span>}
+              : dupCount > 0 && <span style={legendItem}><span style={countDot('#F59E0B')}>{dupCount}</span>To check</span>}
             {onlyFixes && (
               <button type="button" onClick={() => setOnlyFixes(false)} style={{ cursor: 'pointer', background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 700, color: NAVY, textDecoration: 'underline', textUnderlineOffset: '0.25rem' }}>
                 Show all {rows.length}
@@ -594,9 +594,25 @@ export const BulkScanReview = () => {
             )}
           </div>
         </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }}>
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            <button type="button" onClick={() => open(firstOpen)} disabled={!!importing} style={secondaryBtn}>Review one by one</button>
+        <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.625rem' }}>
+          <div style={{ display: 'inline-flex', gap: '0.125rem', background: '#EEF2F8', borderRadius: '0.75rem', padding: '0.1875rem' }} role="group" aria-label="View">
+            {(['grid', 'cards'] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => chooseView(v)}
+                aria-pressed={view === v}
+                aria-label={v === 'grid' ? 'Grid view' : 'Cards view'}
+                title={v === 'grid' ? 'Grid view' : 'Cards view'}
+                style={{ cursor: 'pointer', border: 'none', borderRadius: '0.5625rem', padding: '0.4375rem 0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.4375rem', fontWeight: 700, fontSize: '0.8125rem', background: view === v ? '#fff' : 'transparent', color: view === v ? NAVY : '#475569', boxShadow: view === v ? '0 0.0625rem 0.25rem rgba(15,27,61,0.15)' : 'none' }}
+              >
+                {v === 'grid' ? <Table2 size={17} /> : <LayoutGrid size={17} />}
+                {v === 'grid' ? 'Grid' : 'Cards'}
+              </button>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: '0.625rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <button type="button" onClick={() => open(firstOpen)} disabled={!!importing} style={{ ...secondaryBtn, background: '#DC2626', borderColor: '#DC2626', color: '#fff', fontWeight: 700 }}>Review one by one</button>
             <button
               type="button"
               onClick={() => setConfirmImport(true)}
@@ -607,21 +623,6 @@ export const BulkScanReview = () => {
               {importing ? `Importing ${importing.done} of ${importing.total}...` : `Import ${ready} student${ready === 1 ? '' : 's'}`}
             </button>
           </div>
-        <div style={{ display: 'inline-flex', overflow: 'hidden', borderRadius: '0.625rem', border: `0.0625rem solid ${LINE}`, background: '#fff' }} role="group" aria-label="View">
-          {(['grid', 'cards'] as const).map((v) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => chooseView(v)}
-              aria-pressed={view === v}
-              aria-label={v === 'grid' ? 'Grid view' : 'Cards view'}
-              title={v === 'grid' ? 'Grid view' : 'Cards view'}
-              style={{ cursor: 'pointer', border: 'none', padding: '0.5rem 0.875rem', display: 'inline-flex', alignItems: 'center', background: view === v ? NAVY : '#fff', color: view === v ? '#fff' : '#141413' }}
-            >
-              {v === 'grid' ? <Table2 size={18} /> : <LayoutGrid size={18} />}
-            </button>
-          ))}
-        </div>
         </div>
       </div>
       </div>
