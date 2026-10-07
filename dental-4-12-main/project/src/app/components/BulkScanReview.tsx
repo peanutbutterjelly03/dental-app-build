@@ -563,11 +563,50 @@ export const BulkScanReview = () => {
         </div>
       </div>
 
-      {/* Summary, filter and the Grid / Cards switch sit directly above the list */}
-      {/* The summary bar (user pick B, 2026-10-07): the counts, the filter and view switch, and the
-          two forward actions sit together above the list. Back stays in the header, top right. */}
+      {/* The summary bar (user pick A, 2026-10-07): a sentence and one progress bar split by status,
+          with its legend, on the left; Review one by one, Import and, under them, the Grid / Cards
+          switch on the right. Back stays in the header, top right. Only "Needs fixes" filters the
+          list (the other legend items are plain counts). */}
       <div className="bulk-pr" style={{ flexShrink: 0, paddingRight: '3.5rem', marginBottom: '0.75rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-start', background: '#fff', border: `0.0625rem solid ${LINE}`, borderRadius: '1rem', padding: '0.875rem 1rem' }}>
+        <div style={{ flex: '1 1 22rem', minWidth: 0 }}>
+          <b style={{ fontSize: '0.9375rem' }}>{ready} of {rows.length} student{rows.length === 1 ? ' is' : 's are'} ready</b>
+          <div role="img" aria-label={`${ready} ready, ${fixes} need fixes, ${saved.size} saved`} style={{ display: 'flex', height: '0.75rem', borderRadius: '62.4375rem', overflow: 'hidden', background: '#E8EDF6', margin: '0.625rem 0 0.5rem' }}>
+            <span style={{ width: `${rows.length ? (ready / rows.length) * 100 : 0}%`, background: '#16A34A' }} />
+            <span style={{ width: `${rows.length ? (saved.size / rows.length) * 100 : 0}%`, background: '#2563EB' }} />
+            <span style={{ width: `${rows.length ? (fixes / rows.length) * 100 : 0}%`, background: '#DC2626' }} />
+          </div>
+          <div style={{ display: 'flex', gap: '0.25rem 1rem', flexWrap: 'wrap', fontSize: '0.8125rem', alignItems: 'center' }}>
+            <span style={{ display: 'inline-flex', gap: '0.4375rem', alignItems: 'center', fontWeight: 600 }}><i style={{ width: '0.625rem', height: '0.625rem', borderRadius: '50%', background: '#16A34A' }} />Ready {ready}</span>
+            {saved.size > 0 && <span style={{ display: 'inline-flex', gap: '0.4375rem', alignItems: 'center', fontWeight: 600 }}><i style={{ width: '0.625rem', height: '0.625rem', borderRadius: '50%', background: '#2563EB' }} />Saved {saved.size}</span>}
+            <button type="button" onClick={() => setOnlyFixes((v) => !v)} aria-pressed={onlyFixes}
+              title={onlyFixes ? 'Show all students' : 'Show only the students who need fixes'}
+              style={{ cursor: 'pointer', background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 600, display: 'inline-flex', gap: '0.4375rem', alignItems: 'center', textDecoration: onlyFixes ? 'underline' : 'none', textUnderlineOffset: '0.25rem' }}>
+              <i style={{ width: '0.625rem', height: '0.625rem', borderRadius: '50%', background: '#DC2626' }} />Needs fixes {fixes}
+            </button>
+            {onFile === null
+              ? <span style={{ color: MUTED }}>Checking for duplicates…</span>
+              : dupCount > 0 && <span style={{ display: 'inline-flex', gap: '0.4375rem', alignItems: 'center', fontWeight: 600 }}><i style={{ width: '0.625rem', height: '0.625rem', borderRadius: '50%', background: '#F59E0B' }} />To check {dupCount}</span>}
+            {onlyFixes && (
+              <button type="button" onClick={() => setOnlyFixes(false)} style={{ cursor: 'pointer', background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 700, color: NAVY, textDecoration: 'underline', textUnderlineOffset: '0.25rem' }}>
+                Show all {rows.length}
+              </button>
+            )}
+          </div>
+        </div>
+        <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <button type="button" onClick={() => open(firstOpen)} disabled={!!importing} style={secondaryBtn}>Review one by one</button>
+            <button
+              type="button"
+              onClick={() => setConfirmImport(true)}
+              disabled={!canImport}
+              title={fixes > 0 ? `Fix ${fixes} student${fixes === 1 ? '' : 's'} first (see the "need fixes" count)` : ready === 0 ? 'Nothing left to import' : undefined}
+              style={{ ...primaryBtn, ...(canImport ? {} : { opacity: 0.45, cursor: 'not-allowed' }) }}
+            >
+              {importing ? `Importing ${importing.done} of ${importing.total}...` : `Import ${ready} student${ready === 1 ? '' : 's'}`}
+            </button>
+          </div>
         <div style={{ display: 'inline-flex', overflow: 'hidden', borderRadius: '0.625rem', border: `0.0625rem solid ${LINE}`, background: '#fff' }} role="group" aria-label="View">
           {(['grid', 'cards'] as const).map((v) => (
             <button
@@ -583,30 +622,6 @@ export const BulkScanReview = () => {
             </button>
           ))}
         </div>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', background: '#fff', border: `0.0625rem solid ${LINE}`, borderRadius: '1rem', padding: '0.75rem 1rem' }}>
-        <span style={chip}><b>{rows.length}</b> found</span>
-        <span style={chip}><b style={{ color: '#15803D' }}>{ready}</b> ready</span>
-        <span style={chip}><b style={{ color: '#B91C1C' }}>{fixes}</b> need fixes</span>
-        {onFile === null
-          ? <span style={{ ...chip, color: MUTED }}>Checking for duplicates…</span>
-          : dupCount > 0 && <span style={{ ...chip, borderColor: '#F59E0B' }}><b style={{ color: '#92400E' }}>{dupCount}</b> to check</span>}
-        {saved.size > 0 && <span style={chip}><b style={{ color: '#15803D' }}>{saved.size}</b> saved</span>}
-        <button type="button" onClick={() => setOnlyFixes((v) => !v)} aria-pressed={onlyFixes} style={{ ...secondaryBtn, padding: '0.3125rem 0.875rem', fontSize: '0.8125rem' }}>
-          {onlyFixes ? 'Show all students' : 'Show only: Needs fixes'}
-        </button>
-        <div style={{ marginLeft: 'auto' }} />
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <button type="button" onClick={() => open(firstOpen)} disabled={!!importing} style={secondaryBtn}>Review one by one</button>
-          <button
-            type="button"
-            onClick={() => setConfirmImport(true)}
-            disabled={!canImport}
-            title={fixes > 0 ? `Fix ${fixes} student${fixes === 1 ? '' : 's'} first (see the "need fixes" count)` : ready === 0 ? 'Nothing left to import' : undefined}
-            style={{ ...primaryBtn, ...(canImport ? {} : { opacity: 0.45, cursor: 'not-allowed' }) }}
-          >
-            {importing ? `Importing ${importing.done} of ${importing.total}...` : `Import ${ready} student${ready === 1 ? '' : 's'}`}
-          </button>
         </div>
       </div>
       </div>
