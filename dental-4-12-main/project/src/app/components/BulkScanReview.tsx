@@ -569,14 +569,15 @@ export const BulkScanReview = () => {
           Only "Needs fixes" filters the list (the other counts are plain). */}
       <div className="bulk-pr" style={{ flexShrink: 0, paddingRight: '3.5rem', marginBottom: '0.75rem' }}>
       <div style={{ display: 'flex', gap: '1.125rem', flexWrap: 'wrap', alignItems: 'center', background: '#fff', border: `0.0625rem solid ${LINE}`, borderRadius: '1rem', padding: '1rem 1.125rem' }}>
-        <div style={{ flex: '1 1 22rem', minWidth: 0, textAlign: 'center' }}>
+        <div style={{ flex: '1 1 22rem', minWidth: 0, display: 'flex', justifyContent: 'center' }}>
+        <div style={{ width: '100%', maxWidth: '34rem', textAlign: 'left' }}>
           <b style={{ fontSize: '0.9375rem' }}>{ready} of {rows.length} student{rows.length === 1 ? ' is' : 's are'} ready</b>
           <div role="img" aria-label={`${ready} ready, ${fixes} need fixes, ${saved.size} saved`} style={{ display: 'flex', height: '0.75rem', borderRadius: '62.4375rem', overflow: 'hidden', background: '#E8EDF6', margin: '0.625rem 0' }}>
             <span style={{ width: `${rows.length ? (ready / rows.length) * 100 : 0}%`, background: '#16A34A' }} />
             <span style={{ width: `${rows.length ? (saved.size / rows.length) * 100 : 0}%`, background: '#2563EB' }} />
             <span style={{ width: `${rows.length ? (fixes / rows.length) * 100 : 0}%`, background: '#DC2626' }} />
           </div>
-          <div style={{ display: 'flex', gap: '0.375rem 1.125rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', fontSize: '0.8125rem' }}>
+          <div style={{ display: 'flex', gap: '0.375rem 1.125rem', flexWrap: 'wrap', alignItems: 'center', fontSize: '0.8125rem' }}>
             <span style={legendItem}><span style={countDot('#16A34A')}>{ready}</span>Ready</span>
             {saved.size > 0 && <span style={legendItem}><span style={countDot('#2563EB')}>{saved.size}</span>Saved</span>}
             <button type="button" onClick={() => setOnlyFixes((v) => !v)} aria-pressed={onlyFixes}
@@ -593,6 +594,7 @@ export const BulkScanReview = () => {
               </button>
             )}
           </div>
+        </div>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.625rem' }}>
           <div style={{ display: 'inline-flex', gap: '0.125rem', background: '#EEF2F8', borderRadius: '0.75rem', padding: '0.1875rem' }} role="group" aria-label="View">
