@@ -1736,7 +1736,41 @@ export const DentalChart = () => {
         <div ref={iptrFormV2Ref}><IptrFormV2 student={student} schoolName={schoolName} years={years} /></div>
       </div>
       {/* Sticky header row */}
-      <div ref={headerRowRef} className="sticky z-40 bg-canvas pt-3 pb-2 -mx-4 px-4 md:-mx-8 md:px-8" style={{ top: TOPBAR_H }}>
+      {/* Only the student switcher stays pinned while the page scrolls (user,
+          2026-10-07). A zero-height sticky wrapper, so it pins without a
+          background block behind it; the title row below scrolls away and
+          reserves room on its right so nothing sits under the switcher. */}
+      <div className="sticky z-40 h-0 !mb-0 pointer-events-none" style={{ top: TOPBAR_H }}>
+        <div className="absolute right-0 top-3">
+          <div className="pointer-events-auto hidden sm:flex h-9 items-stretch rounded-lg border-2 border-sidebar-bg bg-white overflow-hidden shadow-sm">
+            <button
+              onClick={() => goToStudent(prevPatient)}
+              disabled={!prevPatient}
+              title={prevPatient ? `← ${prevPatient.name}` : undefined}
+              className="flex items-center gap-1.5 px-3 text-xs font-semibold text-sidebar-bg hover:bg-primary-surface disabled:opacity-30 disabled:cursor-default border-r-2 border-sidebar-bg"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              {/* Surname, not the given name: the list is ordered by surname,
+                  so the button must name the same thing you are stepping through. */}
+              {prevPatient ? <span className="max-w-[80px] truncate">{prevPatient.lastName || prevPatient.name}</span> : 'First'}
+            </button>
+            <span className="flex items-center gap-1 px-3 text-xs font-semibold text-sidebar-bg">
+              <Users className="w-3 h-3" />
+              {navIndex >= 0 ? `${navIndex + 1}/${navList.length}` : '—'}
+            </span>
+            <button
+              onClick={() => goToStudent(nextPatient)}
+              disabled={!nextPatient}
+              title={nextPatient ? `${nextPatient.name} →` : undefined}
+              className="flex items-center gap-1.5 px-3 text-xs font-semibold text-sidebar-bg hover:bg-primary-surface disabled:opacity-30 disabled:cursor-default border-l-2 border-sidebar-bg"
+            >
+              {nextPatient ? <span className="max-w-[80px] truncate">{nextPatient.lastName || nextPatient.name}</span> : 'Last'}
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      </div>
+      <div ref={headerRowRef} className="pt-3 pb-2 sm:pr-80">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-3 min-w-0">
           <Link to={backPath} className="p-2 hover:bg-gray-100 rounded-lg shrink-0">
@@ -1787,32 +1821,6 @@ export const DentalChart = () => {
                 ))}
               </div>
             )}
-          </div>
-          <div className="hidden sm:flex h-9 items-stretch rounded-lg border-2 border-sidebar-bg bg-white overflow-hidden">
-            <button
-              onClick={() => goToStudent(prevPatient)}
-              disabled={!prevPatient}
-              title={prevPatient ? `← ${prevPatient.name}` : undefined}
-              className="flex items-center gap-1.5 px-3 text-xs font-semibold text-sidebar-bg hover:bg-primary-surface disabled:opacity-30 disabled:cursor-default border-r-2 border-sidebar-bg"
-            >
-              <ChevronLeft className="w-3.5 h-3.5" />
-              {/* Surname, not the given name: the list is ordered by surname,
-                  so the button must name the same thing you are stepping through. */}
-              {prevPatient ? <span className="max-w-[80px] truncate">{prevPatient.lastName || prevPatient.name}</span> : 'First'}
-            </button>
-            <span className="flex items-center gap-1 px-3 text-xs font-semibold text-sidebar-bg">
-              <Users className="w-3 h-3" />
-              {navIndex >= 0 ? `${navIndex + 1}/${navList.length}` : '—'}
-            </span>
-            <button
-              onClick={() => goToStudent(nextPatient)}
-              disabled={!nextPatient}
-              title={nextPatient ? `${nextPatient.name} →` : undefined}
-              className="flex items-center gap-1.5 px-3 text-xs font-semibold text-sidebar-bg hover:bg-primary-surface disabled:opacity-30 disabled:cursor-default border-l-2 border-sidebar-bg"
-            >
-              {nextPatient ? <span className="max-w-[80px] truncate">{nextPatient.lastName || nextPatient.name}</span> : 'Last'}
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
           </div>
           {/* The year arrows are gone (Sprint 163, her header). The year CHIPS
               row directly under the tab strip already selects the school year,
