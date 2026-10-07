@@ -5,7 +5,7 @@ import { Menu, X } from 'lucide-react';
 // Night Clinic ground, shared with the sign-in page so the public site and the
 // login read as one thing.
 // The brand's tooth, drawn as a large faint watermark behind every public page.
-const TOOTH_PATH =
+export const TOOTH_PATH =
   'M 120.00,34.00 C 125.79,34.50 145.39,30.00 154.72,37.00 C 164.05,44.00 174.12,60.83 176.00,76.00 C 177.88,91.17 167.92,115.35 166.00,128.00 C 164.08,140.65 167.37,134.73 166.00,142.00 C 164.63,149.27 159.52,165.05 157.35,173.90 C 155.18,182.75 156.06,191.57 153.00,195.10 C 149.94,198.63 142.03,197.88 139.00,195.10 C 135.97,192.32 135.80,185.58 134.80,178.40 C 133.80,171.22 135.22,158.06 133.00,152.00 C 130.78,145.94 123.90,138.00 120.00,138.00 C 116.10,138.00 109.22,145.94 107.00,152.00 C 104.78,158.06 106.20,171.22 105.20,178.40 C 104.20,185.58 104.03,192.32 101.00,195.10 C 97.97,197.88 90.06,198.63 87.00,195.10 C 83.94,191.57 84.82,182.75 82.65,173.90 C 80.48,165.05 75.37,149.27 74.00,142.00 C 72.63,134.73 75.92,140.65 74.00,128.00 C 72.08,115.35 62.12,91.17 64.00,76.00 C 65.88,60.83 75.95,44.00 85.28,37.00 C 94.61,30.00 114.21,34.50 120.00,34.00 C 125.79,33.50 114.21,33.50 120.00,34.00 Z';
 
 export const PUBLIC_GROUND = 'linear-gradient(160deg, #0A1330 0%, #12266B 55%, #1B3FA8 100%)';
@@ -89,9 +89,9 @@ export const PublicLayout = () => {
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `rounded-lg px-3.5 py-2 text-sm font-medium transition ${isActive ? 'bg-white/15 text-white font-semibold' : 'text-white/85 hover:bg-white/10'}`;
 
-  // The sign-in page is exactly one screen: it never scrolls, except on a screen too
-  // short to hold the card, where scrolling is the only way to reach the button.
-  const oneScreen = pathname === '/login';
+  // Home and sign-in are exactly one screen: they never scroll, except on a screen too
+  // short to hold the content, where scrolling is the only way to reach the buttons.
+  const oneScreen = pathname === '/login' || pathname === '/home';
 
   return (
     <div

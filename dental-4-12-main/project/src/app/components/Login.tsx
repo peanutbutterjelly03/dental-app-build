@@ -15,6 +15,9 @@ export const Login = () => {
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  // Fields stay read-only until clicked, so the browser does not fill saved credentials
+  // when the page loads. Clicking a field makes it editable and the browser offers them.
+  const [armed, setArmed] = useState(false);
   // Defaults to off: clinic PCs are shared, so a session that ends with the
   // browser is the safer default. Ticking it restores the 7-day cookie.
   const [remember, setRemember] = useState(false);
@@ -139,6 +142,7 @@ export const Login = () => {
                     manager. The app stores nothing itself: a password in localStorage would
                     undo Sprint 37 and is an OWASP finding waiting to happen. */}
                 <input id="login-email" type="email" name="email" autoComplete="username" value={email}
+                  readOnly={!armed} onFocus={() => setArmed(true)}
                   onChange={(e) => setEmail(e.target.value)} className={fieldClass} placeholder="Enter your email" required />
               </div>
 
@@ -146,7 +150,7 @@ export const Login = () => {
                 <label htmlFor="login-password" className={labelClass}>Password</label>
                 <div className="relative">
                   <input id="login-password" type={showPassword ? 'text' : 'password'} name="password" autoComplete="current-password"
-                    value={password} onChange={(e) => setPassword(e.target.value)} className={`${fieldClass} pr-11`} placeholder="Enter your password" required />
+                    value={password} readOnly={!armed} onFocus={() => setArmed(true)} onChange={(e) => setPassword(e.target.value)} className={`${fieldClass} pr-11`} placeholder="Enter your password" required />
                   {password && (
                     <button type="button" onClick={() => setShowPassword((v) => !v)}
                       className="absolute right-1.5 top-1.5 grid h-8 w-8 place-items-center rounded-lg text-white/70 hover:text-white"
