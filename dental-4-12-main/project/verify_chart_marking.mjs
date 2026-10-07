@@ -38,6 +38,17 @@ try {
   await page.goto(`http://localhost:5173/dental-chart/${sid}?tab=chart`); await page.waitForTimeout(3500);
   const toggle = page.getByRole('group', { name: 'Marking mode' });
   check('the Single tooth / Bulk toggle shows while charting, Single first', (await toggle.count()) === 1 && (await toggle.getByRole('button', { name: 'Single tooth' }).getAttribute('aria-pressed')) === 'true', (await page.evaluate(() => document.body.innerText)).slice(0, 300));
+  // The tab strip and year bar scroll with the page; they are not pinned (user, 2026-10-07).
+  const scrolled = await page.evaluate(async () => {
+    const tab = [...document.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Medical History');
+    const scroller = document.scrollingElement;
+    const before = tab.getBoundingClientRect().top;
+    window.scrollTo(0, 900); document.querySelectorAll('main, [class*="overflow-y"]').forEach((el) => { el.scrollTop = 900; });
+    await new Promise((r) => setTimeout(r, 300));
+    return { before, after: tab.getBoundingClientRect().top, moved: scroller.scrollTop };
+  });
+  check('the tab strip scrolls away with the page (not pinned)', scrolled.after < scrolled.before - 50, JSON.stringify(scrolled));
+  await page.evaluate(() => { window.scrollTo(0, 0); document.querySelectorAll('main, [class*="overflow-y"]').forEach((el) => { el.scrollTop = 0; }); });
   check('Single mode says to click a tooth', await page.getByText('Click a tooth on the chart to choose its condition or treatment code.').count() === 1);
   await page.locator('[data-tooth="16"]').first().click();
   const pop = page.getByRole('dialog', { name: 'Tooth 16 codes' });

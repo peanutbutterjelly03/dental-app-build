@@ -382,8 +382,6 @@ export const DentalChart = () => {
   // charting when the id is not in the year on display, so an id from another
   // year is simply ignored. Both breakages typechecked and built cleanly.
   const { preview, building: pdfBusy, previewPdf, closePreview, confirmDownload } = usePreviewModal();
-  const tabsRowRef = useRef<HTMLDivElement | null>(null);
-  const [stickyOffsets, setStickyOffsets] = useState({ tabsTop: 0, yearTop: 0 });
 
   const currentYearDataRaw = years[selectedYear];
   // The hook defaults to the latest charting; this swaps in whichever one the
@@ -1063,26 +1061,6 @@ export const DentalChart = () => {
       window.removeEventListener('pointercancel', onUp);
     };
   }, [activeVisit]);
-
-  useEffect(() => {
-    const measureStickyOffsets = () => {
-      const headerHeight = headerRowRef.current?.offsetHeight ?? 0;
-      const tabsHeight = tabsRowRef.current?.offsetHeight ?? 0;
-      setStickyOffsets({ tabsTop: TOPBAR_H + headerHeight, yearTop: TOPBAR_H + headerHeight + tabsHeight });
-    };
-    measureStickyOffsets();
-    let resizeObserver: ResizeObserver | null = null;
-    if (typeof ResizeObserver !== 'undefined') {
-      resizeObserver = new ResizeObserver(measureStickyOffsets);
-      if (headerRowRef.current) resizeObserver.observe(headerRowRef.current);
-      if (tabsRowRef.current) resizeObserver.observe(tabsRowRef.current);
-    }
-    window.addEventListener('resize', measureStickyOffsets);
-    return () => {
-      resizeObserver?.disconnect();
-      window.removeEventListener('resize', measureStickyOffsets);
-    };
-  }, [activeTab, years.length, editingInfo, saved]);
 
   const getNextSchoolYear = () => {
     if (years.length === 0) return ALL_SCHOOL_YEARS[0];
@@ -2024,9 +2002,10 @@ export const DentalChart = () => {
       </div>
 
       {/* Tabs */}
-      <div className="sticky z-30 bg-gray-50 space-y-0" style={{ top: stickyOffsets.tabsTop }}>
+      {/* Scrolls with the page (user, 2026-10-07): the tab strip and school-year bar are no longer pinned. */}
+      <div className="bg-gray-50 space-y-0">
         <div className="overflow-hidden bg-card rounded-xl border-2 border-primary">
-          <div ref={tabsRowRef} className="border-b border-border bg-card">
+          <div className="border-b border-border bg-card">
             <div className="flex items-center">
               {/* Her strip: every tab takes an equal share of the card's
                   width and its label is centred, instead of the tabs hugging
