@@ -584,8 +584,8 @@ export const BulkScanReview = () => {
           Only "Needs fixes" filters the list (the other counts are plain). */}
       <div className="bulk-pr" style={{ flexShrink: 0, paddingRight: '3.5rem', marginBottom: '0.75rem' }}>
       <div style={{ display: 'flex', gap: '1.125rem', flexWrap: 'wrap', alignItems: 'center', background: '#fff', border: `0.0625rem solid ${LINE}`, borderRadius: '1rem', padding: '1.5rem 1.5rem' }}>
-        <div style={{ flex: '1 1 22rem', minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'flex-start', paddingLeft: '1.5rem' }}>
-        <div style={{ width: '100%', maxWidth: '30rem', textAlign: 'left' }}>
+        <div style={{ flex: '1 1 22rem', minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'flex-start', paddingLeft: 0 }}>
+        <div style={{ width: '100%', maxWidth: '44rem', textAlign: 'left' }}>
           <b style={{ fontSize: '1.0625rem' }}>{ready} of {rows.length} student{rows.length === 1 ? ' is' : 's are'} ready</b>
           <div role="img" aria-label={`${ready} ready, ${fixes} need fixes, ${saved.size} saved`} style={{ display: 'flex', height: '1rem', borderRadius: '62.4375rem', overflow: 'hidden', background: '#E8EDF6', margin: '0.875rem 0 0.75rem' }}>
             <span style={{ width: `${rows.length ? (ready / rows.length) * 100 : 0}%`, background: '#16A34A' }} />
