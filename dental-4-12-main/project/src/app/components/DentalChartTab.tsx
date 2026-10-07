@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { Save, Pencil, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Check, AlertTriangle, Lock, Minimize2, Trash2, X, Undo2 } from 'lucide-react';
 import { getGradeColor } from '../utils/gradeColors';
 import { formatDate } from '../utils/localDate';
@@ -224,10 +224,19 @@ export function DentalChartTab({
   const stageRef = useRef<HTMLDivElement | null>(null);
   const popRef = useRef<HTMLDivElement | null>(null);
   const [popPos, setPopPos] = useState<{ left: number; top: number } | null>(null);
+  // Phones: the popup is a bottom sheet, not something pinned beside a tooth inside
+  // a sideways-scrolling chart.
+  const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const on = () => setNarrow(mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
   useLayoutEffect(() => {
     const stage = stageRef.current;
     const pop = popRef.current;
-    if (!stage || !pop || !codesOpen || selectedTeeth.size === 0) { setPopPos(null); return; }
+    if (narrow || !stage || !pop || !codesOpen || selectedTeeth.size === 0) { setPopPos(null); return; }
     const sr = stage.getBoundingClientRect();
     const rects = [...selectedTeeth]
       .map((n) => stage.querySelector<HTMLElement>(`[data-tooth="${n}"]`)?.getBoundingClientRect())
@@ -236,10 +245,12 @@ export function DentalChartTab({
     const top = Math.min(...rects.map((r) => r.top)) - sr.top;
     const bottom = Math.max(...rects.map((r) => r.bottom)) - sr.top;
     const cx = (Math.min(...rects.map((r) => r.left)) + Math.max(...rects.map((r) => r.right))) / 2 - sr.left;
-    const left = Math.max(0, Math.min(cx - pop.offsetWidth / 2, sr.width - pop.offsetWidth));
+    // Kept inside the VIEWPORT (not the chart box): centred on the selection, above
+    // it when that fits on screen and below it otherwise.
+    const left = Math.max(8 - sr.left, Math.min(cx - pop.offsetWidth / 2, window.innerWidth - 8 - pop.offsetWidth - sr.left));
     const above = top - pop.offsetHeight - 10;
-    setPopPos({ left, top: above >= 0 ? above : bottom + 10 });
-  }, [codesOpen, selectedTeeth, markType, rareOpen, currentChart]);
+    setPopPos({ left, top: sr.top + above >= 8 ? above : bottom + 10 });
+  }, [codesOpen, selectedTeeth, markType, rareOpen, currentChart, narrow]);
 
   // True when EVERY selected tooth already carries this code (the popup shows it
   // pressed, and choosing it again removes it).
@@ -606,7 +617,9 @@ export function DentalChartTab({
         </div>
       )}
 
-      <div className="relative bg-card rounded-xl border border-slate-300 p-4 overflow-x-auto shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+      {/* Not scrollable from md up (user, 2026-10-07): the code popup must be able to extend
+          past the box. Below md the 16-tooth rows need a sideways scroll to stay tooth-sized. */}
+      <div className="relative bg-card rounded-xl border border-slate-300 p-4 max-md:overflow-x-auto shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
         {/* Condition | Treatment switch, in the chart's empty top-left corner (user,
             2026-10-07). Above the chart below xl, where there is no free corner. */}
         {editingChart && (
@@ -650,8 +663,10 @@ export function DentalChartTab({
           <div className="flex justify-center gap-1">{padToArch(lowerTemporary)}</div>
           {editingChart && codesOpen && selectedTeeth.size > 0 && (
             <div ref={popRef} role="dialog" aria-label="Codes for the selected teeth"
-              style={{ left: popPos?.left ?? 0, top: popPos?.top ?? 0, visibility: popPos ? 'visible' : 'hidden' }}
-              className="absolute z-20 w-max max-w-[min(360px,calc(100vw-2rem))] rounded-xl border border-border bg-card p-3 shadow-[0_12px_32px_rgba(15,23,42,0.22)]">
+              style={narrow ? undefined : { left: popPos?.left ?? 0, top: popPos?.top ?? 0, visibility: popPos ? 'visible' : 'hidden' }}
+              className={`z-50 rounded-xl border border-border bg-card p-3 shadow-[0_12px_32px_rgba(15,23,42,0.22)] ${narrow
+                ? 'fixed inset-x-3 bottom-3 max-h-[60vh] overflow-y-auto'
+                : 'absolute w-max max-w-[min(360px,calc(100vw-2rem))]'}`}>
               <div className="mb-2 flex items-center gap-2 text-[13px]">
                 <b className="text-foreground">{selectedTeeth.size} {selectedTeeth.size === 1 ? 'tooth' : 'teeth'} selected</b>
                 <span className="text-muted-foreground">{markType === 'condition' ? 'Tooth Condition Codes' : 'Tooth Treatment Codes'}</span>

@@ -56,6 +56,16 @@ try {
   await page.locator('[data-tooth="26"]').first().click();
   check('selecting teeth opens the popup for them', await popup.count() === 1 && /2 teeth selected/.test(await popup.innerText()), await popup.innerText().catch(() => ''));
   check('Condition mode shows the condition codes (D/d, F/f, More)', await popup.getByRole('button', { name: 'D/d' }).count() === 1 && await popup.getByRole('button', { name: /More \(\d\)/ }).count() === 1);
+  const box = await popup.boundingBox();
+  const vp = page.viewportSize();
+  check('the popup is fully on screen, not clipped', !!box && box.x >= 0 && box.y >= 0 && box.x + box.width <= vp.width && box.y + box.height <= vp.height, JSON.stringify({ box, vp }));
+  const scrollable = await page.evaluate(() => {
+    const stage = document.querySelector('[data-tooth="16"]').closest('.relative.min-w-\\[680px\\]');
+    const card = stage?.parentElement;
+    const cs = card && getComputedStyle(card);
+    return cs ? { x: cs.overflowX, y: cs.overflowY } : null;
+  });
+  if (vp.width >= 768) check('the chart box does not scroll', scrollable && scrollable.x === 'visible' && scrollable.y === 'visible', JSON.stringify(scrollable));
   if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT });
   await popup.getByRole('button', { name: 'F/f' }).click();
   check('picking a code marks every selected tooth and closes the popup', await popup.count() === 0 && /F/.test(await page.locator('[data-tooth="16"]').first().innerText()) && /F/.test(await page.locator('[data-tooth="26"]').first().innerText()));
