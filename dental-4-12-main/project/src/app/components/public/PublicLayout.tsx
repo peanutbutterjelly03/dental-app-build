@@ -89,12 +89,6 @@ export const PublicLayout = () => {
 
       <main className="relative z-10"><Outlet /></main>
 
-      <footer className="relative z-10 border-t border-white/15 py-6 text-sm text-white/65">
-        <div className="mx-auto flex max-w-6xl flex-wrap justify-between gap-2 px-5">
-          <span>Floral · Barangay Tanyag, Taguig City</span>
-          <span>Internal use only</span>
-        </div>
-      </footer>
     </div>
   );
 };
