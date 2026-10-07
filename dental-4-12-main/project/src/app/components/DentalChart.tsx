@@ -1977,7 +1977,7 @@ export const DentalChart = () => {
                   context renders a SINGLE tab, and stretched across the whole
                   card it stops reading as a tab and starts reading as a
                   heading — an underlined title nobody would think to press. */}
-              <div className="flex flex-1 min-w-0 overflow-x-auto">
+              <div className="no-scrollbar flex flex-1 min-w-0 overflow-x-auto">
               {visibleTabs.map((tab) => (
                 <button key={tab.key} onClick={() => setActiveTab(tab.key as TabKey)}
                   aria-current={activeTab === tab.key ? 'page' : undefined}

@@ -90,8 +90,8 @@ function MedChip({ label, checked, onToggle, disabled, details, med, setText }: 
 }) {
   const open = checked && !!details?.length;
   return (
-    <div className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border px-3 py-3 text-sm transition-colors ${open ? 'sm:col-span-2' : ''} ${checked ? 'border-primary bg-primary/10' : 'border-border'} ${disabled ? 'opacity-70' : 'hover:bg-canvas'}`}>
-      <label className={`flex shrink-0 items-center gap-2 text-sm ${checked ? 'text-primary font-medium' : 'text-foreground'} ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+    <div className={`flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border px-3 py-3 text-sm transition-colors ${open ? 'sm:col-span-2' : ''} ${checked ? 'border-primary bg-primary/10' : 'border-border'} ${disabled ? 'opacity-70' : 'hover:bg-canvas'}`}>
+      <label className={`flex min-w-0 items-center gap-2 text-sm ${checked ? 'text-primary font-medium' : 'text-foreground'} ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
         <input type="checkbox" disabled={disabled} checked={checked}
           onChange={(e) => onToggle(e.target.checked)}
           className="w-5 h-5 shrink-0 rounded accent-primary disabled:cursor-not-allowed" />
@@ -261,7 +261,7 @@ export function HistoryTab({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <div className="bg-card rounded-xl border border-border p-4">
           {/* Her heading: sentence case at text-lg with the instruction
               under it, not a small uppercase label. */}
@@ -316,7 +316,7 @@ export function HistoryTab({
               ['Tobacco User', 'tobaccoUser'], ['Betel Nut Chewer', 'betelNut'],
               ['Body Piercing', 'bodyPiercing'], ['Nail Biting', 'nailBiting'], ['Thumbsucking', 'thumbsucking'],
             ] as [string, keyof DietDraft][]).map(([label, field]) => (
-              <label key={field} className={`flex items-center gap-2 rounded-lg border px-3 py-3 text-sm transition-colors ${!!diet[field] ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-border text-foreground'} ${editing ? 'cursor-pointer hover:bg-canvas' : 'cursor-not-allowed opacity-70'}`}>
+              <label key={field} className={`flex min-w-0 items-center gap-2 rounded-lg border px-3 py-3 text-sm transition-colors ${!!diet[field] ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-border text-foreground'} ${editing ? 'cursor-pointer hover:bg-canvas' : 'cursor-not-allowed opacity-70'}`}>
                 <input type="checkbox" disabled={!editing} checked={!!diet[field]}
                   onChange={(e) => setDiet((p) => ({ ...p, [field]: e.target.checked }))}
                   className="w-5 h-5 rounded accent-primary disabled:cursor-not-allowed" />
