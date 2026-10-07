@@ -1387,18 +1387,18 @@ export const PatientList = () => {
         <div className="min-h-0 flex-1 overflow-auto">
           <table className="w-full min-w-[1000px] table-fixed text-sm">
             {/* Fixed column widths (user, 2026-10-01): with auto layout the
-                spare width went mostly to Risk, leaving a wide gap before
-                Grade. Student takes the largest share; the rest sit close. */}
+                spare width left a wide gap before Grade. Student takes the largest
+                share; Status gets enough room for "For Oral Exam" (the Risk column
+                was removed 2026-10-07, so these eight widths are the whole table). */}
             <colgroup>
               <col className="w-16" />
-              <col style={{ width: '19%' }} />
+              <col style={{ width: '24%' }} />
               <col style={{ width: '12%' }} />
-              <col style={{ width: '11%' }} />
-              <col style={{ width: '13%' }} />
-              <col style={{ width: '8%' }} />
-              <col style={{ width: '6%' }} />
-              <col style={{ width: '13%' }} />
-              <col className="w-[120px]" />
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '7%' }} />
+              <col style={{ width: '17%' }} />
+              <col className="w-[140px]" />
             </colgroup>
             <thead>
               <tr className="border-b border-border">
