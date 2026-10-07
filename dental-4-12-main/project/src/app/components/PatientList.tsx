@@ -481,13 +481,17 @@ export const PatientList = () => {
     setActiveGradeCriteriaQ(new Set());
     setActiveSectionCriteriaQ(new Set());
   };
+  // A student already in the Dental Chart queue cannot be picked again in Bulk Queue
+  // (user, 2026-10-07): every way of ticking (row, page header, grade/section badge,
+  // "All") skips them. `queuedStudentIds` is read lazily so this can sit above it.
+  const canTickQ = (s: { id: string; pending?: boolean }) => !s.pending && !queuedStudentIds.includes(s.id);
   // Criteria match against `filtered` (every student matching the current
   // search/grade/section/etc. filters), not just the current page -- same
   // reasoning as Dental Charts' `queuedInView`: selecting shouldn't reach
   // past what the filters already narrowed to, but SHOULD reach past
   // whatever page happens to be showing.
   const toggleGradeCriterionQ = (grade: string) => {
-    const matching = filtered.filter(s => !s.pending && s.grade === grade).map(s => s.id);
+    const matching = filtered.filter(s => canTickQ(s) && s.grade === grade).map(s => s.id);
     const turningOn = !activeGradeCriteriaQ.has(grade);
     setActiveGradeCriteriaQ(prev => {
       const next = new Set(prev);
@@ -501,7 +505,7 @@ export const PatientList = () => {
     });
   };
   const toggleSectionCriterionQ = (section: string) => {
-    const matching = filtered.filter(s => !s.pending && s.section === section).map(s => s.id);
+    const matching = filtered.filter(s => canTickQ(s) && s.section === section).map(s => s.id);
     const turningOn = !activeSectionCriteriaQ.has(section);
     setActiveSectionCriteriaQ(prev => {
       const next = new Set(prev);
@@ -569,7 +573,7 @@ export const PatientList = () => {
   // Executes the actual Bulk Queue, from bulkQueueMode's dark bar. Not
   // destructive, so no password confirmation like Archive needs.
   const bulkQueueTicked = () => {
-    const ids = Array.from(tickedIds);
+    const ids = Array.from(tickedIds).filter((id) => !queuedStudentIds.includes(id));
     const merged = Array.from(new Set([...queuedStudentIds, ...ids]));
     persistQueuedStudentIds(merged);
     setQueuedStudentIds(merged);
@@ -952,7 +956,7 @@ export const PatientList = () => {
   // Bulk Queue's "All" shortcut + select-all state -- see bulkQueueMode
   // above. Placed here, not with the rest of that block, because it reads
   // `filtered`, which isn't declared until this point in the render.
-  const selectableFiltered = useMemo(() => filtered.filter(s => !s.pending), [filtered]);
+  const selectableFiltered = useMemo(() => filtered.filter(s => !s.pending && !(bulkQueueMode && queuedStudentIds.includes(s.id))), [filtered, bulkQueueMode, queuedStudentIds]);
   const allFilteredSelected = selectableFiltered.length > 0 && selectableFiltered.every(s => tickedIds.has(s.id));
   const toggleSelectAllFilteredQ = () => {
     setActiveGradeCriteriaQ(new Set());
@@ -1408,9 +1412,9 @@ export const PatientList = () => {
                     <input
                       type="checkbox"
                       aria-label="Select all students on this page"
-                      checked={paged.length > 0 && paged.every(s => s.pending || tickedIds.has(s.id))}
+                      checked={paged.some(s => (bulkQueueMode ? canTickQ(s) : !s.pending)) && paged.every(s => s.pending || (bulkQueueMode && queuedStudentIds.includes(s.id)) || tickedIds.has(s.id))}
                       onChange={(e) => {
-                        if (e.target.checked) setTickedIds(new Set(paged.filter(s => !s.pending).map(s => s.id)));
+                        if (e.target.checked) setTickedIds(new Set(paged.filter(s => (bulkQueueMode ? canTickQ(s) : !s.pending)).map(s => s.id)));
                         else setTickedIds(new Set());
                       }}
                       className="w-4 h-4 accent-primary align-middle"
@@ -1487,10 +1491,12 @@ export const PatientList = () => {
                         !student.pending && (
                           <input
                             type="checkbox"
-                            aria-label={`Select ${student.name}`}
+                            aria-label={bulkQueueMode && isQueued ? `${student.name} is already queued` : `Select ${student.name}`}
+                            title={bulkQueueMode && isQueued ? 'Already in the Dental Chart queue' : undefined}
                             checked={tickedIds.has(student.id)}
+                            disabled={bulkQueueMode && isQueued}
                             onChange={() => toggleTicked(student.id)}
-                            className="w-4 h-4 accent-primary align-middle"
+                            className="w-4 h-4 accent-primary align-middle disabled:cursor-not-allowed disabled:opacity-40"
                           />
                         )
                       ) : (
