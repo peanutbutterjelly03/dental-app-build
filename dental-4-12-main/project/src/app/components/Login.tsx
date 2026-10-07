@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
-import { ShieldCheck, ArrowLeft } from 'lucide-react';
+import { ShieldCheck, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { Tag } from './public/PublicLayout';
 import { apiClient, ApiError } from '../api/client';
 import { Notice } from './Notice';
@@ -95,8 +95,8 @@ export const Login = () => {
   // app-wide field border/focus rule in index.css does not turn them light-on-dark.
   const fieldClass = 'field-dark h-11 w-full rounded-xl bg-black/25 px-3.5 text-sm text-white placeholder:text-white/45';
   const labelClass = 'mb-1.5 block text-[13px] font-semibold text-white';
-  const primaryBtn = 'mt-1 h-[46px] w-full rounded-xl bg-sky-400 text-[15px] font-extrabold text-[#06204A] transition hover:brightness-110 disabled:opacity-60';
-  const linkBtn = 'font-bold text-sky-300 hover:underline';
+  const primaryBtn = 'mt-1 h-12 w-full rounded-xl bg-sky-400 text-sm font-normal text-[#06204A] transition hover:brightness-110 disabled:opacity-60';
+  const linkBtn = 'text-xs font-normal text-sky-300 hover:underline';
 
   return (
     <div className="mx-auto grid w-full max-w-6xl flex-1 content-center items-center gap-10 px-5 py-12 lg:grid-cols-[minmax(0,1fr)_440px]">
@@ -122,8 +122,8 @@ export const Login = () => {
           </div>
         )}
 
-        <div className="rounded-3xl border border-white/20 bg-white/[0.09] p-6 shadow-[0_25px_80px_rgba(0,0,30,0.4)] backdrop-blur-xl sm:p-7">
-          <div className="mb-3 flex items-center gap-3">
+        <div className="rounded-3xl border border-white/20 bg-white/[0.09] p-7 shadow-[0_25px_80px_rgba(0,0,30,0.4)] backdrop-blur-xl sm:px-8 sm:py-10">
+          <div className="mb-5 flex items-center gap-3">
             <img src="/logo.svg" alt="" aria-hidden="true" className="h-9 w-9 object-contain" />
             <span className="text-lg font-extrabold">Floral</span>
           </div>
@@ -133,7 +133,7 @@ export const Login = () => {
               <h2 className="text-2xl font-extrabold tracking-tight">Welcome back</h2>
               <p className="text-sm text-blue-100/80">Use your clinic email and password.</p>
 
-              <div className="mt-4">
+              <div className="mt-6">
                 <label htmlFor="login-email" className={labelClass}>Email</label>
                 {/* autoComplete hands sign-in autofill to the BROWSER's own credential
                     manager. The app stores nothing itself: a password in localStorage would
@@ -142,21 +142,21 @@ export const Login = () => {
                   onChange={(e) => setEmail(e.target.value)} className={fieldClass} placeholder="name@clinic.ph" required />
               </div>
 
-              <div className="mt-4">
+              <div className="mt-5">
                 <label htmlFor="login-password" className={labelClass}>Password</label>
                 <div className="relative">
                   <input id="login-password" type={showPassword ? 'text' : 'password'} name="password" autoComplete="current-password"
-                    value={password} onChange={(e) => setPassword(e.target.value)} className={`${fieldClass} pr-16`} placeholder="Your password" required />
+                    value={password} onChange={(e) => setPassword(e.target.value)} className={`${fieldClass} pr-11`} placeholder="Your password" required />
                   <button type="button" onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-1.5 top-1.5 h-8 rounded-lg px-2.5 text-xs font-bold text-white/75 hover:text-white"
+                    className="absolute right-1.5 top-1.5 grid h-8 w-8 place-items-center rounded-lg text-white/70 hover:text-white"
                     aria-label={showPassword ? 'Hide password' : 'Show password'}>
-                    {showPassword ? 'Hide' : 'Show'}
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
               </div>
 
-              <div className="my-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 text-[13px] text-blue-100/85">
-                <label htmlFor="login-remember" className="flex cursor-pointer items-center gap-2">
+              <div className="mb-6 mt-5 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 text-xs font-normal text-blue-100/85">
+                <label htmlFor="login-remember" className="flex cursor-pointer items-center gap-2 text-xs font-normal">
                   <input id="login-remember" type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="h-4 w-4 accent-sky-400" />
                   Keep me signed in on this device
                 </label>
