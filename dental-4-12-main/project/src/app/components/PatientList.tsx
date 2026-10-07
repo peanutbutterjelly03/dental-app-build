@@ -47,7 +47,14 @@ const OTHERS = '__others__';
 
 /** The add-form's default input styling — the baseline `ocrFieldClass` falls
  *  back to, and what fields that can never be scanned use outright. */
-const plainFieldClass = 'w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
+const plainFieldClass = 'w-full px-4 py-3 text-sm text-[#475569] bg-[#F8FAFC] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#16214F]/30 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground';
+// Popup styling shared with the Edit Account dialog (AccountManagement.tsx).
+// The border is inline because styles/index.css forces a grey border on every input.
+const POPUP_FIELD_STYLE = { border: '1px solid #E2E8F0' } as const;
+const POPUP_LABEL = 'block text-sm font-semibold text-foreground mb-2';
+const POPUP_SECTION = 'text-sm font-semibold uppercase tracking-[0.08em] text-[#64748B]';
+const POPUP_CANCEL = 'px-5 py-2.5 rounded-xl border border-[#E2E8F0] bg-white text-sm font-bold text-foreground hover:bg-gray-50 transition-colors';
+const POPUP_PRIMARY = 'px-5 py-2.5 rounded-xl bg-primary text-sm font-bold text-white hover:bg-primary-hover disabled:opacity-60 transition-colors';
 
 // Shape of the candidates the server returns with a 409 from POST /students
 // (see server/utils/studentDuplicates.ts) — enough to recognise the child, not
@@ -785,9 +792,11 @@ export const PatientList = () => {
     const conf = ocrConfidences[key];
     if (conf === undefined) return plainFieldClass;
     return conf < OCR_CONFIDENCE_THRESHOLD
-      ? 'w-full border-2 border-yellow-400 bg-yellow-50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500'
-      : 'w-full border border-green-300 bg-green-50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
+      ? 'w-full border-2 border-yellow-400 bg-yellow-50 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500'
+      : 'w-full border border-green-300 bg-green-50 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
   };
+  // Scanned fields carry their own coloured border; only unscanned ones take the popup border.
+  const ocrFieldStyle = (key: IptrOcrFieldKey) => (ocrConfidences[key] === undefined ? POPUP_FIELD_STYLE : undefined);
 
   const ocrHint = (key: IptrOcrFieldKey) => {
     const conf = ocrConfidences[key];
@@ -1953,22 +1962,21 @@ export const PatientList = () => {
           landing in roughly that 50-60% range on the common 1440-1920px
           desktop range specifically. */}
       {showAddForm && (
-        <Modal onClose={closeAddForm} maxWidth="max-w-4xl" closeDisabled>
+        <Modal onClose={closeAddForm} maxWidth="max-w-4xl" rounded="rounded-3xl" closeDisabled>
             {/* sticky, not just fixed at the top of the flow -- the dialog
                 itself (Modal.tsx) is the scrolling container (overflow-y-auto
                 directly on it), so `sticky top-0` pins this against ITS
                 scroll, not the page's. bg-card keeps scrolled-past content
                 from showing through underneath. */}
-            <div className="sticky top-0 z-10 flex items-start justify-between gap-3 p-6 border-b bg-card">
+            <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-border bg-card px-8 py-6">
               <div>
-                <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-primary mb-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary" /> Basic Information
-                </div>
-                <h2 className="text-lg font-bold text-foreground">Add New Student</h2>
+                <h2 className="text-xl font-bold text-foreground">Add New Student</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Enter the student's details. Fields marked * are required.</p>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button onClick={closeAddForm} className="text-muted-foreground hover:text-muted-foreground"><X className="w-5 h-5" /></button>
-              </div>
+              <button type="button" aria-label="Close" onClick={closeAddForm}
+                className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-xl border border-[#E2E8F0] bg-white text-[#475569] hover:bg-gray-50">
+                <X className="h-5 w-5" />
+              </button>
             </div>
             {/* "Not a Student" -- e.g. a sibling or community member treated
                 at a Bayanihan mission, not actually enrolled. Grade and
@@ -1976,7 +1984,7 @@ export const PatientList = () => {
                 and disables those two. Sex still applies regardless and stays
                 enabled/required either way. Placed at the very top, above
                 every field, so it's seen before Grade is ever filled in. */}
-            <div className="mx-6 mt-4 flex items-center gap-2">
+            <label htmlFor="isNotStudent" className="mx-8 mt-6 flex cursor-pointer items-center gap-3 rounded-2xl border border-[#DCE3F5] bg-[#F4F7FF] px-4 py-3">
               <input
                 type="checkbox"
                 id="isNotStudent"
@@ -1993,8 +2001,8 @@ export const PatientList = () => {
                 }}
                 className="w-4 h-4 rounded accent-primary"
               />
-              <label htmlFor="isNotStudent" className="text-sm font-medium text-foreground">Not a Student</label>
-            </div>
+              <span className="text-sm font-semibold text-primary">Not a Student</span>
+            </label>
             {/* Live check against the roster already loaded in the browser —
                 a heads-up before the form is even finished, not a
                 replacement for the server's 409 check on submit. Its own
@@ -2002,7 +2010,7 @@ export const PatientList = () => {
                 match by id, so it stays quiet once handled but reappears on
                 its own if the fields change to match a different student. */}
             {liveDuplicateMatches.length > 0 && liveDuplicateMatches[0].id !== acknowledgedDuplicateId && (
-              <div className="mx-6 mt-4 flex items-start justify-between gap-3 rounded-lg border border-destructive/20 bg-danger-surface px-3 py-2.5 text-destructive">
+              <div className="mx-8 mt-4 flex items-start justify-between gap-3 rounded-2xl border border-destructive/20 bg-danger-surface px-3 py-2.5 text-destructive">
                 <div className="min-w-0">
                   <p className="flex items-center gap-1 text-xs font-semibold">
                     <AlertCircle className="w-3.5 h-3.5 shrink-0" /> Possible duplicate
@@ -2028,7 +2036,7 @@ export const PatientList = () => {
                 </button>
               </div>
             )}
-            <div className="p-6 space-y-4">
+            <div className="px-8 py-6 space-y-6">
               {Object.keys(ocrConfidences).length > 0 && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700 flex items-start gap-2">
                   <ScanLine className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
@@ -2074,7 +2082,7 @@ export const PatientList = () => {
               )}
               {newPatient.isNotStudent && (
                 <div>
-                  <label htmlFor="notStudentRole" className="block text-sm font-medium text-foreground mb-1">Relation to the School{req('notStudentRole')}</label>
+                  <label htmlFor="notStudentRole" className={POPUP_LABEL}>Relation to the School{req('notStudentRole')}</label>
                   <input
                     id="notStudentRole"
                     type="text"
@@ -2082,35 +2090,37 @@ export const PatientList = () => {
                     value={newPatient.notStudentRole}
                     onChange={e => updateField('notStudentRole', e.target.value)}
                     placeholder="Teacher, Guard, Staff, etc."
-                    className={plainFieldClass}
+                    className={plainFieldClass} style={POPUP_FIELD_STYLE}
                   />
                   {fieldError('notStudentRole')}
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium text-foreground mb-1">Last Name{req('lastName')} {ocrHint('lastName')}</label><input type="text" value={newPatient.lastName} onChange={e => updateField('lastName', e.target.value)} className={ocrFieldClass('lastName')} />{fieldError('lastName')}</div>
-                <div><label className="block text-sm font-medium text-foreground mb-1">First Name{req('firstName')} {ocrHint('firstName')}</label><input type="text" value={newPatient.firstName} onChange={e => updateField('firstName', e.target.value)} className={ocrFieldClass('firstName')} />{fieldError('firstName')}</div>
+              <div className={POPUP_SECTION}>Personal information</div>
+              <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
+                <div><label className={POPUP_LABEL}>Last Name{req('lastName')} {ocrHint('lastName')}</label><input type="text" value={newPatient.lastName} onChange={e => updateField('lastName', e.target.value)} className={ocrFieldClass('lastName')} style={ocrFieldStyle('lastName')} />{fieldError('lastName')}</div>
+                <div><label className={POPUP_LABEL}>First Name{req('firstName')} {ocrHint('firstName')}</label><input type="text" value={newPatient.firstName} onChange={e => updateField('firstName', e.target.value)} className={ocrFieldClass('firstName')} style={ocrFieldStyle('firstName')} />{fieldError('firstName')}</div>
               </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div><label className="block text-sm font-medium text-foreground mb-1">Middle Name {ocrHint('middleName')}</label><input type="text" value={newPatient.middleName} onChange={e => updateField('middleName', e.target.value)} className={ocrFieldClass('middleName')} /></div>
-                <div><label className="block text-sm font-medium text-foreground mb-1">Birthdate{req('birthdate')} {ocrHint('birthdate')}</label><input type="date" value={newPatient.birthdate} onChange={e => updateField('birthdate', e.target.value)} className={ocrFieldClass('birthdate')} />{fieldError('birthdate')}</div>
+              <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-3">
+                <div><label className={POPUP_LABEL}>Middle Name {ocrHint('middleName')}</label><input type="text" value={newPatient.middleName} onChange={e => updateField('middleName', e.target.value)} className={ocrFieldClass('middleName')} style={ocrFieldStyle('middleName')} /></div>
+                <div><label className={POPUP_LABEL}>Birthdate{req('birthdate')} {ocrHint('birthdate')}</label><input type="date" value={newPatient.birthdate} onChange={e => updateField('birthdate', e.target.value)} className={ocrFieldClass('birthdate')} style={ocrFieldStyle('birthdate')} />{fieldError('birthdate')}</div>
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Age</label>
-                  <input type="text" readOnly disabled value={newPatient.birthdate ? (calculateAge(newPatient.birthdate) ?? '—') : ''} placeholder="Automatically calculated" className={`${plainFieldClass} bg-muted text-muted-foreground cursor-not-allowed`} />
+                  <label className={POPUP_LABEL}>Age</label>
+                  <input type="text" readOnly disabled value={newPatient.birthdate ? (calculateAge(newPatient.birthdate) ?? '—') : ''} placeholder="Automatically calculated" className={plainFieldClass} style={POPUP_FIELD_STYLE} />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Sex{req('gender')} {ocrHint('gender')}</label>
-                <div className="grid grid-cols-2 gap-2">
+                <label className={POPUP_LABEL}>Sex{req('gender')} {ocrHint('gender')}</label>
+                <div className="grid grid-cols-2 gap-3">
                   {(['Male', 'Female'] as const).map((g) => (
                     <button
                       key={g}
                       type="button"
                       onClick={() => updateField('gender', g)}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium border-2 transition-colors ${
+                      aria-pressed={newPatient.gender === g}
+                      className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition-colors ${
                         newPatient.gender === g
-                          ? 'bg-primary text-white border-primary-hover'
-                          : 'border-border text-foreground hover:bg-canvas'
+                          ? 'border-primary bg-[#F4F7FF] text-primary ring-1 ring-primary'
+                          : 'border-[#E2E8F0] bg-[#F8FAFC] text-[#475569] hover:bg-white'
                       }`}
                     >
                       {g}
@@ -2119,21 +2129,22 @@ export const PatientList = () => {
                 </div>
                 {fieldError('gender')}
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="border-t border-border pt-6"><div className={POPUP_SECTION}>Enrolment</div></div>
+              <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
                 {/* No scan hint on Grade/Section: the DOH IPTR does not print
                     either field, so a scan can never fill them. A green "✓
                     scanned" chip here would have been a claim about a field
                     that isn't on the paper. */}
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Grade{req('grade')}</label>
+                  <label className={POPUP_LABEL}>Grade{req('grade')}</label>
                   <select value={newPatient.grade} disabled={newPatient.isNotStudent} onChange={e => updateField('grade', e.target.value)}
-                    className={`${plainFieldClass} ${newPatient.isNotStudent ? 'bg-muted text-muted-foreground cursor-not-allowed' : ''}`}>
+                    className={plainFieldClass} style={POPUP_FIELD_STYLE}>
                     <option value="">Select Grade</option>{GRADES.map(g => <option key={g}>{g}</option>)}
                   </select>
                   {fieldError('grade')}
                 </div>
                 <div className="relative">
-                  <label className="block text-sm font-medium text-foreground mb-1">Section{req('section')}</label>
+                  <label className={POPUP_LABEL}>Section{req('section')}</label>
                   {/* Combobox, not a plain <select> — section names come from
                       the roster rather than a fixed list, so typing filters
                       the suggestions AND, if nothing matches, just becomes
@@ -2150,10 +2161,10 @@ export const PatientList = () => {
                     onBlur={() => setSectionMenuOpen(false)}
                     placeholder="Search or add a section"
                     autoComplete="off"
-                    className={`${plainFieldClass} ${newPatient.isNotStudent ? 'bg-muted text-muted-foreground cursor-not-allowed' : ''}`}
+                    className={plainFieldClass} style={POPUP_FIELD_STYLE}
                   />
                   {!newPatient.isNotStudent && sectionMenuOpen && (
-                    <div className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto rounded-lg border border-border bg-card shadow-md">
+                    <div className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto rounded-2xl border border-border bg-card shadow-md">
                       {filteredSectionOptions.map(s => (
                         <button
                           key={s}
@@ -2181,23 +2192,25 @@ export const PatientList = () => {
                   {fieldError('section')}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium text-foreground mb-1">Place of Birth{optionalTag}</label><input type="text" value={newPatient.placeOfBirth} onChange={e => setNewPatient({...newPatient, placeOfBirth: e.target.value})} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
-                <div><label className="block text-sm font-medium text-foreground mb-1">Contact Number{optionalTag} {ocrHint('contactNumber')}</label><input type="text" value={newPatient.contactNumber} onChange={e => updateField('contactNumber', e.target.value)} placeholder="09XX-XXX-XXXX" className={ocrFieldClass('contactNumber')} /></div>
+              <div className="border-t border-border pt-6"><div className={POPUP_SECTION}>Contact and guardian</div></div>
+              <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
+                <div><label className={POPUP_LABEL}>Place of Birth{optionalTag}</label><input type="text" value={newPatient.placeOfBirth} onChange={e => setNewPatient({...newPatient, placeOfBirth: e.target.value})} className={plainFieldClass} style={POPUP_FIELD_STYLE} /></div>
+                <div><label className={POPUP_LABEL}>Contact Number{optionalTag} {ocrHint('contactNumber')}</label><input type="text" value={newPatient.contactNumber} onChange={e => updateField('contactNumber', e.target.value)} placeholder="09XX-XXX-XXXX" className={ocrFieldClass('contactNumber')} style={ocrFieldStyle('contactNumber')} /></div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium text-foreground mb-1">Guardian Name{optionalTag}</label><input type="text" value={newPatient.guardianName} onChange={e => setNewPatient({...newPatient, guardianName: e.target.value})} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
-                <div><label className="block text-sm font-medium text-foreground mb-1">Guardian Contact{optionalTag}</label><input type="text" value={newPatient.guardianContact} onChange={e => setNewPatient({...newPatient, guardianContact: e.target.value})} placeholder="09XX-XXX-XXXX" className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+              <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
+                <div><label className={POPUP_LABEL}>Guardian Name{optionalTag}</label><input type="text" value={newPatient.guardianName} onChange={e => setNewPatient({...newPatient, guardianName: e.target.value})} className={plainFieldClass} style={POPUP_FIELD_STYLE} /></div>
+                <div><label className={POPUP_LABEL}>Guardian Contact{optionalTag}</label><input type="text" value={newPatient.guardianContact} onChange={e => setNewPatient({...newPatient, guardianContact: e.target.value})} placeholder="09XX-XXX-XXXX" className={plainFieldClass} style={POPUP_FIELD_STYLE} /></div>
               </div>
-              <div><label className="block text-sm font-medium text-foreground mb-1">Occupation{optionalTag}</label><input type="text" value={newPatient.guardianOccupation} onChange={e => setNewPatient({...newPatient, guardianOccupation: e.target.value})} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>
-              <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium text-foreground mb-1">PhilHealth Number{optionalTag} {ocrHint('philhealthNumber')}</label><input type="text" value={newPatient.philhealthNumber} onChange={e => setNewPatient({...newPatient, philhealthNumber: e.target.value, ...(e.target.value.trim() === '' ? { philhealthStatus: 'None' } : {})})} placeholder="XX-XXXXXXXXX-X" className={ocrFieldClass('philhealthNumber')} /></div>
+              <div><label className={POPUP_LABEL}>Occupation{optionalTag}</label><input type="text" value={newPatient.guardianOccupation} onChange={e => setNewPatient({...newPatient, guardianOccupation: e.target.value})} className={plainFieldClass} style={POPUP_FIELD_STYLE} /></div>
+              <div className="border-t border-border pt-6"><div className={POPUP_SECTION}>Health coverage and programs</div></div>
+              <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
+                <div><label className={POPUP_LABEL}>PhilHealth Number{optionalTag} {ocrHint('philhealthNumber')}</label><input type="text" value={newPatient.philhealthNumber} onChange={e => setNewPatient({...newPatient, philhealthNumber: e.target.value, ...(e.target.value.trim() === '' ? { philhealthStatus: 'None' } : {})})} placeholder="XX-XXXXXXXXX-X" className={ocrFieldClass('philhealthNumber')} style={ocrFieldStyle('philhealthNumber')} /></div>
                 {/* Only meaningful with a number (user, 2026-09-24): disabled and held at None until one is typed. */}
-                <div><label className="block text-sm font-medium text-foreground mb-1">PhilHealth Status</label><select value={newPatient.philhealthNumber.trim() ? newPatient.philhealthStatus : 'None'} disabled={!newPatient.philhealthNumber.trim()} title={newPatient.philhealthNumber.trim() ? undefined : 'Enter a PhilHealth number first'} onChange={e => setNewPatient({...newPatient, philhealthStatus: e.target.value})} className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"><option value="None">None</option><option value="Principal">Principal</option><option value="Dependent">Dependent</option></select></div>
+                <div><label className={POPUP_LABEL}>PhilHealth Status</label><select value={newPatient.philhealthNumber.trim() ? newPatient.philhealthStatus : 'None'} disabled={!newPatient.philhealthNumber.trim()} title={newPatient.philhealthNumber.trim() ? undefined : 'Enter a PhilHealth number first'} onChange={e => setNewPatient({...newPatient, philhealthStatus: e.target.value})} className={plainFieldClass} style={POPUP_FIELD_STYLE}><option value="None">None</option><option value="Principal">Principal</option><option value="Dependent">Dependent</option></select></div>
               </div>
-              <div><label className="block text-sm font-medium text-foreground mb-1">Address{optionalTag} {ocrHint('address')}</label><input type="text" value={newPatient.address} onChange={e => updateField('address', e.target.value)} className={ocrFieldClass('address')} />{fieldError('address')}</div>
-              <div className="flex items-center gap-3"><input type="checkbox" id="is4ps" checked={newPatient.is4Ps} onChange={e => setNewPatient({...newPatient, is4Ps: e.target.checked})} className="w-4 h-4 rounded accent-primary" /><label htmlFor="is4ps" className="text-sm font-medium text-foreground">4Ps / NHTS Member</label></div>
-              {newPatient.is4Ps && <div><label className="block text-sm font-medium text-foreground mb-1">4Ps ID{req('fourPsId')} {ocrHint('fourPsId')}</label><input type="text" value={newPatient.fourPsId} onChange={e => updateField('fourPsId', e.target.value)} placeholder="4PS-XXXXXXXX" className={ocrFieldClass('fourPsId')} />{fieldError('fourPsId')}</div>}
+              <div><label className={POPUP_LABEL}>Address{optionalTag} {ocrHint('address')}</label><input type="text" value={newPatient.address} onChange={e => updateField('address', e.target.value)} className={ocrFieldClass('address')} style={ocrFieldStyle('address')} />{fieldError('address')}</div>
+              <div className="flex items-center gap-3 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3"><input type="checkbox" id="is4ps" checked={newPatient.is4Ps} onChange={e => setNewPatient({...newPatient, is4Ps: e.target.checked})} className="w-4 h-4 rounded accent-primary" /><label htmlFor="is4ps" className="text-sm font-semibold text-foreground">4Ps / NHTS Member</label></div>
+              {newPatient.is4Ps && <div><label className={POPUP_LABEL}>4Ps ID{req('fourPsId')} {ocrHint('fourPsId')}</label><input type="text" value={newPatient.fourPsId} onChange={e => updateField('fourPsId', e.target.value)} placeholder="4PS-XXXXXXXX" className={ocrFieldClass('fourPsId')} style={ocrFieldStyle('fourPsId')} />{fieldError('fourPsId')}</div>}
               {/* Notice, not a bare <p>: it carries role="alert", so a screen
                   reader announces the validation failure instead of leaving the
                   user staring at an unchanged form. */}
@@ -2206,9 +2219,9 @@ export const PatientList = () => {
             {/* sticky bottom-0, same reasoning as the header -- pins against
                 the dialog's own scroll so Cancel/Add Student stay reachable
                 without scrolling all the way down a long form. */}
-            <div className="sticky bottom-0 z-10 flex gap-3 p-6 border-t bg-card">
-              <button onClick={closeAddForm} className="flex-1 px-4 py-2 border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium">Cancel</button>
-              <button onClick={handleAddStudentClick} disabled={addingPatient} className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-60 text-sm font-medium">Add Student</button>
+            <div className="sticky bottom-0 z-10 flex justify-end gap-3 border-t border-border bg-card px-8 py-5">
+              <button onClick={closeAddForm} className={POPUP_CANCEL}>Cancel</button>
+              <button onClick={handleAddStudentClick} disabled={addingPatient} className={POPUP_PRIMARY}>Add Student</button>
             </div>
         </Modal>
       )}
