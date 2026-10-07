@@ -6,6 +6,7 @@ import { parseSpreadsheetRecords, normalizeSex, normalizeGrade, toIsoDate } from
 import { BLANK_NEW_PATIENT, type NewPatientForm } from './PatientList';
 import type { IptrOcrFieldKey, IptrCheckboxFinding } from '../utils/iptrOcrShared';
 import { batchProblem, isSpreadsheet, MAX_BATCH_FILES } from '../utils/ocrBatch';
+import { Modal } from './Modal';
 
 // Full PAGE, not a modal (user, 2026-09-29: "restructure everything...
 // doesn't have to be a pop up, make it a page... i want the same exact copy
@@ -54,6 +55,9 @@ export const ScanStudentForm = () => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [files, setFiles] = useState<File[]>([]);
+  // Set when Add Student's one-student page is given a file that holds many students:
+  // a pop-up offers to continue in bulk upload with the same files (user, 2026-10-07).
+  const [bulkOffer, setBulkOffer] = useState<number | null>(null);
   const [selectedMethod, setSelectedMethod] = useState<'photo' | 'file' | null>(null);
   const [showCamera, setShowCamera] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -153,30 +157,33 @@ export const ScanStudentForm = () => {
       return handoff;
   };
 
-  const extract = async () => {
+  const extract = async (forceBulk = false) => {
     if (!files.length) return;
+    const asBulk = bulk || forceBulk;
     const problem = batchProblem(files.map((f) => f.name));
     if (problem) { setError(problem); return; }
     setError(null);
     setProcessing(true);
     try {
-      // The bulk review page belongs to the top OCR button (?bulk=1) ONLY (user,
-      // 2026-10-05). Add Student > Scan Form is the one-student flow, so a file
-      // that holds many students is refused here with a pointer to the OCR
-      // button, rather than opening the bulk page. It must not fall through to
-      // readOne either: that keeps records[0] only and would silently drop the
+      // The bulk review page belongs to the top OCR button (?bulk=1). Add Student >
+      // Scan Form is the one-student flow, so a file that holds many students does NOT
+      // open it on its own: a pop-up offers "Open bulk upload", which re-runs this
+      // with the same files in bulk mode (user, 2026-10-07). It must not fall through
+      // to readOne either: that keeps records[0] only and would silently drop the
       // rest. A one-row spreadsheet still verifies singly.
       const sheetCount = files.filter((f) => isSpreadsheet(f.name)).length;
       const singleSheetRows = files.length === 1 && sheetCount === 1
         ? (await parseSpreadsheetRecords(files[0]).catch(() => [])).length
         : 0;
-      if (!bulk && (singleSheetRows > 1 || (files.length > 1 && sheetCount > 0))) {
-        setError(singleSheetRows > 1
-          ? `This spreadsheet has ${singleSheetRows} students. Close this page and use the OCR button on Student Records to upload many students at once.`
-          : 'Spreadsheets with many students cannot be mixed in here. Close this page and use the OCR button on Student Records to upload many students at once.');
+      if (!asBulk && (singleSheetRows > 1 || (files.length > 1 && sheetCount > 0))) {
+        // Count the students the files hold (a spreadsheet gives one per row) so the
+        // pop-up can say how many it found.
+        let total = 0;
+        for (const f of files) total += isSpreadsheet(f.name) ? (await parseSpreadsheetRecords(f).catch(() => [])).length : 1;
+        setBulkOffer(Math.max(total, 2));
         return;
       }
-      if (bulk) {
+      if (asBulk) {
         // Bulk: a spreadsheet gives one student PER ROW; an image or PDF gives one per file.
         const queue: ExtractedHandoff[] = [];
         for (const [i, file] of files.entries()) {
@@ -377,7 +384,7 @@ export const ScanStudentForm = () => {
         </button>
         <button
           type="button"
-          onClick={extract}
+          onClick={() => extract()}
           disabled={!files.length || processing}
           style={{ cursor: !files.length || processing ? 'not-allowed' : 'pointer', opacity: !files.length || processing ? 0.5 : 1, boxSizing: 'border-box', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6875rem 1.375rem', borderRadius: '0.625rem', fontSize: '0.875rem', fontWeight: 700, background: '#273A78', color: '#fff', border: 'none' }}
         >
@@ -385,6 +392,28 @@ export const ScanStudentForm = () => {
           <svg width="13.6" height="13.6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
         </button>
       </div>
+
+      {bulkOffer !== null && (
+        <Modal onClose={() => setBulkOffer(null)} maxWidth="max-w-md">
+          <div style={{ padding: '1.5rem' }} role="alertdialog" aria-labelledby="bulk-offer-title">
+            <div style={{ width: '3rem', height: '3rem', borderRadius: '0.875rem', background: '#EEF1FB', color: '#273A78', display: 'grid', placeItems: 'center', fontWeight: 800, marginBottom: '0.875rem' }}>{bulkOffer}</div>
+            <h2 id="bulk-offer-title" style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>This file has {bulkOffer} students</h2>
+            <p style={{ margin: '0.375rem 0 0', color: '#475569', fontSize: '0.875rem' }}>
+              Add Student takes one student at a time. Open the bulk upload to review all {bulkOffer} together. Your file goes with you.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.625rem', marginTop: '1.375rem', flexWrap: 'wrap' }}>
+              <button type="button" onClick={() => { setBulkOffer(null); setFiles([]); }}
+                style={{ cursor: 'pointer', padding: '0.625rem 1.125rem', borderRadius: '0.625rem', fontSize: '0.875rem', fontWeight: 600, color: '#141413', border: '0.0625rem solid #E2E8F0', background: '#fff' }}>
+                Choose a different file
+              </button>
+              <button type="button" onClick={() => { setBulkOffer(null); void extract(true); }}
+                style={{ cursor: 'pointer', padding: '0.625rem 1.125rem', borderRadius: '0.625rem', fontSize: '0.875rem', fontWeight: 600, color: '#fff', border: 'none', background: '#273A78' }}>
+                Open bulk upload →
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {showCamera && (
         <CameraCapture
