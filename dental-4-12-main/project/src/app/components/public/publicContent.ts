@@ -4,32 +4,29 @@
 // after sign-in, never from here.
 
 export const MODULES = [
-  ['Account access', 'Five roles with strict permissions. Each person sees only what their job needs.'],
-  ['Appointment', 'Scheduling and monitoring with follow-up flags and parental supervision flags.'],
-  ['Student Records', 'The digital IPTR: registration, medical history, habits and oral health conditions.'],
-  ['Dental charting', 'Tooth-by-tooth charting in standard notation with DMF and dmf index tracking.'],
-  ['Risk Classification', 'Suggests High, Medium or Low caries risk. The dentist validates it.'],
-  ['Treatment', 'Treatment records and recommendations that follow written rules. The dentist confirms them.'],
-  ['RPC Monitoring', 'The two-visit Routine Prevention Care program, tracked step by step.'],
-  ['Reports', 'Dashboards and DOH-aligned reports built from the records.'],
-  ['School', 'The three partner schools, their staff assignments and the school year.'],
+  ['Account access', 'Five roles with strict permissions. Each person sees only what their job needs.', 'mod-access'],
+  ['Appointment', 'Scheduling and monitoring with follow-up flags and parental supervision flags.', 'mod-appointment'],
+  ['Student Records', 'The digital IPTR: registration, medical history, habits and oral health conditions.', 'mod-records'],
+  ['Dental charting', 'Tooth-by-tooth charting in standard notation with DMF and dmf index tracking.', 'mod-charting'],
+  ['Risk Classification', 'Suggests High, Medium or Low caries risk. The dentist validates it.', 'mod-risk'],
+  ['Treatment', 'Treatment records and recommendations that follow written rules. The dentist confirms them.', 'mod-treatment'],
+  ['RPC Monitoring', 'The two-visit Routine Prevention Care program, tracked step by step.', 'mod-rpc'],
+  ['Reports', 'Dashboards and DOH-aligned reports built from the records.', 'mod-reports'],
 ] as const;
 
-export type FeatureKind = 'chart' | 'rpc' | 'risk' | 'reports';
-
-export const FEATURES: ReadonlyArray<{ kind: FeatureKind; tag: string; title: string; text: string; bullets: readonly string[]; url: string; chip: readonly [string, string] }> = [
-  { kind: 'chart', tag: 'Dental charting', title: 'Chart every tooth, in standard notation', text: 'Mark each tooth on the chart and the DMF index updates as you go. Every school year keeps its own chart.', bullets: ['FDI notation for permanent and primary teeth', 'Select teeth first, then pick a code', 'Works offline and syncs later'], url: 'floral / dental-charts', chip: ['Standard notation', 'FDI, permanent and primary'] },
-  { kind: 'rpc', tag: 'RPC Monitoring', title: 'Two visits, tracked to completion', text: 'Each visit has the same five steps. Follow-ups that are due and parental supervision are flagged for the clinic.', bullets: ['Oral screening, prophylaxis, fluoride varnish', 'Hygiene instruction and caries risk assessment', 'Progress per student at a glance'], url: 'floral / rpc', chip: ['Two visits', 'Each with its own checklist'] },
-  { kind: 'risk', tag: 'Risk Classification', title: 'A second opinion, never the final word', text: 'Floral suggests High, Medium or Low caries risk from the chart and records. The dentist validates or changes it before any clinical action.', bullets: ['Main input is the DMF and dmf index', 'Every assessment is in the audit trail', 'Assists the dentist and never replaces judgment'], url: 'floral / risk-classification', chip: ['Dentist validates', 'Before any clinical action'] },
-  { kind: 'reports', tag: 'Reports', title: 'DOH forms, filled from the records', text: 'Reports keep every row and column of the official form. Cells fill from the database and stay blank where there is no data.', bullets: ['School and consolidated reports', 'By age bracket and gender, every month', 'Print, or download as PDF or Excel'], url: 'floral / reports', chip: ['Download as PDF or Excel', 'From the same screen'] },
-];
+export const FEATURES = [
+  { tag: 'Dental charting', title: 'Chart every tooth, in standard notation', text: 'Mark each tooth on the chart and the DMF index updates as you go. Every school year keeps its own chart.', bullets: ['FDI notation for permanent and primary teeth', 'Select teeth first, then pick a code', 'Works offline and syncs later'], image: 'work-charting' },
+  { tag: 'RPC Monitoring', title: 'Two visits, tracked to completion', text: 'Each visit has the same five steps. Follow-ups that are due and parental supervision are flagged for the clinic.', bullets: ['Oral screening, prophylaxis, fluoride varnish', 'Hygiene instruction and caries risk assessment', 'Progress per student at a glance'], image: 'work-rpc' },
+  { tag: 'Risk Classification', title: 'A second opinion, never the final word', text: 'Floral suggests High, Medium or Low caries risk from the chart and records. The dentist validates or changes it before any clinical action.', bullets: ['Main input is the DMF and dmf index', 'Every assessment is in the audit trail', 'Assists the dentist and never replaces judgment'], image: 'work-risk' },
+  { tag: 'Reports', title: 'DOH forms, filled from the records', text: 'Reports keep every row and column of the official form. Cells fill from the database and stay blank where there is no data.', bullets: ['School and consolidated reports', 'By age bracket and gender, every month', 'Print, or download as PDF or Excel'], image: 'work-reports' },
+] as const;
 
 export const ROLE_CARDS = [
-  { name: 'System Admin', icon: 'admin', text: 'Creates accounts, assigns roles and schools, reads the audit trail and restores archived records.', opens: ['Account access', 'School', 'Audit trail and archive'] },
-  { name: 'Dentist', icon: 'dentist', text: 'Owns the chart. Validates every risk level and treatment recommendation.', opens: ['Student Records', 'Dental charting', 'Risk Classification', 'Treatment', 'RPC Monitoring', 'Appointment', 'Reports'] },
-  { name: 'Dental Aide', icon: 'aide', text: 'Keeps records current, books appointments and runs the RPC visits.', opens: ['Student Records', 'Appointment', 'RPC Monitoring'] },
-  { name: 'School Administrator', icon: 'school', text: 'Reads the school reports and dashboard. No clinical records.', opens: ['Reports for their school'] },
-  { name: 'Barangay Health Office Staff', icon: 'bho', text: 'Reads consolidated reports across all schools and submits to the City Health Office.', opens: ['Consolidated reports'] },
+  { name: 'System Admin', text: 'Creates accounts, assigns roles and schools, reads the audit trail and restores archived records.', image: 'role-admin' },
+  { name: 'Dentist', text: 'Owns the chart. Validates every risk level and treatment recommendation.', image: 'role-dentist' },
+  { name: 'Dental Aide', text: 'Keeps records current, books appointments and runs the RPC visits.', image: 'role-aide' },
+  { name: 'School Administrator', text: 'Reads the school reports and dashboard. No clinical records.', image: 'role-school' },
+  { name: 'Barangay Health Office Staff', text: 'Reads consolidated reports across all schools and submits to the City Health Office.', image: 'role-bho' },
 ] as const;
 
 export const SCHOOLS = [
@@ -55,6 +52,3 @@ export const FAQ = [
   ['What happens without internet?', 'Charting and treatment are saved on the device and sent in order when the connection returns. Screens that need the server are disabled meanwhile.'],
   ['Which devices work?', 'Phone, tablet and laptop, through the browser. There is no separate mobile app.'],
 ] as const;
-
-export const UPPER_TEETH = ['18', '17', '16', '15', '14', '13', '12', '11', '21', '22', '23', '24', '25', '26', '27', '28'];
-export const LOWER_TEETH = ['48', '47', '46', '45', '44', '43', '42', '41', '31', '32', '33', '34', '35', '36', '37', '38'];
