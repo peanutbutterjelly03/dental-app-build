@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { LOWER_TEETH, RPC_STEPS, UPPER_TEETH } from './publicContent';
+import { LOWER_TEETH, UPPER_TEETH } from './publicContent';
 
-// Small, self-contained previews for the About page. They hold their own state and
-// never call the API: nothing here is a record.
+// Small self-contained preview for the About page. It holds its own state and never
+// calls the API: nothing here is a record.
 
 const frame = 'mt-5 rounded-2xl border border-dashed border-sky-300/40 bg-sky-400/10 p-4';
 const label = 'mb-3 flex flex-wrap justify-between gap-2 text-[11px] font-semibold uppercase tracking-wider text-blue-100/70';
@@ -47,56 +47,6 @@ export const ToothChartDemo = () => {
       <div className="mt-3 flex flex-wrap gap-2">
         {stat('Decayed', count('D'))}{stat('Missing', count('M'))}{stat('Filled', count('F'))}{stat('DMFT', count('D') + count('M') + count('F'))}
       </div>
-    </div>
-  );
-};
-
-export const RpcDemo = () => {
-  const [visit, setVisit] = useState<1 | 2>(1);
-  const [done, setDone] = useState<Record<number, boolean[]>>({ 1: [false, false, false, false, false], 2: [false, false, false, false, false] });
-  const n = done[visit].filter(Boolean).length;
-  const toggle = (i: number) => setDone((d) => ({ ...d, [visit]: d[visit].map((v, j) => (j === i ? !v : v)) }));
-  return (
-    <div className={frame}>
-      <div className={label}><span>Try it: tick the steps completed</span><span>Example student</span></div>
-      <div className="mb-3 flex gap-1.5">
-        {([1, 2] as const).map((v) => (
-          <button key={v} type="button" aria-pressed={visit === v} onClick={() => setVisit(v)}
-            className={`rounded-full border px-4 py-1.5 text-sm font-semibold ${visit === v ? 'border-sky-400 bg-sky-400 text-[#06204A]' : 'border-white/25 bg-white/10 text-white'}`}>
-            Visit {v}
-          </button>
-        ))}
-      </div>
-      {RPC_STEPS.map((s, i) => (
-        <label key={s} className="flex cursor-pointer items-center gap-3 border-b border-white/15 py-2.5 text-sm">
-          <input type="checkbox" checked={done[visit][i]} onChange={() => toggle(i)} className="h-[18px] w-[18px] accent-sky-400" />
-          {s}
-        </label>
-      ))}
-      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/15"><div className="h-full bg-sky-400 transition-all" style={{ width: `${n * 20}%` }} /></div>
-      <p className="mt-1.5 text-xs text-blue-100/70">{n} of 5 steps done for visit {visit}</p>
-    </div>
-  );
-};
-
-export const RiskDemo = () => {
-  const [state, setState] = useState<'pending' | 'validated' | 'changed'>('pending');
-  const pill = state === 'changed' ? ['High', 'bg-red-100 text-red-800'] : ['Medium', 'bg-amber-100 text-amber-800'];
-  return (
-    <div className={frame}>
-      <div className={label}><span>Try it: the dentist decides</span><span>Example output</span></div>
-      <div className="flex flex-wrap items-center gap-3">
-        <span className={`rounded-full px-3 py-1 text-xs font-bold ${pill[1]}`}>{state === 'pending' ? 'Suggested: Medium' : pill[0]}</span>
-        <span className={`text-sm ${state === 'pending' ? 'text-blue-100/70' : 'font-bold text-green-300'}`}>
-          {state === 'pending' ? 'Waiting for the dentist' : state === 'validated' ? 'Validated by the dentist' : 'Dentist changed the risk level'}
-        </span>
-      </div>
-      <div className="mt-4 flex flex-wrap gap-2">
-        <button type="button" onClick={() => setState('validated')} className="rounded-xl bg-sky-400 px-4 py-2 text-sm font-bold text-[#06204A]">Validate</button>
-        <button type="button" onClick={() => setState('changed')} className="rounded-xl border border-white/25 bg-white/10 px-4 py-2 text-sm font-bold">Change to High</button>
-        <button type="button" onClick={() => setState('pending')} className="rounded-xl border border-white/25 bg-white/10 px-4 py-2 text-sm font-bold">Reset</button>
-      </div>
-      <p className="mt-3 text-xs text-blue-100/70">Main input: DMF and dmf index. Also read: oral conditions, diet, medical and treatment history.</p>
     </div>
   );
 };

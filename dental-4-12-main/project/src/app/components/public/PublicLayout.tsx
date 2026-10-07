@@ -48,6 +48,26 @@ export const SecondaryLink = ({ to, children }: { to: string; children: ReactNod
   <Link to={to} className="inline-block rounded-xl border border-white/25 bg-white/10 px-5 py-3 text-sm font-bold text-white transition hover:-translate-y-px hover:bg-white/20">{children}</Link>
 );
 
+// Browser-style window around a picture, with a soft glow behind it and a small label
+// on its lower edge (the RAMHIS treatment). `light` is for pictures on a pale band.
+export const Frame = ({ url, chip, light = false, children }: { url: string; chip?: readonly [string, string]; light?: boolean; children: ReactNode }) => (
+  <div className="relative mb-12">
+    <div aria-hidden="true" className={`pointer-events-none absolute -inset-6 rounded-full blur-2xl ${light ? 'bg-[radial-gradient(closest-side,rgba(30,64,175,0.2),transparent)]' : 'bg-[radial-gradient(closest-side,rgba(56,189,248,0.34),transparent)]'}`} />
+    <div className={`relative overflow-hidden rounded-[20px] border bg-white ${light ? 'border-[#D6DFF2] shadow-[0_20px_50px_rgba(30,64,175,0.16)]' : 'border-white/25 shadow-[0_24px_60px_rgba(3,10,40,0.4)]'}`}>
+      <div className="flex items-center gap-1.5 border-b border-[#D6DFF2] bg-[#EEF2FB] px-3 py-2.5">
+        <i className="h-2.5 w-2.5 rounded-full bg-[#C5CFE6]" /><i className="h-2.5 w-2.5 rounded-full bg-[#C5CFE6]" /><i className="h-2.5 w-2.5 rounded-full bg-[#C5CFE6]" />
+        <span className="ml-2 text-[11px] text-[#5B6485]">{url}</span>
+      </div>
+      {children}
+    </div>
+    {chip && (
+      <div className="absolute -bottom-10 right-4 z-10 max-w-[240px] rounded-2xl border border-white/20 bg-[#0E1B45] px-3.5 py-2.5 text-white shadow-[0_12px_30px_rgba(3,10,40,0.45)]">
+        <b className="block text-[13px]">{chip[0]}</b><small className="text-xs text-blue-200">{chip[1]}</small>
+      </div>
+    )}
+  </div>
+);
+
 export const PublicLayout = () => {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
