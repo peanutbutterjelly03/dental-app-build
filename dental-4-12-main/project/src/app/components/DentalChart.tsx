@@ -1783,7 +1783,7 @@ export const DentalChart = () => {
           </div>
         </div>
       </div>
-      <div ref={headerRowRef} className="pt-3 pb-2" style={switcherWidth ? { paddingRight: switcherWidth + 12 } : undefined}>
+      <div ref={headerRowRef} className="pt-3 pb-2" style={switcherWidth ? { paddingRight: switcherWidth + 6 } : undefined}>
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-3 min-w-0">
           <Link to={backPath} className="p-2 hover:bg-gray-100 rounded-lg shrink-0">
@@ -1810,7 +1810,7 @@ export const DentalChart = () => {
               disabled={pdfBusy}
               aria-haspopup="menu"
               aria-expanded={pdfMenuOpen}
-              className="flex h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-60"
+              className="flex h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-bold text-white transition-colors hover:bg-primary-hover disabled:opacity-60"
             >
               <Download className="h-4 w-4" />
               {pdfBusy ? 'Preparing…' : 'Export PDF'}
