@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { Mail, Lock, Eye, EyeOff, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { Link } from 'react-router';
+import { PUBLIC_GROUND } from './public/PublicLayout';
 import { apiClient, ApiError } from '../api/client';
 import { Notice } from './Notice';
 import { useOfflineQueue } from '../hooks/useOfflineQueue';
@@ -101,9 +103,16 @@ export const Login = () => {
     // gradient instead of inventing a stock image.
     <div
       className="relative min-h-screen overflow-x-hidden"
-      style={{ background: 'linear-gradient(135deg, #17234D 0%, #131c42 55%, #0d1633 100%)' }}
+      style={{ background: PUBLIC_GROUND }}
     >
       <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-white/[0.03]" />
+
+      <Link
+        to="/home"
+        className="absolute left-4 top-4 z-20 flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-medium text-white backdrop-blur-md transition hover:bg-white/20 sm:left-6 sm:top-6"
+      >
+        <ArrowLeft className="h-4 w-4" /> About Floral
+      </Link>
 
       <div className="relative z-10 flex min-h-screen w-full flex-col justify-center gap-8 px-6 py-12 sm:px-10 lg:flex-row lg:items-center lg:justify-between lg:gap-0 lg:px-16 xl:px-20">
         {/* ── Identity ───────────────────────────────────────────────────── */}

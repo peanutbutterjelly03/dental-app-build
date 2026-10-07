@@ -23,6 +23,10 @@ import { UpdateSchoolYear } from './components/UpdateSchoolYear';
 import { ScanStudentForm } from './components/ScanStudentForm';
 import { VerifyStudentForm } from './components/VerifyStudentForm';
 import { BulkScanReview } from './components/BulkScanReview';
+import { PublicLayout } from './components/public/PublicLayout';
+import { LandingHome } from './components/public/LandingHome';
+import { AboutFloral } from './components/public/AboutFloral';
+import { ClinicPage } from './components/public/ClinicPage';
 
 // Pages that need the server. Dental Charts, the Dental Chart and Treatment are the
 // offline modules (students are queued there beforehand), so they are the only routes NOT wrapped.
@@ -31,6 +35,16 @@ const needsConnection = (Page: ComponentType): ComponentType => () => <OnlineOnl
 const DentalChartKeyed = () => { const { id } = useParams(); return <DentalChart key={id} />; };
 
 export const router = createBrowserRouter([
+  // Public pages: no sign-in. "/" stays the dashboard, which sends signed-out
+  // visitors to /login, so staff who open the installed app go straight to sign-in.
+  {
+    Component: PublicLayout,
+    children: [
+      { path: "/home", Component: LandingHome },
+      { path: "/about", Component: AboutFloral },
+      { path: "/clinic", Component: ClinicPage },
+    ],
+  },
   { path: "/login", Component: Login },
   { path: "/reset-password", Component: ResetPassword },
   { path: "/select-school", Component: SchoolSelect },
