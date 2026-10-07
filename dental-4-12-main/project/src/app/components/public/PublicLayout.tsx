@@ -72,8 +72,10 @@ export const PublicLayout = () => {
         <path d={TOOTH_PATH} />
       </svg>
 
-      <header className="relative z-20 mx-auto w-full max-w-[1400px] px-4 pt-8 sm:px-6">
-        <div className="relative flex items-center justify-between gap-3 rounded-2xl border border-white/15 bg-white/[0.07] px-4 py-2.5 backdrop-blur-md">
+      {/* Fixed to the top and translucent with a blur, so its fill follows whatever is
+          scrolling underneath (same recipe as the RAMHIS navbar). */}
+      <header className="fixed inset-x-0 top-0 z-50 px-4 pt-6 sm:px-6">
+        <div className="relative mx-auto flex max-w-7xl items-center justify-between gap-3 rounded-2xl border border-white/15 bg-[#0a1330]/75 px-4 py-2.5 shadow-xl shadow-blue-950/30 backdrop-blur-xl">
           <Link to="/home" className="flex items-center gap-2.5" aria-label="Floral home">
             <img src="/logo.svg" alt="" aria-hidden="true" className="h-9 w-9 object-contain" />
             <span className="leading-tight">
@@ -93,7 +95,7 @@ export const PublicLayout = () => {
         </div>
       </header>
 
-      <main className="relative z-10 flex flex-1 flex-col"><Outlet /></main>
+      <main className="relative z-10 flex flex-1 flex-col pt-24"><Outlet /></main>
 
     </div>
   );
