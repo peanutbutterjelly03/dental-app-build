@@ -27,15 +27,24 @@ const APPOINTMENT_TYPES: { name: string; icon: LucideIcon }[] = [
   { name: 'Oral Prophylaxis', icon: Sparkles },
   { name: 'Follow-up Treatment', icon: Repeat },
   { name: 'Tooth Restoration', icon: Wrench },
+  { name: 'Other', icon: Ellipsis },
 ];
 const OTHER_TYPE = 'Other';
+// School events are booked separately from clinic visits, so they get their
+// own group, listed last.
 const BAYANIHAN_TYPE = 'Bayanihan Mission';
-// Display order: the five clinical types, Other, then Bayanihan last.
-const TYPE_TILES: { name: string; icon: LucideIcon }[] = [
-  ...APPOINTMENT_TYPES,
-  { name: OTHER_TYPE, icon: Ellipsis },
-  { name: BAYANIHAN_TYPE, icon: Users },
-];
+const BAYANIHAN_TILE = { name: BAYANIHAN_TYPE, icon: Users };
+/** Pre-filled in the New Appointment form and used when the time is cleared. */
+const DEFAULT_TIME = '09:00';
+
+// Popup styling shared with the Edit Account dialog (AccountManagement.tsx).
+// The border is inline because styles/index.css forces a grey border on every input.
+const POPUP_FIELD = 'w-full px-4 py-3 text-sm text-[#475569] bg-[#F8FAFC] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#16214F]/30';
+const POPUP_FIELD_STYLE = { border: '1px solid #E2E8F0' } as const;
+const POPUP_LABEL = 'block text-sm font-semibold text-foreground mb-2';
+const POPUP_SECTION = 'text-sm font-semibold uppercase tracking-[0.08em] text-[#64748B]';
+const POPUP_CANCEL = 'px-5 py-2.5 rounded-xl border border-[#E2E8F0] bg-white text-sm font-bold text-foreground hover:bg-gray-50 transition-colors';
+const POPUP_PRIMARY = 'px-5 py-2.5 rounded-xl bg-primary text-sm font-bold text-white hover:bg-primary-hover disabled:opacity-60 transition-colors';
 
 
 const TODAY = toLocalDateString(new Date());
@@ -113,7 +122,7 @@ export const Appointments = () => {
   // in a field the user can see and change) and would be wrong for a
   // deadline or a filter default.
   const [appointmentDate, setAppointmentDate] = useState(TODAY);
-  const [appointmentTime, setAppointmentTime] = useState('');
+  const [appointmentTime, setAppointmentTime] = useState(DEFAULT_TIME);
   // A visit is often more than one thing at once (a checkup that also gets
   // fluoride, say), and appointment_type is one free-text-ish field on the
   // server — so multiple picks are joined with ", " on submit.
@@ -169,7 +178,7 @@ export const Appointments = () => {
     // Back to today, NOT blank: clearing it after a save would undo the
     // prefill for the next appointment, which is when it is most wanted.
     setAppointmentDate(TODAY);
-    setAppointmentTime('');
+    setAppointmentTime(DEFAULT_TIME);
     setAppointmentTypes([]);
     setAppointmentTypeOther('');
     setGuardianContactNumber('');
@@ -225,7 +234,7 @@ export const Appointments = () => {
     try {
       // Left blank, time defaults to the clinic's usual opening rather than
       // blocking the save on a field the user asked not to require.
-      const appointment_datetime = new Date(`${appointmentDate}T${appointmentTime || '08:00'}`).toISOString();
+      const appointment_datetime = new Date(`${appointmentDate}T${appointmentTime || DEFAULT_TIME}`).toISOString();
       await Promise.all(
         selectedStudents.map(student_id =>
           apiClient.post('/appointments', {
@@ -1300,136 +1309,158 @@ export const Appointments = () => {
       )}
 
 
-      {showCreateModal && (
-        <Modal onClose={() => { resetCreateAppointmentForm(); setShowCreateModal(false); }} maxWidth="max-w-lg" closeDisabled={creating}>
-            <div className="flex items-center justify-between p-5 border-b border-gray-100">
-              <h2 className="text-lg font-bold text-foreground">New Appointment</h2>
-              <button onClick={() => { resetCreateAppointmentForm(); setShowCreateModal(false); }} className="p-2 hover:bg-gray-100 rounded-lg"><X className="w-4 h-4"/></button>
+      {showCreateModal && (() => {
+        const closeCreate = () => { resetCreateAppointmentForm(); setShowCreateModal(false); };
+        const toggleType = (t: string) => setAppointmentTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
+        const typeRow = ({ name, icon: Icon }: { name: string; icon: LucideIcon }) => {
+          const selected = appointmentTypes.includes(name);
+          return (
+            <button
+              key={name}
+              type="button"
+              aria-pressed={selected}
+              onClick={() => toggleType(name)}
+              className={`flex w-full items-center gap-3 px-4 py-3 text-left text-sm border-b border-border last:border-b-0 transition-colors ${selected ? 'bg-[#F4F7FF]' : 'bg-white hover:bg-[#F8FAFC]'}`}
+            >
+              <span className={`grid h-[18px] w-[18px] flex-shrink-0 place-items-center rounded-[5px] border-[1.5px] ${selected ? 'bg-primary border-primary text-white' : 'border-[#CBD5E1] bg-white'}`}>
+                {selected && <Check className="h-3 w-3" strokeWidth={3} />}
+              </span>
+              <Icon className={`h-4 w-4 flex-shrink-0 ${selected ? 'text-primary' : 'text-[#64748B]'}`} />
+              <span className="flex-1 text-foreground">{name}</span>
+            </button>
+          );
+        };
+        return (
+        <Modal onClose={closeCreate} maxWidth="max-w-4xl" rounded="rounded-3xl" closeDisabled={creating}>
+          <div className="flex items-start justify-between gap-4 px-8 py-6 border-b border-border">
+            <div>
+              <h2 className="text-xl font-bold text-foreground">New Appointment</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                {selectedSchool ? `Book a visit at ${selectedSchool}.` : 'Book a visit for a student.'}
+              </p>
             </div>
-            <div className="p-5 space-y-4">
-              {!selectedSchool ? (
-                <Notice variant="warning">Pick a specific school from the school switcher first. Appointments are booked one school at a time.</Notice>
-              ) : (
-                <>
+            <button type="button" aria-label="Close" onClick={closeCreate} disabled={creating}
+              className="w-11 h-11 flex-shrink-0 grid place-items-center rounded-xl border border-[#E2E8F0] bg-white text-[#475569] hover:bg-gray-50 disabled:opacity-60">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="px-8 py-6 space-y-5">
+            {!selectedSchool ? (
+              <Notice variant="warning">Pick a specific school from the school switcher first. Appointments are booked one school at a time.</Notice>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                <div className="space-y-5">
+                  <div className={POPUP_SECTION}>Student and schedule</div>
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">
-                      Search Students at {selectedSchool}
-                    </label>
-                    <input
-                      type="text"
-                      value={studentSearch}
+                    <label htmlFor="appt-student-search" className={POPUP_LABEL}>Search students at {selectedSchool}</label>
+                    <input id="appt-student-search" type="text" value={studentSearch}
                       onChange={e => setStudentSearch(e.target.value)}
                       placeholder="Type a student's name…"
-                      className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
+                      className={POPUP_FIELD} style={POPUP_FIELD_STYLE} />
+                    {studentSearch.trim() && (
+                      <div className="mt-2 border border-border rounded-2xl max-h-40 overflow-y-auto divide-y divide-border">
+                        {studentSearchResults.length === 0 ? (
+                          <p className="text-sm text-muted-foreground text-center py-3">No students match "{studentSearch}".</p>
+                        ) : studentSearchResults.map(s => {
+                          const isSelected = selectedStudents.includes(s.id);
+                          // Blocked while they have an unresolved appointment,
+                          // on any date — not just this one — rather than
+                          // leaving it for the submit error.
+                          const pending = !isSelected ? pendingAppointmentFor(s.id) : undefined;
+                          return (
+                            <label key={s.id} className={`flex items-center gap-3 px-4 py-2.5 hover:bg-[#F4F7FF] ${pending ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
+                              <input type="checkbox" checked={isSelected} disabled={!!pending}
+                                onChange={() => setSelectedStudents(prev => prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id])}
+                                className="w-4 h-4 rounded accent-primary" />
+                              <span className="text-sm text-foreground">{s.name}</span>
+                              {pending ? (
+                                <span className="text-xs text-destructive ml-auto">{pending.status} for {shortenDate(pending.date)}</span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground ml-auto">{s.grade} · {s.section || 'N/A'}</span>
+                              )}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {selectedStudents.length > 0 && (
+                      <div className="mt-2.5 flex flex-wrap gap-2">
+                        {selectedStudents.map(id => {
+                          const name = allStudentsForSearch.find(s => s.id === id)?.name ?? 'Student';
+                          return (
+                            <span key={id} className="inline-flex items-center gap-1.5 rounded-full border border-[#DCE3F5] bg-[#F4F7FF] py-1 pl-3 pr-1.5 text-xs font-semibold text-primary">
+                              {name}
+                              <button type="button" aria-label={`Remove ${name}`}
+                                onClick={() => setSelectedStudents(prev => prev.filter(x => x !== id))}
+                                className="rounded-full p-0.5 hover:bg-white">
+                                <X className="h-3 w-3" />
+                              </button>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                  {studentSearch.trim() && (
-                    <div className="border border-border rounded-lg max-h-40 overflow-y-auto divide-y divide-gray-100">
-                      {studentSearchResults.length === 0 ? (
-                        <p className="text-sm text-muted-foreground text-center py-3">No students match "{studentSearch}".</p>
-                      ) : studentSearchResults.map(s => {
-                        const isSelected = selectedStudents.includes(s.id);
-                        // Blocked while they have an unresolved appointment,
-                        // on any date — not just this one — rather than
-                        // leaving it for the submit error.
-                        const pending = !isSelected ? pendingAppointmentFor(s.id) : undefined;
-                        return (
-                          <label key={s.id} className={`flex items-center gap-3 px-3 py-2 hover:bg-gray-50 ${pending ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
-                            <input type="checkbox" checked={isSelected} disabled={!!pending}
-                              onChange={() => setSelectedStudents(prev => prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id])}
-                              className="w-4 h-4 rounded accent-primary" />
-                            <span className="text-sm text-foreground">{s.name}</span>
-                            {pending ? (
-                              <span className="text-xs text-destructive ml-auto">{pending.status} for {shortenDate(pending.date)}</span>
-                            ) : (
-                              <span className="text-xs text-muted-foreground ml-auto">{s.grade} · {s.section || 'N/A'}</span>
-                            )}
-                          </label>
-                        );
-                      })}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+                    <div>
+                      <label htmlFor="appt-date" className={POPUP_LABEL}>Date <span className="text-destructive">*</span></label>
+                      <input id="appt-date" type="date" value={appointmentDate} onChange={e => setAppointmentDate(e.target.value)}
+                        className={POPUP_FIELD} style={POPUP_FIELD_STYLE} />
                     </div>
-                  )}
-                  {selectedStudents.length > 0 && (
-                    <p className="text-xs text-muted-foreground">{selectedStudents.length} student{selectedStudents.length === 1 ? '' : 's'} selected.</p>
-                  )}
-                </>
-              )}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-foreground mb-1">Date *</label>
-                  <input type="date" value={appointmentDate} onChange={e => setAppointmentDate(e.target.value)}
-                    className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">Time</label>
-                  <input type="time" value={appointmentTime} onChange={e => setAppointmentTime(e.target.value)}
-                    placeholder="Defaults to 8:00 AM"
-                    className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring" />
-                  <p className="text-[11px] text-muted-foreground mt-1">Defaults to 8:00 AM if left blank.</p>
-                </div>
-                <div className="col-span-2">
-                  <label htmlFor="guardian-contact-number" className="block text-xs font-medium text-muted-foreground mb-1">
-                    Guardian Contact Number <span className="text-destructive">*</span>
-                  </label>
-                  <input id="guardian-contact-number" type="tel" required value={guardianContactNumber}
-                    onChange={e => setGuardianContactNumber(e.target.value)}
-                    placeholder="09XX XXX XXXX"
-                    className="w-full text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring" />
-                  <p className="text-[11px] text-muted-foreground mt-1">Who the clinic can reach about this booking.</p>
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-xs font-medium text-muted-foreground mb-2">
-                    Appointment Type <span className="font-normal">(pick any that apply)</span>
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {TYPE_TILES.map(({ name: t, icon: Icon }) => {
-                      const selected = appointmentTypes.includes(t);
-                      return (
-                        <button
-                          key={t}
-                          type="button"
-                          aria-pressed={selected}
-                          onClick={() => setAppointmentTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])}
-                          className={`relative flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left text-sm font-medium transition-colors ${
-                            t === BAYANIHAN_TYPE ? 'col-span-2 ' : ''
-                          }${
-                            selected
-                              ? 'bg-primary/10 text-primary border-primary ring-1 ring-primary'
-                              : 'bg-card text-foreground border-border hover:bg-gray-50'
-                          }`}
-                        >
-                          <Icon className="w-4 h-4 shrink-0" />
-                          <span className="flex-1">{t}</span>
-                          {selected && <Check className="w-4 h-4 shrink-0" />}
-                        </button>
-                      );
-                    })}
+                    <div>
+                      <label htmlFor="appt-time" className={POPUP_LABEL}>Time</label>
+                      <input id="appt-time" type="time" value={appointmentTime} onChange={e => setAppointmentTime(e.target.value)}
+                        className={POPUP_FIELD} style={POPUP_FIELD_STYLE} />
+                      <p className="text-[11px] text-muted-foreground mt-1.5">Defaults to 9:00 AM.</p>
+                    </div>
                   </div>
-                  {appointmentTypes.includes(OTHER_TYPE) && (
-                    <input
-                      type="text"
-                      value={appointmentTypeOther}
-                      onChange={e => setAppointmentTypeOther(e.target.value)}
-                      placeholder="Type the appointment type"
-                      className="w-full mt-2 text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                  )}
+                  <div>
+                    <label htmlFor="guardian-contact-number" className={POPUP_LABEL}>
+                      Guardian Contact Number <span className="text-destructive">*</span>
+                    </label>
+                    <input id="guardian-contact-number" type="tel" required value={guardianContactNumber}
+                      onChange={e => setGuardianContactNumber(e.target.value)}
+                      placeholder="09XX XXX XXXX"
+                      className={POPUP_FIELD} style={POPUP_FIELD_STYLE} />
+                    <p className="text-[11px] text-muted-foreground mt-1.5">Who the clinic can reach about this booking.</p>
+                  </div>
+                </div>
+                <div className="space-y-5">
+                  <div className={POPUP_SECTION}>
+                    Appointment type <span className="font-normal normal-case tracking-normal">(pick any that apply)</span>
+                  </div>
+                  <div>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">Clinic visit</p>
+                    <div className="overflow-hidden rounded-2xl border border-border">{APPOINTMENT_TYPES.map(typeRow)}</div>
+                    {appointmentTypes.includes(OTHER_TYPE) && (
+                      <input
+                        type="text"
+                        value={appointmentTypeOther}
+                        onChange={e => setAppointmentTypeOther(e.target.value)}
+                        placeholder="Type the appointment type"
+                        aria-label="Other appointment type"
+                        className={`${POPUP_FIELD} mt-2.5`} style={POPUP_FIELD_STYLE}
+                      />
+                    )}
+                  </div>
+                  <div>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">School event</p>
+                    <div className="overflow-hidden rounded-2xl border border-border">{typeRow(BAYANIHAN_TILE)}</div>
+                  </div>
                 </div>
               </div>
-              {createError && <p className="text-sm text-destructive">{createError}</p>}
-              <div className="flex gap-3 pt-2">
-                <button onClick={() => { resetCreateAppointmentForm(); setShowCreateModal(false); }}
-                  className="flex-1 px-4 py-2 border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium">
-                  Cancel
-                </button>
-                <button onClick={handleCreateAppointment} disabled={creating}
-                  className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-60 text-sm font-medium">
-                  {creating ? 'Creating…' : 'Create Appointment'}
-                </button>
-              </div>
-            </div>
+            )}
+            {createError && <p className="text-sm text-destructive">{createError}</p>}
+          </div>
+          <div className="flex justify-end gap-3 px-8 py-5 border-t border-border">
+            <button onClick={closeCreate} disabled={creating} className={POPUP_CANCEL}>Cancel</button>
+            <button onClick={handleCreateAppointment} disabled={creating} className={POPUP_PRIMARY}>
+              {creating ? 'Creating…' : 'Create Appointment'}
+            </button>
+          </div>
         </Modal>
-      )}
+        );
+      })()}
 
       {/* ── Appointment details side panel (option B, 2026-09-25) ── */}
       {(() => {
