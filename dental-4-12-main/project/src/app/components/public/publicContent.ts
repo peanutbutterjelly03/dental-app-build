@@ -30,20 +30,18 @@ export const ROLE_CARDS = [
 ] as const;
 
 export const SCHOOLS = [
-  { name: 'Bagong Tanyag Integrated School', grades: 'K–G10', text: 'Primary school of the program. Kindergarten through Grade 10.' },
-  { name: 'Bagong Tanyag Elementary School Annex A', grades: 'K–G6', text: 'Elementary annex, Kindergarten through Grade 6.' },
-  { name: 'South Daang Hari Elementary School Main', grades: 'K–G6', text: 'Elementary main campus, Kindergarten through Grade 6.' },
+  { name: 'Bagong Tanyag Integrated School', lines: ['Bagong Tanyag', 'Integrated School'], grades: 'Kinder to Grade 10', text: 'An integrated school serving learners from Kindergarten through Grade 10 on one campus. Its clinic sees the widest range of ages in the program, from young children to teenagers, and Floral keeps each student\u2019s dental record in one place as they move up the grades.' },
+  { name: 'Bagong Tanyag Elementary School Annex A', lines: ['Bagong Tanyag Elementary', 'School Annex A'], grades: 'Kinder to Grade 6', text: 'An annex of the elementary school, serving Kindergarten through Grade 6. Students are screened and cared for at their own campus, and their dental records follow them from one school year to the next.' },
+  { name: 'South Daang Hari Elementary School Main', lines: ['South Daang Hari', 'Elementary School Main'], grades: 'Kinder to Grade 6', text: 'The main campus of the elementary school, serving Kindergarten through Grade 6. Visits are scheduled around the school day, and the clinic can see each child\u2019s earlier visits before starting the next one.' },
 ] as const;
 
-export const ROLES = [
-  ['System Admin', 'Creates and deactivates accounts, assigns roles and schools, reads the full audit trail, restores archived records.'],
-  ['Dentist', 'Owns patient records, charting, appointments and risk analytics. Validates every treatment recommendation.'],
-  ['Dental Aide', 'Patient records, appointments, clinic coordination and RPC monitoring.'],
-  ['School Administrator', 'Views school reports and dashboards. No clinical records.'],
-  ['Barangay Health Office Staff', 'Consolidated reports across all schools and City Health Office submission.'],
+export const CLINIC_SERVICES = [
+  ['Oral Screening', 'The dentist looks at each tooth and the gums, and records the findings on the child\u2019s chart.'],
+  ['Oral Prophylaxis', 'The teeth are cleaned to remove plaque and calculus, so the mouth starts the visit fresh.'],
+  ['Fluoride Varnish Application', 'A varnish is painted on the teeth to strengthen the enamel and help prevent decay.'],
+  ['Oral Hygiene Instruction or Counseling', 'The child learns how to brush and care for their teeth, in words they can follow.'],
+  ['Caries Risk Assessment', 'The visit ends with a High, Medium or Low risk level. The dentist validates it before any treatment is planned.'],
 ] as const;
-
-export const RPC_STEPS = ['Oral screening', 'Prophylaxis', 'Fluoride varnish', 'Hygiene instruction', 'Caries risk assessment'] as const;
 
 export const FAQ = [
   ["Who can see a student's record?", 'Dentists and dental aides can open clinical records. School administrators see reports only.'],
