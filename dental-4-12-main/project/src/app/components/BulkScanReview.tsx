@@ -567,18 +567,8 @@ export const BulkScanReview = () => {
       {/* The summary bar (user pick B, 2026-10-07): the counts, the filter and view switch, and the
           two forward actions sit together above the list. Back stays in the header, top right. */}
       <div className="bulk-pr" style={{ flexShrink: 0, paddingRight: '3.5rem', marginBottom: '0.75rem' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', background: '#fff', border: `0.0625rem solid ${LINE}`, borderRadius: '1rem', padding: '0.75rem 1rem' }}>
-        <span style={chip}><b>{rows.length}</b> found</span>
-        <span style={chip}><b style={{ color: '#15803D' }}>{ready}</b> ready</span>
-        <span style={chip}><b style={{ color: '#B91C1C' }}>{fixes}</b> need fixes</span>
-        {onFile === null
-          ? <span style={{ ...chip, color: MUTED }}>Checking for duplicates…</span>
-          : dupCount > 0 && <span style={{ ...chip, borderColor: '#F59E0B' }}><b style={{ color: '#92400E' }}>{dupCount}</b> to check</span>}
-        {saved.size > 0 && <span style={chip}><b style={{ color: '#15803D' }}>{saved.size}</b> saved</span>}
-        <button type="button" onClick={() => setOnlyFixes((v) => !v)} aria-pressed={onlyFixes} style={{ ...secondaryBtn, padding: '0.3125rem 0.875rem', fontSize: '0.8125rem' }}>
-          {onlyFixes ? 'Show all students' : 'Show only: Needs fixes'}
-        </button>
-        <div style={{ marginLeft: 'auto', display: 'inline-flex', overflow: 'hidden', borderRadius: '0.625rem', border: `0.0625rem solid ${LINE}`, background: '#fff' }} role="group" aria-label="View">
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+        <div style={{ display: 'inline-flex', overflow: 'hidden', borderRadius: '0.625rem', border: `0.0625rem solid ${LINE}`, background: '#fff' }} role="group" aria-label="View">
           {(['grid', 'cards'] as const).map((v) => (
             <button
               key={v}
@@ -593,6 +583,19 @@ export const BulkScanReview = () => {
             </button>
           ))}
         </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', background: '#fff', border: `0.0625rem solid ${LINE}`, borderRadius: '1rem', padding: '0.75rem 1rem' }}>
+        <span style={chip}><b>{rows.length}</b> found</span>
+        <span style={chip}><b style={{ color: '#15803D' }}>{ready}</b> ready</span>
+        <span style={chip}><b style={{ color: '#B91C1C' }}>{fixes}</b> need fixes</span>
+        {onFile === null
+          ? <span style={{ ...chip, color: MUTED }}>Checking for duplicates…</span>
+          : dupCount > 0 && <span style={{ ...chip, borderColor: '#F59E0B' }}><b style={{ color: '#92400E' }}>{dupCount}</b> to check</span>}
+        {saved.size > 0 && <span style={chip}><b style={{ color: '#15803D' }}>{saved.size}</b> saved</span>}
+        <button type="button" onClick={() => setOnlyFixes((v) => !v)} aria-pressed={onlyFixes} style={{ ...secondaryBtn, padding: '0.3125rem 0.875rem', fontSize: '0.8125rem' }}>
+          {onlyFixes ? 'Show all students' : 'Show only: Needs fixes'}
+        </button>
+        <div style={{ marginLeft: 'auto' }} />
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           <button type="button" onClick={() => open(firstOpen)} disabled={!!importing} style={secondaryBtn}>Review one by one</button>
           <button
