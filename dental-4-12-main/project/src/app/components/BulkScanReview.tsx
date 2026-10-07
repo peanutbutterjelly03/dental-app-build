@@ -197,6 +197,26 @@ export const BulkScanReview = () => {
   // there is more to the left or right, and whether everything already fits.
   const [gridEl, setGridEl] = useState<HTMLDivElement | null>(null);
   const setGrid = useCallback((el: HTMLDivElement | null) => { gridRef.current = el; setGridEl(el); }, []);
+  // Phones (< 640px): the table is tall and the page scrolls, so a tab at the table's own middle
+  // can sit off screen. Keep the two column arrows level with the middle of the SCREEN, but
+  // always inside the table (they stay absolutely placed in the table's frame, only their top
+  // moves). Wider screens keep the plain mid-height position.
+  const [edgeTop, setEdgeTop] = useState<number | null>(null);
+  useEffect(() => {
+    const frame = gridEl?.parentElement;
+    if (!frame) return;
+    const place = () => {
+      if (window.innerWidth >= 640) { setEdgeTop(null); return; }
+      const r = frame.getBoundingClientRect();
+      const mid = window.innerHeight / 2 - r.top;
+      setEdgeTop(Math.round(Math.min(Math.max(mid, 56), Math.max(56, r.height - 56))));
+    };
+    place();
+    window.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
+    return () => { window.removeEventListener('scroll', place, true); window.removeEventListener('resize', place); };
+  }, [gridEl, view]);
+
   // Where the person left the table (sideways, down, and the page itself), so coming back from a
   // decision or from a student's form puts them on the same column and row. Kept for this visit
   // only, and dropped when a fresh upload starts.
@@ -557,7 +577,6 @@ export const BulkScanReview = () => {
         + '.bulk-edge:disabled{opacity:.3;cursor:default}.bulk-edge:focus-visible{outline:0.125rem solid #7AA2FF;outline-offset:0.125rem}'
         + '@media (pointer: coarse){.bulk-edge{width:2rem;height:3.5rem}}'
         + '@media (max-width: 639px){.bulk-shell{height:auto !important;overflow:visible !important;padding:0.25rem 0 1rem 1rem !important;margin-bottom:0 !important}'
-        + '.bulk-edge{position:fixed !important;top:50vh !important}.bulk-edge.l{left:0 !important}.bulk-edge.r{right:0 !important}'
         + '.bulk-head{gap:0.75rem !important}.bulk-head>div:first-child{display:none !important}.bulk-head>div:nth-child(2){flex:1 1 0 !important}.bulk-head h1{font-size:1.375rem !important}'
         + '.bulk-bar{padding:1rem !important;gap:0.875rem !important}.bulk-bar-left{flex:1 1 100% !important;width:100%}.bulk-bar-left>div{max-width:none !important}'
         + '.bulk-bar-right{margin-left:0 !important;width:100%;align-items:stretch !important}.bulk-view{display:flex !important}.bulk-view button{flex:1;justify-content:center}'
@@ -703,8 +722,8 @@ export const BulkScanReview = () => {
         </div>
           {!tab.fits && (
             <>
-              <button type="button" className="bulk-edge l" aria-label="Show previous columns" title="Show previous columns" disabled={!tab.left} onClick={() => stepColumns(-1)}>‹</button>
-              <button type="button" className="bulk-edge r" style={{ right: `calc(0.0625rem + ${tab.sbw}px)` }} aria-label="Show next columns" title="Show next columns" disabled={!tab.right} onClick={() => stepColumns(1)}>›</button>
+              <button type="button" className="bulk-edge l" style={edgeTop === null ? undefined : { top: edgeTop }} aria-label="Show previous columns" title="Show previous columns" disabled={!tab.left} onClick={() => stepColumns(-1)}>‹</button>
+              <button type="button" className="bulk-edge r" style={{ right: `calc(0.0625rem + ${tab.sbw}px)`, ...(edgeTop === null ? {} : { top: edgeTop }) }} aria-label="Show next columns" title="Show next columns" disabled={!tab.right} onClick={() => stepColumns(1)}>›</button>
             </>
           )}
         </div>
