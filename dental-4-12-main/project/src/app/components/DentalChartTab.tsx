@@ -421,14 +421,14 @@ export function DentalChartTab({
           point of the grey/navy toggle -- and the hint plus a solid
           red VIEW MODE pill sit on the right, both in red, taking no
           extra row. */}
-      <div className={`flex items-center gap-3 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider ${editingHistory ? 'bg-primary text-white' : 'bg-slate-200 text-slate-600'}`}>
+      <div className={`flex items-center gap-3 px-4 py-2 text-[13px] font-semibold uppercase tracking-wider ${editingHistory ? 'bg-primary text-white' : 'bg-slate-200 text-slate-600'}`}>
         <span>Oral Conditions &amp; Treatments Given</span>
         {!editingHistory && (
           <>
-            <span className="ml-auto text-[10px] font-normal normal-case tracking-normal text-destructive">
+            <span className="ml-auto text-[12px] font-normal normal-case tracking-normal text-destructive">
               {canEditHistory ? 'Click the pencil icon above to record conditions/treatments.' : 'View only. Editing restricted to Dentist and Dental Aide.'}
             </span>
-            <span className="flex items-center gap-1 rounded-full bg-destructive px-2 py-0.5 text-[10.5px] font-semibold normal-case tracking-normal text-white">
+            <span className="flex items-center gap-1 rounded-full bg-destructive px-2 py-0.5 text-[12.5px] font-semibold normal-case tracking-normal text-white">
               <Lock className="h-3 w-3" /> View Mode
             </span>
           </>
@@ -437,8 +437,8 @@ export function DentalChartTab({
       <div className="p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className={editingHistory ? '' : 'opacity-60 pointer-events-none select-none'}>
           <div className="flex flex-wrap items-center gap-3 mb-2">
-            <div className="text-sm font-bold text-primary uppercase tracking-wide">Oral Conditions</div>
-            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="text-base font-bold text-primary uppercase tracking-wide">Oral Conditions</div>
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
               Date examined
               {/* Enabled whenever a whole-mouth chip OR any tooth
                   condition is present (2026-09-28 fix) -- a mouth
@@ -447,20 +447,20 @@ export function DentalChartTab({
               <input type="date" value={draftChartDate} disabled={!(oralConditionChips.some(({ field }) => draftOral[field]) || othersOralOpen || Object.values(currentChart).some((e) => e.condition))}
                 onChange={(e) => setDraftChartDate(e.target.value)}
                 title="Filled in when an oral condition is ticked or a tooth condition is charted"
-                className="border border-border rounded px-2 py-1 text-xs bg-card text-foreground disabled:opacity-50 focus:outline-none focus:ring-1 focus:ring-ring" />
+                className="border border-border rounded px-2 py-1 text-sm bg-card text-foreground disabled:opacity-50 focus:outline-none focus:ring-1 focus:ring-ring" />
             </label>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-2">
             {oralConditionChips.map(({ label, field }) => (
               <label key={field}
-                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs cursor-pointer transition-colors ${draftOral[field] ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-blue-200 text-foreground hover:bg-canvas'}`}>
+                className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm cursor-pointer transition-colors ${draftOral[field] ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-blue-200 text-foreground hover:bg-canvas'}`}>
                 <input type="checkbox" checked={!!draftOral[field]}
                   onChange={(e) => {
                     const next = { ...draftOral, [field]: e.target.checked };
                     setDraftOral(next);
                     syncChartDateFromConditions(next, othersOralOpen);
                   }}
-                  className="w-4 h-4 rounded accent-primary" />
+                  className="w-5 h-5 rounded accent-primary" />
                 {label}
               </label>
             ))}
@@ -480,8 +480,8 @@ export function DentalChartTab({
                   syncChartDateFromConditions(draftOral, true);
                 }
               }}
-              className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs text-left transition-colors ${othersOralOpen ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-blue-200 text-foreground hover:bg-canvas'}`}>
-              <span className={`w-4 h-4 rounded border shrink-0 flex items-center justify-center ${othersOralOpen ? 'bg-primary border-primary' : 'border-gray-600'}`}>
+              className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm text-left transition-colors ${othersOralOpen ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-blue-200 text-foreground hover:bg-canvas'}`}>
+              <span className={`w-5 h-5 rounded border shrink-0 flex items-center justify-center ${othersOralOpen ? 'bg-primary border-primary' : 'border-gray-600'}`}>
                 {othersOralOpen && <Check className="w-3 h-3 text-white" />}
               </span>
               Others
@@ -489,11 +489,11 @@ export function DentalChartTab({
           </div>
           {othersOralOpen && (
             <div className="mt-3 rounded-lg bg-canvas p-3">
-              <label className="block text-xs font-bold text-foreground mb-1">Specify Other</label>
+              <label className="block text-sm font-bold text-foreground mb-1">Specify Other</label>
               <input type="text" value={draftOral.others}
                 onChange={(e) => setDraftOral((prev) => ({ ...prev, others: e.target.value }))}
                 placeholder="Specify other oral condition…"
-                className="w-full text-xs border border-border rounded px-2 py-1.5 bg-card focus:outline-none focus:ring-1 focus:ring-ring" />
+                className="w-full text-sm border border-border rounded px-2 py-1.5 bg-card focus:outline-none focus:ring-1 focus:ring-ring" />
             </div>
           )}
         </div>
@@ -508,8 +508,8 @@ export function DentalChartTab({
         {hasOralConditionMarked && (
         <div className="border-t border-border pt-4 lg:border-t-0 lg:pt-0 lg:border-l lg:border-border lg:pl-4">
           <div className="flex flex-wrap items-center gap-3 mb-2">
-            <div className="text-sm font-bold text-primary uppercase tracking-wide">Treatments Given</div>
-            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="text-base font-bold text-primary uppercase tracking-wide">Treatments Given</div>
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
               Date treated
               {/* Only editable once THIS visit has something ticked or
                   charted (user, 2026-09-28: "the date can only be
@@ -521,7 +521,7 @@ export function DentalChartTab({
               <input type="date" value={draftVisitDate} disabled={!editingChart || !draftVisitHasData(activeVisit)} min={visitDateMin || undefined}
                 title={!draftVisitHasData(activeVisit) ? 'Filled in when a service is ticked or a tooth is charted for this visit' : visitDateMin ? `Can't be before ${formatDate(visitDateMin)}` : undefined}
                 onChange={(e) => setDraftVisitDate(e.target.value)}
-                className="border border-border rounded px-2 py-1 text-xs bg-card text-foreground disabled:opacity-50 focus:outline-none focus:ring-1 focus:ring-ring" />
+                className="border border-border rounded px-2 py-1 text-sm bg-card text-foreground disabled:opacity-50 focus:outline-none focus:ring-1 focus:ring-ring" />
             </label>
             {/* Visit 1 / Visit 2 (2026-09-25, reworked 2026-09-28 x4),
                 right-aligned on this same row. Visit 1 is ALWAYS
@@ -546,7 +546,7 @@ export function DentalChartTab({
                 edit, and view mode only needs to block the latter. */}
             <div className="ml-auto flex items-center gap-1.5">
               <button type="button" onClick={() => setExplicitVisit(1)}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-full border transition-colors ${
+                className={`px-2.5 py-1 text-sm font-semibold rounded-full border transition-colors ${
                   activeVisit === 1
                     ? 'border-primary bg-primary text-white'
                     : 'border-border text-muted-foreground hover:bg-canvas'
@@ -555,7 +555,7 @@ export function DentalChartTab({
               </button>
               {visit1HasDataLive && (
                 <button type="button" onClick={() => setExplicitVisit(2)}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-full border transition-colors ${
+                  className={`px-2.5 py-1 text-sm font-semibold rounded-full border transition-colors ${
                     activeVisit === 2
                       ? 'border-primary bg-primary text-white'
                       : 'border-border text-muted-foreground hover:bg-canvas'
@@ -569,7 +569,7 @@ export function DentalChartTab({
             <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-2">
               {serviceChips.map(({ label, field }) => (
                 <label key={field}
-                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs cursor-pointer transition-colors ${draftServices[field] ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-blue-200 text-foreground hover:bg-canvas'}`}>
+                  className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm cursor-pointer transition-colors ${draftServices[field] ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-blue-200 text-foreground hover:bg-canvas'}`}>
                   {/* Unticking writes null, not false — see the state above. */}
                   <input type="checkbox" checked={draftServices[field] === true}
                     onChange={(e) => {
@@ -577,7 +577,7 @@ export function DentalChartTab({
                       setDraftServices(next);
                       syncVisitDateFromServices(next);
                     }}
-                    className="w-4 h-4 rounded accent-primary" />
+                    className="w-5 h-5 rounded accent-primary" />
                   {label}
                 </label>
               ))}
@@ -587,7 +587,7 @@ export function DentalChartTab({
                 requiring one to already exist. Shown only pre-save so it
                 doesn't linger once the visit is real. */}
             {!activeVisitRecord && (
-              <p className="mt-2 text-[10px] text-muted-foreground">
+              <p className="mt-2 text-[12px] italic text-muted-foreground">
                 Recording a service or charting a treatment creates this school year's Visit {activeVisit} when you save.
               </p>
             )}
