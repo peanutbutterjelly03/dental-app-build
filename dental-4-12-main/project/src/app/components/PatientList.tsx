@@ -376,7 +376,7 @@ export const PatientList = () => {
   };
   // Row action menu (the arrow beside each Queue button). FIXED position taken
   // from the arrow's own rect, so the scrolling rows box cannot clip it.
-  const [rowMenu, setRowMenu] = useState<{ id: string; top: number; right: number } | null>(null);
+  const [rowMenu, setRowMenu] = useState<{ id: string; top?: number; bottom?: number; right: number } | null>(null);
   // Assign Grade / Assign Section picker: one field at a time, anchored to the
   // prompt that opened it (FIXED, taken from the button's rect).
   // `step` is what the popover is asking now; `both` means the student has neither
@@ -1582,7 +1582,12 @@ export const PatientList = () => {
                             onClick={(e) => {
                               e.stopPropagation();
                               const r = e.currentTarget.getBoundingClientRect();
-                              setRowMenu((m) => (m?.id === student.id ? null : { id: student.id, top: r.bottom + 4, right: Math.max(8, window.innerWidth - r.right) }));
+                              // Flip upward when the menu would run off the bottom of the screen (it is ~210px tall
+                              // with Archive), which is what clipped it on the last rows of a page.
+                              const right = Math.max(8, window.innerWidth - r.right);
+                              setRowMenu((m) => (m?.id === student.id ? null : window.innerHeight - r.bottom < 220
+                                ? { id: student.id, bottom: window.innerHeight - r.top + 4, right }
+                                : { id: student.id, top: r.bottom + 4, right }));
                             }}
                             aria-label={`More actions for ${student.name}`}
                             aria-haspopup="menu"
@@ -1795,7 +1800,7 @@ export const PatientList = () => {
         return (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setRowMenu(null)} />
-            <div data-floating-menu role="menu" style={{ top: rowMenu.top, right: rowMenu.right }} className="fixed z-50 w-60 overflow-hidden rounded-xl border border-border bg-card py-1 shadow-lg">
+            <div data-floating-menu role="menu" style={{ top: rowMenu.top, bottom: rowMenu.bottom, right: rowMenu.right, maxHeight: 'calc(100vh - 1rem)' }} className="fixed z-50 w-60 overflow-y-auto rounded-xl border border-border bg-card py-1 shadow-lg">
               <p className="px-3 pb-1 pt-1.5 text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">Open</p>
               <button role="menuitem" className={item} onClick={() => open('chart')}><Eye className="h-4 w-4 text-muted-foreground" /> Dental Chart</button>
               <button role="menuitem" className={item} onClick={() => open('treatments')}><FileText className="h-4 w-4 text-muted-foreground" /> Treatment Records</button>
