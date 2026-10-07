@@ -885,7 +885,7 @@ export const Appointments = () => {
           // No export by design (2026-09-02) — see PatientList for the
           // reasoning. The DOH report on Reports is the official output.
           <button onClick={() => { resetCreateAppointmentForm(); setShowCreateModal(true); }}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover text-sm font-medium">
+            className="flex items-center justify-center gap-2 px-4 py-3.5 sm:py-2 bg-primary text-white rounded-lg hover:bg-primary-hover text-sm sm:text-sm font-semibold sm:font-medium min-h-[52px] sm:min-h-0">
             <Plus className="w-4 h-4" /> New Appointment
           </button>
         }
