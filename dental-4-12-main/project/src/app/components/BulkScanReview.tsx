@@ -114,6 +114,7 @@ const primaryBtn: CSSProperties = {
 };
 // Summary-bar legend: an item with a circled count (colour = status).
 const legendItem: CSSProperties = { display: 'inline-flex', gap: '0.5rem', alignItems: 'center', fontWeight: 600 };
+const legendBtn = (on: boolean): CSSProperties => ({ ...legendItem, cursor: 'pointer', background: on ? '#EEF2F8' : 'none', border: 'none', borderRadius: '62.4375rem', padding: '0.125rem 0.625rem 0.125rem 0.125rem', font: 'inherit', fontWeight: 600 });
 const countDot = (bg: string): CSSProperties => ({ minWidth: '1.5rem', height: '1.5rem', borderRadius: '62.4375rem', padding: '0 0.4375rem', display: 'inline-grid', placeItems: 'center', background: bg, color: '#fff', fontSize: '0.78125rem', fontWeight: 800 });
 
 export const BulkScanReview = () => {
@@ -181,6 +182,10 @@ export const BulkScanReview = () => {
     try { sessionStorage.setItem(FIXES_KEY, next ? '1' : '0'); } catch { /* ignore */ }
     return next;
   });
+
+  // Ready / To check filters (user, 2026-10-07): the legend counts are buttons too. Only one
+  // filter is active at a time; "Needs fixes" keeps its own remembered flag above.
+  const [group, setGroup] = useState<'ready' | 'check' | null>(null);
 
   // The page must never scroll: only the grid does. The app's own layout puts this page
   // under a top bar and inside padding, so a fixed `100vh - N` can never be exact. Measure
@@ -422,7 +427,17 @@ export const BulkScanReview = () => {
     && !r.h.readError && r.missing.length === 0 && !unresolvedDup(r)).length;
   const fixes = rows.filter(isFix).length;
   const dupCount = rows.filter(unresolvedDup).length;
-  const shown = onlyFixes ? rows.filter(isFix) : rows;
+  const isReady = (r: Row) => !saved.has(r.index) && dupDecisions[r.index] !== 'skip'
+    && !r.h.readError && r.missing.length === 0 && !unresolvedDup(r);
+  const shown = onlyFixes ? rows.filter(isFix) : group === 'ready' ? rows.filter(isReady) : group === 'check' ? rows.filter(unresolvedDup) : rows;
+  const showAll = () => { setOnlyFixes(false); setGroup(null); };
+  const pickFilter = (g: 'ready' | 'fix' | 'check') => {
+    const same = g === 'fix' ? onlyFixes : group === g;
+    if (same) { showAll(); return; }
+    setOnlyFixes(g === 'fix');
+    setGroup(g === 'fix' ? null : g);
+  };
+  const filtering = onlyFixes || group !== null;
 
   // Everything that is ready and not skipped or already saved. Import is only offered when
   // NOTHING is left needing a fix, so a half-checked list is never saved by accident.
@@ -570,7 +585,7 @@ export const BulkScanReview = () => {
       <div className="bulk-pr" style={{ flexShrink: 0, paddingRight: '3.5rem', marginBottom: '0.75rem' }}>
       <div style={{ display: 'flex', gap: '1.125rem', flexWrap: 'wrap', alignItems: 'center', background: '#fff', border: `0.0625rem solid ${LINE}`, borderRadius: '1rem', padding: '1rem 1.125rem' }}>
         <div style={{ flex: '1 1 22rem', minWidth: 0, display: 'flex', justifyContent: 'center' }}>
-        <div style={{ width: '100%', maxWidth: '34rem', textAlign: 'left' }}>
+        <div style={{ width: 'fit-content', maxWidth: '100%', textAlign: 'left' }}>
           <b style={{ fontSize: '0.9375rem' }}>{ready} of {rows.length} student{rows.length === 1 ? ' is' : 's are'} ready</b>
           <div role="img" aria-label={`${ready} ready, ${fixes} need fixes, ${saved.size} saved`} style={{ display: 'flex', height: '0.75rem', borderRadius: '62.4375rem', overflow: 'hidden', background: '#E8EDF6', margin: '0.625rem 0' }}>
             <span style={{ width: `${rows.length ? (ready / rows.length) * 100 : 0}%`, background: '#16A34A' }} />
@@ -578,21 +593,15 @@ export const BulkScanReview = () => {
             <span style={{ width: `${rows.length ? (fixes / rows.length) * 100 : 0}%`, background: '#DC2626' }} />
           </div>
           <div style={{ display: 'flex', gap: '0.375rem 1.125rem', flexWrap: 'wrap', alignItems: 'center', fontSize: '0.8125rem' }}>
-            <span style={legendItem}><span style={countDot('#16A34A')}>{ready}</span>Ready</span>
+            <button type="button" onClick={() => pickFilter('ready')} aria-pressed={group === 'ready'} title={group === 'ready' ? 'Show all students' : 'Show only the students who are ready'} style={legendBtn(group === 'ready')}><span style={countDot('#16A34A')}>{ready}</span>Ready</button>
             {saved.size > 0 && <span style={legendItem}><span style={countDot('#2563EB')}>{saved.size}</span>Saved</span>}
-            <button type="button" onClick={() => setOnlyFixes((v) => !v)} aria-pressed={onlyFixes}
-              title={onlyFixes ? 'Show all students' : 'Show only the students who need fixes'}
-              style={{ ...legendItem, cursor: 'pointer', background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 600, textDecoration: onlyFixes ? 'underline' : 'none', textUnderlineOffset: '0.25rem' }}>
-              <span style={countDot('#DC2626')}>{fixes}</span>Needs fixes
-            </button>
+            <button type="button" onClick={() => pickFilter('fix')} aria-pressed={onlyFixes} title={onlyFixes ? 'Show all students' : 'Show only the students who need fixes'} style={legendBtn(onlyFixes)}><span style={countDot('#DC2626')}>{fixes}</span>Needs fixes</button>
             {onFile === null
               ? <span style={{ color: MUTED }}>Checking for duplicates…</span>
-              : dupCount > 0 && <span style={legendItem}><span style={countDot('#F59E0B')}>{dupCount}</span>To check</span>}
-            {onlyFixes && (
-              <button type="button" onClick={() => setOnlyFixes(false)} style={{ cursor: 'pointer', background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 700, color: NAVY, textDecoration: 'underline', textUnderlineOffset: '0.25rem' }}>
-                Show all {rows.length}
-              </button>
-            )}
+              : dupCount > 0 && <button type="button" onClick={() => pickFilter('check')} aria-pressed={group === 'check'} title={group === 'check' ? 'Show all students' : 'Show only the students to check'} style={legendBtn(group === 'check')}><span style={countDot('#F59E0B')}>{dupCount}</span>To check</button>}
+            <button type="button" onClick={showAll} aria-pressed={!filtering} style={{ cursor: 'pointer', background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 700, color: NAVY, textDecoration: 'underline', textUnderlineOffset: '0.25rem' }}>
+              Show all {rows.length}
+            </button>
           </div>
         </div>
         </div>
@@ -636,14 +645,14 @@ export const BulkScanReview = () => {
           <span style={{ width: '3.5rem', height: '3.5rem', borderRadius: '50%', background: '#DCFCE7', color: '#15803D', display: 'grid', placeItems: 'center' }}>
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
           </span>
-          <h2 style={{ margin: 0, fontSize: '1.0625rem', fontWeight: 700 }}>No students need fixes</h2>
+          <h2 style={{ margin: 0, fontSize: '1.0625rem', fontWeight: 700 }}>{group === 'ready' ? 'No students are ready yet' : group === 'check' ? 'No students to check' : 'No students need fixes'}</h2>
           <p style={{ margin: 0, fontSize: '0.875rem', color: MUTED, lineHeight: 1.5 }}>
-            Every student in this upload has the required details. Show all students to open each form and confirm it.
+            {group === 'ready' ? 'Students become ready once their details are complete. Show all students to see what is left.' : group === 'check' ? 'No student in this upload looks like a duplicate. Show all students to open each form and confirm it.' : 'Every student in this upload has the required details. Show all students to open each form and confirm it.'}
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '0.5rem' }}>
-            <span style={{ border: `0.0625rem solid ${LINE}`, background: '#fff', borderRadius: '999px', padding: '0.1875rem 0.75rem', fontSize: '0.75rem' }}>Showing: Needs fixes</span>
+            <span style={{ border: `0.0625rem solid ${LINE}`, background: '#fff', borderRadius: '999px', padding: '0.1875rem 0.75rem', fontSize: '0.75rem' }}>Showing: {group === 'ready' ? 'Ready' : group === 'check' ? 'To check' : 'Needs fixes'}</span>
           </div>
-          <button type="button" onClick={() => setOnlyFixes(false)} style={{ ...primaryBtn, padding: '0.5rem 1.125rem', fontSize: '0.8125rem' }}>Show all students</button>
+          <button type="button" onClick={showAll} style={{ ...primaryBtn, padding: '0.5rem 1.125rem', fontSize: '0.8125rem' }}>Show all students</button>
         </div>
       )}
 
