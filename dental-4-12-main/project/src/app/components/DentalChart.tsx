@@ -355,6 +355,19 @@ export const DentalChart = () => {
     setYearMenuIdx(idx);
   };
   const headerRowRef = useRef<HTMLDivElement | null>(null);
+  // The pinned student switcher floats over the title row, so the row reserves
+  // exactly the switcher's current width (it grows with long surnames) and the
+  // Export PDF button sits right beside it.
+  const switcherRef = useRef<HTMLDivElement | null>(null);
+  const [switcherWidth, setSwitcherWidth] = useState(0);
+  useEffect(() => {
+    const el = switcherRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => setSwitcherWidth(el.offsetWidth));
+    ro.observe(el);
+    setSwitcherWidth(el.offsetWidth);
+    return () => ro.disconnect();
+  });
   // Wraps the record body for the PDF export, excluding the sticky toolbar —
   // a downloaded patient record should not carry Edit/Save buttons.
   const recordRef = useRef<HTMLDivElement | null>(null);
@@ -1742,7 +1755,7 @@ export const DentalChart = () => {
           reserves room on its right so nothing sits under the switcher. */}
       <div className="sticky z-40 h-0 !mb-0 pointer-events-none" style={{ top: TOPBAR_H }}>
         <div className="absolute right-0 top-3">
-          <div className="pointer-events-auto hidden sm:flex h-9 items-stretch rounded-lg border-2 border-sidebar-bg bg-white overflow-hidden shadow-sm">
+          <div ref={switcherRef} className="pointer-events-auto hidden sm:flex h-9 items-stretch rounded-lg border-2 border-sidebar-bg bg-white overflow-hidden shadow-sm">
             <button
               onClick={() => goToStudent(prevPatient)}
               disabled={!prevPatient}
@@ -1770,14 +1783,14 @@ export const DentalChart = () => {
           </div>
         </div>
       </div>
-      <div ref={headerRowRef} className="pt-3 pb-2 sm:pr-80">
+      <div ref={headerRowRef} className="pt-3 pb-2" style={switcherWidth ? { paddingRight: switcherWidth + 12 } : undefined}>
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-3 min-w-0">
           <Link to={backPath} className="p-2 hover:bg-gray-100 rounded-lg shrink-0">
             <ArrowLeft className="w-4 h-4 text-muted-foreground" />
           </Link>
           <div className="min-w-0">
-            <h1 className="text-lg font-bold text-foreground">Individual Patient Treatment Record</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">Individual Patient Treatment Record</h1>
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -1800,7 +1813,7 @@ export const DentalChart = () => {
               className="flex h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-60"
             >
               <Download className="h-4 w-4" />
-              {pdfBusy ? 'Preparing…' : 'Download PDF'}
+              {pdfBusy ? 'Preparing…' : 'Export PDF'}
               <ChevronDown className={`h-3.5 w-3.5 transition-transform ${pdfMenuOpen ? 'rotate-180' : ''}`} />
             </button>
             {pdfMenuOpen && (
