@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link, useSearchParams } from 'react-router';
-import { Calendar as CalendarIcon, CalendarClock, ChevronDown, ChevronLeft, ChevronRight, Plus, X, Check, FileText, Mars, Venus, MoreVertical, Trash2, StickyNote, Pencil } from 'lucide-react';
+import { Calendar as CalendarIcon, CalendarClock, ChevronDown, ChevronLeft, ChevronRight, Plus, X, Check, FileText, Mars, Venus, MoreVertical, Trash2, StickyNote, Pencil, Search, Scissors, Sparkles, Repeat, Wrench, Ellipsis, Users, type LucideIcon } from 'lucide-react';
 import { getGradeColor } from '../utils/gradeColors';
 import { useAppointments, type AppointmentSession } from '../hooks/useAppointments';
 import { useDayNotes } from '../hooks/useDayNotes';
@@ -21,8 +21,21 @@ import { SchoolRotationTab } from './SchoolRotation';
 /** Fixed options plus a free-text escape hatch — the clinic's actual visit
  *  types are not a closed set, and forcing everything into these six used to
  *  mean picking the closest lie. */
-const APPOINTMENT_TYPES = ['Regular Checkup', 'Screening', 'Bayanihan Mission', 'Fluoride Application', 'Extraction', 'Follow-up'];
+const APPOINTMENT_TYPES: { name: string; icon: LucideIcon }[] = [
+  { name: 'Oral Screening', icon: Search },
+  { name: 'Extraction', icon: Scissors },
+  { name: 'Oral Prophylaxis', icon: Sparkles },
+  { name: 'Follow-up Treatment', icon: Repeat },
+  { name: 'Tooth Restoration', icon: Wrench },
+];
 const OTHER_TYPE = 'Other';
+const BAYANIHAN_TYPE = 'Bayanihan Mission';
+// Display order: the five clinical types, Other, then Bayanihan last.
+const TYPE_TILES: { name: string; icon: LucideIcon }[] = [
+  ...APPOINTMENT_TYPES,
+  { name: OTHER_TYPE, icon: Ellipsis },
+  { name: BAYANIHAN_TYPE, icon: Users },
+];
 
 
 const TODAY = toLocalDateString(new Date());
@@ -1368,22 +1381,26 @@ export const Appointments = () => {
                   <label className="block text-xs font-medium text-muted-foreground mb-2">
                     Appointment Type <span className="font-normal">(pick any that apply)</span>
                   </label>
-                  <div className="flex flex-wrap gap-2">
-                    {[...APPOINTMENT_TYPES, OTHER_TYPE].map(t => {
+                  <div className="grid grid-cols-2 gap-2">
+                    {TYPE_TILES.map(({ name: t, icon: Icon }) => {
                       const selected = appointmentTypes.includes(t);
                       return (
                         <button
                           key={t}
                           type="button"
+                          aria-pressed={selected}
                           onClick={() => setAppointmentTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                          className={`relative flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left text-sm font-medium transition-colors ${
+                            t === BAYANIHAN_TYPE ? 'col-span-2 ' : ''
+                          }${
                             selected
-                              ? 'bg-primary text-white border-primary'
+                              ? 'bg-primary/10 text-primary border-primary ring-1 ring-primary'
                               : 'bg-card text-foreground border-border hover:bg-gray-50'
                           }`}
                         >
-                          {selected && <Check className="w-3 h-3" />}
-                          {t === OTHER_TYPE ? 'Other' : t}
+                          <Icon className="w-4 h-4 shrink-0" />
+                          <span className="flex-1">{t}</span>
+                          {selected && <Check className="w-4 h-4 shrink-0" />}
                         </button>
                       );
                     })}

@@ -36,7 +36,7 @@ import mongoose from "mongoose";
  */
 const CONFIRM = process.argv.includes("--confirm");
 
-const TYPES = ["Regular Checkup", "Screening", "Fluoride Application", "Follow-up"] as const;
+const TYPES = ["Oral Screening", "Oral Prophylaxis", "Tooth Restoration", "Follow-up Treatment"] as const;
 
 /** Local midnight `days` from today, then the given hour — never UTC, so a
  *  seeded "today" is today in the clinic's timezone and not yesterday. */
