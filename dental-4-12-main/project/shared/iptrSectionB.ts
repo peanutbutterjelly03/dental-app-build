@@ -75,6 +75,27 @@ export function sectionBRows(charted: ChartedTooth[]): SectionBRow[] {
   ];
 }
 
+/** The conditions the paper form's Section B has no row for (Unerupted,
+ *  Supernumerary, Jacket Crown, Pontic, Root Fragment), for the Dental Chart
+ *  tab only. ⚠ Deliberately NOT appended to `sectionBRows`: IptrFormV2 prints
+ *  that list, and the official form keeps exactly its own rows. Each row
+ *  spans both dentitions (`Un` and `un` are the same finding on a permanent
+ *  and a primary tooth). */
+export const OTHER_CONDITION_ROWS: { label: string; code: string }[] = [
+  { label: 'No. of Unerupted Teeth (Un/un)', code: 'un' },
+  { label: 'No. of Supernumerary Teeth (S/s)', code: 's' },
+  { label: 'No. of Jacket Crowns (JC/jc)', code: 'jc' },
+  { label: 'No. of Pontics (P/p)', code: 'p' },
+  { label: 'No. of Root Fragments (RF/rf)', code: 'rf' },
+];
+
+export function otherConditionRows(charted: ChartedTooth[]): SectionBRow[] {
+  return OTHER_CONDITION_ROWS.map(({ label, code }) => ({
+    label,
+    teeth: charted.filter((t) => t.condition?.toLowerCase() === code).map((t) => t.tooth).sort((a, b) => a - b),
+  }));
+}
+
 /** Which TEETH carry each treatment code, ascending — not just how many.
  *  "3 fillings" without saying which three is not what the dentist or the form
  *  is asking. Sorted numerically so 8 does not come after 46. */

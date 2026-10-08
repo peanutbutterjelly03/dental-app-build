@@ -39,6 +39,7 @@ import { emptyMed, medDraftFrom, emptyDiet, emptyOral, oralConditionChips, servi
 import type { ReferralType, ApiAppointment } from '../api/types';
 import {
   sectionBRows,
+  otherConditionRows,
   teethByTreatment as teethByTreatmentCode,
   hasCaries,
   type ChartedTooth,
@@ -759,7 +760,7 @@ export const DentalChart = () => {
     })),
     [currentChart],
   );
-  const indicateNumberRows = useMemo(() => sectionBRows(chartedTeeth), [chartedTeeth]);
+  const indicateNumberRows = useMemo(() => [...sectionBRows(chartedTeeth), ...otherConditionRows(chartedTeeth)], [chartedTeeth]);
   const treatmentTeeth = useMemo(() => teethByTreatmentCode(chartedTeeth), [chartedTeeth]);
   // Treatment Summary's Visit 1 / Visit 2 columns (2026-09-25) -- the shared
   // teethByTreatment function is untouched (IptrFormV2's printed Form 1 also
