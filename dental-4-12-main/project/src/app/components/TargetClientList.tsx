@@ -9,8 +9,9 @@ import { useRPCTracking, SOUND_TEMPORARY, SOUND_PERMANENT } from '../hooks/useRP
 import type { VisitServices } from '../../../shared/rpcTracking';
 import { SkeletonTable } from './Skeleton';
 import { Calendar, CalendarDays, CalendarRange, Clock } from 'lucide-react';
-import { PanelShell, PanelRow, GroupBox, Underlined, PeriodSwitch, fieldInputClass, ActionGroup, ActionButton, BOX_W } from './ReportControls';
+import { PanelShell, PanelRow, GroupBox, Underlined, PeriodSwitch, fieldInputClass, ActionGroup, ExportMenu, BOX_W } from './ReportControls';
 import { RangePicker } from './RangePicker';
+import { downloadBlob } from '../utils/exportCsv';
 import { formatDate, toLocalDateString } from '../utils/localDate';
 import { buildSheetsXlsx } from '../utils/exportXlsx';
 import { usePreviewModal } from '../hooks/usePreviewModal';
@@ -391,7 +392,8 @@ export const TargetClientList = () => {
   const [rangeStart, setRangeStart] = useState(() => toLocalDateString(new Date()));
   const [rangeEnd, setRangeEnd] = useState(() => toLocalDateString(new Date()));
 
-  const { preview, building, previewPdf, previewExcel, closePreview, confirmDownload } = usePreviewModal();
+  const { preview, building, previewPdf, closePreview, confirmDownload } = usePreviewModal();
+  const [xlsxBusy, setXlsxBusy] = useState(false);
   const [orals, setOrals] = useState<ApiOralHealthCondition[]>([]);
   const [iptrs, setIptrs] = useState<ApiStudentIptr[]>([]);
 
@@ -605,8 +607,12 @@ export const TargetClientList = () => {
     previewPdf('Target Client List', `${exportBaseName}.pdf`, () => buildPagesPdf(els, LONG_BOND_LANDSCAPE));
   };
 
-  const onXlsx = () => {
-    previewExcel('Target Client List', `${exportBaseName}.xlsx`, async () => {
+  // Excel downloads straight away (user-approved Print menu, 2026-10-08); the
+  // PDF is the one that opens a preview first.
+  const onXlsx = async () => {
+    setXlsxBusy(true);
+    try {
+      const blob = await (async () => {
       // `row: null` is one of the form's blank ruled rows — numbered, empty.
       type XlsxRow = { row: Row | null; i: number };
       const svc = (c: (typeof visibleServices)[number]) => ({
@@ -642,7 +648,11 @@ export const TargetClientList = () => {
         { name: 'Page 1', rows, columns: page1 },
         { name: 'Page 2', rows, columns: page2 },
       ]);
-    });
+      })();
+      downloadBlob(blob, `${exportBaseName}.xlsx`);
+    } finally {
+      setXlsxBusy(false);
+    }
   };
 
   if (studentsLoading || rpcLoading) return <SkeletonTable rows={8} />;
@@ -967,8 +977,9 @@ export const TargetClientList = () => {
             )}
           </GroupBox>
           <ActionGroup>
-            <ActionButton kind="excel" caption="For the City Health Office" onClick={onXlsx} disabled={visible.length === 0} busy={building} />
-            <ActionButton kind="pdf" caption="The exact two-page form" onClick={onPdf} busy={building} />
+            {/* Print / PDF (preview first) / Excel (downloads). Excel stays first in
+                importance: the City Health Office requires it (decided 2026-09-03). */}
+            <ExportMenu busy={xlsxBusy || (building && preview.kind === 'pdf')} onPrint={() => window.print()} onPdf={onPdf} onExcel={() => { void onXlsx(); }} excelDisabledReason={visible.length === 0 ? 'No clients' : undefined} />
           </ActionGroup>
         </PanelRow>
         <p className="sr-only" aria-live="polite">Showing {periodLabel}, {visible.length} client{visible.length !== 1 ? 's' : ''}</p>

@@ -215,8 +215,10 @@ const OUTPUTS = [
 
 /** Print (right half of the joined pair): a menu of Print, PDF (opens a
  *  preview first) and Excel (downloads straight away). */
-export function ExportMenu({ onPrint, onPdf, onExcel, busy, joined = false }: {
+export function ExportMenu({ onPrint, onPdf, onExcel, busy, joined = false, excelDisabledReason }: {
   onPrint: () => void; onPdf: () => void; onExcel: () => void; busy?: boolean; joined?: boolean;
+  /** When set, the Excel tile is disabled and shows this reason instead of "Download". */
+  excelDisabledReason?: string;
 }) {
   const [open, setOpen] = useState(false);
   const box = useDismiss(open, () => setOpen(false));
@@ -232,11 +234,11 @@ export function ExportMenu({ onPrint, onPdf, onExcel, busy, joined = false }: {
       {open && (
         <div className="absolute right-0 top-full z-40 mt-2 grid w-[335px] max-w-[calc(100vw-2rem)] grid-cols-3 gap-2 rounded-2xl border border-[#dfe6f4] bg-white p-2.5 shadow-[0_18px_34px_-14px_rgba(20,33,61,0.45)]">
           {OUTPUTS.map(({ k, label, cap, icon: I, chip, text, bd }) => (
-            <button key={k} type="button" disabled={busy && k !== 'print'} onClick={() => { setOpen(false); go[k](); }}
+            <button key={k} type="button" disabled={(busy && k !== 'print') || (k === 'excel' && !!excelDisabledReason)} onClick={() => { setOpen(false); go[k](); }}
               className={`rounded-xl border-[1.5px] ${bd} px-1.5 py-3 text-center hover:bg-[#f7f9fd] disabled:opacity-60`}>
               <span className={`mx-auto mb-1.5 flex h-9 w-9 items-center justify-center rounded-[11px] ${chip}`}><I className="h-[18px] w-[18px]" aria-hidden="true" /></span>
               <span className={`block text-[13px] font-bold ${text}`}>{label}</span>
-              <span className="block text-[10.5px] text-[#7a859b]">{cap}</span>
+              <span className="block text-[10.5px] text-[#7a859b]">{k === 'excel' && excelDisabledReason ? excelDisabledReason : cap}</span>
             </button>
           ))}
         </div>
