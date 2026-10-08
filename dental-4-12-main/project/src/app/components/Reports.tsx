@@ -841,7 +841,7 @@ export const Reports = () => {
         <div className="space-y-3">
           <PanelShell>
             <PanelRow>
-              <GroupBox title="School year" className={BOX_W}>{yearSelect}</GroupBox>
+              <GroupBox title="School year" className="w-full lg:w-auto lg:px-6">{yearSelect}</GroupBox>
               {hasSecondary && (
                 <GroupBox title="Grades" className={BOX_W}>
                   <PeriodTiles<GradeBand> full icons name="Grade band" value={gradeBand} onChange={setGradeBand} options={GRADE_BAND_TILES} />

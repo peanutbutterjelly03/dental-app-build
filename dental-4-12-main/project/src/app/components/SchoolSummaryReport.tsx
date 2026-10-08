@@ -8,7 +8,7 @@ import { buildXlsx } from '../utils/exportXlsx';
 import { usePreviewModal } from '../hooks/usePreviewModal';
 import { PreviewModal } from './PreviewModal';
 import type { ReactNode } from 'react';
-import { PanelShell, PanelRow, GroupBox, ExportMenu, FiltersButton, FilterChip, BOX_W } from './ReportControls';
+import { PanelShell, PanelRow, GroupBox, ExportMenu, FiltersButton, FilterChip } from './ReportControls';
 import { PeriodDatesBoxes } from './PeriodDatesBoxes';
 import { downloadBlob } from '../utils/exportCsv';
 
@@ -196,7 +196,7 @@ export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null 
       </div>
       <PanelRow>
         <PeriodDatesBoxes />
-        <GroupBox title="School year" className={BOX_W}>{yearPicker}</GroupBox>
+        <GroupBox title="School year" className="w-full lg:w-auto lg:px-6">{yearPicker}</GroupBox>
       </PanelRow>
       {activeFilters > 0 && (
         <div className="mt-4 flex flex-wrap items-center gap-2">
