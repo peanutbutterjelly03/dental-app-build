@@ -791,18 +791,18 @@ export const Root = () => {
             white, not red (red is reserved for the real app's confirm-modal
             icon, which FLORAL doesn't have a matching dialog for). */}
         <div className={`h-px ${SB.divider} mx-8 ${collapsed ? "md:mx-2" : ""}`} />
-        <div className="pt-2 px-8 pb-5">
+        <div className="px-8 py-7">
           {/* Real spec hides this WHOLE block when collapsed (avatar included,
               not just the name/role text) -- CSS-based (md:hidden), not a JS
               conditional, so mobile (which ignores `collapsed`) still shows it
               regardless of whatever the flag was left at. */}
-          <div className={`flex items-center gap-2.5 pb-[5px] pt-2.5 mb-1 ${collapsed ? 'md:justify-center' : ''}`}>
-            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] ${SB.avatar} text-[0.875rem] font-bold ${collapsed ? 'md:hidden' : ''}`} style={{ color: SB.avatarColor }}>
+          <div className={`flex items-center gap-3 ${collapsed ? 'md:justify-center' : ''}`}>
+            <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[11px] ${SB.avatar} text-[1rem] font-bold ${collapsed ? 'md:hidden' : ''}`} style={{ color: SB.avatarColor }}>
               {user.name.charAt(0).toUpperCase()}
             </span>
             <div className={`min-w-0 flex-1 flex flex-col ${collapsed ? 'md:hidden' : ''}`}>
-              <strong className={`text-[0.6875rem] font-bold ${SB.userName} truncate`}>{user.name}</strong>
-              <span className={`mt-[2.5px] text-[0.625rem] ${SB.sub} capitalize`}>{user.role.replace('_', ' ')}</span>
+              <strong className={`text-[0.875rem] font-bold ${SB.userName} truncate`}>{user.name}</strong>
+              <span className={`mt-[3px] text-[0.75rem] ${SB.sub} capitalize`}>{user.role.replace('_', ' ')}</span>
             </div>
             {NOTIFIED_ROLES.includes(user.role) && (
               <Link
@@ -810,13 +810,13 @@ export const Root = () => {
                 onClick={() => { setDrawerOpen(false); resetStudentsClicks(); }}
                 title="Notifications"
                 aria-label={notifTotal > 0 ? `Notifications, ${notifTotal} new` : 'Notifications'}
-                className={`relative ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] transition-colors ${
+                className={`relative ml-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-[11px] transition-colors ${
                   isTabActive('/notifications')
                     ? SB.active
                     : SB.bellIdle
                 }`}
               >
-                <Bell className="w-[1.125rem] h-[1.125rem]" />
+                <Bell className="w-[1.375rem] h-[1.375rem]" />
                 {notifTotal > 0 && (
                   <span className="absolute -right-1 -top-1 min-w-[1.0625rem] rounded-full bg-danger-surface px-1 text-center text-[0.625rem] font-bold leading-[1.0625rem] tabular-nums text-destructive">
                     {notifTotal > 99 ? '99+' : notifTotal}
