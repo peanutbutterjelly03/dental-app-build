@@ -84,8 +84,8 @@ export function UnderlineTabs<T extends string>({ value, onChange, options, name
           const on = v === value;
           return (
             <button key={v} type="button" role="tab" aria-selected={on} onClick={() => onChange(v)}
-              className={`flex items-center gap-1.5 whitespace-nowrap border-b-[3px] pb-3 pt-4 text-[14px] ${on ? 'border-[#f3c33d] font-bold text-primary' : 'border-transparent font-semibold text-muted-foreground hover:text-foreground'}`}>
-              <I className="h-4 w-4" aria-hidden="true" />{label}
+              className={`flex items-center gap-1.5 whitespace-nowrap border-b-[3px] pb-3 pt-4 text-[12.5px] ${on ? 'border-[#f3c33d] font-bold text-primary' : 'border-transparent font-semibold text-muted-foreground hover:text-foreground'}`}>
+              <I className="h-3.5 w-3.5" aria-hidden="true" />{label}
             </button>
           );
         })}
