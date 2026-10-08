@@ -9,7 +9,7 @@ import { useRPCTracking, SOUND_TEMPORARY, SOUND_PERMANENT } from '../hooks/useRP
 import type { VisitServices } from '../../../shared/rpcTracking';
 import { SkeletonTable } from './Skeleton';
 import { Calendar, CalendarDays, CalendarRange, Clock } from 'lucide-react';
-import { PanelShell, PanelRow, GroupBox, Underlined, PeriodSwitch, fieldInputClass, ActionGroup, ExportMenu, BOX_W } from './ReportControls';
+import { PanelShell, PanelRow, GroupBox, Underlined, PeriodSwitch, fieldInputClass, ExportMenu, BOX_W } from './ReportControls';
 import { RangePicker } from './RangePicker';
 import { downloadBlob } from '../utils/exportCsv';
 import { formatDate, toLocalDateString } from '../utils/localDate';
@@ -976,11 +976,11 @@ export const TargetClientList = () => {
               </div>
             )}
           </GroupBox>
-          <ActionGroup>
+          <div className="flex self-start lg:ml-auto">
             {/* Print / PDF (preview first) / Excel (downloads). Excel stays first in
                 importance: the City Health Office requires it (decided 2026-09-03). */}
             <ExportMenu busy={xlsxBusy || (building && preview.kind === 'pdf')} onPrint={() => window.print()} onPdf={onPdf} onExcel={() => { void onXlsx(); }} excelDisabledReason={visible.length === 0 ? 'No clients' : undefined} />
-          </ActionGroup>
+          </div>
         </PanelRow>
         <p className="sr-only" aria-live="polite">Showing {periodLabel}, {visible.length} client{visible.length !== 1 ? 's' : ''}</p>
       </PanelShell>
