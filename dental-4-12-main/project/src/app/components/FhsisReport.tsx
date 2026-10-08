@@ -2,8 +2,9 @@ import { useRef, useState } from 'react';
 import { usePrintOrientation } from '../hooks/usePrintOrientation';
 import { Calendar, CalendarDays, CalendarRange, Clock } from 'lucide-react';
 import { RangePicker } from './RangePicker';
+import { downloadBlob } from '../utils/exportCsv';
 import { formatDate, toLocalDateString } from '../utils/localDate';
-import { PanelShell, PanelRow, GroupBox, Underlined, PeriodSwitch, fieldInputClass, ActionGroup, ActionButton, BOX_W } from './ReportControls';
+import { PanelShell, PanelRow, GroupBox, Underlined, PeriodSwitch, fieldInputClass, ExportMenu, BOX_W } from './ReportControls';
 import { useFhsisData, FHSIS_BANDS, type FhsisBandKey, type Measure } from '../hooks/useFhsisData';
 import { buildDohReportPdf } from '../utils/exportPdf';
 import { buildXlsx } from '../utils/exportXlsx';
@@ -101,7 +102,8 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
   const { key: month, short: periodShort, printed: periodPrinted } = describePeriod(kind, pick, year, rangeStart, rangeEnd);
   const { counts, monthsWithData, loading, error } = useFhsisData(month, schoolName);
   const printableRef = useRef<HTMLDivElement>(null);
-  const { preview, building, previewPdf, previewExcel, closePreview, confirmDownload } = usePreviewModal();
+  const { preview, building, previewPdf, closePreview, confirmDownload } = usePreviewModal();
+  const [xlsxBusy, setXlsxBusy] = useState(false);
 
   /** Filename stamped with school + month, so downloads are distinguishable
    *  once several months are filed. */
@@ -117,8 +119,12 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
   // the downloaded workbook makes the identical claims as the report. Writing
   // 0 where the screen says "—" would quietly turn "not recorded" into
   // "examined none" the moment it left the app.
-  const onXlsx = () => {
-    previewExcel('FHSIS Section D', `${baseName}.xlsx`, async () => {
+  // Excel downloads straight away (user-approved Print menu, 2026-10-08); the
+  // PDF is the one that opens a preview first.
+  const onXlsx = async () => {
+    setXlsxBusy(true);
+    try {
+      const blob = await (async () => {
       type Row = { indicator: string; male: string; female: string; total: string; remarks: string };
       const rows: Row[] = [];
       const dash = { male: '—', female: '—', total: '—', remarks: 'not recorded' };
@@ -166,7 +172,11 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
         ],
         'FHSIS Section D',
       );
-    });
+      })();
+      downloadBlob(blob, `${baseName}.xlsx`);
+    } finally {
+      setXlsxBusy(false);
+    }
   };
 
   const monthHasVisits = (m: number) => monthsWithData.includes(`${year}-${pad(m)}`);
@@ -203,10 +213,11 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
           </div>
           )}
         </GroupBox>
-        <ActionGroup>
-          <ActionButton kind="excel" caption="For the City Health Office" onClick={onXlsx} disabled={loading || !!error} busy={building && preview.kind === 'excel'} />
-          <ActionButton kind="pdf" caption="To email or keep" onClick={onPdf} disabled={loading || !!error} busy={building && preview.kind === 'pdf'} />
-        </ActionGroup>
+        <div className="flex self-start lg:ml-auto">
+          {/* Print / PDF (preview first) / Excel (downloads). */}
+          <ExportMenu busy={xlsxBusy || (building && preview.kind === 'pdf')} onPrint={() => window.print()} onPdf={onPdf} onExcel={() => { void onXlsx(); }}
+            excelDisabledReason={loading || error ? 'Loading' : undefined} pdfDisabledReason={loading || error ? 'Loading' : undefined} />
+        </div>
       </PanelRow>
       <p className="sr-only" aria-live="polite">Showing {periodShort}, {schoolName || 'all schools'}</p>
     </PanelShell>
