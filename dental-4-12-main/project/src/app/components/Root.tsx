@@ -88,7 +88,7 @@ const SB = {
 // Real working dropdown, matching RAMHIS's topbar.jsx exactly (sizes, radii,
 // the "Signed in as" panel) -- the avatar used to just open Change Password
 // directly with no menu at all.
-const UserMenu = ({ user, schoolLabel, onAccountSettings }: { user: { name: string; role: string }; schoolLabel: string; onAccountSettings: () => void }) => {
+const UserMenu = ({ user, schoolLabel, onAccountSettings, onLogout }: { user: { name: string; role: string }; schoolLabel: string; onAccountSettings: () => void; onLogout: () => void }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const firstLetter = user.name.charAt(0).toUpperCase();
@@ -154,30 +154,50 @@ const UserMenu = ({ user, schoolLabel, onAccountSettings }: { user: { name: stri
       </button>
 
       {open && (
-        <div className="absolute right-0 top-[calc(100%+10px)] w-[230px] overflow-hidden rounded-2xl border border-border bg-card p-2 shadow-[0_20px_50px_rgba(15,23,42,0.12)] z-10">
-          <div className="mb-2 border-b border-border px-3 py-3">
-            <span className="block text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Signed in as</span>
-            <strong className="mt-1 block truncate text-[13px] font-bold text-sidebar-bg">{user.name}</strong>
-            <span className="mt-0.5 block text-[11px] capitalize text-muted-foreground">{user.role.replace('_', ' ')}</span>
+        <div role="menu" className="absolute right-0 top-[calc(100%+10px)] z-10 w-[280px] overflow-hidden rounded-3xl border border-border bg-card shadow-[0_20px_50px_rgba(15,23,42,0.14)]">
+          {/* Identity header: navy, like the IPTR card. */}
+          <div className="flex items-center gap-3 bg-gradient-to-br from-sidebar-bg to-primary px-4 py-4 text-white">
+            <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-white/15 text-lg font-bold">{firstLetter}</span>
+            <div className="min-w-0">
+              <span className="block text-[10px] font-bold uppercase tracking-[0.14em] text-white/60">Signed in as</span>
+              <strong className="block truncate text-[15px] font-bold">{user.name}</strong>
+              <span className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-semibold capitalize">
+                <RoleIcon className="h-3 w-3" /> {user.role.replace('_', ' ')}
+              </span>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={() => { setOpen(false); onAccountSettings(); }}
-            className="flex h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] font-semibold text-muted-foreground transition-all duration-200 hover:bg-primary-surface hover:text-sidebar-bg"
-          >
-            <UserCog className="w-4 h-4 text-primary" />
-            <span>Account Settings</span>
-          </button>
-          {['system_admin', 'dentist', 'dental_aide'].includes(user.role) && (
+          <div className="p-2">
             <button
               type="button"
-              onClick={() => { setOpen(false); requestSyncReport(); }}
-              className="flex h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] font-semibold text-muted-foreground transition-all duration-200 hover:bg-primary-surface hover:text-sidebar-bg"
+              role="menuitem"
+              onClick={() => { setOpen(false); onAccountSettings(); }}
+              className="flex h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] font-semibold text-foreground transition-colors hover:bg-primary-surface"
             >
-              <History className="w-4 h-4 text-primary" />
-              <span>Sync report</span>
+              <UserCog className="h-4 w-4 text-primary" />
+              <span>Account Settings</span>
             </button>
-          )}
+            {['system_admin', 'dentist', 'dental_aide'].includes(user.role) && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => { setOpen(false); requestSyncReport(); }}
+                className="flex h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] font-semibold text-foreground transition-colors hover:bg-primary-surface"
+              >
+                <History className="h-4 w-4 text-primary" />
+                <span>Sync History</span>
+              </button>
+            )}
+            <div className="my-2 border-t border-border" />
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => { setOpen(false); onLogout(); }}
+              className="flex h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] font-semibold text-destructive transition-colors hover:bg-danger-surface"
+            >
+              <LogOut className="h-4 w-4" />
+              <span>Log out</span>
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -629,7 +649,7 @@ export const Root = () => {
           <span className="truncate text-base font-bold text-primary max-[420px]:hidden">FLORAL</span>
         </div>
         <SyncStatus schoolLabel={selectedSchool ? getSchoolShortName(selectedSchool) : 'All Schools'} />
-        <UserMenu user={user} schoolLabel={selectedSchool ? getSchoolAcronym(selectedSchool) : 'All Schools'} onAccountSettings={openChangePassword} />
+        <UserMenu user={user} schoolLabel={selectedSchool ? getSchoolAcronym(selectedSchool) : 'All Schools'} onAccountSettings={openChangePassword} onLogout={() => setConfirmLogout(true)} />
       </div>
 
       {/* DRAWER BACKDROP -- below md only */}

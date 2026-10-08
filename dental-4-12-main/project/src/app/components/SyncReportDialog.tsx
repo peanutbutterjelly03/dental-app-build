@@ -137,7 +137,7 @@ export const SyncReportDialog = () => {
       <div className="px-5 pt-5 pb-3 flex flex-wrap items-start gap-3">
         {counts.attention === 0 ? <CheckCircle2 className="h-6 w-6 flex-shrink-0 text-green-600" aria-hidden="true" /> : <AlertTriangle className="h-6 w-6 flex-shrink-0 text-amber-600" aria-hidden="true" />}
         <div className="min-w-0 flex-1">
-          <h2 className="text-lg font-semibold text-foreground">Sync report</h2>
+          <h2 className="text-lg font-semibold text-foreground">Sync History</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             {scope.kind === 'run'
               ? data?.firstSavedAt ? `Saved offline from ${dateTime(data.firstSavedAt)}. Synced automatically at ${time(data.syncedAt)}.` : 'Loading.'
