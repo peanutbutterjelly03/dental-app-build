@@ -154,7 +154,7 @@ const UserMenu = ({ user, schoolLabel, onAccountSettings, onLogout }: { user: { 
       </button>
 
       {open && (
-        <div role="menu" className="absolute right-0 top-[calc(100%+10px)] z-10 w-[290px] overflow-hidden rounded-[22px] border border-white/10 p-2.5 text-white shadow-[0_22px_54px_rgba(10,16,40,0.45)]" style={{ background: 'linear-gradient(160deg, #34469F 0%, #24316C 42%, #17234D 100%)' }}>
+        <div role="menu" className="absolute right-0 top-[calc(100%+10px)] z-10 w-[240px] overflow-hidden rounded-[20px] border border-white/10 p-2.5 text-white shadow-[0_22px_54px_rgba(10,16,40,0.45)]" style={{ background: 'linear-gradient(160deg, #34469F 0%, #24316C 42%, #17234D 100%)' }}>
           {/* Dark navy menu (user pick, 2026-10-08) in the avatar chip's own blue, with the gradient kept soft. */}
           <div className="flex items-center gap-3 px-2.5 pb-3.5 pt-2.5">
             <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-white/15 text-[15px] font-bold">{firstLetter}</span>
