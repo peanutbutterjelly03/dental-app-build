@@ -128,7 +128,7 @@ export function UnderlineTabs<T extends string>({ value, onChange, options, name
           const last = i === options.length - 1;
           return (
             <button key={v} type="button" role="tab" aria-selected={on} onClick={() => onChange(v)}
-              className={`flex flex-col whitespace-nowrap text-[11.5px] ${on ? 'font-bold text-primary' : 'font-semibold text-muted-foreground hover:text-foreground'}`}>
+              className={`flex flex-col whitespace-nowrap text-[12px] ${on ? 'font-bold text-primary' : 'font-semibold text-muted-foreground hover:text-foreground'}`}>
               <span className={`flex items-center gap-1.5 pb-3 pt-4 ${i === 0 ? 'pl-0' : 'pl-3'} ${last ? 'pr-[20px]' : 'pr-3'}`}>
                 <I className="h-3 w-3" aria-hidden="true" />{label}
               </span>
