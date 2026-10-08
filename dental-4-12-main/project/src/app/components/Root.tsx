@@ -57,7 +57,7 @@ const SB = {
     avatar: 'bg-primary-surface',
     avatarColor: '#4F63D9',
     userName: 'text-white',
-    bellIdle: 'text-white/70 hover:bg-white/10 hover:text-white',
+    bellIdle: 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white',
     logout: 'text-white/55 hover:text-white hover:bg-white/10',
   },
   sky: {
@@ -803,7 +803,7 @@ export const Root = () => {
               {user.name.charAt(0).toUpperCase()}
             </span>
             <div className={`min-w-0 flex-1 flex flex-col ${collapsed ? 'md:hidden' : ''}`}>
-              <strong className={`text-[0.875rem] font-bold ${SB.userName} truncate`}>{user.name}</strong>
+              <strong className={`text-[0.875rem] font-bold leading-tight ${SB.userName}`}>{user.name}</strong>
               <span className={`mt-[3px] text-[0.75rem] ${SB.sub} capitalize`}>{user.role.replace('_', ' ')}</span>
             </div>
             {NOTIFIED_ROLES.includes(user.role) && (
