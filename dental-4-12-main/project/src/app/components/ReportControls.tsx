@@ -1,12 +1,11 @@
 import type { ComponentType, ReactNode } from 'react';
-import { ChevronDown, CircleCheck, Download, FileSpreadsheet, FileText, Printer } from 'lucide-react';
+import { ChevronDown, FileSpreadsheet, FileText, Printer } from 'lucide-react';
 
-// One control panel for every Reports tab (user-approved layout + style,
-// 2026-10-08, "tinted band"): numbered steps side by side, the save/print
-// buttons as the last column, and a plain sentence confirming what the person
-// is looking at. Non-technical staff use
-// this, so every control carries an icon and a label ABOVE it (never inside).
-// Excel is always green, PDF orange, Print white — same order on every tab.
+// One control panel for every Reports tab (user-approved look, 2026-10-08,
+// "soft card"): a white panel under the tab strip with a soft shadow. Each
+// control is a tinted icon chip with a small caption above its value, thin
+// dividers between controls, and Excel / PDF / Print on the right.
+// Excel is always the green gradient, PDF soft orange, Print soft blue.
 //
 // ⚠ Show only controls that really filter the data and only buttons the tab
 // really supports (CLAUDE.md, NOTHING COSMETIC).
@@ -14,51 +13,53 @@ import { ChevronDown, CircleCheck, Download, FileSpreadsheet, FileText, Printer 
 type Icon = ComponentType<{ className?: string }>;
 
 /** Attached under the tab strip: -mt-4 cancels the page's space-y gap. The
- *  steps are flex items that wrap, so a tab with many steps (Internal Reports)
- *  drops to a second row instead of squeezing. */
+ *  controls are flex items that wrap, so a tab with many (Internal Reports)
+ *  drops to a second row instead of squeezing. `status` is read aloud by
+ *  screen readers when it changes and is not drawn (the controls already show
+ *  the choice). */
 export function ControlsPanel({ steps, status, actions }: { steps: ReactNode; status?: ReactNode; actions?: ReactNode }) {
   return (
-    <div className="doh-report-controls -mt-4 flex flex-wrap items-start gap-x-6 gap-y-2 rounded-b-2xl border border-t-0 border-border bg-gradient-to-b from-[#eaf0fb] to-[#f6f8fd] px-4 py-2.5">
+    <div className="doh-report-controls -mt-4 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-b-2xl border border-t-0 border-[#e1e7f3] bg-white px-4 py-3 shadow-[0_14px_30px_-18px_rgba(36,59,122,0.45)]">
       {steps}
-      {actions && <div className="min-w-0 lg:ml-auto">{actions}</div>}
-      {status && (
-        <div className="flex basis-full items-center gap-2 rounded-lg border border-[#d3dcf0] bg-white px-2.5 py-0.5 text-[12px] text-primary">
-          <CircleCheck className="h-4 w-4 flex-none" aria-hidden="true" />
-          <span className="min-w-0 [&_b]:font-bold [&_b]:text-foreground">{status}</span>
-        </div>
-      )}
+      {actions && <div className="flex min-w-0 flex-wrap gap-2 lg:ml-auto">{actions}</div>}
+      {status && <p className="sr-only" aria-live="polite">{status}</p>}
     </div>
   );
 }
 
-const stepLabel = 'mb-1 flex items-center gap-1.5 text-[12.5px] font-bold text-primary';
+const TONES = { blue: 'bg-[#e8eefc] text-primary', violet: 'bg-[#f1ecfd] text-[#6d4bd6]' } as const;
 
-export function Step({ n, label, children }: { n: number; label: string; children: ReactNode }) {
+/** One control: a coloured icon chip, a small caption, then the control. */
+export function Step({ icon: I, label, tone = 'blue', children }: {
+  icon: Icon; label: string; tone?: keyof typeof TONES; children: ReactNode;
+}) {
   return (
-    <div className="min-w-0 max-w-full">
-      <div className={stepLabel}>
-        <span className="flex h-[18px] w-[18px] flex-none items-center justify-center rounded-full bg-primary text-[10px] text-white">{n}</span>
-        {label}
+    <div className="flex min-w-0 max-w-full items-center gap-2.5 border-[#e4e9f3] sm:border-l sm:pl-4 sm:first:border-l-0 sm:first:pl-0">
+      <span className={`flex h-[26px] w-[26px] flex-none items-center justify-center rounded-lg ${TONES[tone]}`}>
+        <I className="h-4 w-4" aria-hidden="true" />
+      </span>
+      <div className="min-w-0">
+        <div className="text-[10.5px] font-bold uppercase tracking-[0.07em] text-muted-foreground">{label}</div>
+        {children}
       </div>
-      {children}
     </div>
   );
 }
 
 export interface TileOption<T extends string> { v: T; label: string; hint: string; icon: Icon }
 
-/** A segmented switch: one choice at a time, the chosen one solid. (Kept the
- *  PeriodTiles name; `icons` adds each option's icon for non-period choices.) */
+/** A soft segmented switch: one choice at a time, the chosen one a white chip.
+ *  (Kept the PeriodTiles name; `icons` adds each option's icon.) */
 export function PeriodTiles<T extends string>({ value, onChange, options, name, icons = false }: {
   value: T; onChange: (v: T) => void; options: TileOption<T>[]; name: string; icons?: boolean;
 }) {
   return (
-    <div role="radiogroup" aria-label={name} className="inline-flex max-w-full overflow-x-auto rounded-lg border-[1.5px] border-primary bg-white">
+    <div role="radiogroup" aria-label={name} className="mt-0.5 inline-flex max-w-full gap-0.5 overflow-x-auto rounded-xl bg-[#eef1f7] p-1">
       {options.map(({ v, label, hint, icon: I }) => {
         const on = v === value;
         return (
           <button key={v} type="button" role="radio" aria-checked={on} title={hint} onClick={() => onChange(v)}
-            className={`flex min-h-[44px] sm:min-h-[30px] items-center gap-1.5 whitespace-nowrap border-r border-[#c9d4ec] px-2.5 py-0.5 text-[12.5px] font-bold last:border-r-0 ${on ? 'bg-primary text-white' : 'text-primary hover:bg-primary/10'}`}>
+            className={`flex min-h-[40px] items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1 text-[13px] font-semibold sm:min-h-[28px] ${on ? 'bg-white text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
             {icons && <I className="h-4 w-4" aria-hidden="true" />}
             {label}
           </button>
@@ -68,39 +69,40 @@ export function PeriodTiles<T extends string>({ value, onChange, options, name, 
   );
 }
 
-/** A native <select> (or any native input) with its icon in front. The
- *  select's own border/background are stripped (the app's global select style
- *  would draw a second box inside this one) and a chevron is drawn instead;
- *  pass `chevron={false}` for a date input, which has its own picker icon. */
-export function Field({ icon: I, children, chevron = true }: { icon: Icon; children: ReactNode; chevron?: boolean }) {
+/** A native <select> (or any native input) shown as bold text with a chevron.
+ *  The select's own border/background are stripped (the app's global select
+ *  style would draw a box). Pass `chevron={false}` for a date input, which has
+ *  its own picker icon. */
+export function Field({ children, chevron = true }: { icon?: Icon; children: ReactNode; chevron?: boolean }) {
   return (
-    <div className="relative flex min-h-[44px] sm:min-h-[30px] min-w-[10rem] flex-1 items-center gap-2 rounded-lg border-[1.5px] border-primary bg-white px-3 focus-within:ring-2 focus-within:ring-ring">
-      <I className="h-4 w-4 flex-none text-primary" aria-hidden="true" />
+    <div className="relative flex min-h-[40px] items-center rounded-lg sm:min-h-[28px] focus-within:ring-2 focus-within:ring-ring">
       {children}
-      {chevron && <ChevronDown className="pointer-events-none absolute right-3 h-4 w-4 text-primary" aria-hidden="true" />}
+      {chevron && <ChevronDown className="pointer-events-none absolute right-0 h-4 w-4 text-muted-foreground" aria-hidden="true" />}
     </div>
   );
 }
-export const fieldInputClass = 'min-w-0 flex-1 appearance-none !border-0 !bg-transparent !p-0 !pr-6 !shadow-none py-0 text-[12.5px] font-bold text-primary focus:!outline-none';
+export const fieldInputClass = 'min-w-0 appearance-none !border-0 !bg-transparent !p-0 !pr-6 !shadow-none text-[14px] font-bold text-foreground focus:!outline-none';
 
-/** The last column. `n` numbers it like the steps; without it a save icon leads. */
-export function ActionBox({ title = 'Save this report', n, children }: { title?: string; n?: number; children: ReactNode }) {
+/** Same look as a Field, for a control that opens something (rows and grades). */
+export function ValueButton({ onClick, expanded, children }: { onClick: () => void; expanded: boolean; children: ReactNode }) {
   return (
-    <div>
-      <div className={stepLabel}>
-        {n ? <span className="flex h-[18px] w-[18px] flex-none items-center justify-center rounded-full bg-primary text-[10px] text-white">{n}</span>
-          : <Download className="h-4 w-4" aria-hidden="true" />}
-        {title}
-      </div>
-      <div className="flex flex-wrap gap-2">{children}</div>
-    </div>
+    <button type="button" onClick={onClick} aria-expanded={expanded}
+      className="flex min-h-[40px] items-center gap-1.5 text-[14px] font-bold text-foreground sm:min-h-[28px]">
+      {children}
+      <ChevronDown className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+    </button>
   );
+}
+
+/** The right-hand group of save buttons. */
+export function ActionBox({ children }: { children: ReactNode }) {
+  return <>{children}</>;
 }
 
 const KINDS = {
-  excel: { icon: FileSpreadsheet, label: 'Excel', cls: 'border-green-700 bg-green-700 text-white hover:bg-green-800' },
-  pdf: { icon: FileText, label: 'PDF', cls: 'border-orange-700 bg-white text-orange-700 hover:bg-orange-50' },
-  print: { icon: Printer, label: 'Print', cls: 'border-primary bg-white text-primary hover:bg-primary/10' },
+  excel: { icon: FileSpreadsheet, label: 'Excel', cls: 'bg-gradient-to-b from-[#1f9a52] to-[#16813f] text-white shadow-[0_6px_12px_-6px_rgba(22,129,63,0.7)] hover:brightness-95' },
+  pdf: { icon: FileText, label: 'PDF', cls: 'bg-[#fff3ea] text-[#c2410c] hover:bg-[#ffe8d6]' },
+  print: { icon: Printer, label: 'Print', cls: 'bg-[#eef2fb] text-primary hover:bg-[#e2e9f8]' },
 } as const;
 
 /** `caption` says what the file is for; shown as a tooltip to keep the bar short. */
@@ -111,7 +113,7 @@ export function ActionButton({ kind, caption, onClick, disabled, busy }: {
   const I = k.icon;
   return (
     <button type="button" onClick={onClick} disabled={disabled || busy} title={caption}
-      className={`flex min-h-[44px] sm:min-h-[30px] items-center gap-1.5 rounded-lg border-[1.5px] px-3 py-1 text-[12.5px] font-bold disabled:opacity-60 ${k.cls}`}>
+      className={`flex min-h-[44px] items-center gap-1.5 rounded-[10px] px-3.5 text-[13px] font-bold disabled:opacity-60 sm:min-h-[34px] ${k.cls}`}>
       <I className="h-4 w-4 flex-none" aria-hidden="true" />
       {busy ? 'Preparing…' : k.label}
     </button>

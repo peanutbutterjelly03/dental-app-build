@@ -81,7 +81,7 @@ export const ConsentForm = () => {
         steps={null}
         status={<>The blank consent form is ready to print — nothing is pre-filled.</>}
         actions={
-          <ActionBox title="Print this form">
+          <ActionBox>
             <ActionButton kind="print" caption="Send to the printer" onClick={() => window.print()} />
             <ActionButton kind="pdf" caption="To email or keep" onClick={onPdf} busy={building} />
           </ActionBox>

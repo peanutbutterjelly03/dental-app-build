@@ -8,6 +8,7 @@ import { buildXlsx } from '../utils/exportXlsx';
 import { usePreviewModal } from '../hooks/usePreviewModal';
 import { PreviewModal } from './PreviewModal';
 import type { ReactNode } from 'react';
+import { Calendar } from 'lucide-react';
 import { ControlsPanel, Step, ActionBox, ActionButton } from './ReportControls';
 
 // ─── Per-school summary sheet ────────────────────────────────────────────────
@@ -153,11 +154,11 @@ export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null 
 
   const panel = (
     <ControlsPanel
-      steps={<Step n={1} label="Which school year?">{yearPicker}</Step>}
+      steps={<Step icon={Calendar} label="School year">{yearPicker}</Step>}
       status={<>You are viewing <b>{schoolName ?? 'all schools'}</b> · <b>{schoolYear ? `school year ${schoolYear}` : 'all years to date'}</b></>}
       actions={
         // PDF *and* Excel: aggregate counts, no patient names, bounded width (Sprint 85).
-        <ActionBox n={2} title="Save this summary">
+        <ActionBox>
           <ActionButton kind="excel" caption="Open in Excel" onClick={onXlsx} disabled={loading || !!error} busy={building && preview.kind === 'excel'} />
           <ActionButton kind="pdf" caption="To email or keep" onClick={onPdf} disabled={loading || !!error} busy={building && preview.kind === 'pdf'} />
         </ActionBox>

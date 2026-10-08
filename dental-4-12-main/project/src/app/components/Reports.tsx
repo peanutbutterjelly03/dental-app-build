@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { FileBarChart, FileSpreadsheet, FileText, AlertTriangle, AlertCircle, CheckCircle, Users, Calendar, CalendarDays, CalendarRange, GraduationCap, UserRound, VenusAndMars, SlidersHorizontal, Stethoscope, Activity, LayoutDashboard, X } from 'lucide-react';
-import { ControlsPanel, Step, PeriodTiles, Field, fieldInputClass, ActionBox, ActionButton, type TileOption } from './ReportControls';
+import { ControlsPanel, Step, PeriodTiles, Field, fieldInputClass, ValueButton, ActionBox, ActionButton, type TileOption } from './ReportControls';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ChartTooltip } from './ChartTooltip';
 import { LiveUpdatedStamp } from './LiveUpdatedStamp';
@@ -735,18 +735,16 @@ export const Reports = () => {
           <ControlsPanel
             steps={
               <>
-                <Step n={1} label="Which school year?">{yearSelect}</Step>
+                <Step icon={Calendar} label="School year">{yearSelect}</Step>
                 {hasSecondary && (
-                  <Step n={2} label="Which grades?">
+                  <Step icon={GraduationCap} label="Grades">
                     <PeriodTiles<GradeBand> icons name="Grade band" value={gradeBand} onChange={setGradeBand} options={GRADE_BAND_TILES} />
                   </Step>
                 )}
-                <Step n={hasSecondary ? 3 : 2} label="Hide rows or grades? (optional)">
-                  <button type="button" onClick={() => setShowDohPicker((v) => !v)} aria-expanded={showDohPicker}
-                    className="flex min-h-[44px] sm:min-h-[30px] items-center gap-1.5 rounded-lg border-[1.5px] border-primary bg-white px-3 text-[12.5px] font-bold text-primary hover:bg-primary/10">
-                    <SlidersHorizontal className="h-4 w-4 text-primary" aria-hidden="true" />
-                    {showDohPicker ? 'Done' : `Rows & grades${dohHiddenCount ? ` (${dohHiddenCount} hidden)` : ''}`}
-                  </button>
+                <Step icon={SlidersHorizontal} tone="violet" label="Rows and grades">
+                  <ValueButton onClick={() => setShowDohPicker((v) => !v)} expanded={showDohPicker}>
+                    {showDohPicker ? 'Done' : dohHiddenCount ? `${dohHiddenCount} hidden` : 'All shown'}
+                  </ValueButton>
                 </Step>
               </>
             }
@@ -758,7 +756,7 @@ export const Reports = () => {
               <LiveUpdatedStamp at={dohLastUpdated} />
             </>}
             actions={
-              <ActionBox n={hasSecondary ? 4 : 3}>
+              <ActionBox>
                 <ActionButton kind="excel" caption="For the City Health Office" onClick={handleDownloadExcel} busy={building && preview.kind === 'excel'} />
                 <ActionButton kind="pdf" caption="To email or keep" onClick={handleDownloadPdf} busy={building && preview.kind === 'pdf'} />
                 <ActionButton kind="print" caption="Send to the printer" onClick={() => window.print()} />
@@ -1007,11 +1005,11 @@ export const Reports = () => {
           <ControlsPanel
             steps={
               <>
-                <Step n={1} label="What do you want to see?">
+                <Step icon={LayoutDashboard} label="Report">
                   <PeriodTiles<'treatment' | 'conditions' | 'admin'> icons name="Report section" value={internalSection} onChange={setInternalSection} options={SECTION_TILES} />
                 </Step>
                 {internalSection !== 'conditions' && (
-                  <Step n={2} label="How long a period?">
+                  <Step icon={CalendarRange} label="Show by">
                     <div className="flex flex-wrap gap-2">
                     <PeriodTiles<'monthly' | 'quarterly' | 'biannual' | 'annual'> name="Period length" value={periodType} onChange={setPeriodType} options={PERIOD_TILES} />
                       {periodType !== 'annual' && (
@@ -1020,8 +1018,8 @@ export const Reports = () => {
                             value={periodType === 'monthly' ? reportMonth : periodType === 'quarterly' ? Math.floor((reportMonth - 1) / 3) + 1 : reportMonth < 7 ? 1 : 2}
                             onChange={e => { const n = Number(e.target.value); setReportMonth(periodType === 'monthly' ? n : periodType === 'quarterly' ? (n - 1) * 3 + 1 : (n - 1) * 6 + 1); }}>
                             {periodType === 'monthly' && MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
-                            {periodType === 'quarterly' && [1, 2, 3, 4].map(q => <option key={q} value={q}>Quarter {q} ({MONTHS[(q - 1) * 3].slice(0, 3)} – {MONTHS[q * 3 - 1].slice(0, 3)})</option>)}
-                            {periodType === 'biannual' && [1, 2].map(h => <option key={h} value={h}>{h === 1 ? '1st half (Jan – Jun)' : '2nd half (Jul – Dec)'}</option>)}
+                            {periodType === 'quarterly' && [1, 2, 3, 4].map(q => <option key={q} value={q}>Quarter {q} ({MONTHS[(q - 1) * 3].slice(0, 3)} to {MONTHS[q * 3 - 1].slice(0, 3)})</option>)}
+                            {periodType === 'biannual' && [1, 2].map(h => <option key={h} value={h}>{h === 1 ? '1st half (Jan to Jun)' : '2nd half (Jul to Dec)'}</option>)}
                           </select>
                         </Field>
                       )}
@@ -1034,7 +1032,7 @@ export const Reports = () => {
                   </Step>
                 )}
                 {internalSection !== 'admin' && (
-                  <Step n={internalSection === 'conditions' ? 2 : 3} label="Which students?">
+                  <Step icon={UserRound} tone="violet" label="Students">
                     <div className="flex flex-wrap gap-2">
                       <Field icon={UserRound}>
                         <select aria-label="Age" value={intAgeFilter} onChange={e => { setIntAgeFilter(e.target.value); setIntGradeFilter('all'); }} className={fieldInputClass}>
@@ -1076,7 +1074,7 @@ export const Reports = () => {
               {internalSection !== 'admin' && hasIntFilters && <> · filtered</>}
             </>}
             actions={
-              <ActionBox title="Print this page">
+              <ActionBox>
                 <ActionButton kind="print" caption="Send to the printer" onClick={() => window.print()} />
               </ActionBox>
             }

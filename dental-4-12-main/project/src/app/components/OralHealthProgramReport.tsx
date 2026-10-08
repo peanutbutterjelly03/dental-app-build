@@ -19,8 +19,8 @@ import { buildXlsx } from '../utils/exportXlsx';
 import { usePreviewModal } from '../hooks/usePreviewModal';
 import { PreviewModal } from './PreviewModal';
 import type { ReactNode } from 'react';
-import { SlidersHorizontal } from 'lucide-react';
-import { ControlsPanel, Step, ActionBox, ActionButton } from './ReportControls';
+import { Calendar, SlidersHorizontal } from 'lucide-react';
+import { ControlsPanel, Step, ValueButton, ActionBox, ActionButton } from './ReportControls';
 
 /** What a no-source cell says in the exported workbook — the same mark the
  *  screen shows, so the file makes the identical claims as the report. */
@@ -567,19 +567,17 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null, 
       <ControlsPanel
         steps={
           <>
-            <Step n={1} label="Which school year?">{yearPicker}</Step>
-            <Step n={2} label="Hide rows or columns? (optional)">
-              <button type="button" onClick={() => setShowPicker((v) => !v)} aria-expanded={showPicker}
-                className="flex min-h-[44px] sm:min-h-[30px] items-center gap-1.5 rounded-lg border-[1.5px] border-primary bg-white px-3 text-[12.5px] font-bold text-primary hover:bg-primary/10">
-                <SlidersHorizontal className="h-4 w-4 text-primary" aria-hidden="true" />
-                {showPicker ? 'Done' : `Rows & columns${hiddenCount ? ` (${hiddenCount} hidden)` : ''}`}
-              </button>
+            <Step icon={Calendar} label="School year">{yearPicker}</Step>
+            <Step icon={SlidersHorizontal} tone="violet" label="Rows and columns">
+              <ValueButton onClick={() => setShowPicker((v) => !v)} expanded={showPicker}>
+                {showPicker ? 'Done' : hiddenCount ? `${hiddenCount} hidden` : 'All shown'}
+              </ValueButton>
             </Step>
           </>
         }
         status={<>You are viewing <b>{schoolYear ? `school year ${schoolYear}` : 'all years to date'}</b> · {schoolName ?? 'all schools'}</>}
         actions={
-          <ActionBox n={3}>
+          <ActionBox>
             <ActionButton kind="excel" caption="For the City Health Office" onClick={onXlsx} busy={building && preview.kind === 'excel'} />
             <ActionButton kind="pdf" caption="To email or keep" onClick={onPdf} busy={building && preview.kind === 'pdf'} />
           </ActionBox>

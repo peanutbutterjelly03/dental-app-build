@@ -931,10 +931,10 @@ export const TargetClientList = () => {
       <ControlsPanel
         steps={
           <>
-            <Step n={1} label="How long a period?">
+            <Step icon={CalendarRange} label="Show by">
               <PeriodTiles<Period> name="Period length" value={period} onChange={setPeriod} options={PERIOD_TILES} />
             </Step>
-            <Step n={2} label="Pick any day in that period">
+            <Step icon={Calendar} label="A day in the period">
               <div className="flex flex-wrap gap-2">
                 <Field icon={Calendar} chevron={false}>
                   <input type="date" aria-label="A day inside the period" value={anchor}
@@ -946,7 +946,7 @@ export const TargetClientList = () => {
         }
         status={<>You are viewing <b>{periodLabel}</b> · <b>{visible.length}</b> client{visible.length !== 1 ? 's' : ''} consulted{selectedSchool ? ' · selected school' : ' · all schools'}</>}
         actions={
-          <ActionBox n={3} title="Save this list">
+          <ActionBox>
             <ActionButton kind="excel" caption="For the City Health Office" onClick={onXlsx} disabled={visible.length === 0} busy={building} />
             <ActionButton kind="pdf" caption="The exact two-page form" onClick={onPdf} busy={building} />
           </ActionBox>

@@ -80,7 +80,7 @@ function describePeriod(kind: PeriodKind, pick: number, year: number) {
   const first = kind === 'month' ? pick : kind === 'quarter' ? (pick - 1) * 3 + 1 : kind === 'half' ? (pick - 1) * 6 + 1 : 1;
   const last = kind === 'month' ? pick : kind === 'quarter' ? first + 2 : kind === 'half' ? first + 5 : 12;
   const key = first === last ? `${year}-${pad(first)}` : `${year}-${pad(first)}..${year}-${pad(last)}`;
-  const short = first === last ? `${MONTH_NAMES[first - 1]} ${year}` : `${MONTH_NAMES[first - 1].slice(0, 3)} – ${MONTH_NAMES[last - 1].slice(0, 3)} ${year}`;
+  const short = first === last ? `${MONTH_NAMES[first - 1]} ${year}` : `${MONTH_NAMES[first - 1].slice(0, 3)} to ${MONTH_NAMES[last - 1].slice(0, 3)} ${year}`;
   // Printed in the form's "Month:" slot, worded like the workbook's sheet names.
   const printed = kind === 'month' ? `${MONTH_NAMES[pick - 1].toUpperCase()} ${year}`
     : kind === 'quarter' ? `${ORDINALS[pick - 1].toUpperCase()} QUARTER ${year}`
@@ -174,21 +174,21 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
     <ControlsPanel
       steps={
         <>
-          <Step n={1} label="How long a period?">
+          <Step icon={CalendarRange} label="Show by">
             <PeriodTiles name="Period length" value={kind} options={PERIOD_TILES}
               onChange={(k) => { setKind(k); setPick(k === 'month' ? now.getMonth() + 1 : 1); }} />
           </Step>
-          <Step n={2} label={kind === 'year' ? 'Which year?' : 'Which one?'}>
-            <div className="flex flex-wrap gap-2">
+          <Step icon={Calendar} label={kind === 'year' ? 'Year' : 'Period'}>
+            <div className="flex flex-wrap gap-4">
               {kind !== 'year' && (
                 <Field icon={Calendar}>
                   <select aria-label="Period" value={pick} onChange={(e) => setPick(Number(e.target.value))} className={fieldInputClass}>
                     {kind === 'month' && MONTH_NAMES.map((m, i) => (
                       <option key={m} value={i + 1}>{m}{monthHasVisits(i + 1) ? '  ● has visits' : ''}</option>))}
                     {kind === 'quarter' && [1, 2, 3, 4].map((q) => (
-                      <option key={q} value={q}>{ORDINALS[q - 1]} Quarter ({MONTH_NAMES[(q - 1) * 3].slice(0, 3)} – {MONTH_NAMES[q * 3 - 1].slice(0, 3)})</option>))}
+                      <option key={q} value={q}>{ORDINALS[q - 1]} Quarter ({MONTH_NAMES[(q - 1) * 3].slice(0, 3)} to {MONTH_NAMES[q * 3 - 1].slice(0, 3)})</option>))}
                     {kind === 'half' && [1, 2].map((h) => (
-                      <option key={h} value={h}>{ORDINALS[h - 1]} Semi-Annual ({h === 1 ? 'Jan – Jun' : 'Jul – Dec'})</option>))}
+                      <option key={h} value={h}>{ORDINALS[h - 1]} Semi-Annual ({h === 1 ? 'Jan to Jun' : 'Jul to Dec'})</option>))}
                   </select>
                 </Field>
               )}
@@ -203,7 +203,7 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
       }
       status={<>You are viewing <b>{periodShort}</b> · <b>{visits}</b> visit{visits === 1 ? '' : 's'} counted · {schoolName || 'All schools'}</>}
       actions={
-        <ActionBox n={3}>
+        <ActionBox>
           <ActionButton kind="excel" caption="For the City Health Office" onClick={onXlsx} disabled={loading || !!error} busy={building && preview.kind === 'excel'} />
           <ActionButton kind="pdf" caption="To email or keep" onClick={onPdf} disabled={loading || !!error} busy={building && preview.kind === 'pdf'} />
         </ActionBox>
