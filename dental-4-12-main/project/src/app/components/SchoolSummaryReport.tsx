@@ -8,7 +8,8 @@ import { buildXlsx } from '../utils/exportXlsx';
 import { usePreviewModal } from '../hooks/usePreviewModal';
 import { PreviewModal } from './PreviewModal';
 import type { ReactNode } from 'react';
-import { PanelShell, PanelRow, GroupBox, ActionGroup, ActionButton, BOX_W } from './ReportControls';
+import { PanelShell, PanelRow, GroupBox, ActionGroup, ExportMenu, BOX_W } from './ReportControls';
+import { downloadBlob } from '../utils/exportCsv';
 
 // ─── Per-school summary sheet ────────────────────────────────────────────────
 // Transcribed from the scan the user supplied 2026-09-03, headed "SOUTH DAANG
@@ -108,7 +109,8 @@ export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null 
   usePrintOrientation('portrait');
   const { tally, unsexedCount, loading, error } = useSchoolSummary(schoolName, schoolYear);
   const printableRef = useRef<HTMLDivElement>(null);
-  const { preview, building, previewPdf, previewExcel, closePreview, confirmDownload } = usePreviewModal();
+  const { preview, building, previewPdf, closePreview, confirmDownload } = usePreviewModal();
+  const [xlsxBusy, setXlsxBusy] = useState(false);
 
   const rows = useMemo(
     () => ROWS.map((row) => ({
@@ -131,12 +133,15 @@ export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null 
     previewPdf('School Summary Report', `${exportBaseName}.pdf`, () => buildDohReportPdf(el));
   };
 
-  const onXlsx = () => {
-    previewExcel('School Summary Report', `${exportBaseName}.xlsx`, () =>
+  // Excel downloads straight away (user-approved Print menu, 2026-10-08); the
+  // PDF is the one that opens a preview first.
+  const onXlsx = async () => {
+    setXlsxBusy(true);
+    try {
       // Writes exactly what the screen shows, "—" included. Turning a "—" into
       // 0 in a workbook converts "no source" into "none found" the moment the
       // file leaves the app (Sprint 85's rule).
-      buildXlsx(
+      const blob = await buildXlsx(
         rows,
         [
           { label: schoolName ?? 'All schools', value: (r) => r.label },
@@ -147,18 +152,21 @@ export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null 
           { label: 'TOTAL', value: (r) => show(r.female.teeth) },
         ],
         'School Summary',
-      ),
-    );
+      );
+      downloadBlob(blob, `${exportBaseName}.xlsx`);
+    } finally {
+      setXlsxBusy(false);
+    }
   };
 
   const panel = (
     <PanelShell>
       <PanelRow>
         <GroupBox title="School year" className={BOX_W}>{yearPicker}</GroupBox>
-        {/* PDF *and* Excel: aggregate counts, no patient names, bounded width (Sprint 85). */}
+        {/* Print / PDF / Excel in one menu. Aggregate counts, no patient names,
+            bounded width (Sprint 85). */}
         <ActionGroup>
-          <ActionButton kind="excel" caption="Open in Excel" onClick={onXlsx} disabled={loading || !!error} busy={building && preview.kind === 'excel'} />
-          <ActionButton kind="pdf" caption="To email or keep" onClick={onPdf} disabled={loading || !!error} busy={building && preview.kind === 'pdf'} />
+          <ExportMenu busy={xlsxBusy || (building && preview.kind === 'pdf')} onPrint={() => window.print()} onPdf={onPdf} onExcel={() => { void onXlsx(); }} />
         </ActionGroup>
       </PanelRow>
       <p className="sr-only" aria-live="polite">Showing {schoolName ?? 'all schools'}, {schoolYear ? `school year ${schoolYear}` : 'all years to date'}</p>
