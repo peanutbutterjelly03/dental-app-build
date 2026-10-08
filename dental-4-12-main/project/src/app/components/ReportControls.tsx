@@ -19,7 +19,7 @@ type Icon = ComponentType<{ className?: string }>;
  *  the choice). */
 export function ControlsPanel({ steps, status, actions }: { steps: ReactNode; status?: ReactNode; actions?: ReactNode }) {
   return (
-    <div className="doh-report-controls -mt-4 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-b-2xl border border-t-0 border-[#e1e7f3] bg-white px-4 py-3 shadow-[0_14px_30px_-18px_rgba(36,59,122,0.45)]">
+    <div className="doh-report-controls -mt-4 flex flex-wrap items-center gap-x-4 gap-y-4 rounded-b-2xl border border-t-0 border-[#e1e7f3] bg-white px-5 py-5 sm:min-h-[92px] shadow-[0_14px_30px_-18px_rgba(36,59,122,0.45)]">
       {steps}
       {actions && <div className="flex min-w-0 flex-wrap gap-2 lg:ml-auto">{actions}</div>}
       {status && <p className="sr-only" aria-live="polite">{status}</p>}
@@ -54,12 +54,12 @@ export function PeriodTiles<T extends string>({ value, onChange, options, name, 
   value: T; onChange: (v: T) => void; options: TileOption<T>[]; name: string; icons?: boolean;
 }) {
   return (
-    <div role="radiogroup" aria-label={name} className="mt-0.5 inline-flex max-w-full gap-0.5 overflow-x-auto rounded-xl bg-[#eef1f7] p-1">
+    <div role="radiogroup" aria-label={name} className="inline-flex max-w-full gap-0.5 overflow-x-auto rounded-xl bg-[#eef1f7] p-1">
       {options.map(({ v, label, hint, icon: I }) => {
         const on = v === value;
         return (
           <button key={v} type="button" role="radio" aria-checked={on} title={hint} onClick={() => onChange(v)}
-            className={`flex min-h-[40px] items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1 text-[13px] font-semibold sm:min-h-[28px] ${on ? 'bg-white text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
+            className={`flex h-8 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-[13px] font-semibold sm:h-7 ${on ? 'bg-white text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
             {icons && <I className="h-4 w-4" aria-hidden="true" />}
             {label}
           </button>
@@ -75,19 +75,19 @@ export function PeriodTiles<T extends string>({ value, onChange, options, name, 
  *  its own picker icon. */
 export function Field({ children, chevron = true }: { icon?: Icon; children: ReactNode; chevron?: boolean }) {
   return (
-    <div className="relative flex min-h-[40px] items-center rounded-lg sm:min-h-[28px] focus-within:ring-2 focus-within:ring-ring">
+    <div className="relative flex h-10 items-center rounded-lg sm:h-9 focus-within:ring-2 focus-within:ring-ring">
       {children}
       {chevron && <ChevronDown className="pointer-events-none absolute right-0 h-4 w-4 text-muted-foreground" aria-hidden="true" />}
     </div>
   );
 }
-export const fieldInputClass = 'min-w-0 appearance-none !border-0 !bg-transparent !p-0 !pr-6 !shadow-none text-[14px] font-bold text-foreground focus:!outline-none';
+export const fieldInputClass = 'h-full min-w-0 appearance-none !border-0 !bg-transparent !p-0 !pr-6 !shadow-none text-[14px] font-bold text-foreground focus:!outline-none';
 
 /** Same look as a Field, for a control that opens something (rows and grades). */
 export function ValueButton({ onClick, expanded, children }: { onClick: () => void; expanded: boolean; children: ReactNode }) {
   return (
     <button type="button" onClick={onClick} aria-expanded={expanded}
-      className="flex min-h-[40px] items-center gap-1.5 text-[14px] font-bold text-foreground sm:min-h-[28px]">
+      className="flex h-10 items-center gap-1.5 text-[14px] font-bold text-foreground sm:h-9">
       {children}
       <ChevronDown className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
     </button>
@@ -113,7 +113,7 @@ export function ActionButton({ kind, caption, onClick, disabled, busy }: {
   const I = k.icon;
   return (
     <button type="button" onClick={onClick} disabled={disabled || busy} title={caption}
-      className={`flex min-h-[44px] items-center gap-1.5 rounded-[10px] px-3.5 text-[13px] font-bold disabled:opacity-60 sm:min-h-[34px] ${k.cls}`}>
+      className={`flex h-11 items-center gap-1.5 rounded-[10px] px-4 text-[13px] font-bold disabled:opacity-60 sm:h-10 ${k.cls}`}>
       <I className="h-4 w-4 flex-none" aria-hidden="true" />
       {busy ? 'Preparing…' : k.label}
     </button>
