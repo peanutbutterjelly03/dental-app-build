@@ -8,7 +8,7 @@ import { useStudents } from '../hooks/useStudents';
 import { useRPCTracking, SOUND_TEMPORARY, SOUND_PERMANENT } from '../hooks/useRPCTracking';
 import type { VisitServices } from '../../../shared/rpcTracking';
 import { SkeletonTable } from './Skeleton';
-import { Calendar, CalendarDays, CalendarRange } from 'lucide-react';
+import { Calendar, CalendarDays, CalendarRange, Clock } from 'lucide-react';
 import { PanelShell, PanelRow, GroupBox, Underlined, PeriodSwitch, fieldInputClass, ActionGroup, ActionButton, BOX_W } from './ReportControls';
 import { RangePicker } from './RangePicker';
 import { formatDate, toLocalDateString } from '../utils/localDate';
@@ -937,11 +937,11 @@ export const TargetClientList = () => {
           consultation date. */}
       <PanelShell>
         <PanelRow>
-          <GroupBox title="Time period" className={BOX_W}>
+          <GroupBox title="Time period" icon={Clock} className={BOX_W}>
             <PeriodSwitch<Period> name="Time period" value={period} onChange={setPeriod}
               options={[{ v: 'range', kind: 'range' }, { v: 'monthly', kind: 'month' }, { v: 'quarterly', kind: 'quarter' }, { v: 'half', kind: 'half' }, { v: 'annual', kind: 'year' }]} />
           </GroupBox>
-          <GroupBox title="Dates" className="w-full lg:w-auto lg:px-6">
+          <GroupBox title="Dates" icon={CalendarDays} className="w-full lg:w-auto lg:px-6">
             {period === 'range' ? (
               <RangePicker start={rangeStart} end={rangeEnd} onChange={(a, b) => { setRangeStart(a); setRangeEnd(b); }} />
             ) : (

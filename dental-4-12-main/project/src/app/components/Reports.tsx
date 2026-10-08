@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { FileBarChart, FileSpreadsheet, FileText, AlertTriangle, AlertCircle, CheckCircle, Users, Calendar, CalendarDays, CalendarRange, GraduationCap, UserRound, VenusAndMars, SlidersHorizontal, Stethoscope, Activity, LayoutDashboard, X } from 'lucide-react';
+import { Clock, FileBarChart, FileSpreadsheet, FileText, AlertTriangle, AlertCircle, CheckCircle, Users, Calendar, CalendarDays, CalendarRange, GraduationCap, UserRound, VenusAndMars, SlidersHorizontal, Stethoscope, Activity, LayoutDashboard, X } from 'lucide-react';
 import { ExportMenu, PeriodTiles, PeriodSwitch, fieldInputClass, ActionButton, PanelShell, PanelRow, ActionGroup, GreyButton, BOX_W, UnderlineTabs, GroupBox, Underlined, FiltersButton, FilterChip, type TileOption } from './ReportControls';
 import { RangePicker } from './RangePicker';
 import { buildXlsx, buildSheetsXlsx } from '../utils/exportXlsx';
@@ -841,7 +841,7 @@ export const Reports = () => {
         <div className="space-y-3">
           <PanelShell>
             <PanelRow>
-              <GroupBox title="School year" className="w-full lg:w-auto lg:px-6">{yearSelect}</GroupBox>
+              <GroupBox title="School year" icon={GraduationCap} className="w-full lg:w-auto lg:px-6">{yearSelect}</GroupBox>
               {hasSecondary && (
                 <GroupBox title="Grades" className={BOX_W}>
                   <PeriodTiles<GradeBand> full icons name="Grade band" value={gradeBand} onChange={setGradeBand} options={GRADE_BAND_TILES} />
@@ -1129,11 +1129,11 @@ export const Reports = () => {
             {internalSection !== 'conditions' && (
             <div className="flex flex-wrap items-center gap-x-4 gap-y-5 pt-6">
                   <>
-                    <GroupBox title="Time period" className="w-full lg:w-[400px]">
+                    <GroupBox title="Time period" icon={Clock} className="w-full lg:w-[400px]">
                       <PeriodSwitch<PeriodKind> name="Time period" value={periodType} onChange={setPeriodType}
                         options={[{ v: 'range', kind: 'range' }, { v: 'monthly', kind: 'month' }, { v: 'quarterly', kind: 'quarter' }, { v: 'biannual', kind: 'half' }, { v: 'annual', kind: 'year' }]} />
                     </GroupBox>
-                    <GroupBox title="Dates" className="w-full lg:w-auto lg:px-6">
+                    <GroupBox title="Dates" icon={CalendarDays} className="w-full lg:w-auto lg:px-6">
                       {periodType === 'range' ? (
                         <RangePicker start={rangeStart} end={rangeEnd} onChange={(a, b) => { setRangeStart(a); setRangeEnd(b); }} />
                       ) : (

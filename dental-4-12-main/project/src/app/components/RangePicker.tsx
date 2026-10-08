@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowRightFromLine, ArrowRightToLine, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatDate, toLocalDateString } from '../utils/localDate';
 import { Underlined } from './ReportControls';
 
@@ -53,10 +53,10 @@ export function RangePicker({ start, end, onChange }: Props) {
 
   return (
     <div ref={box} className="relative flex w-full gap-5 lg:w-auto lg:gap-6">
-      <Underlined label="From" icon={Calendar}>
+      <Underlined label="From" labelIcon={ArrowRightFromLine} icon={Calendar}>
         <button type="button" className={fieldBtn} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((o) => !o)}>{formatDate(start)}</button>
       </Underlined>
-      <Underlined label="To" icon={Calendar}>
+      <Underlined label="To" labelIcon={ArrowRightToLine} icon={Calendar}>
         <button type="button" className={fieldBtn} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((o) => !o)}>{formatDate(end)}</button>
       </Underlined>
       {open && (

@@ -8,6 +8,7 @@ import { buildXlsx } from '../utils/exportXlsx';
 import { usePreviewModal } from '../hooks/usePreviewModal';
 import { PreviewModal } from './PreviewModal';
 import type { ReactNode } from 'react';
+import { GraduationCap } from 'lucide-react';
 import { PanelShell, PanelRow, GroupBox, ExportMenu, FiltersButton, FilterChip } from './ReportControls';
 import { PeriodDatesBoxes } from './PeriodDatesBoxes';
 import { downloadBlob } from '../utils/exportCsv';
@@ -176,8 +177,10 @@ export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null 
   ];
   const panel = (
     <PanelShell>
-      <div className="flex justify-end pt-4">
-        <div className="flex">
+      <PanelRow>
+        <PeriodDatesBoxes />
+        <GroupBox title="School year" icon={GraduationCap} className="w-full lg:w-auto lg:px-6">{yearPicker}</GroupBox>
+        <div className="flex lg:ml-auto">
           <FiltersButton count={activeFilters}>
             {filterDefs.map((f) => (
               <div key={f.label}>
@@ -193,10 +196,6 @@ export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null 
               Aggregate counts, no patient names, bounded width (Sprint 85). */}
           <ExportMenu joined busy={xlsxBusy || (building && preview.kind === 'pdf')} onPrint={() => window.print()} onPdf={onPdf} onExcel={() => { void onXlsx(); }} />
         </div>
-      </div>
-      <PanelRow>
-        <PeriodDatesBoxes />
-        <GroupBox title="School year" className="w-full lg:w-auto lg:px-6">{yearPicker}</GroupBox>
       </PanelRow>
       {activeFilters > 0 && (
         <div className="mt-4 flex flex-wrap items-center gap-2">

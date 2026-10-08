@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Calendar } from 'lucide-react';
+import { Calendar, CalendarDays, Clock } from 'lucide-react';
 import { GroupBox, PeriodSwitch, Underlined, fieldInputClass, type PeriodKindName } from './ReportControls';
 import { RangePicker } from './RangePicker';
 import { toLocalDateString } from '../utils/localDate';
@@ -45,10 +45,10 @@ export function PeriodDatesBoxes({ onChange }: { onChange?: (v: PeriodDatesValue
 
   return (
     <>
-      <GroupBox title="Time period" className="w-full lg:w-[400px]">
+      <GroupBox title="Time period" icon={Clock} className="w-full lg:w-[400px]">
         <PeriodSwitch<PeriodKindName> name="Time period" value={kind} onChange={changeKind} options={KINDS} />
       </GroupBox>
-      <GroupBox title="Dates" className="w-full lg:w-auto lg:px-6">
+      <GroupBox title="Dates" icon={CalendarDays} className="w-full lg:w-auto lg:px-6">
         {kind === 'range' ? (
           <RangePicker start={rangeStart} end={rangeEnd} onChange={(a, b) => { setRangeStart(a); setRangeEnd(b); emit('range', pick, year, a, b); }} />
         ) : (

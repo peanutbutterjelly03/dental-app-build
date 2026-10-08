@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ComponentType, type ReactNode } from 'react';
-import { ChevronDown, Filter, FileSpreadsheet, FileText, Printer, X } from 'lucide-react';
+import { CalendarCheck, CalendarClock, CalendarDays, Calendar as CalendarIcon, CalendarRange, ChevronDown, Filter, FileSpreadsheet, FileText, Printer, X } from 'lucide-react';
 
 // Parts of the control panel on every Reports tab (user-approved look,
 // 2026-10-08): a white card attached under the tab strip (PanelShell) holding
@@ -16,12 +16,12 @@ type Icon = ComponentType<{ className?: string }>;
 export interface TileOption<T extends string> { v: T; label: string; hint: string; icon: Icon }
 
 export type PeriodKindName = 'range' | 'month' | 'quarter' | 'half' | 'year';
-const SPANS: Record<PeriodKindName, { label: string; caption: string; months: number | null }> = {
-  range: { label: 'Range', caption: 'Pick dates', months: null },
-  month: { label: 'Month', caption: '1 month', months: 1 },
-  quarter: { label: 'Quarter', caption: '3 months', months: 3 },
-  half: { label: 'Half', caption: '6 months', months: 6 },
-  year: { label: 'Year', caption: '12 months', months: 12 },
+const SPANS: Record<PeriodKindName, { label: string; caption: string; months: number | null; icon: Icon }> = {
+  range: { label: 'Range', caption: 'Pick dates', months: null, icon: CalendarRange },
+  month: { label: 'Month', caption: '1 month', months: 1, icon: CalendarIcon },
+  quarter: { label: 'Quarter', caption: '3 months', months: 3, icon: CalendarDays },
+  half: { label: 'Half', caption: '6 months', months: 6, icon: CalendarClock },
+  year: { label: 'Year', caption: '12 months', months: 12, icon: CalendarCheck },
 };
 
 /** The Time period switch (user pick "A", 2026-10-08): five separate tiles, the
@@ -40,7 +40,7 @@ export function PeriodSwitch<T extends string>({ value, onChange, options, name 
         return (
           <button key={v} type="button" role="radio" aria-checked={on} title={sp.caption} onClick={() => onChange(v)}
             className={`min-w-0 rounded-[10px] border-[1.5px] px-1.5 py-2 text-center ${on ? 'border-primary bg-primary text-white' : 'border-[#dfe5f0] bg-white text-primary hover:border-[#c9d4ec] hover:bg-primary/5'}`}>
-            <div className="text-[12.5px] font-bold">{sp.label}</div>
+            <div className="flex items-center justify-center gap-1 text-[12.5px] font-bold"><sp.icon className="h-3.5 w-3.5" aria-hidden="true" />{sp.label}</div>
             <div className={`text-[10.5px] font-normal ${on ? 'text-[#c9d4ec]' : 'text-[#7a859b]'}`}>{sp.caption}</div>
             {sp.months === null ? (
               <div aria-hidden="true" className="mt-1.5 h-1.5 rounded-sm" style={{ background: `repeating-linear-gradient(90deg, ${on ? '#fff' : '#9fb0d6'} 0 4px, transparent 4px 6px)` }} />
@@ -145,20 +145,20 @@ export function UnderlineTabs<T extends string>({ value, onChange, options, name
 
 /** A fieldset-style box: the title is cut into its border. Every box is the
  *  same height so a row of them lines up. */
-export function GroupBox({ title, children, className = '' }: { title: string; children: ReactNode; className?: string }) {
+export function GroupBox({ title, icon: I, children, className = '' }: { title: string; icon?: Icon; children: ReactNode; className?: string }) {
   return (
     <div className={`relative flex min-h-[86px] items-center rounded-[14px] border border-[#dfe5f0] bg-white px-3.5 pb-1 pt-2 ${className}`}>
-      <span className="absolute -top-2 left-3 bg-white px-1.5 text-[10.5px] font-bold uppercase tracking-[0.07em] text-muted-foreground">{title}</span>
+      <span className="absolute -top-2 left-3 flex items-center gap-1 bg-white px-1.5 text-[10.5px] font-bold uppercase tracking-[0.07em] text-muted-foreground">{I && <I className="h-3 w-3" aria-hidden="true" />}{title}</span>
       {children}
     </div>
   );
 }
 
 /** A caption over an underlined field: the native control goes inside. */
-export function Underlined({ label, icon: I, chevron = false, children }: { label?: string; icon: Icon; chevron?: boolean; children: ReactNode }) {
+export function Underlined({ label, labelIcon: L, icon: I, chevron = false, children }: { label?: string; labelIcon?: Icon; icon: Icon; chevron?: boolean; children: ReactNode }) {
   return (
     <div className="relative min-w-0 flex-1 lg:min-w-[9rem] lg:flex-none">
-      {label && <div className="text-[9.5px] font-bold uppercase tracking-[0.07em] text-muted-foreground">{label}</div>}
+      {label && <div className="flex items-center gap-1 text-[9.5px] font-bold uppercase tracking-[0.07em] text-muted-foreground">{L && <L className="h-3 w-3" aria-hidden="true" />}{label}</div>}
       <div className="relative flex h-9 items-center gap-2 border-b-[1.5px] border-primary">
         <I className="h-4 w-4 flex-none text-primary" aria-hidden="true" />
         {children}

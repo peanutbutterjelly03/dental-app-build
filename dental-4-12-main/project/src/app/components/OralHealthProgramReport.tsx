@@ -19,7 +19,7 @@ import { buildXlsx } from '../utils/exportXlsx';
 import { usePreviewModal } from '../hooks/usePreviewModal';
 import { PreviewModal } from './PreviewModal';
 import type { ReactNode } from 'react';
-import { SlidersHorizontal } from 'lucide-react';
+import { GraduationCap, SlidersHorizontal } from 'lucide-react';
 import { PanelShell, PanelRow, GroupBox, ActionGroup, GreyButton, ActionButton } from './ReportControls';
 
 /** What a no-source cell says in the exported workbook — the same mark the
@@ -566,7 +566,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null, 
           *and* Excel: aggregate counts, no names, bounded width. */}
       <PanelShell>
         <PanelRow>
-          <GroupBox title="School year" className="w-full lg:w-auto lg:px-6">{yearPicker}</GroupBox>
+          <GroupBox title="School year" icon={GraduationCap} className="w-full lg:w-auto lg:px-6">{yearPicker}</GroupBox>
           <ActionGroup>
             <GreyButton icon={SlidersHorizontal} expanded={showPicker} onClick={() => setShowPicker((v) => !v)}>
               {showPicker ? 'Done' : `Rows and columns: ${hiddenCount ? `${hiddenCount} hidden` : 'all shown'}`}

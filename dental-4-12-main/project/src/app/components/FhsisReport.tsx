@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { usePrintOrientation } from '../hooks/usePrintOrientation';
-import { Calendar, CalendarDays, CalendarRange } from 'lucide-react';
+import { Calendar, CalendarDays, CalendarRange, Clock } from 'lucide-react';
 import { RangePicker } from './RangePicker';
 import { formatDate, toLocalDateString } from '../utils/localDate';
 import { PanelShell, PanelRow, GroupBox, Underlined, PeriodSwitch, fieldInputClass, ActionGroup, ActionButton, BOX_W } from './ReportControls';
@@ -173,12 +173,12 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
   const panel = (
     <PanelShell>
       <PanelRow>
-        <GroupBox title="Time period" className={BOX_W}>
+        <GroupBox title="Time period" icon={Clock} className={BOX_W}>
           <PeriodSwitch<PeriodKind> name="Time period" value={kind}
             options={[{ v: 'range', kind: 'range' }, { v: 'month', kind: 'month' }, { v: 'quarter', kind: 'quarter' }, { v: 'half', kind: 'half' }, { v: 'year', kind: 'year' }]}
             onChange={(k) => { setKind(k); setPick(k === 'month' ? now.getMonth() + 1 : 1); }} />
         </GroupBox>
-        <GroupBox title="Dates" className="w-full lg:w-auto lg:px-6">
+        <GroupBox title="Dates" icon={CalendarDays} className="w-full lg:w-auto lg:px-6">
           {kind === 'range' ? (
             <RangePicker start={rangeStart} end={rangeEnd} onChange={(a, b) => { setRangeStart(a); setRangeEnd(b); }} />
           ) : (
