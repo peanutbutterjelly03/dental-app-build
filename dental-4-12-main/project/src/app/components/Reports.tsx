@@ -1,7 +1,9 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { FileBarChart, FileSpreadsheet, FileText, AlertTriangle, AlertCircle, CheckCircle, Users, Calendar, CalendarDays, CalendarRange, GraduationCap, UserRound, VenusAndMars, SlidersHorizontal, Stethoscope, Activity, LayoutDashboard, X } from 'lucide-react';
-import { PeriodTiles, PeriodSwitch, fieldInputClass, ActionButton, PanelShell, PanelRow, ActionGroup, GreyButton, BOX_W, UnderlineTabs, GroupBox, Underlined, FiltersButton, FilterChip, type TileOption } from './ReportControls';
+import { ExportMenu, PeriodTiles, PeriodSwitch, fieldInputClass, ActionButton, PanelShell, PanelRow, ActionGroup, GreyButton, BOX_W, UnderlineTabs, GroupBox, Underlined, FiltersButton, FilterChip, type TileOption } from './ReportControls';
 import { RangePicker } from './RangePicker';
+import { buildXlsx, buildSheetsXlsx } from '../utils/exportXlsx';
+import { downloadBlob } from '../utils/exportCsv';
 import { toLocalDateString } from '../utils/localDate';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ChartTooltip } from './ChartTooltip';
@@ -598,6 +600,101 @@ export const Reports = () => {
   const clearIntFilters = () => { setIntSchoolFilter('all'); setIntGradeFilter('all'); setIntGenderFilter('all'); setIntAgeFilter('all'); };
   const hasIntFilters = intSchoolFilter !== 'all' || intGradeFilter !== 'all' || intGenderFilter !== 'all' || intAgeFilter !== 'all';
 
+  // ── Internal Reports: Print / PDF / Excel (user-approved menu, 2026-10-08) ──
+  // Print = the browser's print window. PDF = a snapshot of the open section,
+  // shown in the preview first. Excel = the same figures as a workbook,
+  // downloaded straight away. Both files say which period and filters they
+  // were made with, since a file is forwarded without the screen it came from.
+  const internalRef = useRef<HTMLDivElement>(null);
+  const [internalXlsxBusy, setInternalXlsxBusy] = useState(false);
+  const internalName = internalSection === 'treatment' ? 'Treatment Summary' : internalSection === 'conditions' ? 'Condition Summary' : 'Overview';
+  const internalFilterNote = [
+    intAgeFilter !== 'all' ? `Age ${intAgeFilter}` : '',
+    intGradeFilter !== 'all' ? intGradeFilter : '',
+    intGenderFilter !== 'all' ? (intGenderFilter === 'M' ? 'Male' : 'Female') : '',
+  ].filter(Boolean).join(', ');
+  const internalBaseName = () => [
+    'Internal', internalName.replace(/\s+/g, '-'),
+    reportSchool ? getSchoolShortName(reportSchool).replace(/\s+/g, '_') : 'AllSchools',
+    internalSection === 'conditions' ? 'all-time' : periodLabel.replace(/[^\w]+/g, '-'),
+  ].join('_');
+
+  const handleInternalPdf = () => {
+    const el = internalRef.current;
+    if (!el) return;
+    setDownloadError(null);
+    previewPdf(`${internalName} (${internalSection === 'conditions' ? 'all time' : periodLabel})`, `${internalBaseName()}.pdf`, async () => {
+      try {
+        return await buildDohReportPdf(el);
+      } catch (err) {
+        setDownloadError(err instanceof Error ? err.message : 'Failed to generate PDF');
+        return null;
+      }
+    });
+  };
+
+  const handleInternalExcel = async () => {
+    setDownloadError(null);
+    setInternalXlsxBusy(true);
+    try {
+      const scope = `${internalSection === 'conditions' ? 'All time' : periodLabel}${internalFilterNote ? ` · ${internalFilterNote}` : ''}`;
+      let blob: Blob;
+      if (internalSection === 'treatment') {
+        type TRow = { label: string; m: number; f: number; t: number };
+        const rows: TRow[] = TREATMENT_ROWS.map((p) => ({ label: labelForCode.get(p) ?? p, m: cnt(realTreatmentMatrix, p, 'M'), f: cnt(realTreatmentMatrix, p, 'F'), t: cnt(realTreatmentMatrix, p, 'M') + cnt(realTreatmentMatrix, p, 'F') }));
+        rows.push({ label: 'Total', m: rows.reduce((a, r) => a + r.m, 0), f: rows.reduce((a, r) => a + r.f, 0), t: rows.reduce((a, r) => a + r.t, 0) });
+        blob = await buildXlsx(rows, [
+          { label: `Procedure · ${scope}`, value: (r: TRow) => r.label },
+          { label: 'Male', value: (r: TRow) => r.m },
+          { label: 'Female', value: (r: TRow) => r.f },
+          { label: 'Total', value: (r: TRow) => r.t },
+        ], 'Treatment Summary');
+      } else if (internalSection === 'conditions') {
+        type CRow = { cond: string };
+        blob = await buildXlsx(CONDITIONS.map((cond): CRow => ({ cond })), [
+          { label: `Condition · ${scope}`, value: (r: CRow) => r.cond },
+          ...displayGrades.map((g) => ({ label: g, value: (r: CRow) => getCount(conditionMatrix, r.cond, g, intGenderFilter) })),
+          { label: 'Total', value: (r: CRow) => cnt(conditionMatrix, r.cond, intGenderFilter) },
+        ], 'Condition Summary');
+      } else {
+        const consent = schoolNames.map((school) => {
+          const inSchool = realStudents.filter((st) => st.school === school);
+          return { school, complete: inSchool.filter((st) => st.consentStatus === 'complete').length, total: inSchool.length };
+        });
+        const sheets = [
+          { name: 'Quick stats', rows: [
+              { k: 'High risk students', v: realStudents.filter((st) => st.riskLevel === 'High').length },
+              { k: 'Medium risk students', v: realStudents.filter((st) => st.riskLevel === 'Medium').length },
+              { k: 'Students treated (all time)', v: realTreatmentCount },
+            ], columns: [{ label: 'Measure', value: (r: { k: string; v: number }) => r.k }, { label: 'Count', value: (r: { k: string; v: number }) => r.v }] },
+          { name: 'Consent by school', rows: consent, columns: [
+              { label: 'School', value: (r: typeof consent[number]) => r.school },
+              { label: 'Complete', value: (r: typeof consent[number]) => r.complete },
+              { label: 'Total', value: (r: typeof consent[number]) => r.total },
+              { label: 'Percent', value: (r: typeof consent[number]) => (r.total ? `${Math.round((r.complete / r.total) * 100)}%` : '') },
+            ] },
+        ];
+        // Referrals are a clinical record: never in a file for the school administrator (see the on-screen table).
+        const refCols = user?.role !== 'school_admin' ? [{ name: `Referrals · ${periodLabel}`, rows: referralRows, columns: [
+          { label: 'Student', value: (r: typeof referralRows[number]) => r.student },
+          { label: 'School', value: (r: typeof referralRows[number]) => r.school },
+          { label: 'Grade', value: (r: typeof referralRows[number]) => r.grade },
+          { label: 'Date issued', value: (r: typeof referralRows[number]) => r.date },
+          { label: 'Facility', value: (r: typeof referralRows[number]) => r.facility },
+          { label: 'Reason', value: (r: typeof referralRows[number]) => r.reason },
+          { label: 'Follow-up', value: (r: typeof referralRows[number]) => r.followUp },
+          { label: 'Status', value: (r: typeof referralRows[number]) => r.status },
+        ] }] : [];
+        blob = await buildSheetsXlsx<any>([...sheets, ...refCols]);
+      }
+      downloadBlob(blob, `${internalBaseName()}.xlsx`);
+    } catch (err) {
+      setDownloadError(err instanceof Error ? err.message : 'Failed to generate Excel');
+    } finally {
+      setInternalXlsxBusy(false);
+    }
+  };
+
 // Build column definitions: for each grade, each age bracket, M and F
   const cols: { grade:string; age:string; sex:'M'|'F' }[] = [];
   visibleGrades.forEach(g => {
@@ -1006,9 +1103,31 @@ export const Reports = () => {
           <PanelShell>
             <UnderlineTabs<'treatment' | 'conditions' | 'admin'> name="Report section" value={internalSection} onChange={setInternalSection}
               options={SECTION_TILES.map(({ v, label, icon }) => ({ v, label, icon }))}
-              trailing={<ActionButton kind="print" caption="Send to the printer" onClick={() => window.print()} />} />
+              trailing={
+                <div className="flex">
+                  {internalSection !== 'admin' && (
+                    <FiltersButton count={activeStudentFilters}>
+                      {[
+                        { label: 'Age', value: intAgeFilter, set: (v: string) => { setIntAgeFilter(v); setIntGradeFilter('all'); }, opts: [['all', 'All ages'], ['4 & below', 'Age: 4 & below'], ['5-9', 'Age: 5-9'], ['10-14', 'Age: 10-14'], ['15-19', 'Age: 15-19'], ['20 & above', 'Age: 20 & above']] },
+                        { label: 'Grade', value: intGradeFilter, set: (v: string) => { setIntGradeFilter(v); setIntAgeFilter('all'); }, opts: [['all', 'All grades'], ...ALL_GRADES_INT.map(g => [g, g])] },
+                        { label: 'Sex', value: intGenderFilter, set: setIntGenderFilter, opts: [['all', 'All sex'], ['M', 'Male'], ['F', 'Female']] },
+                      ].map((f) => (
+                        <div key={f.label}>
+                          <div className="mb-1 text-[9.5px] font-bold uppercase tracking-[0.07em] text-muted-foreground">{f.label}</div>
+                          <select aria-label={f.label} value={f.value} onChange={(e) => f.set(e.target.value)}
+                            className="h-10 w-full rounded-lg border border-[#e3e7ef] bg-[#f1f3f8] px-3 text-[13.5px] font-bold text-[#46536d]">
+                            {f.opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                          </select>
+                        </div>
+                      ))}
+                    </FiltersButton>
+                  )}
+                  <ExportMenu joined={internalSection !== 'admin'} busy={internalXlsxBusy || (building && preview.kind === 'pdf')}
+                    onPrint={() => window.print()} onPdf={handleInternalPdf} onExcel={() => { void handleInternalExcel(); }} />
+                </div>
+              } />
+            {internalSection !== 'conditions' && (
             <div className="flex flex-wrap items-center gap-x-4 gap-y-5 pt-6">
-                {internalSection !== 'conditions' && (
                   <>
                     <GroupBox title="Time period" className="w-full lg:w-[400px]">
                       <PeriodSwitch<PeriodKind> name="Time period" value={periodType} onChange={setPeriodType}
@@ -1039,24 +1158,8 @@ export const Reports = () => {
                       )}
                     </GroupBox>
                   </>
-                )}
-                {internalSection !== 'admin' && (
-                  <div className="lg:ml-auto">
-                    <FiltersButton count={activeStudentFilters}>
-                      {[
-                        { label: 'Age', value: intAgeFilter, set: (v: string) => { setIntAgeFilter(v); setIntGradeFilter('all'); }, opts: [['all', 'All ages'], ['4 & below', 'Age: 4 & below'], ['5-9', 'Age: 5-9'], ['10-14', 'Age: 10-14'], ['15-19', 'Age: 15-19'], ['20 & above', 'Age: 20 & above']] },
-                        { label: 'Grade', value: intGradeFilter, set: (v: string) => { setIntGradeFilter(v); setIntAgeFilter('all'); }, opts: [['all', 'All grades'], ...ALL_GRADES_INT.map(g => [g, g])] },
-                        { label: 'Sex', value: intGenderFilter, set: setIntGenderFilter, opts: [['all', 'Both sexes'], ['M', 'Male'], ['F', 'Female']] },
-                      ].map((f) => (
-                        <select key={f.label} aria-label={f.label} value={f.value} onChange={(e) => f.set(e.target.value)}
-                          className="h-10 w-full rounded-lg border border-[#e3e7ef] bg-[#f1f3f8] px-3 text-[13.5px] font-bold text-[#46536d]">
-                          {f.opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                        </select>
-                      ))}
-                    </FiltersButton>
-                  </div>
-                )}
             </div>
+            )}
             {internalSection !== 'admin' && activeStudentFilters > 0 && (
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 <span className="text-[10.5px] font-bold uppercase tracking-[0.07em] text-muted-foreground">Showing</span>
@@ -1068,6 +1171,7 @@ export const Reports = () => {
             )}
           </PanelShell>
 
+          <div ref={internalRef} className="space-y-4">
           {/* ── TREATMENT SUMMARY ── */}
           {internalSection === 'treatment' && (
             <div className="space-y-4">
@@ -1368,6 +1472,7 @@ export const Reports = () => {
               )}
             </div>
           )}
+          </div>
         </div>
       )}
 

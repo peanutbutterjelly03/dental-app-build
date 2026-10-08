@@ -168,31 +168,77 @@ export function Underlined({ label, icon: I, chevron = false, children }: { labe
   );
 }
 
-/** Grey Filters button with a count badge; its menu holds the controls. */
-export function FiltersButton({ count, children }: { count: number; children: ReactNode }) {
-  const [open, setOpen] = useState(false);
+const cell = 'flex h-11 items-center gap-2 border border-[#e3e7ef] bg-[#f1f3f8] px-3.5 text-[13px] font-bold text-[#46536d] hover:bg-[#e6e9f0] sm:h-10';
+
+/** Closes a menu on an outside click or Escape. */
+function useDismiss(open: boolean, close: () => void) {
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
-    const away = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node)) setOpen(false); };
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    const away = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node)) close(); };
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
     document.addEventListener('mousedown', away);
     document.addEventListener('keydown', esc);
     return () => { document.removeEventListener('mousedown', away); document.removeEventListener('keydown', esc); };
-  }, [open]);
+  }, [open, close]);
+  return box;
+}
+
+/** Filters (left half of the joined pair): grey button with a count badge; its
+ *  menu holds the controls. `alone` rounds both ends when nothing follows it. */
+export function FiltersButton({ count, children, alone = false }: { count: number; children: ReactNode; alone?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const box = useDismiss(open, () => setOpen(false));
   return (
     <div ref={box} className="relative">
       <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)}
-        className="flex h-11 items-center gap-2 rounded-[10px] border border-[#e3e7ef] bg-[#f1f3f8] px-3.5 text-[13.5px] font-bold text-[#46536d] hover:bg-[#e9ecf3] sm:h-10">
+        className={`${cell} ${alone ? 'rounded-[10px]' : 'rounded-l-[10px]'} ${open ? '!bg-[#e6e9f0]' : ''}`}>
         <Filter className="h-4 w-4 text-[#7a859b]" aria-hidden="true" />
         Filters
         <span className="rounded-full bg-[#4b5568] px-[7px] text-[11px] leading-[17px] text-white">{count}</span>
         <ChevronDown className="h-4 w-4 text-[#7a859b]" aria-hidden="true" />
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-40 mt-2 w-[300px] max-w-[calc(100vw-2rem)] rounded-2xl border border-[#dfe6f4] bg-white p-3 shadow-[0_18px_34px_-14px_rgba(20,33,61,0.45)]">
-          <div className="mb-2 text-[10.5px] font-bold uppercase tracking-[0.07em] text-muted-foreground">Students</div>
+        <div className="absolute right-0 top-full z-40 mt-2 w-[290px] max-w-[calc(100vw-2rem)] rounded-2xl border border-[#dfe6f4] bg-white p-3 shadow-[0_18px_34px_-14px_rgba(20,33,61,0.45)]">
           <div className="flex flex-col gap-2">{children}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const OUTPUTS = [
+  { k: 'print', label: 'Print', cap: 'To the printer', icon: Printer, chip: 'bg-[#e8eefc] text-primary', text: 'text-primary', bd: 'border-[#cfd9f3]' },
+  { k: 'pdf', label: 'PDF', cap: 'Preview', icon: FileText, chip: 'bg-[#fff3ea] text-[#c2410c]', text: 'text-[#b4440f]', bd: 'border-[#f3d9c6]' },
+  { k: 'excel', label: 'Excel', cap: 'Download', icon: FileSpreadsheet, chip: 'bg-[#e3f4ea] text-[#16813f]', text: 'text-[#14663a]', bd: 'border-[#cfe8d9]' },
+] as const;
+
+/** Print (right half of the joined pair): a menu of Print, PDF (opens a
+ *  preview first) and Excel (downloads straight away). */
+export function ExportMenu({ onPrint, onPdf, onExcel, busy, joined = false }: {
+  onPrint: () => void; onPdf: () => void; onExcel: () => void; busy?: boolean; joined?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const box = useDismiss(open, () => setOpen(false));
+  const go = { print: onPrint, pdf: onPdf, excel: onExcel };
+  return (
+    <div ref={box} className="relative">
+      <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)}
+        className={`${cell} ${joined ? 'rounded-r-[10px] border-l-0' : 'rounded-[10px]'} ${open ? '!bg-[#e6e9f0]' : ''}`}>
+        <Printer className="h-4 w-4 text-[#7a859b]" aria-hidden="true" />
+        {busy ? 'Preparing…' : 'Print'}
+        <ChevronDown className="h-4 w-4 text-[#7a859b]" aria-hidden="true" />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full z-40 mt-2 grid w-[335px] max-w-[calc(100vw-2rem)] grid-cols-3 gap-2 rounded-2xl border border-[#dfe6f4] bg-white p-2.5 shadow-[0_18px_34px_-14px_rgba(20,33,61,0.45)]">
+          {OUTPUTS.map(({ k, label, cap, icon: I, chip, text, bd }) => (
+            <button key={k} type="button" disabled={busy && k !== 'print'} onClick={() => { setOpen(false); go[k](); }}
+              className={`rounded-xl border-[1.5px] ${bd} px-1.5 py-3 text-center hover:bg-[#f7f9fd] disabled:opacity-60`}>
+              <span className={`mx-auto mb-1.5 flex h-9 w-9 items-center justify-center rounded-[11px] ${chip}`}><I className="h-[18px] w-[18px]" aria-hidden="true" /></span>
+              <span className={`block text-[13px] font-bold ${text}`}>{label}</span>
+              <span className="block text-[10.5px] text-[#7a859b]">{cap}</span>
+            </button>
+          ))}
         </div>
       )}
     </div>
