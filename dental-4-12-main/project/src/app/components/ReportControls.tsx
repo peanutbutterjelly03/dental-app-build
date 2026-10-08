@@ -114,21 +114,22 @@ export function PanelShell({ children }: { children: ReactNode }) {
 }
 
 /** Underlined tabs with an optional control at the far right (Print). The
- *  faint rule under them runs only half the card, so it never reaches Print;
- *  the chosen tab has a yellow underline (the sidebar's gold). */
+ *  soft rounded track under them is only about half the card wide, so it never
+ *  reaches Print; the chosen tab has a yellow underline (the sidebar's gold)
+ *  lying on that track (user pick, 2026-10-08). */
 export function UnderlineTabs<T extends string>({ value, onChange, options, name, trailing }: {
   value: T; onChange: (v: T) => void; options: { v: T; label: string; icon: Icon }[]; name: string; trailing?: ReactNode;
 }) {
   return (
     <div className="relative flex flex-wrap items-center gap-x-6">
-      <span aria-hidden="true" className="absolute bottom-0 left-0 h-px w-1/2 bg-[#e4e9f3]" />
-      <div role="tablist" aria-label={name} className="relative flex flex-wrap gap-x-6">
+      <span aria-hidden="true" className="absolute -bottom-px left-0 h-1 w-[46%] rounded-full bg-[#eef1f7]" />
+      <div role="tablist" aria-label={name} className="relative z-10 flex flex-wrap gap-x-6">
         {options.map(({ v, label, icon: I }) => {
           const on = v === value;
           return (
             <button key={v} type="button" role="tab" aria-selected={on} onClick={() => onChange(v)}
-              className={`flex items-center gap-1.5 whitespace-nowrap border-b-[3px] pb-3 pt-4 text-[12.5px] ${on ? 'border-[#f3c33d] font-bold text-primary' : 'border-transparent font-semibold text-muted-foreground hover:text-foreground'}`}>
-              <I className="h-3.5 w-3.5" aria-hidden="true" />{label}
+              className={`flex items-center gap-1.5 whitespace-nowrap border-b-[3px] pb-3 pt-4 text-[11.5px] ${on ? 'border-[#f3c33d] font-bold text-primary' : 'border-transparent font-semibold text-muted-foreground hover:text-foreground'}`}>
+              <I className="h-3 w-3" aria-hidden="true" />{label}
             </button>
           );
         })}
