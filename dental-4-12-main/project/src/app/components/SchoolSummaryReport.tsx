@@ -8,7 +8,8 @@ import { buildXlsx } from '../utils/exportXlsx';
 import { usePreviewModal } from '../hooks/usePreviewModal';
 import { PreviewModal } from './PreviewModal';
 import type { ReactNode } from 'react';
-import { PanelShell, PanelRow, GroupBox, ActionGroup, ExportMenu, BOX_W } from './ReportControls';
+import { PanelShell, PanelRow, GroupBox, ExportMenu, FiltersButton, FilterChip, BOX_W } from './ReportControls';
+import { PeriodDatesBoxes } from './PeriodDatesBoxes';
 import { downloadBlob } from '../utils/exportCsv';
 
 // ─── Per-school summary sheet ────────────────────────────────────────────────
@@ -159,16 +160,56 @@ export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null 
     }
   };
 
+  // Layout asked for by the user (2026-10-08): the same panel as Internal
+  // Reports without its report tabs. Time period, Dates and Filters keep their
+  // own state but are NOT read by this sheet yet (the user will say what they
+  // should do), so a plain line under the panel says so. The School year box is
+  // the control that actually scopes the sheet.
+  const [ageF, setAgeF] = useState('all');
+  const [gradeF, setGradeF] = useState('all');
+  const [sexF, setSexF] = useState('all');
+  const activeFilters = [ageF, gradeF, sexF].filter((v) => v !== 'all').length;
+  const filterDefs = [
+    { label: 'Age', value: ageF, set: (v: string) => { setAgeF(v); setGradeF('all'); }, opts: [['all', 'All ages'], ['4 & below', 'Age: 4 & below'], ['5-9', 'Age: 5-9'], ['10-14', 'Age: 10-14'], ['15-19', 'Age: 15-19'], ['20 & above', 'Age: 20 & above']] },
+    { label: 'Grade', value: gradeF, set: (v: string) => { setGradeF(v); setAgeF('all'); }, opts: [['all', 'All grades'], ...['Kinder', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'].map((g) => [g, g])] },
+    { label: 'Sex', value: sexF, set: setSexF, opts: [['all', 'All sex'], ['M', 'Male'], ['F', 'Female']] },
+  ];
   const panel = (
     <PanelShell>
+      <div className="flex justify-end pt-4">
+        <div className="flex">
+          <FiltersButton count={activeFilters}>
+            {filterDefs.map((f) => (
+              <div key={f.label}>
+                <div className="mb-1 text-[9.5px] font-bold uppercase tracking-[0.07em] text-muted-foreground">{f.label}</div>
+                <select aria-label={f.label} value={f.value} onChange={(e) => f.set(e.target.value)}
+                  className="h-10 w-full rounded-lg border border-[#e3e7ef] bg-[#f1f3f8] px-3 text-[13.5px] font-bold text-[#46536d]">
+                  {f.opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+              </div>
+            ))}
+          </FiltersButton>
+          {/* Print / PDF (preview first) / Excel (downloads), as on Internal Reports.
+              Aggregate counts, no patient names, bounded width (Sprint 85). */}
+          <ExportMenu joined busy={xlsxBusy || (building && preview.kind === 'pdf')} onPrint={() => window.print()} onPdf={onPdf} onExcel={() => { void onXlsx(); }} />
+        </div>
+      </div>
       <PanelRow>
+        <PeriodDatesBoxes />
         <GroupBox title="School year" className={BOX_W}>{yearPicker}</GroupBox>
-        {/* Print / PDF / Excel in one menu. Aggregate counts, no patient names,
-            bounded width (Sprint 85). */}
-        <ActionGroup>
-          <ExportMenu busy={xlsxBusy || (building && preview.kind === 'pdf')} onPrint={() => window.print()} onPdf={onPdf} onExcel={() => { void onXlsx(); }} />
-        </ActionGroup>
       </PanelRow>
+      {activeFilters > 0 && (
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <span className="text-[10.5px] font-bold uppercase tracking-[0.07em] text-muted-foreground">Showing</span>
+          {ageF !== 'all' && <FilterChip onRemove={() => setAgeF('all')}>{`Age ${ageF}`}</FilterChip>}
+          {gradeF !== 'all' && <FilterChip onRemove={() => setGradeF('all')}>{gradeF}</FilterChip>}
+          {sexF !== 'all' && <FilterChip onRemove={() => setSexF('all')}>{sexF === 'M' ? 'Male' : 'Female'}</FilterChip>}
+          <button type="button" onClick={() => { setAgeF('all'); setGradeF('all'); setSexF('all'); }} className="ml-auto text-[13px] font-bold text-destructive hover:underline">Clear all</button>
+        </div>
+      )}
+      <p className="mt-4 text-[11.5px] text-muted-foreground">
+        Time period, Dates and Filters are not connected to this sheet yet. It still follows the school year.
+      </p>
       <p className="sr-only" aria-live="polite">Showing {schoolName ?? 'all schools'}, {schoolYear ? `school year ${schoolYear}` : 'all years to date'}</p>
     </PanelShell>
   );
