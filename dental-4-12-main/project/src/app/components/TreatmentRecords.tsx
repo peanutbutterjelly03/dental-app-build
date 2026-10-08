@@ -115,7 +115,8 @@ export const TreatmentRecords = () => {
   // of queue/done membership, so the real Queue/Done data can be checked
   // against the whole roll rather than only what's already been sorted
   // into one bucket or the other.
-  const [viewTab, setViewTab] = useState<'queue' | 'done' | 'full'>('queue');
+  // The In Queue / Done This School Year / Full List switcher was removed (user, 2026-10-08): this page now shows the treatment queue only.
+  const viewTab = 'queue' as 'queue' | 'done' | 'full';
 
   // Dequeues AUTOMATICALLY once real treatment data shows up (user,
   // 2026-09-28: "remove mark as done, it should be automatic") -- a queued
@@ -527,38 +528,6 @@ export const TreatmentRecords = () => {
                 ))}
               </div>
             </div>
-          </div>
-          {/* Queue / Done / Full List toggle -- "there would be filter in
-              this module that are in queue for treatment and all students
-              that were done treatment for the current school year". Queue
-              is auto-populated by DentalChart.tsx's save AND auto-emptied
-              once real treatment data appears; Done is the same real
-              per-year aggregation the category cards above already use, so
-              the two can never disagree. Full List is a TESTING tab (user,
-              2026-09-28) -- every student at the school, for checking Queue
-              and Done against the whole roll rather than only each other. */}
-          <div className="inline-flex rounded-lg bg-gray-100 p-1 mt-4">
-            <button
-              type="button"
-              onClick={() => setViewTab('queue')}
-              className={`rounded-md px-3 py-1.5 text-sm font-semibold ${viewTab === 'queue' ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-            >
-              In Queue <span className="tabular-nums">({treatmentQueueIds.length})</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewTab('done')}
-              className={`rounded-md px-3 py-1.5 text-sm font-semibold ${viewTab === 'done' ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-            >
-              Done This School Year <span className="tabular-nums">({doneIds.size})</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewTab('full')}
-              className={`rounded-md px-3 py-1.5 text-sm font-semibold ${viewTab === 'full' ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-            >
-              Full List <span className="tabular-nums">({allPatients.length})</span>
-            </button>
           </div>
         </div>
 
