@@ -1,3 +1,4 @@
+import { TOPBAR_H } from '../utils/layout';
 import { useEffect, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { Save, Pencil, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Check, AlertTriangle, Lock, Minimize2, Trash2, X, Undo2 } from 'lucide-react';
 import { getGradeColor } from '../utils/gradeColors';
@@ -250,10 +251,10 @@ export function DentalChartTab({
     const bottom = Math.max(...rects.map((r) => r.bottom)) - sr.top;
     const cx = (Math.min(...rects.map((r) => r.left)) + Math.max(...rects.map((r) => r.right))) / 2 - sr.left;
     // Kept inside the VIEWPORT (not the chart box): centred on the selection, above
-    // it when that fits on screen and below it otherwise.
+    // it when that fits on screen BELOW the fixed top bar (TOPBAR_H), else below it.
     const left = Math.max(8 - sr.left, Math.min(cx - pop.offsetWidth / 2, window.innerWidth - 8 - pop.offsetWidth - sr.left));
     const above = top - pop.offsetHeight - 10;
-    setPopPos({ left, top: sr.top + above >= 8 ? above : bottom + 10 });
+    setPopPos({ left, top: sr.top + above >= TOPBAR_H + 8 ? above : bottom + 10 });
   }, [codesOpen, selectedTeeth, markType, rareOpen, currentChart, narrow]);
 
   // True when EVERY selected tooth already carries this code (the popup shows it
