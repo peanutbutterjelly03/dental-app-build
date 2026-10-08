@@ -233,7 +233,7 @@ export const Root = () => {
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 768px)');
     const update = () => {
-      document.documentElement.style.setProperty('--content-left', mq.matches ? (collapsed ? '89px' : '252px') : '0px');
+      document.documentElement.style.setProperty('--content-left', mq.matches ? (collapsed ? '109px' : '272px') : '0px');
     };
     update();
     mq.addEventListener('change', update);
