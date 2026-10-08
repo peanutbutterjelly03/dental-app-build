@@ -40,6 +40,7 @@ const SB = {
     bg: 'radial-gradient(120% 45% at 100% 100%, rgba(66,87,196,0.34) 0%, rgba(66,87,196,0) 62%), radial-gradient(130% 70% at 0% 0%, #243579 0%, #1D2B69 38%, #17234D 68%, #101A40 100%)',
     shadow: '0 15px 20px rgba(15,23,42,0.22), inset 0 0 0 1px rgba(255,255,255,0.04)',
     logo: '/logo.svg',
+    border: 'md:border-white/10',
     divider: 'bg-[#E2E8F0]/90',
     title: 'text-white',
     sub: 'text-white/55',
@@ -64,6 +65,7 @@ const SB = {
     // No drop shadow (user, 2026-10-07): it painted a darker band on the page beside the rail.
     shadow: 'inset 0 0 0 1px rgba(3,105,161,0.10)',
     logo: '/logo-sky.svg',
+    border: 'md:border-[#C5DFF2]',
     divider: 'bg-[#C5DFF2]',
     title: 'text-[#0B3153]',
     sub: 'text-[#5F89AD]',
@@ -700,7 +702,7 @@ export const Root = () => {
           boxShadow: SB.shadow,
         }}
         className={`flex flex-col fixed left-0 top-0 h-screen z-[70]
-          md:left-0 md:top-0 md:h-screen md:rounded-none
+          md:left-5 md:top-5 md:bottom-5 md:h-auto md:rounded-[24px] md:border ${SB.border}
           w-[238px] transition-transform duration-200
           ${drawerOpen ? 'translate-x-0 visible' : '-translate-x-full invisible'}
           md:visible md:translate-x-0 md:transition-[width]
@@ -840,7 +842,7 @@ export const Root = () => {
           header inside the page (the IPTR toolbar and tab strip) was pinning to
           a box that never scrolls, i.e. silently not sticking at all. `clip`
           clips the same overflow without becoming a scroll container. */}
-      <main className={`flex-1 min-w-0 ml-0 ${collapsed ? 'md:ml-[89px]' : 'md:ml-[252px]'} overflow-x-clip transition-[margin] duration-200`}>
+      <main className={`flex-1 min-w-0 ml-0 ${collapsed ? 'md:ml-[109px]' : 'md:ml-[272px]'} overflow-x-clip transition-[margin] duration-200`}>
         <div className="p-4 md:p-8">
           <Outlet />
         </div>
