@@ -570,7 +570,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null, 
             <Step n={1} label="Which school year?">{yearPicker}</Step>
             <Step n={2} label="Hide rows or columns? (optional)">
               <button type="button" onClick={() => setShowPicker((v) => !v)} aria-expanded={showPicker}
-                className="flex min-h-[44px] sm:min-h-[36px] items-center gap-1.5 rounded-lg border-2 border-primary bg-white px-3.5 text-[13.5px] font-bold text-primary hover:bg-primary/10">
+                className="flex min-h-[44px] sm:min-h-[30px] items-center gap-1.5 rounded-lg border-[1.5px] border-primary bg-white px-3 text-[12.5px] font-bold text-primary hover:bg-primary/10">
                 <SlidersHorizontal className="h-4 w-4 text-primary" aria-hidden="true" />
                 {showPicker ? 'Done' : `Rows & columns${hiddenCount ? ` (${hiddenCount} hidden)` : ''}`}
               </button>

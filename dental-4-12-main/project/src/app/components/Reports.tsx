@@ -743,7 +743,7 @@ export const Reports = () => {
                 )}
                 <Step n={hasSecondary ? 3 : 2} label="Hide rows or grades? (optional)">
                   <button type="button" onClick={() => setShowDohPicker((v) => !v)} aria-expanded={showDohPicker}
-                    className="flex min-h-[44px] sm:min-h-[36px] items-center gap-1.5 rounded-lg border-2 border-primary bg-white px-3.5 text-[13.5px] font-bold text-primary hover:bg-primary/10">
+                    className="flex min-h-[44px] sm:min-h-[30px] items-center gap-1.5 rounded-lg border-[1.5px] border-primary bg-white px-3 text-[12.5px] font-bold text-primary hover:bg-primary/10">
                     <SlidersHorizontal className="h-4 w-4 text-primary" aria-hidden="true" />
                     {showDohPicker ? 'Done' : `Rows & grades${dohHiddenCount ? ` (${dohHiddenCount} hidden)` : ''}`}
                   </button>
@@ -1061,7 +1061,7 @@ export const Reports = () => {
                       </Field>
                       {hasIntFilters && (
                         <button type="button" onClick={clearIntFilters}
-                          className="flex min-h-[44px] sm:min-h-[36px] items-center gap-1.5 rounded-lg border-2 border-red-300 bg-white px-3.5 text-[13.5px] font-bold text-destructive hover:bg-red-50">
+                          className="flex min-h-[44px] sm:min-h-[30px] items-center gap-1.5 rounded-lg border-[1.5px] border-red-300 bg-white px-3 text-[12.5px] font-bold text-destructive hover:bg-red-50">
                           <X className="h-4 w-4" aria-hidden="true" /> Clear
                         </button>
                       )}

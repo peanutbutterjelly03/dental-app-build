@@ -18,11 +18,11 @@ type Icon = ComponentType<{ className?: string }>;
  *  drops to a second row instead of squeezing. */
 export function ControlsPanel({ steps, status, actions }: { steps: ReactNode; status?: ReactNode; actions?: ReactNode }) {
   return (
-    <div className="doh-report-controls -mt-4 flex flex-wrap items-start gap-x-6 gap-y-2.5 rounded-b-2xl border border-t-0 border-border bg-gradient-to-b from-[#eaf0fb] to-[#f6f8fd] px-4 py-3">
+    <div className="doh-report-controls -mt-4 flex flex-wrap items-start gap-x-6 gap-y-2 rounded-b-2xl border border-t-0 border-border bg-gradient-to-b from-[#eaf0fb] to-[#f6f8fd] px-4 py-2.5">
       {steps}
       {actions && <div className="min-w-0 lg:ml-auto">{actions}</div>}
       {status && (
-        <div className="flex basis-full items-center gap-2 rounded-lg border border-[#d3dcf0] bg-white px-3 py-1 text-[13px] text-primary">
+        <div className="flex basis-full items-center gap-2 rounded-lg border border-[#d3dcf0] bg-white px-2.5 py-0.5 text-[12px] text-primary">
           <CircleCheck className="h-4 w-4 flex-none" aria-hidden="true" />
           <span className="min-w-0 [&_b]:font-bold [&_b]:text-foreground">{status}</span>
         </div>
@@ -31,13 +31,13 @@ export function ControlsPanel({ steps, status, actions }: { steps: ReactNode; st
   );
 }
 
-const stepLabel = 'mb-1 flex items-center gap-1.5 text-[13px] font-bold text-primary';
+const stepLabel = 'mb-1 flex items-center gap-1.5 text-[12.5px] font-bold text-primary';
 
 export function Step({ n, label, children }: { n: number; label: string; children: ReactNode }) {
   return (
     <div className="min-w-0 max-w-full">
       <div className={stepLabel}>
-        <span className="flex h-5 w-5 flex-none items-center justify-center rounded-full bg-primary text-[11px] text-white">{n}</span>
+        <span className="flex h-[18px] w-[18px] flex-none items-center justify-center rounded-full bg-primary text-[10px] text-white">{n}</span>
         {label}
       </div>
       {children}
@@ -53,12 +53,12 @@ export function PeriodTiles<T extends string>({ value, onChange, options, name, 
   value: T; onChange: (v: T) => void; options: TileOption<T>[]; name: string; icons?: boolean;
 }) {
   return (
-    <div role="radiogroup" aria-label={name} className="inline-flex max-w-full overflow-x-auto rounded-lg border-2 border-primary bg-white">
+    <div role="radiogroup" aria-label={name} className="inline-flex max-w-full overflow-x-auto rounded-lg border-[1.5px] border-primary bg-white">
       {options.map(({ v, label, hint, icon: I }) => {
         const on = v === value;
         return (
           <button key={v} type="button" role="radio" aria-checked={on} title={hint} onClick={() => onChange(v)}
-            className={`flex min-h-[44px] sm:min-h-[36px] items-center gap-1.5 whitespace-nowrap border-r border-[#c9d4ec] px-3 py-1 text-[13px] font-bold last:border-r-0 ${on ? 'bg-primary text-white' : 'text-primary hover:bg-primary/10'}`}>
+            className={`flex min-h-[44px] sm:min-h-[30px] items-center gap-1.5 whitespace-nowrap border-r border-[#c9d4ec] px-2.5 py-0.5 text-[12.5px] font-bold last:border-r-0 ${on ? 'bg-primary text-white' : 'text-primary hover:bg-primary/10'}`}>
             {icons && <I className="h-4 w-4" aria-hidden="true" />}
             {label}
           </button>
@@ -74,21 +74,21 @@ export function PeriodTiles<T extends string>({ value, onChange, options, name, 
  *  pass `chevron={false}` for a date input, which has its own picker icon. */
 export function Field({ icon: I, children, chevron = true }: { icon: Icon; children: ReactNode; chevron?: boolean }) {
   return (
-    <div className="relative flex min-h-[44px] sm:min-h-[36px] min-w-[12rem] flex-1 items-center gap-2 rounded-lg border-2 border-primary bg-white px-3 focus-within:ring-2 focus-within:ring-ring">
+    <div className="relative flex min-h-[44px] sm:min-h-[30px] min-w-[10rem] flex-1 items-center gap-2 rounded-lg border-[1.5px] border-primary bg-white px-3 focus-within:ring-2 focus-within:ring-ring">
       <I className="h-4 w-4 flex-none text-primary" aria-hidden="true" />
       {children}
       {chevron && <ChevronDown className="pointer-events-none absolute right-3 h-4 w-4 text-primary" aria-hidden="true" />}
     </div>
   );
 }
-export const fieldInputClass = 'min-w-0 flex-1 appearance-none !border-0 !bg-transparent !p-0 !pr-6 !shadow-none py-1 text-[13.5px] font-bold text-primary focus:!outline-none';
+export const fieldInputClass = 'min-w-0 flex-1 appearance-none !border-0 !bg-transparent !p-0 !pr-6 !shadow-none py-0 text-[12.5px] font-bold text-primary focus:!outline-none';
 
 /** The last column. `n` numbers it like the steps; without it a save icon leads. */
 export function ActionBox({ title = 'Save this report', n, children }: { title?: string; n?: number; children: ReactNode }) {
   return (
     <div>
       <div className={stepLabel}>
-        {n ? <span className="flex h-5 w-5 flex-none items-center justify-center rounded-full bg-primary text-[11px] text-white">{n}</span>
+        {n ? <span className="flex h-[18px] w-[18px] flex-none items-center justify-center rounded-full bg-primary text-[10px] text-white">{n}</span>
           : <Download className="h-4 w-4" aria-hidden="true" />}
         {title}
       </div>
@@ -111,7 +111,7 @@ export function ActionButton({ kind, caption, onClick, disabled, busy }: {
   const I = k.icon;
   return (
     <button type="button" onClick={onClick} disabled={disabled || busy} title={caption}
-      className={`flex min-h-[44px] sm:min-h-[36px] items-center gap-1.5 rounded-lg border-2 px-3.5 py-1 text-[13.5px] font-bold disabled:opacity-60 ${k.cls}`}>
+      className={`flex min-h-[44px] sm:min-h-[30px] items-center gap-1.5 rounded-lg border-[1.5px] px-3 py-1 text-[12.5px] font-bold disabled:opacity-60 ${k.cls}`}>
       <I className="h-4 w-4 flex-none" aria-hidden="true" />
       {busy ? 'Preparing…' : k.label}
     </button>
