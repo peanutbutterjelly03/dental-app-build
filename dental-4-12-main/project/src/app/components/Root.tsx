@@ -809,8 +809,8 @@ export const Root = () => {
               {user.name.charAt(0).toUpperCase()}
             </span>
             <div className={`min-w-0 flex-1 flex flex-col ${collapsed ? 'md:hidden' : ''}`}>
-              <strong className={`text-[0.78125rem] font-bold leading-[1.1] ${SB.userName}`}>{user.name}</strong>
-              <span className={`-mt-[1px] text-[0.6875rem] leading-none ${SB.sub} capitalize`}>{user.role.replace('_', ' ')}</span>
+              <strong className={`text-[0.78125rem] font-bold leading-[1.15] ${SB.userName}`}>{user.name}</strong>
+              <span className={`mt-[1.5px] text-[0.6875rem] leading-tight ${SB.sub} capitalize`}>{user.role.replace('_', ' ')}</span>
             </div>
             {NOTIFIED_ROLES.includes(user.role) && (
               <Link
