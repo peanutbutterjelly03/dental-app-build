@@ -138,7 +138,7 @@ export function UnderlineTabs<T extends string>({ value, onChange, options, name
           );
         })}
       </div>
-      {trailing && <div className="ml-auto py-2">{trailing}</div>}
+      {trailing && <div className="ml-auto pb-1 pt-3.5">{trailing}</div>}
     </div>
   );
 }
