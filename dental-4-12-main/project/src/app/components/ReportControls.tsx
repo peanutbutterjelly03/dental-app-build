@@ -36,7 +36,7 @@ export function PeriodTiles<T extends string>({ value, onChange, options, name, 
   );
 }
 
-export const fieldInputClass = 'h-full min-w-0 appearance-none !border-0 !bg-transparent !p-0 !pr-6 !shadow-none text-[12.5px] font-bold text-foreground focus:!outline-none';
+export const fieldInputClass = 'h-full min-w-0 appearance-none !border-0 !bg-transparent !p-0 !pr-6 !shadow-none text-[12.5px] font-bold text-[#46536d] focus:!outline-none';
 
 const KINDS = {
   excel: { icon: FileSpreadsheet, label: 'Excel', cls: 'bg-gradient-to-b from-[#1f9a52] to-[#16813f] text-white shadow-[0_6px_12px_-6px_rgba(22,129,63,0.7)] hover:brightness-95' },

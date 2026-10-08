@@ -49,7 +49,7 @@ export function RangePicker({ start, end, onChange }: Props) {
   const lead = first.getDay();
   const days = new Date(view.y, view.m + 1, 0).getDate();
   const shift = (n: number) => { const d = new Date(view.y, view.m + n, 1); setView({ y: d.getFullYear(), m: d.getMonth() }); };
-  const fieldBtn = 'min-w-0 flex-1 truncate bg-transparent text-left text-[12.5px] font-bold text-foreground focus:outline-none';
+  const fieldBtn = 'min-w-0 flex-1 truncate bg-transparent text-left text-[12.5px] font-bold text-[#46536d] focus:outline-none';
 
   return (
     <div ref={box} className="relative flex w-full gap-4">
