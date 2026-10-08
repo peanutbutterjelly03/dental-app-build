@@ -1020,11 +1020,11 @@ export const Reports = () => {
                     <GroupBox title="Time period" className="w-full lg:w-[400px]">
                       <PeriodTiles<PeriodKind> full name="Time period" value={periodType} onChange={setPeriodType} options={PERIOD_TILES} />
                     </GroupBox>
-                    <GroupBox title="Dates" className="w-full lg:w-[400px]">
+                    <GroupBox title="Dates" className="w-full lg:w-auto lg:px-6">
                       {periodType === 'range' ? (
                         <RangePicker start={rangeStart} end={rangeEnd} onChange={(a, b) => { setRangeStart(a); setRangeEnd(b); }} />
                       ) : (
-                        <div className="flex w-full gap-4">
+                        <div className="flex w-full gap-5 lg:w-auto lg:gap-6">
                           {periodType !== 'annual' && (
                             <Underlined label={periodType === 'monthly' ? 'Month' : periodType === 'quarterly' ? 'Quarter' : 'Half'} icon={Calendar} chevron>
                               <select aria-label="Period" className={`${fieldInputClass} !pr-5`}

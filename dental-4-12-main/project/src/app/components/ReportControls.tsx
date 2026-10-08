@@ -109,7 +109,7 @@ export function GroupBox({ title, children, className = '' }: { title: string; c
 /** A caption over an underlined field: the native control goes inside. */
 export function Underlined({ label, icon: I, chevron = false, children }: { label?: string; icon: Icon; chevron?: boolean; children: ReactNode }) {
   return (
-    <div className="relative min-w-0 flex-1">
+    <div className="relative min-w-0 flex-1 lg:min-w-[9rem] lg:flex-none">
       {label && <div className="text-[9.5px] font-bold uppercase tracking-[0.07em] text-muted-foreground">{label}</div>}
       <div className="relative flex h-9 items-center gap-2 border-b-[1.5px] border-primary">
         <I className="h-4 w-4 flex-none text-primary" aria-hidden="true" />

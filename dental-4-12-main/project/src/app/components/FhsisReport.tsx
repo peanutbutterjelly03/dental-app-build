@@ -184,11 +184,11 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
           <PeriodTiles<PeriodKind> full name="Time period" value={kind} options={PERIOD_TILES}
             onChange={(k) => { setKind(k); setPick(k === 'month' ? now.getMonth() + 1 : 1); }} />
         </GroupBox>
-        <GroupBox title="Dates" className={BOX_W}>
+        <GroupBox title="Dates" className="w-full lg:w-auto lg:px-6">
           {kind === 'range' ? (
             <RangePicker start={rangeStart} end={rangeEnd} onChange={(a, b) => { setRangeStart(a); setRangeEnd(b); }} />
           ) : (
-          <div className="flex w-full gap-4">
+          <div className="flex w-full gap-5 lg:w-auto lg:gap-6">
             {kind !== 'year' && (
               <Underlined label={kind === 'month' ? 'Month' : kind === 'quarter' ? 'Quarter' : 'Half'} icon={Calendar} chevron>
                 <select aria-label="Period" value={pick} onChange={(e) => setPick(Number(e.target.value))} className={`${fieldInputClass} !pr-5`}>

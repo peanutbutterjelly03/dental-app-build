@@ -52,7 +52,7 @@ export function RangePicker({ start, end, onChange }: Props) {
   const fieldBtn = 'min-w-0 flex-1 truncate bg-transparent text-left text-[12.5px] font-bold text-muted-foreground focus:outline-none';
 
   return (
-    <div ref={box} className="relative flex w-full gap-4">
+    <div ref={box} className="relative flex w-full gap-5 lg:w-auto lg:gap-6">
       <Underlined label="From" icon={Calendar}>
         <button type="button" className={fieldBtn} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((o) => !o)}>{formatDate(start)}</button>
       </Underlined>
