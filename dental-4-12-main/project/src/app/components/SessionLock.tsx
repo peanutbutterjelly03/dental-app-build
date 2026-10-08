@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Lock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
   IDLE_MINUTES,
@@ -94,7 +93,14 @@ export function SessionLock() {
       role="dialog" aria-modal="true" aria-labelledby="session-lock-title">
       <div className="w-full max-w-sm rounded-2xl bg-card px-6 py-8 text-center shadow-2xl">
         <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-red-50">
-          <Lock className="h-7 w-7 text-red-600" fill="currentColor" strokeWidth={1.5} aria-hidden="true" />
+          {/* Solid padlock copied from the reference screenshot: thick shackle,
+              rounded body, white keyhole. */}
+          <svg viewBox="0 0 24 24" className="h-7 w-7 text-red-600" aria-hidden="true">
+            <path d="M7.5 10V7.5a4.5 4.5 0 0 1 9 0V10" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
+            <rect x="4" y="10" width="16" height="11.5" rx="3" fill="currentColor" />
+            <circle cx="12" cy="14.8" r="1.6" fill="white" />
+            <rect x="11.2" y="15" width="1.6" height="3.2" rx="0.8" fill="white" />
+          </svg>
         </div>
         <h2 id="session-lock-title" className="text-xl font-bold text-foreground">Session Expired</h2>
         <p className="mt-4 text-sm leading-relaxed text-foreground">
