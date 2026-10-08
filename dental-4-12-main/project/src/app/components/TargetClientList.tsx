@@ -327,8 +327,7 @@ const SERVICE_COLUMNS: ServiceCol[] = [
   // DUPLICATE Temporary Filling column by adding the tooth-count variant beside
   // the tick one. Both errors corrected here against the workbook.
   { group: 'OTHER SERVICES', label: 'Composite Filling (Tooth Count)', value: (r) => String(r.toothCounts['CO'] ?? '') },
-  // ART has no chart code since TR was retired (2026-10-08) -- column kept, left blank, as the official form requires.
-  { group: 'OTHER SERVICES', label: 'ART (Tooth Count)', value: () => '' },
+  { group: 'OTHER SERVICES', label: 'ART (Tooth Count)', value: (r) => String(r.toothCounts['ART'] ?? '') },
   { group: 'OTHER SERVICES', label: 'Temporary Filling (Tooth Count)', value: (r) => String(r.toothCounts['TF'] ?? '') },
   { group: 'OTHER SERVICES', label: 'Extraction (Tooth Count)', value: (r) => String(r.toothCounts['X'] ?? '') },
   // ONE column, here — between Extraction and the sealant — per the filed
@@ -341,8 +340,8 @@ const SERVICE_COLUMNS: ServiceCol[] = [
   { group: 'OTHER SERVICES', label: 'Pit and Fissure Sealant (Tooth Count)', value: (r) => String(r.toothCounts['PFS'] ?? '') },
   // The form has a 1st AND a 2nd SDF column, both tooth counts. The app had a
   // tick for the 1st and a blank for the 2nd.
-  { group: 'OTHER SERVICES', label: '1st Silver Diamine Fluoride App (tooth count)', value: (r) => String(r.toothCounts['SDF'] ?? '') },
-  { group: 'OTHER SERVICES', label: '2nd Silver Diamine Fluoride App (tooth count)' },
+  { group: 'OTHER SERVICES', label: '1st Silver Diamine Fluoride App (tooth count)', value: (r) => String((r.toothCounts['SDF'] ?? 0) + (r.toothCounts['SDF1'] ?? 0) || '') },
+  { group: 'OTHER SERVICES', label: '2nd Silver Diamine Fluoride App (tooth count)', value: (r) => String(r.toothCounts['SDF2'] ?? '') },
   { group: 'OTHER SERVICES', label: 'Consultation' },
   { group: 'OTHER SERVICES', label: 'Referred Out' },
   { group: 'OTHER SERVICES', label: 'Complete Mouth Rehab' },

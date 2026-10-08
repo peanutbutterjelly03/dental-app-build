@@ -17,16 +17,19 @@
 //
 // ⚠ Only terms the dentist confirms should live here. A wrong local word on a
 // clinical screen is worse than none — leave `local` off rather than guess.
-export const treatmentCodes = [
+export const treatmentCodes: { code: string; label: string; local?: string; display?: string }[] = [
   { code: 'OEX', label: 'Oral Exam / Checkup', local: 'Tingin' },
   { code: 'FV', label: 'Fluoride Varnish' },
   { code: 'PFS', label: 'Pit and Fissure Sealant' },
   { code: 'OP', label: 'Oral Prophylaxis', local: 'Linis' },
   { code: 'CO', label: 'Composite Filling', local: 'Pasta' },
   { code: 'GI', label: 'Glass Ionomer Cement', local: 'Pasta' },
+  { code: 'ART', label: 'Atraumatic Restorative Treatment', local: 'Pasta' },
   { code: 'TF', label: 'Temporary Filling', local: 'Pansamantalang pasta' },
   { code: 'X', label: 'Extraction', local: 'Bunot' },
   { code: 'SDF', label: 'Silver Diamine Fluoride' },
+  { code: 'SDF1', label: 'Silver Diamine Fluoride, 1st Application', display: 'SDF 1' },
+  { code: 'SDF2', label: 'Silver Diamine Fluoride, 2nd Application', display: 'SDF 2' },
   { code: 'P', label: 'Pontic' },
   { code: 'JC', label: 'Jacket Crown' },
   { code: 'CONS', label: 'Consultation' },
@@ -51,6 +54,18 @@ export const WHOLE_MOUTH_TREATMENT_CODES = ['OEX', 'FV', 'OP', 'CONS'];
 // on a tooth by an older record can still be changed or cleared.
 export const perToothTreatmentCodes = treatmentCodes.filter((t) => !WHOLE_MOUTH_TREATMENT_CODES.includes(t.code));
 export const wholeMouthTreatmentCodes = treatmentCodes.filter((t) => WHOLE_MOUTH_TREATMENT_CODES.includes(t.code));
+
+// The palette's purpose groups (user picked layout C, 2026-10-08). Variants
+// (ART, SDF 1, SDF 2) render as lighter, dashed buttons beside their parent.
+export const TREATMENT_PALETTE_GROUPS: { label: string; codes: string[] }[] = [
+  { label: 'Preventive', codes: ['PFS', 'SDF', 'SDF1', 'SDF2'] },
+  { label: 'Restorative', codes: ['CO', 'GI', 'ART', 'TF'] },
+  { label: 'Surgical and prosthetic', codes: ['X', 'P', 'JC'] },
+];
+export const TREATMENT_VARIANT_CODES = ['ART', 'SDF1', 'SDF2'];
+
+/** Short text for a button: "SDF 1" rather than "SDF1". */
+export const treatmentDisplay = (code: string) => treatmentCodes.find((t) => t.code === code)?.display ?? code;
 
 /** "Extraction (Bunot)" where a local term exists, otherwise just the label. */
 export const treatmentLabel = (t: { label: string; local?: string }) =>

@@ -112,4 +112,7 @@ export {
   perToothTreatmentCodes,
   wholeMouthTreatmentCodes,
   treatmentLabel,
+  TREATMENT_PALETTE_GROUPS,
+  TREATMENT_VARIANT_CODES,
+  treatmentDisplay,
 } from '../../../shared/treatmentCodes';

@@ -20,6 +20,9 @@ import {
   conditionCodes,
   treatmentCodes,
   perToothTreatmentCodes,
+  TREATMENT_PALETTE_GROUPS,
+  TREATMENT_VARIANT_CODES,
+  treatmentDisplay,
   treatmentLabel,
   type computeDMFT,
   type ChartEntry,
@@ -700,11 +703,23 @@ export function DentalChartTab({
                 </div>
               ) : (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  {perToothTreatmentCodes.map((t) => (
-                    <button key={t.code} type="button" title={treatmentLabel(t)} onClick={() => applyCode('treatment', t.code)}
-                      className={`${paletteBtn} ${allHave('treatment', t.code) ? 'bg-blue-600 text-white ring-2 ring-blue-300 border-blue-600' : 'bg-card border-border text-foreground hover:border-blue-400'}`}>
-                      {t.code}
-                    </button>
+                  {TREATMENT_PALETTE_GROUPS.map((g) => (
+                    <div key={g.label} className="basis-full space-y-1.5">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{g.label}</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {g.codes.map((code) => {
+                          const t = perToothTreatmentCodes.find((x) => x.code === code);
+                          if (!t) return null;
+                          const variant = TREATMENT_VARIANT_CODES.includes(code);
+                          return (
+                            <button key={code} type="button" title={treatmentLabel(t)} onClick={() => applyCode('treatment', code)}
+                              className={`${paletteBtn} ${variant ? 'border-dashed' : ''} ${allHave('treatment', code) ? 'bg-blue-600 text-white ring-2 ring-blue-300 border-blue-600' : `${variant ? 'bg-blue-50 text-blue-900' : 'bg-card text-foreground'} border-border hover:border-blue-400`}`}>
+                              {treatmentDisplay(code)}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   ))}
                   <button type="button" onClick={clearSelection} title="Clear marks on selected teeth" aria-label="Clear marks on selected teeth"
                     className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border text-red-600 hover:bg-red-50 hover:border-red-300"><Trash2 className="h-4 w-4" /></button>
