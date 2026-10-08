@@ -168,7 +168,7 @@ export function Underlined({ label, icon: I, chevron = false, children }: { labe
   );
 }
 
-const cell = 'flex h-11 items-center gap-2 border border-[#e3e7ef] bg-[#f1f3f8] px-3.5 text-[13px] font-bold text-[#46536d] hover:bg-[#e6e9f0] sm:h-10';
+const cell = 'flex h-10 items-center gap-1.5 border border-[#e3e7ef] bg-[#f1f3f8] px-3 text-[12px] font-bold text-[#46536d] hover:bg-[#e6e9f0] sm:h-8';
 
 /** Closes a menu on an outside click or Escape. */
 function useDismiss(open: boolean, close: () => void) {
@@ -193,10 +193,10 @@ export function FiltersButton({ count, children, alone = false }: { count: numbe
     <div ref={box} className="relative">
       <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)}
         className={`${cell} ${alone ? 'rounded-[10px]' : 'rounded-l-[10px]'} ${open ? '!bg-[#e6e9f0]' : ''}`}>
-        <Filter className="h-4 w-4 text-[#7a859b]" aria-hidden="true" />
+        <Filter className="h-3.5 w-3.5 text-[#7a859b]" aria-hidden="true" />
         Filters
-        <span className="rounded-full bg-[#4b5568] px-[7px] text-[11px] leading-[17px] text-white">{count}</span>
-        <ChevronDown className="h-4 w-4 text-[#7a859b]" aria-hidden="true" />
+        <span className="rounded-full bg-[#4b5568] px-1.5 text-[10px] leading-[15px] text-white">{count}</span>
+        <ChevronDown className="h-3.5 w-3.5 text-[#7a859b]" aria-hidden="true" />
       </button>
       {open && (
         <div className="absolute right-0 top-full z-40 mt-2 w-[290px] max-w-[calc(100vw-2rem)] rounded-2xl border border-[#dfe6f4] bg-white p-3 shadow-[0_18px_34px_-14px_rgba(20,33,61,0.45)]">
@@ -225,9 +225,9 @@ export function ExportMenu({ onPrint, onPdf, onExcel, busy, joined = false }: {
     <div ref={box} className="relative">
       <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)}
         className={`${cell} ${joined ? 'rounded-r-[10px] border-l-0' : 'rounded-[10px]'} ${open ? '!bg-[#e6e9f0]' : ''}`}>
-        <Printer className="h-4 w-4 text-[#7a859b]" aria-hidden="true" />
+        <Printer className="h-3.5 w-3.5 text-[#7a859b]" aria-hidden="true" />
         {busy ? 'Preparing…' : 'Print'}
-        <ChevronDown className="h-4 w-4 text-[#7a859b]" aria-hidden="true" />
+        <ChevronDown className="h-3.5 w-3.5 text-[#7a859b]" aria-hidden="true" />
       </button>
       {open && (
         <div className="absolute right-0 top-full z-40 mt-2 grid w-[335px] max-w-[calc(100vw-2rem)] grid-cols-3 gap-2 rounded-2xl border border-[#dfe6f4] bg-white p-2.5 shadow-[0_18px_34px_-14px_rgba(20,33,61,0.45)]">
