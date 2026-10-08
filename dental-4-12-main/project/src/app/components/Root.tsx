@@ -34,7 +34,7 @@ import { Modal } from './Modal';
 // Sidebar colour theme. 'sky' is the light-blue rail (2026-09-30); 'navy' is the
 // previous navy + gold rail, kept intact so it is a one-word revert:
 // change SIDEBAR_THEME to 'navy'. (Full-file copy: docs/snapshots/Root.sidebar-navy-gold.tsx.txt)
-const SIDEBAR_THEME: 'sky' | 'navy' = 'sky';
+const SIDEBAR_THEME: 'sky' | 'navy' = 'navy';
 const SB = {
   navy: {
     bg: 'radial-gradient(120% 45% at 100% 100%, rgba(66,87,196,0.34) 0%, rgba(66,87,196,0) 62%), radial-gradient(130% 70% at 0% 0%, #243579 0%, #1D2B69 38%, #17234D 68%, #101A40 100%)',
