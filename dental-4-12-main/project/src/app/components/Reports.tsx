@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { FileBarChart, FileSpreadsheet, FileText, Printer, Download, AlertTriangle, AlertCircle, CheckCircle, Users, Calendar, X } from 'lucide-react';
+import { FileBarChart, FileSpreadsheet, FileText, AlertTriangle, AlertCircle, CheckCircle, Users, Calendar, CalendarDays, CalendarRange, GraduationCap, UserRound, VenusAndMars, SlidersHorizontal, Stethoscope, Activity, LayoutDashboard, X } from 'lucide-react';
+import { ControlsPanel, Step, PeriodTiles, Field, fieldInputClass, ActionBox, ActionButton, type TileOption } from './ReportControls';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ChartTooltip } from './ChartTooltip';
 import { LiveUpdatedStamp } from './LiveUpdatedStamp';
@@ -175,6 +176,21 @@ const REFERRAL_TYPE_LABELS: Record<ReferralType, string> = {
 const sessionRows: { date:string; school:string; grade:string; section:string; students:number; procedures:string[]; treated:number }[] = [];
 
 
+const GRADE_BAND_TILES: TileOption<'elem' | 'hs'>[] = [
+  { v: 'elem', label: 'Kinder–Grade 6', hint: 'Elementary', icon: GraduationCap },
+  { v: 'hs', label: 'Grade 7–10', hint: 'High school', icon: GraduationCap },
+];
+const SECTION_TILES: TileOption<'treatment' | 'conditions' | 'admin'>[] = [
+  { v: 'treatment', label: 'Treatment Summary', hint: 'Procedures done', icon: Stethoscope },
+  { v: 'conditions', label: 'Condition Summary', hint: 'Oral conditions found', icon: Activity },
+  { v: 'admin', label: 'Overview', hint: 'Risk, consent, referrals', icon: LayoutDashboard },
+];
+const PERIOD_TILES: TileOption<'monthly' | 'quarterly' | 'biannual' | 'annual'>[] = [
+  { v: 'monthly', label: 'One month', hint: 'e.g. October', icon: Calendar },
+  { v: 'quarterly', label: 'Quarter', hint: '3 months', icon: CalendarRange },
+  { v: 'biannual', label: 'Half year', hint: '6 months', icon: CalendarRange },
+  { v: 'annual', label: 'Whole year', hint: 'Jan to Dec', icon: CalendarDays },
+];
 const ALL_GRADES_INT = ['Kinder','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10'];
 const CONDITIONS  = ['Caries (Primary)','Caries (Permanent)','Gingivitis','Malocclusion','Orally Fit'];
 type GX = Record<string,{M:number,F:number}>;
@@ -432,7 +448,7 @@ export const Reports = () => {
     setDownloadError(null);
     const el = dohReportRef.current;
     const schoolPart = reportSchool ? getSchoolShortName(reportSchool).replace(/\s+/g, '_') : 'AllSchools';
-    const filename = `DOH_Report_${schoolPart}_${bandSlug}_${MONTHS[reportMonth - 1]}${reportYear}.pdf`;
+    const filename = `DOH_Report_${schoolPart}_${bandSlug}_${dohSchoolYear ?? 'AllYears'}.pdf`;
     previewPdf('DOH Consolidated Report', filename, async () => {
       try {
         return await buildDohReportPdf(el);
@@ -446,7 +462,7 @@ export const Reports = () => {
   const handleDownloadExcel = () => {
     setDownloadError(null);
     const schoolPart = reportSchool ? getSchoolShortName(reportSchool).replace(/\s+/g, '_') : 'AllSchools';
-    const filename = `DOH_Consolidated_${schoolPart}_${bandSlug}_${MONTHS[reportMonth - 1]}${reportYear}.xlsx`;
+    const filename = `DOH_Consolidated_${schoolPart}_${bandSlug}_${dohSchoolYear ?? 'AllYears'}.xlsx`;
     previewExcel('DOH Consolidated Report', filename, async () => {
       try {
         return await buildDohReportXlsx({
@@ -458,7 +474,7 @@ export const Reports = () => {
           school: reportSchool ? getSchoolShortName(reportSchool) : 'All Schools',
           // The spreadsheet has to say it is shortened: unlike the printout,
           // a file gets forwarded without the screen it came from.
-          monthYear: `${MONTHS[reportMonth - 1]} ${reportYear} · ${bandLabel}${dohHiddenCount ? ` · SHORTENED — ${hiddenDohRows.size} row(s), ${hiddenGrades.size} grade(s) hidden` : ''}`,
+          monthYear: `${dohSchoolYear ? `School year ${dohSchoolYear}` : 'All years to date'} · ${bandLabel}${dohHiddenCount ? ` · SHORTENED — ${hiddenDohRows.size} row(s), ${hiddenGrades.size} grade(s) hidden` : ''}`,
         });
       } catch (err) {
         setDownloadError(err instanceof Error ? err.message : 'Failed to generate Excel');
@@ -630,6 +646,27 @@ export const Reports = () => {
     );
   }
 
+  // School year picker, shared by the DOH tab, Program Report and School
+  // Summary (they all read dohSchoolYear). School year, not calendar month:
+  // the figures are per-IPTR, and an IPTR belongs to a school year.
+  const yearSelect = (
+    <Field icon={Calendar}>
+      <select id="doh-school-year" aria-label="School year" value={dohSchoolYear ?? ''} onChange={e => setDohSchoolYear(e.target.value || null)}
+        className={fieldInputClass}>
+        {/* "All years to date" stays: it is still the right answer for a cumulative count. */}
+        <option value="">All years to date</option>
+        {/* ⚠ The selected year is listed even when the database holds no
+            records for it, so the control always shows the year it is really
+            using — otherwise the <select> falls back to its FIRST option and
+            reads "All years to date" while the report filters to an empty year. */}
+        {dohSchoolYear && !dohYears.includes(dohSchoolYear) && (
+          <option value={dohSchoolYear}>{dohSchoolYear} (no records)</option>
+        )}
+        {dohYears.map(y => <option key={y} value={y}>{y}</option>)}
+      </select>
+    </Field>
+  );
+
   return (
     <div className="min-w-0 space-y-4">
       {/* Header band (user pick, 2026-10-06): the title and the school on top, the seven reports as tabs in two
@@ -687,33 +724,6 @@ export const Reports = () => {
             ))}
           </div>
         </div>
-        <div className="doh-report-controls flex flex-wrap items-center gap-2 rounded-b-2xl border border-t-0 border-border bg-card p-3">
-          <select value={reportMonth} onChange={e => setReportMonth(Number(e.target.value))} aria-label="Month"
-            className="text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring">
-            {MONTHS.map((m,i) => <option key={m} value={i+1}>{m}</option>)}
-          </select>
-          <select value={reportYear} onChange={e => setReportYear(Number(e.target.value))} aria-label="Year"
-            className="text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring">
-            {[2023,2024,2025,2026].map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
-          <span className="flex-1" />
-          <button onClick={() => window.print()}
-            className="flex items-center gap-2 px-4 py-2 bg-card border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium whitespace-nowrap">
-            <Printer className="w-4 h-4" /> Print
-          </button>
-          {activeReportTab === 'doh' && (
-            <button onClick={handleDownloadPdf} disabled={building}
-              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-60 text-sm font-medium whitespace-nowrap">
-              <Download className="w-4 h-4" /> {building && preview.kind === 'pdf' ? 'Generating…' : 'Download PDF'}
-            </button>
-          )}
-          {activeReportTab === 'doh' && (
-            <button onClick={handleDownloadExcel} disabled={building}
-              className="flex items-center gap-2 px-4 py-2 bg-green-700 text-white rounded-lg hover:bg-green-800 disabled:opacity-60 text-sm font-medium whitespace-nowrap">
-              <FileSpreadsheet className="w-4 h-4" /> {building && preview.kind === 'excel' ? 'Generating…' : 'Download Excel'}
-            </button>
-          )}
-        </div>
       </div>
       {downloadError && (
         <div className="text-sm text-destructive bg-red-50 border border-red-200 rounded-lg px-4 py-2">{downloadError}</div>
@@ -722,60 +732,39 @@ export const Reports = () => {
       {/* ── DOH CONSOLIDATED ── */}
       {activeReportTab === 'doh' && (
         <div className="space-y-3">
-          {/* School filter — thin bar, doesn't scroll */}
-          <div className="doh-report-controls flex flex-wrap items-center gap-x-3 gap-y-2">
-            {/* School year, not calendar month: the DOH figures below are
-                per-IPTR, and an IPTR belongs to a school year. */}
-            <label className="text-sm text-muted-foreground whitespace-nowrap" htmlFor="doh-school-year">School year:</label>
-            <select id="doh-school-year" aria-label="School year" value={dohSchoolYear ?? ''} onChange={e => setDohSchoolYear(e.target.value || null)}
-              className="text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring">
-              {/* Kept available deliberately — it is what this report did before
-                  it could be scoped, and it is still the right answer for a
-                  cumulative count. */}
-              <option value="">All years to date</option>
-              {/* ⚠ The selected year is listed even when the database holds no
-                  records for it (an empty database, or the moment before the
-                  year list loads). Without this the <select> falls back to
-                  displaying its FIRST option — so the control read "All years
-                  to date" while the report was actually filtering to a year
-                  with nothing in it. A control that appears to work must work:
-                  it now always shows the year it is really using, and says
-                  when that year has no records. */}
-              {dohSchoolYear && !dohYears.includes(dohSchoolYear) && (
-                <option value={dohSchoolYear}>{dohSchoolYear} (no records)</option>
-              )}
-              {dohYears.map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
-
-            {/* Sprint 110. Appears only after a real self-refresh — see
-                LiveUpdatedStamp for why it must never show a page-load time. */}
-            <LiveUpdatedStamp at={dohLastUpdated} />
-
-            <button
-              onClick={() => setShowDohPicker((v) => !v)}
-              aria-expanded={showDohPicker}
-              className="text-sm px-3 py-2 border border-border rounded-lg text-foreground hover:bg-gray-50"
-            >{showDohPicker ? 'Done' : `Rows & grades${dohHiddenCount ? ` (${dohHiddenCount} hidden)` : ''}`}</button>
-
-            {/* Same DOH form, different grade band. Hidden entirely when the
-                school in view has no secondary students. */}
-            {hasSecondary && (
-              <div role="group" aria-label="Grade band" className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-                {([['elem','Kinder–Grade 6'],['hs','Grade 7–10']] as const).map(([band, label]) => (
-                  <button
-                    key={band}
-                    onClick={() => setGradeBand(band)}
-                    aria-pressed={gradeBand === band}
-                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                      gradeBand === band ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    {label}
+          <ControlsPanel
+            steps={
+              <>
+                <Step n={1} label="Which school year?">{yearSelect}</Step>
+                {hasSecondary && (
+                  <Step n={2} label="Which grades?">
+                    <PeriodTiles<GradeBand> name="Grade band" value={gradeBand} onChange={setGradeBand} options={GRADE_BAND_TILES} />
+                  </Step>
+                )}
+                <Step n={hasSecondary ? 3 : 2} label="Hide rows or grades? (optional)">
+                  <button type="button" onClick={() => setShowDohPicker((v) => !v)} aria-expanded={showDohPicker}
+                    className="flex min-h-[44px] items-center gap-2 rounded-xl border-[1.5px] border-border bg-card px-4 text-sm font-semibold text-foreground hover:bg-gray-50">
+                    <SlidersHorizontal className="h-5 w-5 text-primary" aria-hidden="true" />
+                    {showDohPicker ? 'Done' : `Rows & grades${dohHiddenCount ? ` (${dohHiddenCount} hidden)` : ''}`}
                   </button>
-                ))}
-              </div>
-            )}
-          </div>
+                </Step>
+              </>
+            }
+            status={<>
+              You are viewing <b>{dohSchoolYear ? `school year ${dohSchoolYear}` : 'all years to date'}</b> · {reportSchool ? getSchoolShortName(reportSchool) : 'all schools'}
+              {hasSecondary && <> · <b>{gradeBand === 'elem' ? 'Kinder–Grade 6' : 'Grade 7–10'}</b></>}
+              {/* Sprint 110. Appears only after a real self-refresh — see
+                  LiveUpdatedStamp for why it must never show a page-load time. */}
+              <LiveUpdatedStamp at={dohLastUpdated} />
+            </>}
+            actions={
+              <ActionBox>
+                <ActionButton kind="excel" caption="For the City Health Office" onClick={handleDownloadExcel} busy={building && preview.kind === 'excel'} />
+                <ActionButton kind="pdf" caption="To email or keep" onClick={handleDownloadPdf} busy={building && preview.kind === 'pdf'} />
+                <ActionButton kind="print" caption="Send to the printer" onClick={() => window.print()} />
+              </ActionBox>
+            }
+          />
 
           {/* How the two year-varying figures in this table are derived. Both
               used to be computed against TODAY, which silently rewrote past
@@ -873,7 +862,7 @@ export const Reports = () => {
                       className="text-center py-1 px-3 bg-gray-50 border-b border-border text-[10px] text-muted-foreground">
                       <div className="sticky left-0" style={{ width: '100cqw' }}>
                         SCHOOL: {reportSchool ? getSchoolShortName(reportSchool) : 'All Schools'} &nbsp;·&nbsp;
-                        MONTH: {MONTHS[reportMonth-1]} {reportYear} &nbsp;·&nbsp;
+                        SCHOOL YEAR: {dohSchoolYear ?? 'ALL YEARS TO DATE'} &nbsp;·&nbsp;
                         GRADES: {bandLabel}
                       </div>
                     </th>
@@ -1015,65 +1004,92 @@ export const Reports = () => {
       {/* ── INTERNAL REPORTS ── */}
       {activeReportTab === 'internal' && (
         <div className="space-y-4">
-          {/* Section sub-tabs */}
-          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 w-fit">
-            {([['treatment','Treatment Summary'],['conditions','Condition Summary'],['admin','Overview']] as const).map(([k,l]) => (
-              <button key={k} onClick={() => setInternalSection(k)}
-                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${internalSection===k ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
-                {l}
-              </button>
-            ))}
-          </div>
+          <ControlsPanel
+            steps={
+              <>
+                <Step n={1} label="What do you want to see?">
+                  <PeriodTiles<'treatment' | 'conditions' | 'admin'> name="Report section" value={internalSection} onChange={setInternalSection} options={SECTION_TILES} />
+                </Step>
+                {internalSection !== 'conditions' && (
+                  <Step n={2} label="How long a period?">
+                    <PeriodTiles<'monthly' | 'quarterly' | 'biannual' | 'annual'> name="Period length" value={periodType} onChange={setPeriodType} options={PERIOD_TILES} />
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {periodType !== 'annual' && (
+                        <Field icon={Calendar}>
+                          <select aria-label="Period" className={fieldInputClass}
+                            value={periodType === 'monthly' ? reportMonth : periodType === 'quarterly' ? Math.floor((reportMonth - 1) / 3) + 1 : reportMonth < 7 ? 1 : 2}
+                            onChange={e => { const n = Number(e.target.value); setReportMonth(periodType === 'monthly' ? n : periodType === 'quarterly' ? (n - 1) * 3 + 1 : (n - 1) * 6 + 1); }}>
+                            {periodType === 'monthly' && MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                            {periodType === 'quarterly' && [1, 2, 3, 4].map(q => <option key={q} value={q}>Quarter {q} ({MONTHS[(q - 1) * 3].slice(0, 3)} – {MONTHS[q * 3 - 1].slice(0, 3)})</option>)}
+                            {periodType === 'biannual' && [1, 2].map(h => <option key={h} value={h}>{h === 1 ? '1st half (Jan – Jun)' : '2nd half (Jul – Dec)'}</option>)}
+                          </select>
+                        </Field>
+                      )}
+                      <Field icon={Calendar}>
+                        <select aria-label="Year" value={reportYear} onChange={e => setReportYear(Number(e.target.value))} className={fieldInputClass}>
+                          {Array.from(new Set([...[3, 2, 1, 0].map(i => new Date().getFullYear() - i), reportYear])).sort().map(y => <option key={y} value={y}>{y}</option>)}
+                        </select>
+                      </Field>
+                    </div>
+                  </Step>
+                )}
+                {internalSection !== 'admin' && (
+                  <Step n={internalSection === 'conditions' ? 2 : 3} label="Which students?">
+                    <div className="flex flex-wrap gap-2">
+                      <Field icon={UserRound}>
+                        <select aria-label="Age" value={intAgeFilter} onChange={e => { setIntAgeFilter(e.target.value); setIntGradeFilter('all'); }} className={fieldInputClass}>
+                          <option value="all">All ages</option>
+                          <option value="4 & below">Age: 4 & below</option>
+                          <option value="5-9">Age: 5-9</option>
+                          <option value="10-14">Age: 10-14</option>
+                          <option value="15-19">Age: 15-19</option>
+                          <option value="20 & above">Age: 20 & above</option>
+                        </select>
+                      </Field>
+                      <Field icon={GraduationCap}>
+                        <select aria-label="Grade" value={intGradeFilter} onChange={e => { setIntGradeFilter(e.target.value); setIntAgeFilter('all'); }} className={fieldInputClass}>
+                          <option value="all">All grades</option>
+                          {ALL_GRADES_INT.map(g => <option key={g} value={g}>{g}</option>)}
+                        </select>
+                      </Field>
+                      <Field icon={VenusAndMars}>
+                        <select aria-label="Sex" value={intGenderFilter} onChange={e => setIntGenderFilter(e.target.value)} className={fieldInputClass}>
+                          <option value="all">Both sexes</option>
+                          <option value="M">Male</option>
+                          <option value="F">Female</option>
+                        </select>
+                      </Field>
+                      {hasIntFilters && (
+                        <button type="button" onClick={clearIntFilters}
+                          className="flex min-h-[44px] items-center gap-1.5 rounded-xl border-[1.5px] border-red-200 px-4 text-sm font-semibold text-destructive hover:bg-red-50">
+                          <X className="h-4 w-4" aria-hidden="true" /> Clear
+                        </button>
+                      )}
+                    </div>
+                  </Step>
+                )}
+              </>
+            }
+            status={<>
+              You are viewing <b>{SECTION_TILES.find(t => t.v === internalSection)?.label}</b>
+              {internalSection !== 'conditions' && <> · <b>{periodLabel}</b></>}
+              {internalSection !== 'admin' && hasIntFilters && <> · filtered</>}
+            </>}
+            actions={
+              <ActionBox title="Print this page">
+                <ActionButton kind="print" caption="Send to the printer" onClick={() => window.print()} />
+              </ActionBox>
+            }
+          />
 
           {/* ── TREATMENT SUMMARY ── */}
           {internalSection === 'treatment' && (
             <div className="space-y-4">
-              {/* Filters */}
-              <div className="bg-card rounded-xl border border-border p-4 flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-                  {(['monthly','quarterly','biannual','annual'] as const).map(p => (
-                    <button key={p} onClick={() => setPeriodType(p)}
-                      className={`px-3 py-1 rounded-md text-xs font-medium capitalize transition-colors ${periodType===p ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground'}`}>
-                      {p === 'biannual' ? 'Bi-annual' : p}
-                    </button>
-                  ))}
-                </div>
-                <select value={intAgeFilter} onChange={e => { setIntAgeFilter(e.target.value); setIntGradeFilter('all'); }}
-                  className="text-sm border border-border rounded-lg px-3 py-1.5 bg-card focus:outline-none focus:ring-2 focus:ring-ring">
-                  <option value="all">All Ages</option>
-                  <option value="4 & below">4 & below</option>
-                  <option value="5-9">5-9</option>
-                  <option value="10-14">10-14</option>
-                  <option value="15-19">15-19</option>
-                  <option value="20 & above">20 & above</option>
-                </select>
-                <select value={intGradeFilter} onChange={e => { setIntGradeFilter(e.target.value); setIntAgeFilter('all'); }}
-                  className="text-sm border border-border rounded-lg px-3 py-1.5 bg-card focus:outline-none focus:ring-2 focus:ring-ring">
-                  <option value="all">All Grades</option>
-                  {ALL_GRADES_INT.map(g => <option key={g} value={g}>{g}</option>)}
-                </select>
-                <select value={intGenderFilter} onChange={e => setIntGenderFilter(e.target.value)}
-                  className="text-sm border border-border rounded-lg px-3 py-1.5 bg-card focus:outline-none focus:ring-2 focus:ring-ring">
-                  <option value="all">All Genders</option>
-                  <option value="M">Male</option>
-                  <option value="F">Female</option>
-                </select>
-                {hasIntFilters && (
-                  <button onClick={clearIntFilters}
-                    className="flex items-center gap-1 px-3 py-1.5 text-sm text-destructive border border-red-200 rounded-lg hover:bg-red-50">
-                    <X className="w-3 h-3" /> Clear
-                  </button>
-                )}
-                <span className="text-xs text-muted-foreground ml-auto">{periodLabel}</span>
-              </div>
 
               {/* Table */}
               <div className="bg-card rounded-xl border border-border overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
                   <h3 className="text-sm font-bold text-foreground">Procedure Counts</h3>
-                  <button onClick={() => window.print()} className="flex items-center gap-1.5 text-xs px-3 py-1.5 border border-border rounded-lg hover:bg-gray-50 text-muted-foreground">
-                    <Printer className="w-3 h-3" /> Print
-                  </button>
                 </div>
                 <div className="overflow-x-auto">
                 <table className="w-full text-xs">
@@ -1118,35 +1134,6 @@ export const Reports = () => {
           {/* ── CONDITION SUMMARY ── */}
           {internalSection === 'conditions' && (
             <div className="space-y-4">
-              {/* Filters */}
-              <div className="bg-card rounded-xl border border-border p-4 flex flex-wrap items-center gap-3">
-                <select value={intAgeFilter} onChange={e => { setIntAgeFilter(e.target.value); setIntGradeFilter('all'); }}
-                  className="text-sm border border-border rounded-lg px-3 py-1.5 bg-card focus:outline-none focus:ring-2 focus:ring-ring">
-                  <option value="all">All Ages</option>
-                  <option value="4 & below">4 & below</option>
-                  <option value="5-9">5-9</option>
-                  <option value="10-14">10-14</option>
-                  <option value="15-19">15-19</option>
-                  <option value="20 & above">20 & above</option>
-                </select>
-                <select value={intGradeFilter} onChange={e => { setIntGradeFilter(e.target.value); setIntAgeFilter('all'); }}
-                  className="text-sm border border-border rounded-lg px-3 py-1.5 bg-card focus:outline-none focus:ring-2 focus:ring-ring">
-                  <option value="all">All Grades</option>
-                  {ALL_GRADES_INT.map(g => <option key={g} value={g}>{g}</option>)}
-                </select>
-                <select value={intGenderFilter} onChange={e => setIntGenderFilter(e.target.value)}
-                  className="text-sm border border-border rounded-lg px-3 py-1.5 bg-card focus:outline-none focus:ring-2 focus:ring-ring">
-                  <option value="all">All Genders</option>
-                  <option value="M">Male</option>
-                  <option value="F">Female</option>
-                </select>
-                {hasIntFilters && (
-                  <button onClick={clearIntFilters}
-                    className="flex items-center gap-1 px-3 py-1.5 text-sm text-destructive border border-red-200 rounded-lg hover:bg-red-50">
-                    <X className="w-3 h-3" /> Clear
-                  </button>
-                )}
-              </div>
 
               {/* Summary cards */}
               {(() => {
@@ -1191,9 +1178,6 @@ export const Reports = () => {
               <div className="bg-card rounded-xl border border-border overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
                   <h3 className="text-sm font-bold text-foreground">Condition Counts by Grade</h3>
-                  <button onClick={() => window.print()} className="flex items-center gap-1.5 text-xs px-3 py-1.5 border border-border rounded-lg hover:bg-gray-50 text-muted-foreground">
-                    <Printer className="w-3 h-3" /> Print
-                  </button>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
@@ -1405,11 +1389,11 @@ export const Reports = () => {
       {activeReportTab === 'tcl' && canSeeNamedClientLists && <TargetClientList />}
 
       {/* ── ORAL HEALTH PROGRAM REPORTING FORM (Appendix F) ── */}
-      {activeReportTab === 'ohprf' && <OralHealthProgramReport schoolYear={dohSchoolYear} schoolName={reportSchool} />}
+      {activeReportTab === 'ohprf' && <OralHealthProgramReport schoolYear={dohSchoolYear} schoolName={reportSchool} yearPicker={yearSelect} />}
       {activeReportTab === 'fhsis' && <FhsisReport schoolName={reportSchool} />}
       {/* Per-school summary sheet — shares the DOH tab's school-year picker,
           like the Program Report (Sprint 57b). */}
-      {activeReportTab === 'summary' && <SchoolSummaryReport schoolYear={dohSchoolYear} schoolName={reportSchool} />}
+      {activeReportTab === 'summary' && <SchoolSummaryReport schoolYear={dohSchoolYear} schoolName={reportSchool} yearPicker={yearSelect} />}
       {/* No school/year props: the consent form is blank by design. */}
       {activeReportTab === 'consent' && canSeeNamedClientLists && <ConsentForm />}
 

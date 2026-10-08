@@ -7,7 +7,8 @@ import { buildDohReportPdf } from '../utils/exportPdf';
 import { buildXlsx } from '../utils/exportXlsx';
 import { usePreviewModal } from '../hooks/usePreviewModal';
 import { PreviewModal } from './PreviewModal';
-import { Download, FileSpreadsheet } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { ControlsPanel, Step, ActionBox, ActionButton } from './ReportControls';
 
 // ─── Per-school summary sheet ────────────────────────────────────────────────
 // Transcribed from the scan the user supplied 2026-09-03, headed "SOUTH DAANG
@@ -98,9 +99,11 @@ const show = (value: number | null) => (value === null ? NO_SOURCE_MARK : String
 interface Props {
   schoolName: string | null;
   schoolYear: string | null;
+  /** The shared school-year select, rendered by Reports (same state as the DOH tab). */
+  yearPicker?: ReactNode;
 }
 
-export function SchoolSummaryReport({ schoolName, schoolYear }: Props) {
+export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null }: Props) {
   // → A short summary sheet, not a wide grid.
   usePrintOrientation('portrait');
   const { tally, unsexedCount, loading, error } = useSchoolSummary(schoolName, schoolYear);
@@ -148,45 +151,41 @@ export function SchoolSummaryReport({ schoolName, schoolYear }: Props) {
     );
   };
 
-  if (loading) return <SkeletonTable rows={13} />;
+  const panel = (
+    <ControlsPanel
+      steps={<Step n={1} label="Which school year?">{yearPicker}</Step>}
+      status={<>You are viewing <b>{schoolName ?? 'all schools'}</b> · <b>{schoolYear ? `school year ${schoolYear}` : 'all years to date'}</b></>}
+      actions={
+        // PDF *and* Excel: aggregate counts, no patient names, bounded width (Sprint 85).
+        <ActionBox title="Save or print this summary">
+          <ActionButton kind="excel" caption="Open in Excel" onClick={onXlsx} disabled={loading || !!error} busy={building && preview.kind === 'excel'} />
+          <ActionButton kind="pdf" caption="To email or keep" onClick={onPdf} disabled={loading || !!error} busy={building && preview.kind === 'pdf'} />
+        </ActionBox>
+      }
+    />
+  );
+
+  if (loading) return <div className="space-y-3">{panel}<SkeletonTable rows={13} /></div>;
   if (error) {
     return (
-      <div className="bg-card rounded-xl border border-border p-4">
-        <p className="text-sm text-red-700">{error}</p>
+      <div className="space-y-3">
+        {panel}
+        <div className="bg-card rounded-xl border border-border p-4">
+          <p className="text-sm text-red-700">{error}</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-3">
+      {panel}
       <div className="bg-card rounded-xl border border-border p-4">
         <h2 className="text-sm font-bold text-foreground">School Summary Sheet</h2>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <span className="text-xs text-muted-foreground">
             {schoolName ?? 'All schools'} · Barangay Tanyag, Taguig City
           </span>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-muted-foreground">
-              {schoolYear ? `School year ${schoolYear}` : 'All years to date'}
-            </span>
-            {/* PDF *and* Excel, like the Program Report: aggregate counts, no
-                patient names, bounded width — none of the Target Client List's
-                PII weight (Sprint 85). */}
-            <button
-              onClick={onPdf}
-              disabled={building}
-              className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-gray-50 disabled:opacity-50"
-            >
-              <Download className="w-3.5 h-3.5" />{building && preview.kind === 'pdf' ? 'Preparing…' : 'PDF'}
-            </button>
-            <button
-              onClick={onXlsx}
-              disabled={building}
-              className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-gray-50 disabled:opacity-50"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5" />{building && preview.kind === 'excel' ? 'Preparing…' : 'Excel'}
-            </button>
-          </div>
         </div>
       </div>
 

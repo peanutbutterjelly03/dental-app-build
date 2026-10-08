@@ -27,7 +27,7 @@ export interface FhsisInput {
   iptrs: FhsisIptr[];
   pcrs: FhsisPreventive[];
   schools: FhsisSchool[];
-  /** "YYYY-MM" — the month the form reports. */
+  /** "YYYY-MM", or "YYYY-MM..YYYY-MM" for a multi-month period — what the form reports. */
   month: string;
   /** School NAME as the dropdown carries it, or "" for all schools. */
   schoolName: string;
@@ -88,8 +88,15 @@ export const emptyCounts = (): Counts =>
     FHSIS_BANDS.map((b) => [b.key, { first: emptyMeasure(), completed: emptyMeasure() }]),
   ) as Counts;
 
-const sameMonth = (d: Date, month: string) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === month;
+/** `period` is "YYYY-MM" (one month) or "YYYY-MM..YYYY-MM" (first..last month,
+ *  inclusive) for a quarter, half-year or year. A quarter is just the sum of
+ *  its months, so the same tally covers all four. "YYYY-MM" strings compare
+ *  correctly as text. */
+const inPeriod = (d: Date, period: string) => {
+  const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const [from, to = from] = period.split('..');
+  return ym >= from && ym <= to;
+};
 
 
 export function buildFhsisCounts(input: FhsisInput): FhsisOutput {
@@ -131,7 +138,7 @@ export function buildFhsisCounts(input: FhsisInput): FhsisOutput {
     const student = studentFor(p);
     if (!student) continue;
     months.add(`${when.getFullYear()}-${String(when.getMonth() + 1).padStart(2, '0')}`);
-    if (!sameMonth(when, month)) continue;
+    if (!inPeriod(when, month)) continue;
 
     const sexRaw = (student.sex ?? '').trim().toLowerCase();
     const sex: Sex | null = sexRaw.startsWith('m') ? 'male' : sexRaw.startsWith('f') ? 'female' : null;

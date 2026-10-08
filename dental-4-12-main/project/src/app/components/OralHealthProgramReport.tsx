@@ -18,7 +18,9 @@ import { buildDohReportPdf } from '../utils/exportPdf';
 import { buildXlsx } from '../utils/exportXlsx';
 import { usePreviewModal } from '../hooks/usePreviewModal';
 import { PreviewModal } from './PreviewModal';
-import { Download, FileSpreadsheet } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { SlidersHorizontal } from 'lucide-react';
+import { ControlsPanel, Step, ActionBox, ActionButton } from './ReportControls';
 
 /** What a no-source cell says in the exported workbook — the same mark the
  *  screen shows, so the file makes the identical claims as the report. */
@@ -320,7 +322,7 @@ function loadSet(key: string): Set<string> {
   }
 }
 
-export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }: { schoolYear?: string | null; schoolName?: string | null }) => {
+export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null, yearPicker = null }: { schoolYear?: string | null; schoolName?: string | null; yearPicker?: ReactNode }) => {
   // → A wide banded grid, like the consolidated report.
   usePrintOrientation('landscape');
   // Scoped to the SAME school the DOH tab's picker selects, not the sidebar's
@@ -559,6 +561,30 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
 
   return (
     <div className="space-y-8">
+      {/* Controls: see ReportControls.tsx. The period is the school year, picked
+          with the same control as the DOH tab (shared state, Sprint 57b). PDF
+          *and* Excel: aggregate counts, no names, bounded width. */}
+      <ControlsPanel
+        steps={
+          <>
+            <Step n={1} label="Which school year?">{yearPicker}</Step>
+            <Step n={2} label="Hide rows or columns? (optional)">
+              <button type="button" onClick={() => setShowPicker((v) => !v)} aria-expanded={showPicker}
+                className="flex min-h-[44px] items-center gap-2 rounded-xl border-[1.5px] border-border bg-card px-4 text-sm font-semibold text-foreground hover:bg-gray-50">
+                <SlidersHorizontal className="h-5 w-5 text-primary" aria-hidden="true" />
+                {showPicker ? 'Done' : `Rows & columns${hiddenCount ? ` (${hiddenCount} hidden)` : ''}`}
+              </button>
+            </Step>
+          </>
+        }
+        status={<>You are viewing <b>{schoolYear ? `school year ${schoolYear}` : 'all years to date'}</b> · {schoolName ?? 'all schools'}</>}
+        actions={
+          <ActionBox>
+            <ActionButton kind="excel" caption="For the City Health Office" onClick={onXlsx} busy={building && preview.kind === 'excel'} />
+            <ActionButton kind="pdf" caption="To email or keep" onClick={onPdf} busy={building && preview.kind === 'pdf'} />
+          </ActionBox>
+        }
+      />
       <div className="bg-card rounded-xl border border-border p-4">
         <h2 className="text-sm font-bold text-foreground">Oral Health Program Reporting Form</h2>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -568,39 +594,6 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
                 one school's name — the exact mislabelling this sprint fixes. */}
             {schoolName ?? 'All schools'} · Barangay Tanyag, Taguig City
           </span>
-          {/* The period now comes from the DOH tab's school-year picker, which
-              this form shares (Sprint 57b). Before that the hook took no date
-              range at all and this said so rather than offering a control that
-              silently did nothing. */}
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-muted-foreground">
-              {schoolYear ? `School year ${schoolYear}` : 'All years to date'}
-            </span>
-            {/* PDF *and* Excel here, unlike the Target Client List: this form
-                is aggregate counts with no patient names, so it carries none
-                of the TCL's PII weight, and its width is bounded. */}
-            <button
-              onClick={onPdf}
-              disabled={building}
-              className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-gray-50 disabled:opacity-50"
-            >
-              <Download className="w-3.5 h-3.5" />{building && preview.kind === 'pdf' ? 'Preparing…' : 'PDF'}
-            </button>
-            <button
-              onClick={onXlsx}
-              disabled={building}
-              className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-gray-50 disabled:opacity-50"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5" />{building && preview.kind === 'excel' ? 'Preparing…' : 'Excel'}
-            </button>
-            <button
-              onClick={() => setShowPicker((v) => !v)}
-              aria-expanded={showPicker}
-              className="text-xs px-2 py-1 border border-border rounded-md text-foreground hover:bg-gray-50"
-            >
-              {showPicker ? 'Done' : `Rows & columns${hiddenCount ? ` (${hiddenCount} hidden)` : ''}`}
-            </button>
-          </div>
         </div>
         <p className="text-xs text-muted-foreground mt-2">
           The paper form covers the whole city population; Floral holds school children only, so its

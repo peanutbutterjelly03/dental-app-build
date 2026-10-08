@@ -2,6 +2,14 @@
 
 **Compressed 2026-09-04 (hygiene pass; previous one 2026-07-11).** Completed-sprint history → `docs/BUILD-LOG.md`; pre-2026-07-11 narratives → git history (`git show 73bc4e47:HANDOFF.md`). **This file keeps ONLY live state: current status, the resume note, unresolved findings, open work, user-only items, warnings and durable gotchas. A finished sprint belongs in BUILD-LOG the moment it is finished — do not let them accumulate here again.**
 
+## ⭐ REPORTS CONTROL PANELS (2026-10-08, branch `claude/student-records-layout`)
+- Every Reports tab now opens with one shared panel (`components/ReportControls.tsx`): numbered steps, icons, a "You are viewing…" line, and a "Save or print" box (Excel green, PDF orange, Print white). It REPLACES the old Month/Year/Print strip under the tab bar and each tab's own button rows.
+- **FHSIS** now takes One month / Quarter / Half year / Whole year (the workbook's 24 sheets). `shared/fhsis.ts` accepts `YYYY-MM` or `YYYY-MM..YYYY-MM` (`inPeriod`); a longer period is the sum of its months. Test: `shared/fhsis.test.ts`.
+- **Only real filters are shown.** Program Report, School Summary and DOH Consolidated are SCHOOL-YEAR based, so they get the school-year select (one shared `dohSchoolYear`), not a month. The DOH table header and file names now say school year instead of the removed month. TCL keeps its real periods (day / month / quarter / year + a date). Consent Form has nothing to pick.
+- Internal Reports: section tiles replace the sub-tab pills; period steps apply to Treatment Summary and Overview only (Condition Summary is not period-based).
+- Not built: age/sex band picker for TCL (the app has one table, not 27 sheets), Excel on Internal Reports.
+- Checked: tsc, vitest, vite build. NOT checked in a browser (no backend in the session): look at all 7 tabs at 390 / 768 / 1280.
+
 ## ⭐ PUBLIC PAGES v4: Clinic page rebuilt with the clinic's own photos (2026-10-07, branch `claude/student-records-layout`)
 - **Clinic (`/clinic`)** = photo hero (lightened blue overlay, left-aligned) > "Preventive care for every child" (RAMHIS-style story band, five services each with a one-sentence description, chairside photo) > three school cards (longer descriptions, "Kinder to Grade N", two-line names, no "primary") > school-group photo (no caption) > FAQs. Program comes BEFORE schools (user order). The user explicitly said the program section must NOT be about RPC and must not say "five steps" or "pupil" (always "students").
 - **Photos (`public/landing/clinic/{team,chairside,school-group}.jpg`) are the user's own, supplied in chat; they show real staff and a child. ⚠ CONFIRM the clinic/school consent to publish them before deployment.**

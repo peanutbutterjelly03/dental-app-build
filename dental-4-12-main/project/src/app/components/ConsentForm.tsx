@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { usePrintOrientation } from '../hooks/usePrintOrientation';
-import { Download } from 'lucide-react';
+import { ControlsPanel, Step, ActionBox, ActionButton } from './ReportControls';
 import { buildDohReportPdf } from '../utils/exportPdf';
 import { usePreviewModal } from '../hooks/usePreviewModal';
 import { PreviewModal } from './PreviewModal';
@@ -75,6 +75,18 @@ export const ConsentForm = () => {
 
   return (
     <div className="space-y-3">
+      {/* Blank by design: there is nothing to pick, so no steps — only a status
+          line and the ways to get the form out. */}
+      <ControlsPanel
+        steps={null}
+        status={<>The blank consent form is ready to print — nothing is pre-filled.</>}
+        actions={
+          <ActionBox title="Print this form">
+            <ActionButton kind="print" caption="Send to the printer" onClick={() => window.print()} />
+            <ActionButton kind="pdf" caption="To email or keep" onClick={onPdf} busy={building} />
+          </ActionBox>
+        }
+      />
       <div className="bg-card rounded-xl border border-border p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -83,13 +95,6 @@ export const ConsentForm = () => {
               Blank form for printing and sending home. Nothing is pre-filled — the parent completes it by hand.
             </p>
           </div>
-          <button
-            onClick={onPdf}
-            disabled={building}
-            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-gray-50 disabled:opacity-50 w-fit"
-          >
-            <Download className="w-3.5 h-3.5" />{building ? 'Preparing…' : 'PDF'}
-          </button>
         </div>
       </div>
 

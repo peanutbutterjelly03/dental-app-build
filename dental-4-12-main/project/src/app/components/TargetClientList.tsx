@@ -8,6 +8,8 @@ import { useStudents } from '../hooks/useStudents';
 import { useRPCTracking, SOUND_TEMPORARY, SOUND_PERMANENT } from '../hooks/useRPCTracking';
 import type { VisitServices } from '../../../shared/rpcTracking';
 import { SkeletonTable } from './Skeleton';
+import { Calendar, CalendarDays, CalendarRange } from 'lucide-react';
+import { ControlsPanel, Step, PeriodTiles, Field, fieldInputClass, ActionBox, ActionButton, type TileOption } from './ReportControls';
 import { formatDate, toLocalDateString } from '../utils/localDate';
 import { buildSheetsXlsx } from '../utils/exportXlsx';
 import { usePreviewModal } from '../hooks/usePreviewModal';
@@ -64,11 +66,11 @@ import { cariesStatus } from '../../../shared/cariesStatus';
 const AGE_GROUPS: readonly string[] = DOH_AGE_BRACKETS;
 
 type Period = 'daily' | 'monthly' | 'quarterly' | 'annual';
-const PERIODS: { v: Period; l: string }[] = [
-  { v: 'daily', l: 'Daily' },
-  { v: 'monthly', l: 'Monthly' },
-  { v: 'quarterly', l: 'Quarterly' },
-  { v: 'annual', l: 'Annual' },
+const PERIOD_TILES: TileOption<Period>[] = [
+  { v: 'daily', label: 'One day', hint: 'e.g. today', icon: Calendar },
+  { v: 'monthly', label: 'One month', hint: 'e.g. October', icon: CalendarDays },
+  { v: 'quarterly', label: 'Quarter', hint: '3 months', icon: CalendarRange },
+  { v: 'annual', label: 'Whole year', hint: 'Jan to Dec', icon: CalendarDays },
 ];
 
 /** Inclusive start / exclusive end for the period containing `anchor`.
@@ -921,55 +923,37 @@ export const TargetClientList = () => {
 
   return (
     <div className="min-w-0 max-w-full space-y-8">
+      {/* Controls: see ReportControls.tsx. Excel is listed first — the City
+          Health Office requires it (decided 2026-09-03). The TCL is 66 columns;
+          Excel paginates columns natively. PDF (added 2026-10-06) is the exact
+          two-page form. Daily/monthly/quarterly/annual are the periods this
+          report really supports; there is no half-year here. */}
+      <ControlsPanel
+        steps={
+          <>
+            <Step n={1} label="How long a period?">
+              <PeriodTiles<Period> name="Period length" value={period} onChange={setPeriod} options={PERIOD_TILES} />
+            </Step>
+            <Step n={2} label="Pick any day in that period">
+              <div className="flex flex-wrap gap-2">
+                <Field icon={Calendar}>
+                  <input type="date" aria-label="A day inside the period" value={anchor}
+                    onChange={(e) => e.target.value && setAnchor(e.target.value)} className={fieldInputClass} />
+                </Field>
+              </div>
+            </Step>
+          </>
+        }
+        status={<>You are viewing <b>{periodLabel}</b> · <b>{visible.length}</b> client{visible.length !== 1 ? 's' : ''} consulted{selectedSchool ? ' · selected school' : ' · all schools'}</>}
+        actions={
+          <ActionBox title="Save this list">
+            <ActionButton kind="excel" caption="For the City Health Office" onClick={onXlsx} disabled={visible.length === 0} busy={building} />
+            <ActionButton kind="pdf" caption="The exact two-page form" onClick={onPdf} busy={building} />
+          </ActionBox>
+        }
+      />
       <div className="bg-card rounded-xl border border-border p-4">
         <h2 className="text-sm font-bold text-foreground">Target Client List for Oral Health Care and Services</h2>
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 w-fit">
-            {PERIODS.map((p) => (
-              <button
-                key={p.v}
-                onClick={() => setPeriod(p.v)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${period === p.v ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-              >{p.l}</button>
-            ))}
-          </div>
-          {/* Native date input, per the house rule on preferring platform
-              features. It anchors the period — the buttons decide how much of
-              the calendar around this date is covered. */}
-          <label className="flex items-center gap-2 text-xs text-muted-foreground">
-            Period containing
-            <input
-              type="date"
-              value={anchor}
-              onChange={(e) => e.target.value && setAnchor(e.target.value)}
-              className="border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          </label>
-          {/* PDF added 2026-10-06 at the user's request: it is the exact two-page
-              form, previewed before download like the other reports. (Excel
-              was the ONLY export from 2026-09-03 to then.)
-              Original note on Excel: This table is 66 columns; Excel paginates columns
-              natively where a PDF is either unreadably small or sprayed across
-              pages, which is the same width problem the print stylesheet has
-              never solved. It is also the format the City Health Office
-              requires. Do not "add the missing PDF export". */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onPdf}
-              disabled={building}
-              className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-gray-50 disabled:opacity-50"
-            >
-              <FileText className="w-3.5 h-3.5" />{building ? 'Preparing…' : 'PDF'}
-            </button>
-            <button
-              onClick={onXlsx}
-              disabled={building || visible.length === 0}
-              className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-gray-50 disabled:opacity-50"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5" />{building ? 'Preparing…' : 'Excel'}
-            </button>
-          </div>
-        </div>
         <p className="text-xs text-muted-foreground mt-2">
           <button
             onClick={() => setShowPicker((v) => !v)}

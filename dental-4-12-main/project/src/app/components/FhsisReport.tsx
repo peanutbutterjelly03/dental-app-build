@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { usePrintOrientation } from '../hooks/usePrintOrientation';
-import { Download, FileSpreadsheet } from 'lucide-react';
+import { Calendar, CalendarDays, CalendarRange } from 'lucide-react';
+import { ControlsPanel, Step, PeriodTiles, Field, fieldInputClass, ActionBox, ActionButton, type TileOption } from './ReportControls';
 import { useFhsisData, FHSIS_BANDS, type FhsisBandKey, type Measure } from '../hooks/useFhsisData';
 import { buildDohReportPdf } from '../utils/exportPdf';
 import { buildXlsx } from '../utils/exportXlsx';
@@ -60,28 +61,49 @@ const MEASURES: { key: Measure; heading: string; caption: (band: string) => stri
 /** Pregnant-women rows are on the printed form and have no source. */
 const PREGNANT_AGE_GROUPS = ['10-14', '15-19', '20-49'] as const;
 
-const monthLabel = (m: string) => {
-  const [y, mo] = m.split('-').map(Number);
-  if (!y || !mo) return m;
-  return new Date(y, mo - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }).toUpperCase();
-};
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const ORDINALS = ['1st', '2nd', '3rd', '4th'];
 
-const thisMonth = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-};
+// The workbook has 24 FHSIS sheets: 12 months, 4 quarters, 2 semi-annual and
+// the Annual. A longer period is the sum of its months (shared/fhsis.ts).
+type PeriodKind = 'month' | 'quarter' | 'half' | 'year';
+const PERIOD_TILES: TileOption<PeriodKind>[] = [
+  { v: 'month', label: 'One month', hint: 'e.g. October', icon: Calendar },
+  { v: 'quarter', label: 'Quarter', hint: '3 months', icon: CalendarRange },
+  { v: 'half', label: 'Half year', hint: '6 months', icon: CalendarRange },
+  { v: 'year', label: 'Whole year', hint: 'Jan to Dec', icon: CalendarDays },
+];
+const pad = (n: number) => String(n).padStart(2, '0');
+
+/** `pick` is the month (1-12), quarter (1-4) or half (1-2); ignored for a year. */
+function describePeriod(kind: PeriodKind, pick: number, year: number) {
+  const first = kind === 'month' ? pick : kind === 'quarter' ? (pick - 1) * 3 + 1 : kind === 'half' ? (pick - 1) * 6 + 1 : 1;
+  const last = kind === 'month' ? pick : kind === 'quarter' ? first + 2 : kind === 'half' ? first + 5 : 12;
+  const key = first === last ? `${year}-${pad(first)}` : `${year}-${pad(first)}..${year}-${pad(last)}`;
+  const short = first === last ? `${MONTH_NAMES[first - 1]} ${year}` : `${MONTH_NAMES[first - 1].slice(0, 3)} – ${MONTH_NAMES[last - 1].slice(0, 3)} ${year}`;
+  // Printed in the form's "Month:" slot, worded like the workbook's sheet names.
+  const printed = kind === 'month' ? `${MONTH_NAMES[pick - 1].toUpperCase()} ${year}`
+    : kind === 'quarter' ? `${ORDINALS[pick - 1].toUpperCase()} QUARTER ${year}`
+    : kind === 'half' ? `${ORDINALS[pick - 1].toUpperCase()} SEMI-ANNUAL ${year}`
+    : `ANNUAL ${year}`;
+  return { key, short, printed };
+}
 
 export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
   // → A wide age-bracket × sex grid, like the other DOH tables.
   usePrintOrientation('landscape');
-  const [month, setMonth] = useState(thisMonth);
+  const now = new Date();
+  const [kind, setKind] = useState<PeriodKind>('month');
+  const [pick, setPick] = useState(now.getMonth() + 1);
+  const [year, setYear] = useState(now.getFullYear());
+  const { key: month, short: periodShort, printed: periodPrinted } = describePeriod(kind, pick, year);
   const { counts, monthsWithData, loading, error } = useFhsisData(month, schoolName);
   const printableRef = useRef<HTMLDivElement>(null);
   const { preview, building, previewPdf, previewExcel, closePreview, confirmDownload } = usePreviewModal();
 
   /** Filename stamped with school + month, so downloads are distinguishable
    *  once several months are filed. */
-  const baseName = `FHSIS-SectionD_${(schoolName || 'All-Schools').replace(/[^\w]+/g, '-')}_${month}`;
+  const baseName = `FHSIS-SectionD_${(schoolName || 'All-Schools').replace(/[^\w]+/g, '-')}_${month.replace('..', '_to_')}`;
 
   const onPdf = () => {
     if (!printableRef.current) return;
@@ -134,7 +156,7 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
       return buildXlsx(
         rows,
         [
-          { label: `Indicators — School: ${schoolName || 'All schools'} — Month: ${monthLabel(month)}`, value: (r) => r.indicator },
+          { label: `Indicators — School: ${schoolName || 'All schools'} — Month: ${periodPrinted}`, value: (r) => r.indicator },
           { label: 'Male', value: (r) => r.male },
           { label: 'Female', value: (r) => r.female },
           { label: 'Total', value: (r) => r.total },
@@ -145,10 +167,54 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
     });
   };
 
+  const visits = Object.values(counts).reduce(
+    (n, b) => n + b.first.male + b.first.female + b.completed.male + b.completed.female, 0);
+  const monthHasVisits = (m: number) => monthsWithData.includes(`${year}-${pad(m)}`);
+  const panel = (
+    <ControlsPanel
+      steps={
+        <>
+          <Step n={1} label="How long a period?">
+            <PeriodTiles name="Period length" value={kind} options={PERIOD_TILES}
+              onChange={(k) => { setKind(k); setPick(k === 'month' ? now.getMonth() + 1 : 1); }} />
+          </Step>
+          <Step n={2} label={kind === 'year' ? 'Which year?' : 'Which one?'}>
+            <div className="flex flex-wrap gap-2">
+              {kind !== 'year' && (
+                <Field icon={Calendar}>
+                  <select aria-label="Period" value={pick} onChange={(e) => setPick(Number(e.target.value))} className={fieldInputClass}>
+                    {kind === 'month' && MONTH_NAMES.map((m, i) => (
+                      <option key={m} value={i + 1}>{m}{monthHasVisits(i + 1) ? '  ● has visits' : ''}</option>))}
+                    {kind === 'quarter' && [1, 2, 3, 4].map((q) => (
+                      <option key={q} value={q}>{ORDINALS[q - 1]} Quarter ({MONTH_NAMES[(q - 1) * 3].slice(0, 3)} – {MONTH_NAMES[q * 3 - 1].slice(0, 3)})</option>))}
+                    {kind === 'half' && [1, 2].map((h) => (
+                      <option key={h} value={h}>{ORDINALS[h - 1]} Semi-Annual ({h === 1 ? 'Jan – Jun' : 'Jul – Dec'})</option>))}
+                  </select>
+                </Field>
+              )}
+              <Field icon={Calendar}>
+                <select aria-label="Year" value={year} onChange={(e) => setYear(Number(e.target.value))} className={fieldInputClass}>
+                  {Array.from(new Set([...[3, 2, 1, 0].map((i) => now.getFullYear() - i), year])).sort().map((y) => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </Field>
+            </div>
+          </Step>
+        </>
+      }
+      status={<>You are viewing <b>{periodShort}</b> · <b>{visits}</b> visit{visits === 1 ? '' : 's'} counted · {schoolName || 'All schools'}</>}
+      actions={
+        <ActionBox>
+          <ActionButton kind="excel" caption="For the City Health Office" onClick={onXlsx} disabled={loading || !!error} busy={building && preview.kind === 'excel'} />
+          <ActionButton kind="pdf" caption="To email or keep" onClick={onPdf} disabled={loading || !!error} busy={building && preview.kind === 'pdf'} />
+        </ActionBox>
+      }
+    />
+  );
+
   if (error) {
-    return <div className="rounded-lg border border-danger/30 bg-danger/5 p-4 text-sm text-danger">{error}</div>;
+    return <div className="space-y-4">{panel}<div className="rounded-lg border border-danger/30 bg-danger/5 p-4 text-sm text-danger">{error}</div></div>;
   }
-  if (loading) return <SkeletonTable rows={12} />;
+  if (loading) return <div className="space-y-4">{panel}<SkeletonTable rows={12} /></div>;
 
   const cell = (v: number) => <td className="border border-gray-300 px-2 py-1.5 text-center tabular-nums">{v}</td>;
   const blank = (title: string) => (
@@ -161,43 +227,8 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
 
   return (
     <div className="space-y-4">
-      {/* Controls — the month picker filters real data, not just the caption. */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between fhsis-controls">
-        <div className="flex flex-col gap-1">
-          <label htmlFor="fhsis-month" className="text-xs font-medium text-muted-foreground">
-            Reporting month
-          </label>
-          <input
-            id="fhsis-month"
-            type="month"
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
-          />
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {monthsWithData.length > 0 && (
-            <p className="mr-2 text-xs text-muted-foreground">
-              Visits recorded in: {monthsWithData.slice(0, 6).map(monthLabel).join(', ')}
-              {monthsWithData.length > 6 ? '…' : ''}
-            </p>
-          )}
-          <button
-            onClick={onPdf}
-            disabled={building}
-            className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
-          >
-            <Download className="h-4 w-4" /> {building && preview.kind === 'pdf' ? 'Preparing…' : 'PDF'}
-          </button>
-          <button
-            onClick={onXlsx}
-            disabled={building}
-            className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
-          >
-            <FileSpreadsheet className="h-4 w-4" /> {building && preview.kind === 'excel' ? 'Preparing…' : 'Excel'}
-          </button>
-        </div>
-      </div>
+      {/* Controls: see ReportControls.tsx. */}
+      {panel}
 
       {/* ref is on the OUTER box so the School/Month header band and the section
           title are captured WITH the table. html2canvas clips to the ref'd
@@ -212,7 +243,7 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
               <span className="font-semibold">School:</span> {schoolName || 'All schools'}
             </span>
             <span>
-              <span className="font-semibold">Month:</span> {monthLabel(month)}
+              <span className="font-semibold">Month:</span> {periodPrinted}
             </span>
           </div>
           <div className="mt-2 font-semibold">SECTION D. ORAL HEALTH CARE SERVICES</div>
@@ -325,7 +356,7 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
         </table>
 
         <p className="mt-3 text-xs text-muted-foreground">
-          Counts come from recorded preventive-care visits for the selected month. Cells marked “—” are left blank
+          Counts come from recorded preventive-care visits for the selected period. Cells marked “—” are left blank
           rather than estimated: pregnancy status has no field in this system at all, and a facility-based sub-row is
           blank when none of the visits counted in it were classified. Where some were, the sub-rows show real figures
           and Remarks states how many visits are unclassified — so the two sub-rows may add up to less than the total.
