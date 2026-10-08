@@ -1,6 +1,8 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { FileBarChart, FileSpreadsheet, FileText, AlertTriangle, AlertCircle, CheckCircle, Users, Calendar, CalendarDays, CalendarRange, GraduationCap, UserRound, VenusAndMars, SlidersHorizontal, Stethoscope, Activity, LayoutDashboard, X } from 'lucide-react';
-import { ControlsPanel, Step, PeriodTiles, Field, fieldInputClass, ValueButton, ActionBox, ActionButton, type TileOption } from './ReportControls';
+import { ControlsPanel, Step, PeriodTiles, Field, fieldInputClass, ValueButton, ActionBox, ActionButton, PanelShell, UnderlineTabs, GroupBox, Underlined, FiltersButton, FilterChip, type TileOption } from './ReportControls';
+import { RangePicker } from './RangePicker';
+import { toLocalDateString } from '../utils/localDate';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ChartTooltip } from './ChartTooltip';
 import { LiveUpdatedStamp } from './LiveUpdatedStamp';
@@ -181,11 +183,13 @@ const GRADE_BAND_TILES: TileOption<'elem' | 'hs'>[] = [
   { v: 'hs', label: 'Grade 7–10', hint: 'High school', icon: GraduationCap },
 ];
 const SECTION_TILES: TileOption<'treatment' | 'conditions' | 'admin'>[] = [
-  { v: 'treatment', label: 'Treatment', hint: 'Procedures done', icon: Stethoscope },
-  { v: 'conditions', label: 'Conditions', hint: 'Oral conditions found', icon: Activity },
+  { v: 'treatment', label: 'Treatment Summary', hint: 'Procedures done', icon: Stethoscope },
+  { v: 'conditions', label: 'Condition Summary', hint: 'Oral conditions found', icon: Activity },
   { v: 'admin', label: 'Overview', hint: 'Risk, consent, referrals', icon: LayoutDashboard },
 ];
-const PERIOD_TILES: TileOption<'monthly' | 'quarterly' | 'biannual' | 'annual'>[] = [
+type PeriodKind = 'range' | 'monthly' | 'quarterly' | 'biannual' | 'annual';
+const PERIOD_TILES: TileOption<PeriodKind>[] = [
+  { v: 'range', label: 'Range', hint: 'Pick a start and an end date. The same day twice is one day.', icon: CalendarRange },
   { v: 'monthly', label: 'Month', hint: 'e.g. October', icon: Calendar },
   { v: 'quarterly', label: 'Quarter', hint: '3 months', icon: CalendarRange },
   { v: 'biannual', label: 'Half', hint: '6 months', icon: CalendarRange },
@@ -483,7 +487,10 @@ export const Reports = () => {
     });
   };
   const [internalSection, setInternalSection] = useState<'treatment'|'conditions'|'admin'>('treatment');
-  const [periodType, setPeriodType] = useState<'monthly'|'quarterly'|'biannual'|'annual'>('monthly');
+  const [periodType, setPeriodType] = useState<PeriodKind>('monthly');
+  // Custom range (periodType 'range'): inclusive first and last day, local "YYYY-MM-DD".
+  const [rangeStart, setRangeStart] = useState(() => { const d = new Date(); return toLocalDateString(new Date(d.getFullYear(), d.getMonth(), 1)); });
+  const [rangeEnd, setRangeEnd] = useState(() => toLocalDateString(new Date()));
   // Same rule as the DOH tab above: pinned to their own school when they hold one.
   const [intSchoolFilter, setIntSchoolFilter] = useState(() => (canSeeAllSchools ? 'all' : ownSchool() ?? 'all'));
   useEffect(() => {
@@ -514,11 +521,17 @@ export const Reports = () => {
   const periodRange = useMemo(() => {
     const y = reportYear;
     const m = reportMonth - 1;
+    if (periodType === 'range') {
+      const [sy, sm, sd] = rangeStart.split('-').map(Number);
+      const [ey, em, ed] = rangeEnd.split('-').map(Number);
+      // End is exclusive, so a range of one day is [that day, the next day).
+      return { start: new Date(sy, sm - 1, sd), end: new Date(ey, em - 1, ed + 1) };
+    }
     if (periodType === 'monthly')   return { start: new Date(y, m, 1), end: new Date(y, m + 1, 1) };
     if (periodType === 'quarterly') { const q = Math.floor(m / 3) * 3; return { start: new Date(y, q, 1), end: new Date(y, q + 3, 1) }; }
     if (periodType === 'biannual')  { const h = m < 6 ? 0 : 6; return { start: new Date(y, h, 1), end: new Date(y, h + 6, 1) }; }
     return { start: new Date(y, 0, 1), end: new Date(y + 1, 0, 1) };
-  }, [periodType, reportMonth, reportYear]);
+  }, [periodType, reportMonth, reportYear, rangeStart, rangeEnd]);
 
   // The period and school are applied SERVER-side; filtering afterwards would
   // put the whole population back on the wire, which is the thing #24 is about.
@@ -542,7 +555,9 @@ export const Reports = () => {
 
   const referralRows = panels.referralRows;
 
-  const periodLabel = periodType === 'monthly'
+  const periodLabel = periodType === 'range'
+    ? (rangeStart === rangeEnd ? formatDate(rangeStart) : `${formatDate(rangeStart)} to ${formatDate(rangeEnd)}`)
+    : periodType === 'monthly'
     ? `${MONTHS[reportMonth - 1]} ${reportYear}`
     : `${periodRange.start.toLocaleDateString('en-US', { month: 'short' })}–${new Date(periodRange.end.getFullYear(), periodRange.end.getMonth() - 1, 1).toLocaleDateString('en-US', { month: 'short' })} ${reportYear}`;
 
@@ -585,6 +600,8 @@ export const Reports = () => {
       ? activeGrades.reduce((s, g) => s + getCount(matrix, key, g, gender), 0)
       : getCount(matrix, key, 'all', gender);
   const displayGrades = intAgeFilter !== 'all' ? AGE_TO_GRADES[intAgeFilter] : ALL_GRADES_INT;
+  const clearStudentFilters = () => { setIntGradeFilter('all'); setIntGenderFilter('all'); setIntAgeFilter('all'); };
+  const activeStudentFilters = [intAgeFilter, intGradeFilter, intGenderFilter].filter((v) => v !== 'all').length;
   const clearIntFilters = () => { setIntSchoolFilter('all'); setIntGradeFilter('all'); setIntGenderFilter('all'); setIntAgeFilter('all'); };
   const hasIntFilters = intSchoolFilter !== 'all' || intGradeFilter !== 'all' || intGenderFilter !== 'all' || intAgeFilter !== 'all';
 
@@ -1002,83 +1019,69 @@ export const Reports = () => {
       {/* ── INTERNAL REPORTS ── */}
       {activeReportTab === 'internal' && (
         <div className="space-y-4">
-          <ControlsPanel
-            steps={
-              <>
-                <Step icon={LayoutDashboard} label="Report">
-                  <PeriodTiles<'treatment' | 'conditions' | 'admin'> icons name="Report section" value={internalSection} onChange={setInternalSection} options={SECTION_TILES} />
-                </Step>
+          <PanelShell>
+            <UnderlineTabs<'treatment' | 'conditions' | 'admin'> name="Report section" value={internalSection} onChange={setInternalSection}
+              options={SECTION_TILES.map(({ v, label, icon }) => ({ v, label, icon }))}
+              trailing={<ActionButton kind="print" caption="Send to the printer" onClick={() => window.print()} />} />
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-5 pt-6">
                 {internalSection !== 'conditions' && (
-                  <Step icon={CalendarRange} label="Show by">
-                    <div className="flex flex-wrap gap-2">
-                    <PeriodTiles<'monthly' | 'quarterly' | 'biannual' | 'annual'> name="Period length" value={periodType} onChange={setPeriodType} options={PERIOD_TILES} />
-                      {periodType !== 'annual' && (
-                        <Field icon={Calendar}>
-                          <select aria-label="Period" className={fieldInputClass}
-                            value={periodType === 'monthly' ? reportMonth : periodType === 'quarterly' ? Math.floor((reportMonth - 1) / 3) + 1 : reportMonth < 7 ? 1 : 2}
-                            onChange={e => { const n = Number(e.target.value); setReportMonth(periodType === 'monthly' ? n : periodType === 'quarterly' ? (n - 1) * 3 + 1 : (n - 1) * 6 + 1); }}>
-                            {periodType === 'monthly' && MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
-                            {periodType === 'quarterly' && [1, 2, 3, 4].map(q => <option key={q} value={q}>Quarter {q} ({MONTHS[(q - 1) * 3].slice(0, 3)} to {MONTHS[q * 3 - 1].slice(0, 3)})</option>)}
-                            {periodType === 'biannual' && [1, 2].map(h => <option key={h} value={h}>{h === 1 ? '1st half (Jan to Jun)' : '2nd half (Jul to Dec)'}</option>)}
-                          </select>
-                        </Field>
+                  <>
+                    <GroupBox title="Time period" className="w-full lg:w-[400px]">
+                      <PeriodTiles<PeriodKind> full name="Time period" value={periodType} onChange={setPeriodType} options={PERIOD_TILES} />
+                    </GroupBox>
+                    <GroupBox title="Dates" className="w-full lg:w-[400px]">
+                      {periodType === 'range' ? (
+                        <RangePicker start={rangeStart} end={rangeEnd} onChange={(a, b) => { setRangeStart(a); setRangeEnd(b); }} />
+                      ) : (
+                        <div className="flex w-full gap-4">
+                          {periodType !== 'annual' && (
+                            <Underlined label={periodType === 'monthly' ? 'Month' : periodType === 'quarterly' ? 'Quarter' : 'Half'} icon={Calendar} chevron>
+                              <select aria-label="Period" className={`${fieldInputClass} !pr-5`}
+                                value={periodType === 'monthly' ? reportMonth : periodType === 'quarterly' ? Math.floor((reportMonth - 1) / 3) + 1 : reportMonth < 7 ? 1 : 2}
+                                onChange={e => { const n = Number(e.target.value); setReportMonth(periodType === 'monthly' ? n : periodType === 'quarterly' ? (n - 1) * 3 + 1 : (n - 1) * 6 + 1); }}>
+                                {periodType === 'monthly' && MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                                {periodType === 'quarterly' && [1, 2, 3, 4].map(q => <option key={q} value={q}>Quarter {q} ({MONTHS[(q - 1) * 3].slice(0, 3)} to {MONTHS[q * 3 - 1].slice(0, 3)})</option>)}
+                                {periodType === 'biannual' && [1, 2].map(h => <option key={h} value={h}>{h === 1 ? '1st half (Jan to Jun)' : '2nd half (Jul to Dec)'}</option>)}
+                              </select>
+                            </Underlined>
+                          )}
+                          <Underlined label="Year" icon={Calendar} chevron>
+                            <select aria-label="Year" value={reportYear} onChange={e => setReportYear(Number(e.target.value))} className={`${fieldInputClass} !pr-5`}>
+                              {Array.from(new Set([...[3, 2, 1, 0].map(i => new Date().getFullYear() - i), reportYear])).sort().map(y => <option key={y} value={y}>{y}</option>)}
+                            </select>
+                          </Underlined>
+                        </div>
                       )}
-                      <Field icon={Calendar}>
-                        <select aria-label="Year" value={reportYear} onChange={e => setReportYear(Number(e.target.value))} className={fieldInputClass}>
-                          {Array.from(new Set([...[3, 2, 1, 0].map(i => new Date().getFullYear() - i), reportYear])).sort().map(y => <option key={y} value={y}>{y}</option>)}
-                        </select>
-                      </Field>
-                    </div>
-                  </Step>
+                    </GroupBox>
+                  </>
                 )}
                 {internalSection !== 'admin' && (
-                  <Step icon={UserRound} tone="violet" label="Students">
-                    <div className="flex flex-wrap gap-2">
-                      <Field icon={UserRound}>
-                        <select aria-label="Age" value={intAgeFilter} onChange={e => { setIntAgeFilter(e.target.value); setIntGradeFilter('all'); }} className={fieldInputClass}>
-                          <option value="all">All ages</option>
-                          <option value="4 & below">Age: 4 & below</option>
-                          <option value="5-9">Age: 5-9</option>
-                          <option value="10-14">Age: 10-14</option>
-                          <option value="15-19">Age: 15-19</option>
-                          <option value="20 & above">Age: 20 & above</option>
+                  <div className="lg:ml-auto">
+                    <FiltersButton count={activeStudentFilters}>
+                      {[
+                        { label: 'Age', value: intAgeFilter, set: (v: string) => { setIntAgeFilter(v); setIntGradeFilter('all'); }, opts: [['all', 'All ages'], ['4 & below', 'Age: 4 & below'], ['5-9', 'Age: 5-9'], ['10-14', 'Age: 10-14'], ['15-19', 'Age: 15-19'], ['20 & above', 'Age: 20 & above']] },
+                        { label: 'Grade', value: intGradeFilter, set: (v: string) => { setIntGradeFilter(v); setIntAgeFilter('all'); }, opts: [['all', 'All grades'], ...ALL_GRADES_INT.map(g => [g, g])] },
+                        { label: 'Sex', value: intGenderFilter, set: setIntGenderFilter, opts: [['all', 'Both sexes'], ['M', 'Male'], ['F', 'Female']] },
+                      ].map((f) => (
+                        <select key={f.label} aria-label={f.label} value={f.value} onChange={(e) => f.set(e.target.value)}
+                          className="h-10 w-full rounded-lg border border-[#e3e7ef] bg-[#f1f3f8] px-3 text-[13.5px] font-bold text-[#46536d]">
+                          {f.opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                         </select>
-                      </Field>
-                      <Field icon={GraduationCap}>
-                        <select aria-label="Grade" value={intGradeFilter} onChange={e => { setIntGradeFilter(e.target.value); setIntAgeFilter('all'); }} className={fieldInputClass}>
-                          <option value="all">All grades</option>
-                          {ALL_GRADES_INT.map(g => <option key={g} value={g}>{g}</option>)}
-                        </select>
-                      </Field>
-                      <Field icon={VenusAndMars}>
-                        <select aria-label="Sex" value={intGenderFilter} onChange={e => setIntGenderFilter(e.target.value)} className={fieldInputClass}>
-                          <option value="all">Both sexes</option>
-                          <option value="M">Male</option>
-                          <option value="F">Female</option>
-                        </select>
-                      </Field>
-                      {hasIntFilters && (
-                        <button type="button" onClick={clearIntFilters}
-                          className="flex min-h-[44px] sm:min-h-[30px] items-center gap-1.5 rounded-lg border-[1.5px] border-red-300 bg-white px-3 text-[12.5px] font-bold text-destructive hover:bg-red-50">
-                          <X className="h-4 w-4" aria-hidden="true" /> Clear
-                        </button>
-                      )}
-                    </div>
-                  </Step>
+                      ))}
+                    </FiltersButton>
+                  </div>
                 )}
-              </>
-            }
-            status={<>
-              You are viewing <b>{internalSection === 'admin' ? 'Overview' : internalSection === 'treatment' ? 'Treatment Summary' : 'Condition Summary'}</b>
-              {internalSection !== 'conditions' && <> · <b>{periodLabel}</b></>}
-              {internalSection !== 'admin' && hasIntFilters && <> · filtered</>}
-            </>}
-            actions={
-              <ActionBox>
-                <ActionButton kind="print" caption="Send to the printer" onClick={() => window.print()} />
-              </ActionBox>
-            }
-          />
+            </div>
+            {internalSection !== 'admin' && activeStudentFilters > 0 && (
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <span className="text-[10.5px] font-bold uppercase tracking-[0.07em] text-muted-foreground">Showing</span>
+                {intAgeFilter !== 'all' && <FilterChip onRemove={() => setIntAgeFilter('all')}>{`Age ${intAgeFilter}`}</FilterChip>}
+                {intGradeFilter !== 'all' && <FilterChip onRemove={() => setIntGradeFilter('all')}>{intGradeFilter}</FilterChip>}
+                {intGenderFilter !== 'all' && <FilterChip onRemove={() => setIntGenderFilter('all')}>{intGenderFilter === 'M' ? 'Male' : 'Female'}</FilterChip>}
+                <button type="button" onClick={clearStudentFilters} className="ml-auto text-[13px] font-bold text-destructive hover:underline">Clear all</button>
+              </div>
+            )}
+          </PanelShell>
 
           {/* ── TREATMENT SUMMARY ── */}
           {internalSection === 'treatment' && (
