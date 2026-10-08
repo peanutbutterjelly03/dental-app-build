@@ -799,7 +799,7 @@ export const Root = () => {
             white, not red (red is reserved for the real app's confirm-modal
             icon, which FLORAL doesn't have a matching dialog for). */}
         <div className={`h-px ${SB.divider} mx-8 ${collapsed ? "md:mx-2" : ""}`} />
-        <div className="px-8 py-5">
+        <div className="px-8 pt-5 pb-9">
           {/* Real spec hides this WHOLE block when collapsed (avatar included,
               not just the name/role text) -- CSS-based (md:hidden), not a JS
               conditional, so mobile (which ignores `collapsed`) still shows it
