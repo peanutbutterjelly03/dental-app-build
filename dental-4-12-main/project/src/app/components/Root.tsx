@@ -826,14 +826,7 @@ export const Root = () => {
             )}
           </div>
 
-          <button
-            onClick={() => setConfirmLogout(true)}
-            title={collapsed ? 'Logout' : undefined}
-            className={`w-full h-11 flex items-center gap-3 px-3.5 text-[0.875rem] font-medium ${SB.logout} rounded-[9px] transition-colors justify-start ${collapsed ? 'md:justify-center' : 'md:justify-start'}`}
-          >
-            <LogOut className="w-4 h-4 flex-shrink-0" />
-            <span className={labelCls}>Logout</span>
-          </button>
+          {/* Log out lives in the account menu (top right) now. */}
         </div>
       </aside>
 
