@@ -1,50 +1,17 @@
 import { useEffect, useRef, useState, type ComponentType, type ReactNode } from 'react';
 import { ChevronDown, Filter, FileSpreadsheet, FileText, Printer, X } from 'lucide-react';
 
-// One control panel for every Reports tab (user-approved look, 2026-10-08,
-// "soft card"): a white panel under the tab strip with a soft shadow. Each
-// control is a tinted icon chip with a small caption above its value, thin
-// dividers between controls, and Excel / PDF / Print on the right.
-// Excel is always the green gradient, PDF soft orange, Print soft blue.
+// Parts of the control panel on every Reports tab (user-approved look,
+// 2026-10-08): a white card attached under the tab strip (PanelShell) holding
+// one row of equal-size outlined boxes (GroupBox: "Time period", "Dates",
+// "School year") with the Excel / PDF / Print buttons at the right end
+// (ActionGroup). Excel is always the green gradient, PDF soft orange, Print
+// soft blue. Internal Reports adds underlined tabs and a Filters button.
 //
 // ⚠ Show only controls that really filter the data and only buttons the tab
 // really supports (CLAUDE.md, NOTHING COSMETIC).
 
 type Icon = ComponentType<{ className?: string }>;
-
-/** Attached under the tab strip: -mt-4 cancels the page's space-y gap. The
- *  controls are flex items that wrap, so a tab with many (Internal Reports)
- *  drops to a second row instead of squeezing. `status` is read aloud by
- *  screen readers when it changes and is not drawn (the controls already show
- *  the choice). */
-export function ControlsPanel({ steps, status, actions }: { steps: ReactNode; status?: ReactNode; actions?: ReactNode }) {
-  return (
-    <div className="doh-report-controls -mt-4 flex flex-wrap items-center gap-x-4 gap-y-4 rounded-b-2xl border border-t-0 border-[#e1e7f3] bg-white px-5 py-5 sm:min-h-[92px] shadow-[0_14px_30px_-18px_rgba(36,59,122,0.45)]">
-      {steps}
-      {actions && <div className="flex min-w-0 flex-wrap gap-2 lg:ml-auto">{actions}</div>}
-      {status && <p className="sr-only" aria-live="polite">{status}</p>}
-    </div>
-  );
-}
-
-const TONES = { blue: 'bg-[#e8eefc] text-primary', violet: 'bg-[#f1ecfd] text-[#6d4bd6]' } as const;
-
-/** One control: a coloured icon chip, a small caption, then the control. */
-export function Step({ icon: I, label, tone = 'blue', children }: {
-  icon: Icon; label: string; tone?: keyof typeof TONES; children: ReactNode;
-}) {
-  return (
-    <div className="flex min-w-0 max-w-full items-center gap-2.5 border-[#e4e9f3] sm:border-l sm:pl-4 sm:first:border-l-0 sm:first:pl-0">
-      <span className={`flex h-[26px] w-[26px] flex-none items-center justify-center rounded-lg ${TONES[tone]}`}>
-        <I className="h-4 w-4" aria-hidden="true" />
-      </span>
-      <div className="min-w-0">
-        <div className="text-[10.5px] font-bold uppercase tracking-[0.07em] text-muted-foreground">{label}</div>
-        {children}
-      </div>
-    </div>
-  );
-}
 
 export interface TileOption<T extends string> { v: T; label: string; hint: string; icon: Icon }
 
@@ -69,35 +36,7 @@ export function PeriodTiles<T extends string>({ value, onChange, options, name, 
   );
 }
 
-/** A native <select> (or any native input) shown as bold text with a chevron.
- *  The select's own border/background are stripped (the app's global select
- *  style would draw a box). Pass `chevron={false}` for a date input, which has
- *  its own picker icon. */
-export function Field({ children, chevron = true }: { icon?: Icon; children: ReactNode; chevron?: boolean }) {
-  return (
-    <div className="relative flex h-10 items-center rounded-lg sm:h-9 focus-within:ring-2 focus-within:ring-ring">
-      {children}
-      {chevron && <ChevronDown className="pointer-events-none absolute right-0 h-4 w-4 text-muted-foreground" aria-hidden="true" />}
-    </div>
-  );
-}
 export const fieldInputClass = 'h-full min-w-0 appearance-none !border-0 !bg-transparent !p-0 !pr-6 !shadow-none text-[14px] font-bold text-foreground focus:!outline-none';
-
-/** Same look as a Field, for a control that opens something (rows and grades). */
-export function ValueButton({ onClick, expanded, children }: { onClick: () => void; expanded: boolean; children: ReactNode }) {
-  return (
-    <button type="button" onClick={onClick} aria-expanded={expanded}
-      className="flex h-10 items-center gap-1.5 text-[14px] font-bold text-foreground sm:h-9">
-      {children}
-      <ChevronDown className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-    </button>
-  );
-}
-
-/** The right-hand group of save buttons. */
-export function ActionBox({ children }: { children: ReactNode }) {
-  return <>{children}</>;
-}
 
 const KINDS = {
   excel: { icon: FileSpreadsheet, label: 'Excel', cls: 'bg-gradient-to-b from-[#1f9a52] to-[#16813f] text-white shadow-[0_6px_12px_-6px_rgba(22,129,63,0.7)] hover:brightness-95' },
@@ -165,10 +104,10 @@ export function GroupBox({ title, children, className = '' }: { title: string; c
 }
 
 /** A caption over an underlined field: the native control goes inside. */
-export function Underlined({ label, icon: I, chevron = false, children }: { label: string; icon: Icon; chevron?: boolean; children: ReactNode }) {
+export function Underlined({ label, icon: I, chevron = false, children }: { label?: string; icon: Icon; chevron?: boolean; children: ReactNode }) {
   return (
     <div className="relative min-w-0 flex-1">
-      <div className="text-[9.5px] font-bold uppercase tracking-[0.07em] text-muted-foreground">{label}</div>
+      {label && <div className="text-[9.5px] font-bold uppercase tracking-[0.07em] text-muted-foreground">{label}</div>}
       <div className="relative flex h-9 items-center gap-2 border-b-[1.5px] border-primary">
         <I className="h-4 w-4 flex-none text-primary" aria-hidden="true" />
         {children}
@@ -218,5 +157,30 @@ export function FilterChip({ children, onRemove }: { children: ReactNode; onRemo
         <X className="h-3.5 w-3.5" aria-hidden="true" />
       </button>
     </span>
+  );
+}
+
+/** Every box in a row is this wide on a laptop, full width below it. */
+export const BOX_W = 'w-full lg:w-[400px]';
+
+/** One row of boxes and buttons, under the card's top edge. */
+export function PanelRow({ children }: { children: ReactNode }) {
+  return <div className="flex flex-wrap items-center gap-x-4 gap-y-5 pt-6">{children}</div>;
+}
+
+/** The buttons at the right end of a row (Excel, PDF, Print). */
+export function ActionGroup({ children }: { children: ReactNode }) {
+  return <div className="flex flex-wrap items-center gap-2 lg:ml-auto">{children}</div>;
+}
+
+/** A grey button that opens something (rows and columns), same look as Filters. */
+export function GreyButton({ icon: I, expanded, onClick, children }: { icon: Icon; expanded: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button type="button" aria-expanded={expanded} onClick={onClick}
+      className="flex h-11 items-center gap-2 rounded-[10px] border border-[#e3e7ef] bg-[#f1f3f8] px-3.5 text-[13.5px] font-bold text-[#46536d] hover:bg-[#e9ecf3] sm:h-10">
+      <I className="h-4 w-4 text-[#7a859b]" aria-hidden="true" />
+      {children}
+      <ChevronDown className="h-4 w-4 text-[#7a859b]" aria-hidden="true" />
+    </button>
   );
 }

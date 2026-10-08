@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { usePrintOrientation } from '../hooks/usePrintOrientation';
-import { ControlsPanel, Step, ActionBox, ActionButton } from './ReportControls';
+import { PanelShell, PanelRow, ActionGroup, ActionButton } from './ReportControls';
 import { buildDohReportPdf } from '../utils/exportPdf';
 import { usePreviewModal } from '../hooks/usePreviewModal';
 import { PreviewModal } from './PreviewModal';
@@ -77,16 +77,15 @@ export const ConsentForm = () => {
     <div className="space-y-3">
       {/* Blank by design: there is nothing to pick, so no steps — only a status
           line and the ways to get the form out. */}
-      <ControlsPanel
-        steps={null}
-        status={<>The blank consent form is ready to print — nothing is pre-filled.</>}
-        actions={
-          <ActionBox>
+      <PanelShell>
+        <PanelRow>
+          <p className="text-[13.5px] text-muted-foreground">The blank consent form is ready to print. Nothing is pre-filled.</p>
+          <ActionGroup>
             <ActionButton kind="print" caption="Send to the printer" onClick={() => window.print()} />
             <ActionButton kind="pdf" caption="To email or keep" onClick={onPdf} busy={building} />
-          </ActionBox>
-        }
-      />
+          </ActionGroup>
+        </PanelRow>
+      </PanelShell>
       <div className="bg-card rounded-xl border border-border p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>

@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { FileBarChart, FileSpreadsheet, FileText, AlertTriangle, AlertCircle, CheckCircle, Users, Calendar, CalendarDays, CalendarRange, GraduationCap, UserRound, VenusAndMars, SlidersHorizontal, Stethoscope, Activity, LayoutDashboard, X } from 'lucide-react';
-import { ControlsPanel, Step, PeriodTiles, Field, fieldInputClass, ValueButton, ActionBox, ActionButton, PanelShell, UnderlineTabs, GroupBox, Underlined, FiltersButton, FilterChip, type TileOption } from './ReportControls';
+import { PeriodTiles, fieldInputClass, ActionButton, PanelShell, PanelRow, ActionGroup, GreyButton, BOX_W, UnderlineTabs, GroupBox, Underlined, FiltersButton, FilterChip, type TileOption } from './ReportControls';
 import { RangePicker } from './RangePicker';
 import { toLocalDateString } from '../utils/localDate';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -667,9 +667,9 @@ export const Reports = () => {
   // Summary (they all read dohSchoolYear). School year, not calendar month:
   // the figures are per-IPTR, and an IPTR belongs to a school year.
   const yearSelect = (
-    <Field icon={Calendar}>
+    <Underlined icon={Calendar} chevron>
       <select id="doh-school-year" aria-label="School year" value={dohSchoolYear ?? ''} onChange={e => setDohSchoolYear(e.target.value || null)}
-        className={fieldInputClass}>
+        className={`${fieldInputClass} !pr-5`}>
         {/* "All years to date" stays: it is still the right answer for a cumulative count. */}
         <option value="">All years to date</option>
         {/* ⚠ The selected year is listed even when the database holds no
@@ -681,7 +681,7 @@ export const Reports = () => {
         )}
         {dohYears.map(y => <option key={y} value={y}>{y}</option>)}
       </select>
-    </Field>
+    </Underlined>
   );
 
   return (
@@ -749,37 +749,28 @@ export const Reports = () => {
       {/* ── DOH CONSOLIDATED ── */}
       {activeReportTab === 'doh' && (
         <div className="space-y-3">
-          <ControlsPanel
-            steps={
-              <>
-                <Step icon={Calendar} label="School year">{yearSelect}</Step>
-                {hasSecondary && (
-                  <Step icon={GraduationCap} label="Grades">
-                    <PeriodTiles<GradeBand> icons name="Grade band" value={gradeBand} onChange={setGradeBand} options={GRADE_BAND_TILES} />
-                  </Step>
-                )}
-                <Step icon={SlidersHorizontal} tone="violet" label="Rows and grades">
-                  <ValueButton onClick={() => setShowDohPicker((v) => !v)} expanded={showDohPicker}>
-                    {showDohPicker ? 'Done' : dohHiddenCount ? `${dohHiddenCount} hidden` : 'All shown'}
-                  </ValueButton>
-                </Step>
-              </>
-            }
-            status={<>
-              You are viewing <b>{dohSchoolYear ? `school year ${dohSchoolYear}` : 'all years to date'}</b> · {reportSchool ? getSchoolShortName(reportSchool) : 'all schools'}
-              {hasSecondary && <> · <b>{gradeBand === 'elem' ? 'Kinder–Grade 6' : 'Grade 7–10'}</b></>}
-              {/* Sprint 110. Appears only after a real self-refresh — see
-                  LiveUpdatedStamp for why it must never show a page-load time. */}
-              <LiveUpdatedStamp at={dohLastUpdated} />
-            </>}
-            actions={
-              <ActionBox>
+          <PanelShell>
+            <PanelRow>
+              <GroupBox title="School year" className={BOX_W}>{yearSelect}</GroupBox>
+              {hasSecondary && (
+                <GroupBox title="Grades" className={BOX_W}>
+                  <PeriodTiles<GradeBand> full icons name="Grade band" value={gradeBand} onChange={setGradeBand} options={GRADE_BAND_TILES} />
+                </GroupBox>
+              )}
+              <ActionGroup>
+                <GreyButton icon={SlidersHorizontal} expanded={showDohPicker} onClick={() => setShowDohPicker((v) => !v)}>
+                  {showDohPicker ? 'Done' : `Rows and grades: ${dohHiddenCount ? `${dohHiddenCount} hidden` : 'all shown'}`}
+                </GreyButton>
                 <ActionButton kind="excel" caption="For the City Health Office" onClick={handleDownloadExcel} busy={building && preview.kind === 'excel'} />
                 <ActionButton kind="pdf" caption="To email or keep" onClick={handleDownloadPdf} busy={building && preview.kind === 'pdf'} />
                 <ActionButton kind="print" caption="Send to the printer" onClick={() => window.print()} />
-              </ActionBox>
-            }
-          />
+              </ActionGroup>
+            </PanelRow>
+            {/* Sprint 110. Appears only after a real self-refresh — see
+                LiveUpdatedStamp for why it must never show a page-load time. */}
+            <div className="mt-3 text-right empty:hidden"><LiveUpdatedStamp at={dohLastUpdated} /></div>
+            <p className="sr-only" aria-live="polite">Showing {dohSchoolYear ? `school year ${dohSchoolYear}` : 'all years to date'}, {reportSchool ? getSchoolShortName(reportSchool) : 'all schools'}</p>
+          </PanelShell>
 
           {/* How the two year-varying figures in this table are derived. Both
               used to be computed against TODAY, which silently rewrote past

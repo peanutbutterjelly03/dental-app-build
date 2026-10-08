@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { usePrintOrientation } from '../hooks/usePrintOrientation';
 import { Calendar, CalendarDays, CalendarRange } from 'lucide-react';
-import { ControlsPanel, Step, PeriodTiles, Field, fieldInputClass, ActionBox, ActionButton, type TileOption } from './ReportControls';
+import { PanelShell, PanelRow, GroupBox, Underlined, PeriodTiles, fieldInputClass, ActionGroup, ActionButton, BOX_W, type TileOption } from './ReportControls';
 import { useFhsisData, FHSIS_BANDS, type FhsisBandKey, type Measure } from '../hooks/useFhsisData';
 import { buildDohReportPdf } from '../utils/exportPdf';
 import { buildXlsx } from '../utils/exportXlsx';
@@ -167,48 +167,42 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
     });
   };
 
-  const visits = Object.values(counts).reduce(
-    (n, b) => n + b.first.male + b.first.female + b.completed.male + b.completed.female, 0);
   const monthHasVisits = (m: number) => monthsWithData.includes(`${year}-${pad(m)}`);
   const panel = (
-    <ControlsPanel
-      steps={
-        <>
-          <Step icon={CalendarRange} label="Show by">
-            <PeriodTiles name="Period length" value={kind} options={PERIOD_TILES}
-              onChange={(k) => { setKind(k); setPick(k === 'month' ? now.getMonth() + 1 : 1); }} />
-          </Step>
-          <Step icon={Calendar} label={kind === 'year' ? 'Year' : 'Period'}>
-            <div className="flex flex-wrap gap-4">
-              {kind !== 'year' && (
-                <Field icon={Calendar}>
-                  <select aria-label="Period" value={pick} onChange={(e) => setPick(Number(e.target.value))} className={fieldInputClass}>
-                    {kind === 'month' && MONTH_NAMES.map((m, i) => (
-                      <option key={m} value={i + 1}>{m}{monthHasVisits(i + 1) ? '  ● has visits' : ''}</option>))}
-                    {kind === 'quarter' && [1, 2, 3, 4].map((q) => (
-                      <option key={q} value={q}>{ORDINALS[q - 1]} Quarter ({MONTH_NAMES[(q - 1) * 3].slice(0, 3)} to {MONTH_NAMES[q * 3 - 1].slice(0, 3)})</option>))}
-                    {kind === 'half' && [1, 2].map((h) => (
-                      <option key={h} value={h}>{ORDINALS[h - 1]} Semi-Annual ({h === 1 ? 'Jan to Jun' : 'Jul to Dec'})</option>))}
-                  </select>
-                </Field>
-              )}
-              <Field icon={Calendar}>
-                <select aria-label="Year" value={year} onChange={(e) => setYear(Number(e.target.value))} className={fieldInputClass}>
-                  {Array.from(new Set([...[3, 2, 1, 0].map((i) => now.getFullYear() - i), year])).sort().map((y) => <option key={y} value={y}>{y}</option>)}
+    <PanelShell>
+      <PanelRow>
+        <GroupBox title="Time period" className={BOX_W}>
+          <PeriodTiles<PeriodKind> full name="Time period" value={kind} options={PERIOD_TILES}
+            onChange={(k) => { setKind(k); setPick(k === 'month' ? now.getMonth() + 1 : 1); }} />
+        </GroupBox>
+        <GroupBox title="Dates" className={BOX_W}>
+          <div className="flex w-full gap-4">
+            {kind !== 'year' && (
+              <Underlined label={kind === 'month' ? 'Month' : kind === 'quarter' ? 'Quarter' : 'Half'} icon={Calendar} chevron>
+                <select aria-label="Period" value={pick} onChange={(e) => setPick(Number(e.target.value))} className={`${fieldInputClass} !pr-5`}>
+                  {kind === 'month' && MONTH_NAMES.map((m, i) => (
+                    <option key={m} value={i + 1}>{m}{monthHasVisits(i + 1) ? '  ● has visits' : ''}</option>))}
+                  {kind === 'quarter' && [1, 2, 3, 4].map((q) => (
+                    <option key={q} value={q}>{ORDINALS[q - 1]} Quarter ({MONTH_NAMES[(q - 1) * 3].slice(0, 3)} to {MONTH_NAMES[q * 3 - 1].slice(0, 3)})</option>))}
+                  {kind === 'half' && [1, 2].map((h) => (
+                    <option key={h} value={h}>{ORDINALS[h - 1]} Semi-Annual ({h === 1 ? 'Jan to Jun' : 'Jul to Dec'})</option>))}
                 </select>
-              </Field>
-            </div>
-          </Step>
-        </>
-      }
-      status={<>You are viewing <b>{periodShort}</b> · <b>{visits}</b> visit{visits === 1 ? '' : 's'} counted · {schoolName || 'All schools'}</>}
-      actions={
-        <ActionBox>
+              </Underlined>
+            )}
+            <Underlined label="Year" icon={Calendar} chevron>
+              <select aria-label="Year" value={year} onChange={(e) => setYear(Number(e.target.value))} className={`${fieldInputClass} !pr-5`}>
+                {Array.from(new Set([...[3, 2, 1, 0].map((i) => now.getFullYear() - i), year])).sort().map((y) => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </Underlined>
+          </div>
+        </GroupBox>
+        <ActionGroup>
           <ActionButton kind="excel" caption="For the City Health Office" onClick={onXlsx} disabled={loading || !!error} busy={building && preview.kind === 'excel'} />
           <ActionButton kind="pdf" caption="To email or keep" onClick={onPdf} disabled={loading || !!error} busy={building && preview.kind === 'pdf'} />
-        </ActionBox>
-      }
-    />
+        </ActionGroup>
+      </PanelRow>
+      <p className="sr-only" aria-live="polite">Showing {periodShort}, {schoolName || 'all schools'}</p>
+    </PanelShell>
   );
 
   if (error) {

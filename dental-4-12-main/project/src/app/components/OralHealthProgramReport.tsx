@@ -19,8 +19,8 @@ import { buildXlsx } from '../utils/exportXlsx';
 import { usePreviewModal } from '../hooks/usePreviewModal';
 import { PreviewModal } from './PreviewModal';
 import type { ReactNode } from 'react';
-import { Calendar, SlidersHorizontal } from 'lucide-react';
-import { ControlsPanel, Step, ValueButton, ActionBox, ActionButton } from './ReportControls';
+import { SlidersHorizontal } from 'lucide-react';
+import { PanelShell, PanelRow, GroupBox, ActionGroup, GreyButton, ActionButton, BOX_W } from './ReportControls';
 
 /** What a no-source cell says in the exported workbook — the same mark the
  *  screen shows, so the file makes the identical claims as the report. */
@@ -564,25 +564,19 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null, 
       {/* Controls: see ReportControls.tsx. The period is the school year, picked
           with the same control as the DOH tab (shared state, Sprint 57b). PDF
           *and* Excel: aggregate counts, no names, bounded width. */}
-      <ControlsPanel
-        steps={
-          <>
-            <Step icon={Calendar} label="School year">{yearPicker}</Step>
-            <Step icon={SlidersHorizontal} tone="violet" label="Rows and columns">
-              <ValueButton onClick={() => setShowPicker((v) => !v)} expanded={showPicker}>
-                {showPicker ? 'Done' : hiddenCount ? `${hiddenCount} hidden` : 'All shown'}
-              </ValueButton>
-            </Step>
-          </>
-        }
-        status={<>You are viewing <b>{schoolYear ? `school year ${schoolYear}` : 'all years to date'}</b> · {schoolName ?? 'all schools'}</>}
-        actions={
-          <ActionBox>
+      <PanelShell>
+        <PanelRow>
+          <GroupBox title="School year" className={BOX_W}>{yearPicker}</GroupBox>
+          <ActionGroup>
+            <GreyButton icon={SlidersHorizontal} expanded={showPicker} onClick={() => setShowPicker((v) => !v)}>
+              {showPicker ? 'Done' : `Rows and columns: ${hiddenCount ? `${hiddenCount} hidden` : 'all shown'}`}
+            </GreyButton>
             <ActionButton kind="excel" caption="For the City Health Office" onClick={onXlsx} busy={building && preview.kind === 'excel'} />
             <ActionButton kind="pdf" caption="To email or keep" onClick={onPdf} busy={building && preview.kind === 'pdf'} />
-          </ActionBox>
-        }
-      />
+          </ActionGroup>
+        </PanelRow>
+        <p className="sr-only" aria-live="polite">Showing {schoolYear ? `school year ${schoolYear}` : 'all years to date'}, {schoolName ?? 'all schools'}</p>
+      </PanelShell>
       <div className="bg-card rounded-xl border border-border p-4">
         <h2 className="text-sm font-bold text-foreground">Oral Health Program Reporting Form</h2>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

@@ -9,7 +9,8 @@ import { useRPCTracking, SOUND_TEMPORARY, SOUND_PERMANENT } from '../hooks/useRP
 import type { VisitServices } from '../../../shared/rpcTracking';
 import { SkeletonTable } from './Skeleton';
 import { Calendar, CalendarDays, CalendarRange } from 'lucide-react';
-import { ControlsPanel, Step, PeriodTiles, Field, fieldInputClass, ActionBox, ActionButton, type TileOption } from './ReportControls';
+import { PanelShell, PanelRow, GroupBox, Underlined, PeriodTiles, fieldInputClass, ActionGroup, ActionButton, BOX_W, type TileOption } from './ReportControls';
+import { RangePicker } from './RangePicker';
 import { formatDate, toLocalDateString } from '../utils/localDate';
 import { buildSheetsXlsx } from '../utils/exportXlsx';
 import { usePreviewModal } from '../hooks/usePreviewModal';
@@ -65,9 +66,10 @@ import { cariesStatus } from '../../../shared/cariesStatus';
 // The form's printed bracket labels — the shared DOH set (BUG-02), not a copy.
 const AGE_GROUPS: readonly string[] = DOH_AGE_BRACKETS;
 
-type Period = 'daily' | 'monthly' | 'quarterly' | 'annual';
+type Period = 'range' | 'monthly' | 'quarterly' | 'annual';
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const PERIOD_TILES: TileOption<Period>[] = [
-  { v: 'daily', label: 'Day', hint: 'e.g. today', icon: Calendar },
+  { v: 'range', label: 'Range', hint: 'Pick a start and an end date. The same day twice is one day.', icon: CalendarRange },
   { v: 'monthly', label: 'Month', hint: 'e.g. October', icon: CalendarDays },
   { v: 'quarterly', label: 'Quarter', hint: '3 months', icon: CalendarRange },
   { v: 'annual', label: 'Year', hint: 'Jan to Dec', icon: CalendarDays },
@@ -76,15 +78,18 @@ const PERIOD_TILES: TileOption<Period>[] = [
 /** Inclusive start / exclusive end for the period containing `anchor`.
  *  Built from local date parts, not UTC — a consultation is filed under the
  *  clinic's calendar day, which is the same reason `toLocalDateString` exists. */
-function periodRange(anchor: string, period: Period): { start: Date; end: Date; label: string } {
+function periodRange(anchor: string, period: Period, rangeStart: string, rangeEnd: string): { start: Date; end: Date; label: string } {
   const [y, m, d] = anchor.split('-').map(Number);
   const startOfDay = new Date(y, m - 1, d);
   const fmt = (dt: Date) => dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const fmtMon = (dt: Date) => dt.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
 
-  if (period === 'daily') {
-    const end = new Date(y, m - 1, d + 1);
-    return { start: startOfDay, end, label: fmt(startOfDay) };
+  if (period === 'range') {
+    const [sy, sm, sd] = rangeStart.split('-').map(Number);
+    const [ey, em, ed] = rangeEnd.split('-').map(Number);
+    const first = new Date(sy, sm - 1, sd);
+    // End is exclusive: a one-day range is [that day, the next day).
+    return { start: first, end: new Date(ey, em - 1, ed + 1), label: rangeStart === rangeEnd ? fmt(first) : `${fmt(first)} to ${fmt(new Date(ey, em - 1, ed))}` };
   }
   if (period === 'monthly') {
     const start = new Date(y, m - 1, 1);
@@ -384,6 +389,8 @@ export const TargetClientList = () => {
   const [rawError, setRawError] = useState<string | null>(null);
   const [period, setPeriod] = useState<Period>('monthly');
   const [anchor, setAnchor] = useState(() => toLocalDateString(new Date()));
+  const [rangeStart, setRangeStart] = useState(() => toLocalDateString(new Date()));
+  const [rangeEnd, setRangeEnd] = useState(() => toLocalDateString(new Date()));
 
   const { preview, building, previewPdf, previewExcel, closePreview, confirmDownload } = usePreviewModal();
   const [orals, setOrals] = useState<ApiOralHealthCondition[]>([]);
@@ -486,7 +493,7 @@ export const TargetClientList = () => {
   const paneOffset = TOPBAR_H + 18;
   useEffect(() => {
     if (didAlignAnchor.current || !latestConsult) return;
-    const { start: s0, end: e0 } = periodRange(anchor, period);
+    const { start: s0, end: e0 } = periodRange(anchor, period, rangeStart, rangeEnd);
     const [ly, lm, ld] = latestConsult.split('-').map(Number);
     const anyInPeriod = rows.some((r) => {
       if (!r.consultDate) return false;
@@ -496,9 +503,10 @@ export const TargetClientList = () => {
     });
     if (!anyInPeriod) setAnchor(toLocalDateString(new Date(ly, lm - 1, ld)));
     didAlignAnchor.current = true;
-  }, [rows, latestConsult, anchor, period]);
+  }, [rows, latestConsult, anchor, period, rangeStart, rangeEnd]);
 
-  const { start, end, label: periodLabel } = useMemo(() => periodRange(anchor, period), [anchor, period]);
+  const [anchorYear, anchorMonth] = anchor.split('-').map(Number);
+  const { start, end, label: periodLabel } = useMemo(() => periodRange(anchor, period, rangeStart, rangeEnd), [anchor, period, rangeStart, rangeEnd]);
 
   // Filtered on DATE OF CONSULTATION, which is the form's own first column —
   // a client with no recorded consultation has nothing to report for any
@@ -926,32 +934,44 @@ export const TargetClientList = () => {
       {/* Controls: see ReportControls.tsx. Excel is listed first — the City
           Health Office requires it (decided 2026-09-03). The TCL is 66 columns;
           Excel paginates columns natively. PDF (added 2026-10-06) is the exact
-          two-page form. Daily/monthly/quarterly/annual are the periods this
+          two-page form. Range/month/quarter/year are the periods this
           report really supports; there is no half-year here. */}
-      <ControlsPanel
-        steps={
-          <>
-            <Step icon={CalendarRange} label="Show by">
-              <PeriodTiles<Period> name="Period length" value={period} onChange={setPeriod} options={PERIOD_TILES} />
-            </Step>
-            <Step icon={Calendar} label="A day in the period">
-              <div className="flex flex-wrap gap-2">
-                <Field icon={Calendar} chevron={false}>
-                  <input type="date" aria-label="A day inside the period" value={anchor}
-                    onChange={(e) => e.target.value && setAnchor(e.target.value)} className={fieldInputClass} />
-                </Field>
+      <PanelShell>
+        <PanelRow>
+          <GroupBox title="Time period" className={BOX_W}>
+            <PeriodTiles<Period> full name="Time period" value={period} onChange={setPeriod} options={PERIOD_TILES} />
+          </GroupBox>
+          <GroupBox title="Dates" className={BOX_W}>
+            {period === 'range' ? (
+              <RangePicker start={rangeStart} end={rangeEnd} onChange={(a, b) => { setRangeStart(a); setRangeEnd(b); }} />
+            ) : (
+              <div className="flex w-full gap-4">
+                {period !== 'annual' && (
+                  <Underlined label={period === 'monthly' ? 'Month' : 'Quarter'} icon={Calendar} chevron>
+                    <select aria-label="Period" className={`${fieldInputClass} !pr-5`}
+                      value={period === 'monthly' ? anchorMonth : Math.floor((anchorMonth - 1) / 3) + 1}
+                      onChange={(e) => { const n = Number(e.target.value); setAnchor(`${anchorYear}-${String(period === 'monthly' ? n : (n - 1) * 3 + 1).padStart(2, '0')}-01`); }}>
+                      {period === 'monthly' && MONTH_NAMES.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                      {period === 'quarterly' && [1, 2, 3, 4].map((q) => <option key={q} value={q}>Quarter {q} ({MONTH_NAMES[(q - 1) * 3].slice(0, 3)} to {MONTH_NAMES[q * 3 - 1].slice(0, 3)})</option>)}
+                    </select>
+                  </Underlined>
+                )}
+                <Underlined label="Year" icon={Calendar} chevron>
+                  <select aria-label="Year" className={`${fieldInputClass} !pr-5`} value={anchorYear}
+                    onChange={(e) => setAnchor(`${e.target.value}-${String(anchorMonth).padStart(2, '0')}-01`)}>
+                    {Array.from(new Set([...[3, 2, 1, 0].map((i) => new Date().getFullYear() - i), anchorYear])).sort().map((y) => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                </Underlined>
               </div>
-            </Step>
-          </>
-        }
-        status={<>You are viewing <b>{periodLabel}</b> · <b>{visible.length}</b> client{visible.length !== 1 ? 's' : ''} consulted{selectedSchool ? ' · selected school' : ' · all schools'}</>}
-        actions={
-          <ActionBox>
+            )}
+          </GroupBox>
+          <ActionGroup>
             <ActionButton kind="excel" caption="For the City Health Office" onClick={onXlsx} disabled={visible.length === 0} busy={building} />
             <ActionButton kind="pdf" caption="The exact two-page form" onClick={onPdf} busy={building} />
-          </ActionBox>
-        }
-      />
+          </ActionGroup>
+        </PanelRow>
+        <p className="sr-only" aria-live="polite">Showing {periodLabel}, {visible.length} client{visible.length !== 1 ? 's' : ''}</p>
+      </PanelShell>
       <div className="bg-card rounded-xl border border-border p-4">
         <h2 className="text-sm font-bold text-foreground">Target Client List for Oral Health Care and Services</h2>
         <p className="text-xs text-muted-foreground mt-2">
