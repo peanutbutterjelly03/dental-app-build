@@ -1846,157 +1846,75 @@ export const DentalChart = () => {
       {/* Everything below the sticky toolbar is the record itself, and is what
           the PDF captures. */}
       <div ref={recordRef} className="space-y-4">
-      {/* Patient Info Card */}
-      <div className={`bg-card rounded-xl border-2 border-primary shadow-[0_8px_24px_rgba(15,23,42,0.08)] ${!basicInfoExpanded ? 'py-2 px-4' : 'p-4'}`}>
-        {/* Editing opens the "Edit Basic Information" window below (user,
-            2026-09-25), laid out like Add New Student; the card keeps showing
-            the record behind it. */}
-        {(
-          <>
-            <div className={`flex items-start justify-between ${basicInfoExpanded ? 'mb-3' : ''}`}>
-              <div className="flex items-center gap-3">
-                <div style={{ backgroundColor: gc.light, color: gc.solid }} className="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg">
-                  {[student.first_name?.[0], student.last_name?.[0]].filter(Boolean).join('') || student.full_name?.[0]}
-                </div>
-                <div>
-                  <div className="font-bold text-foreground">{surnameFirstWithInitial(student)}</div>
-                  <div className="flex items-center gap-2 mt-1">
-                    {/* Nothing when the year has no recorded grade — the detail
-                        line directly above already says so, and repeating it
-                        here just doubled the same sentence. */}
-                    {/* "Grade 3-Bunga" as plain text, no pill (user, 2026-09-24):
-                        grade, dash and section all in the grade's colour-coding
-                        colour (user, same day), same size, not bold. Same design as the
-                        charting-mode header below. */}
-                    {(yearGrade || yearSection) && (
-                      <span className="whitespace-nowrap text-xs font-normal">
-                        {yearGrade && <span style={{ color: getGradeColor(yearGrade).solid }}>{yearGrade}</span>}
-                        {yearGrade && yearSection && <span style={{ color: getGradeColor(yearGrade).solid }}>-</span>}
-                        {yearSection && <span style={yearGrade ? { color: getGradeColor(yearGrade).solid } : undefined} className={yearGrade ? undefined : 'text-foreground'}>{yearSection}</span>}
-                      </span>
-                    )}
-                    {student.is_4ps && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">4Ps</span>}
-                  </div>
+      {/* Student card + tabs in ONE card (user pick "Split header", 2026-10-08):
+          navy on top (identity, status, tabs), white below (details, school
+          year, Charting Mode / Legend). Same controls and rules as the two
+          separate cards it replaces. */}
+      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_8px_24px_rgba(15,23,42,0.1)]">
+        <div className="bg-gradient-to-br from-sidebar-bg to-primary px-5 pt-5 text-white">
+          <div className="flex flex-wrap items-start justify-between gap-3 pb-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <div style={{ backgroundColor: gc.light, color: gc.solid }} className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl text-xl font-bold">
+                {[student.first_name?.[0], student.last_name?.[0]].filter(Boolean).join('') || student.full_name?.[0]}
+              </div>
+              <div className="min-w-0">
+                <div className="text-xl font-bold leading-tight">{surnameFirstWithInitial(student)}</div>
+                <div className="mt-1 flex items-center gap-2">
+                  {/* Grade-section in the grade's light tint so the colour coding survives on navy. */}
+                  {(yearGrade || yearSection) && (
+                    <span className="whitespace-nowrap text-sm font-medium">
+                      {yearGrade && <span style={{ color: getGradeColor(yearGrade).light }}>{yearGrade}</span>}
+                      {yearGrade && yearSection && <span style={{ color: getGradeColor(yearGrade).light }}>-</span>}
+                      {yearSection && <span style={yearGrade ? { color: getGradeColor(yearGrade).light } : undefined}>{yearSection}</span>}
+                    </span>
+                  )}
+                  {student.is_4ps && <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs font-semibold text-white">4Ps</span>}
                 </div>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                {/* Her chips. ⚠ READ-ONLY here on purpose — consent has its own
-                    tab and its own toggle, and editing student info must never
-                    reach it. */}
-                <span
-                  title={`${consentComplete ? 'Consent obtained' : 'Consent pending'} for ${yearIptr?.school_year ?? 'this year'}`}
-                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${consentComplete ? 'bg-success-surface text-success' : 'bg-warning-surface text-warning'}`}
-                >
-                  {consentComplete ? <ShieldCheck className="w-3.5 h-3.5" /> : <ShieldAlert className="w-3.5 h-3.5" />}
-                  {consentComplete ? 'Consent Complete' : 'Consent Pending'}
-                </span>
-                {/* Colour rather than neutral grey, so sex reads at a glance —
-                    and it stays visible while the card is collapsed. */}
-                {student.sex && (
-                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${student.sex === 'Male' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}`}>
-                    {student.sex}
-                  </span>
-                )}
-                {canEditInfo && (
-                  <button onClick={openEditInfo} className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-lg text-muted-foreground hover:bg-gray-50">
-                    <Pencil className="w-3 h-3" /> Edit
-                  </button>
-                )}
-                {/* ⚠ The button CARRIES ITS LABEL WHEN COLLAPSED. The state
-                    persists across students (Sprint 166), so a bare chevron meant
-                    the birthday, address, PhilHealth and guardian simply were
-                    not there on every record for the rest of the session, with
-                    nothing on screen saying they could come back. Reported as
-                    "basic patient info missing", which is exactly right: hidden
-                    content needs a way in that reads as one. */}
-                <button
-                  onClick={() => setBasicInfoExpanded((v) => !v)}
-                  title={basicInfoExpanded ? 'Hide basic information' : 'Show basic information'}
-                  aria-label={basicInfoExpanded ? 'Hide basic information' : 'Show basic information'}
-                  aria-expanded={basicInfoExpanded}
-                  className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium border border-border rounded-lg text-muted-foreground hover:bg-gray-50"
-                >
-                  {basicInfoExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                  {!basicInfoExpanded && 'Basic info'}
+            </div>
+            <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
+              {/* READ-ONLY here on purpose: consent has its own banner and toggle, and editing student info must never reach it. */}
+              <span
+                title={`${consentComplete ? 'Consent obtained' : 'Consent pending'} for ${yearIptr?.school_year ?? 'this year'}`}
+                className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-white/30 bg-white/15 px-3 py-1 text-xs font-semibold text-white"
+              >
+                {consentComplete ? <ShieldCheck className="h-3.5 w-3.5" /> : <ShieldAlert className="h-3.5 w-3.5" />}
+                {consentComplete ? 'Consent Complete' : 'Consent Pending'}
+              </span>
+              {student.sex && (
+                <span className="whitespace-nowrap rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white">{student.sex}</span>
+              )}
+              {canEditInfo && (
+                <button onClick={openEditInfo} className="flex items-center gap-1.5 rounded-lg border border-white/30 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/20">
+                  <Pencil className="h-3 w-3" /> Edit
                 </button>
-              </div>
+              )}
+              {/* ⚠ The button CARRIES ITS LABEL WHEN COLLAPSED: the state persists across students (Sprint 166), so a bare chevron hid the birthday, address, PhilHealth and guardian with nothing saying they could come back. */}
+              <button
+                onClick={() => setBasicInfoExpanded((v) => !v)}
+                title={basicInfoExpanded ? 'Hide basic information' : 'Show basic information'}
+                aria-label={basicInfoExpanded ? 'Hide basic information' : 'Show basic information'}
+                aria-expanded={basicInfoExpanded}
+                className="flex items-center gap-1.5 rounded-lg border border-white/30 bg-white/10 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-white/20"
+              >
+                {basicInfoExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                {!basicInfoExpanded && 'Basic info'}
+              </button>
             </div>
-            {basicInfoExpanded && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-              {[
-                // "May 30, 2013", not 2013-05-30 — hers, and it is what a person
-                // reads a birthday as.
-                // Her field ORDER, not just her fields: Birthday, Age, Place of
-                // Birth, Sex — then Address, Occupation, Contact.
-                ['Birthday', student.birthday ? formatDate(student.birthday) : '—'],
-                ['Age', patientAge === null ? '—' : `${patientAge} years`],
-                ['Place of Birth', student.place_of_birth || '—'],
-                ['Sex', student.sex],
-                ['Address', student.address],
-                // Guardian's occupation — the label is "Occupation" on the paper
-                // IPTR and on her card, so it stays that word here too.
-                ['Occupation', student.guardian_occupation || '—'],
-                ['Contact', student.contact_number || '—'],
-                ['Guardian', student.guardian_name || '—'],
-                ['Guardian Contact', student.guardian_contact || '—'],
-                ['PhilHealth', student.philhealth_number ? `${student.philhealth_number} (${student.philhealth_status || 'None'})` : '—'],
-                // ⚠ Height, Weight and BMI are NOT here any more (Sprint 173,
-                // hers). This card is identity and contact facts; a clinical
-                // measurement belongs with the rest of the measurements, on
-                // History, where it is also entered.
-              ].map(([label, val]) => (
-                <div key={label}>
-                  <div className="text-muted-foreground font-medium">{label}</div>
-                  <div className="text-foreground" title={label === 'BMI' ? BMI_NOTE : undefined}>{val}</div>
-                </div>
-              ))}
-            </div>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* Tabs */}
-      {/* Scrolls with the page (user, 2026-10-07): the tab strip and school-year bar are no longer pinned. */}
-      <div className="bg-gray-50 space-y-0">
-        <div className="overflow-hidden bg-card rounded-xl border-2 border-primary">
-          <div className="border-b border-border bg-card">
-            <div className="flex items-center">
-              {/* Her strip: every tab takes an equal share of the card's
-                  width and its label is centred, instead of the tabs hugging
-                  their text at the left edge. The active tab is BOLD with the
-                  underline and no blue fill — the fill made the strip read as
-                  two different controls.
-
-                  ⚠ `whitespace-nowrap` + the scroller: a two-line "Caries Risk
-                  Assessment" makes the whole strip taller and knocks every
-                  other label off the baseline. Labels stay on one line and the
-                  strip scrolls inside itself once they stop fitting, which is
-                  the house rule for tab strips at phone width. */}
-              {/* ⚠ `flex-1` only when there is more than one tab. The risk
-                  context renders a SINGLE tab, and stretched across the whole
-                  card it stops reading as a tab and starts reading as a
-                  heading — an underlined title nobody would think to press. */}
-              <div className="no-scrollbar flex flex-1 min-w-0 overflow-x-auto">
+          </div>
+          {/* Tabs: they scroll inside this strip and never wrap. The active tab turns white and joins the card body below. */}
+          <div className="flex items-end">
+            <div className="no-scrollbar flex min-w-0 flex-1 items-end gap-1 overflow-x-auto">
               {visibleTabs.map((tab) => (
                 <button key={tab.key} onClick={() => setActiveTab(tab.key as TabKey)}
                   aria-current={activeTab === tab.key ? 'page' : undefined}
-                  className={`${visibleTabs.length > 1 ? 'flex-1' : 'px-6'} whitespace-nowrap px-3 py-2.5 my-1 mx-1 rounded-xl text-sm text-center transition-colors focus:outline-none focus-visible:outline-none ${activeTab === tab.key ? 'font-bold bg-primary text-white' : 'font-medium text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
+                  className={`${visibleTabs.length > 1 ? 'flex-1' : 'px-6'} whitespace-nowrap rounded-t-xl px-4 py-3 text-center text-sm transition-colors focus:outline-none focus-visible:outline-none ${activeTab === tab.key ? 'bg-card font-bold text-primary' : 'bg-white/10 font-medium text-white/85 hover:bg-white/20 hover:text-white'}`}>
                   {tab.label}
                 </button>
               ))}
-              </div>
-              {/* ⚠ The chart tab no longer belongs to the dentist alone. Sprint
-                  176 moved Oral Health Condition here, and Sprint 154 put the
-                  Oral Conditions and Treatments Given card here — both are
-                  `editingHistory` data, which a DENTAL AIDE may edit. The old
-                  condition only offered the pencil on this tab to `canEdit`
-                  (dentist), so an aide stood in front of fields they are
-                  allowed to change with no way to start changing them: they
-                  had to go to History, press the pencil there, then come back.
-                  Teeth remain dentist-only through `editingChart`. */}
+            </div>
               {canEditHistory && currentYearData && (editMode || activeTab === 'history' || activeTab === 'chart') && (
-                <div className="flex shrink-0 items-center gap-2 px-3">
+                <div className="flex shrink-0 items-center gap-2 pb-2 pl-3">
                   {!editMode ? (
                     /* Icon only, at the right end of the tab strip — her
                        control. The label moves to the tooltip and the aria
@@ -2021,13 +1939,45 @@ export const DentalChart = () => {
                   )}
                 </div>
               )}
-            </div>
-            {saveError && <p className="px-4 pb-2 text-xs text-destructive">{saveError}</p>}
           </div>
-          {showStickyYearBar && years.length > 0 && (
-            <div className="border-t border-gray-100 bg-card px-4 pt-3">
+        </div>
+        {(saveError || basicInfoExpanded || (showStickyYearBar && years.length > 0)) && (
+          <div className="space-y-4 px-5 py-4">
+            {saveError && <p className="text-sm text-destructive">{saveError}</p>}
+            {basicInfoExpanded && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3 text-sm">
+              {[
+                // "May 30, 2013", not 2013-05-30 — hers, and it is what a person
+                // reads a birthday as.
+                // Her field ORDER, not just her fields: Birthday, Age, Place of
+                // Birth, Sex — then Address, Occupation, Contact.
+                ['Birthday', student.birthday ? formatDate(student.birthday) : '—'],
+                ['Age', patientAge === null ? '—' : `${patientAge} years`],
+                ['Place of Birth', student.place_of_birth || '—'],
+                ['Sex', student.sex],
+                ['Address', student.address],
+                // Guardian's occupation — the label is "Occupation" on the paper
+                // IPTR and on her card, so it stays that word here too.
+                ['Occupation', student.guardian_occupation || '—'],
+                ['Contact', student.contact_number || '—'],
+                ['Guardian', student.guardian_name || '—'],
+                ['Guardian Contact', student.guardian_contact || '—'],
+                ['PhilHealth', student.philhealth_number ? `${student.philhealth_number} (${student.philhealth_status || 'None'})` : '—'],
+                // ⚠ Height, Weight and BMI are NOT here any more (Sprint 173,
+                // hers). This card is identity and contact facts; a clinical
+                // measurement belongs with the rest of the measurements, on
+                // History, where it is also entered.
+              ].map(([label, val]) => (
+                <div key={label}>
+                  <div className="text-xs font-medium text-muted-foreground">{label}</div>
+                  <div className="font-semibold text-foreground" title={label === 'BMI' ? BMI_NOTE : undefined}>{val}</div>
+                </div>
+              ))}
+            </div>
+            )}
+            {showStickyYearBar && years.length > 0 && (
               <div className="overflow-x-auto">
-              <div className="flex items-center gap-0 min-w-max">
+              <div className="flex min-w-max items-center gap-0">
               {years.map((y, idx) => {
                 // BUG-12: the year's DMFT comes from the latest charting that
                 // HAS records, not from whichever charting is newest. An empty
@@ -2048,17 +1998,17 @@ export const DentalChart = () => {
                 // viewed, distinct from the blue selected-tab styling above.
                 const isCurrentYear = y.iptr.school_year === schoolYearLabel();
                 return (
-                  <div key={y.iptr._id} className={`relative mr-1 flex flex-shrink-0 items-stretch border-b-2 ${isActive ? 'border-blue-700 bg-blue-50 text-blue-700' : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
-                    <button type="button" onClick={() => { setSelectedYear(idx); setSelectedChartId(null); setExplicitVisit(null); }} className={`py-2.5 pl-4 text-left text-xs font-medium transition-all ${canEdit ? 'pr-9' : 'pr-4'}`}>
+                  <div key={y.iptr._id} className={`relative mr-2 flex flex-shrink-0 items-stretch rounded-xl border ${isActive ? 'border-primary bg-primary-surface text-primary' : 'border-border text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
+                    <button type="button" onClick={() => { setSelectedYear(idx); setSelectedChartId(null); setExplicitVisit(null); }} className={`py-2 pl-4 text-left text-sm font-medium transition-all ${canEdit ? 'pr-9' : 'pr-4'}`}>
                       {isCurrentYear ? (
                         <span className="inline-block rounded-full bg-emerald-600 px-2 py-0.5 text-white">{y.iptr.school_year}</span>
                       ) : (
                         <div>{y.iptr.school_year}</div>
                       )}
                       {activeTab === 'chart' && (
-                        <div style={{ fontSize: '10px', marginTop: '2px' }} className={isActive ? 'text-blue-600' : 'text-muted-foreground'} >{yrDmftLabel}</div>
+                        <div style={{ fontSize: '12px', marginTop: '2px' }} className={isActive ? 'text-primary' : 'text-muted-foreground'} >{yrDmftLabel}</div>
                       )}
-                      <div style={{ fontSize: '10px', marginTop: '2px' }} className={isActive ? 'text-blue-600' : 'text-muted-foreground'}>
+                      <div style={{ fontSize: '12px', marginTop: '2px' }} className={isActive ? 'text-primary' : 'text-muted-foreground'}>
                         {formatDateStamp(examinedDate(y.oralCondition, y.dentalChart, y.toothRecords))}
                       </div>
                     </button>
@@ -2138,9 +2088,9 @@ export const DentalChart = () => {
               )}
               </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── CONSENT BANNER (Sprint 167, hers) ──────────────────────────────
