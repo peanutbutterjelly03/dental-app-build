@@ -113,23 +113,27 @@ export function PanelShell({ children }: { children: ReactNode }) {
   );
 }
 
-/** Underlined tabs with an optional control at the far right (Print). The
- *  soft rounded track under them is only about half the card wide, so it never
- *  reaches Print; the chosen tab has a yellow underline (the sidebar's gold)
- *  lying on that track (user pick, 2026-10-08). */
+/** Report tabs with an optional control at the far right (Print). Under the
+ *  tabs, and only as wide as the tabs, runs a soft grey rounded track; where
+ *  the chosen tab is, the track itself turns yellow (the sidebar's gold) as a
+ *  rounded bar, so it never reaches Print (user pick, 2026-10-08). */
 export function UnderlineTabs<T extends string>({ value, onChange, options, name, trailing }: {
   value: T; onChange: (v: T) => void; options: { v: T; label: string; icon: Icon }[]; name: string; trailing?: ReactNode;
 }) {
   return (
-    <div className="relative flex flex-wrap items-center gap-x-6">
-      <span aria-hidden="true" className="absolute -bottom-px left-0 h-1 w-[46%] rounded-full bg-[#eef1f7]" />
-      <div role="tablist" aria-label={name} className="relative z-10 flex flex-wrap gap-x-6">
-        {options.map(({ v, label, icon: I }) => {
+    <div className="flex flex-wrap items-start gap-x-6">
+      <div role="tablist" aria-label={name} className="flex flex-wrap">
+        {options.map(({ v, label, icon: I }, i) => {
           const on = v === value;
+          const last = i === options.length - 1;
           return (
             <button key={v} type="button" role="tab" aria-selected={on} onClick={() => onChange(v)}
-              className={`flex items-center gap-1.5 whitespace-nowrap border-b-[3px] pb-3 pt-4 text-[11.5px] ${on ? 'border-[#f3c33d] font-bold text-primary' : 'border-transparent font-semibold text-muted-foreground hover:text-foreground'}`}>
-              <I className="h-3 w-3" aria-hidden="true" />{label}
+              className={`flex flex-col whitespace-nowrap text-[11.5px] ${on ? 'font-bold text-primary' : 'font-semibold text-muted-foreground hover:text-foreground'}`}>
+              <span className={`flex items-center gap-1.5 pb-3 pt-4 ${i === 0 ? 'pl-0' : 'pl-3'} ${last ? 'pr-0' : 'pr-3'}`}>
+                <I className="h-3 w-3" aria-hidden="true" />{label}
+              </span>
+              <span aria-hidden="true"
+                className={`block h-1 ${on ? 'rounded-full bg-[#f3c33d]' : `bg-[#eef1f7] ${i === 0 ? 'rounded-l-full' : ''} ${last ? 'rounded-r-full' : ''}`}`} />
             </button>
           );
         })}
