@@ -70,18 +70,21 @@ export function PanelShell({ children }: { children: ReactNode }) {
   );
 }
 
-/** Underlined tabs with an optional control at the far right (Print). */
+/** Underlined tabs with an optional control at the far right (Print). The
+ *  faint rule under them runs only half the card, so it never reaches Print;
+ *  the chosen tab has a yellow underline (the sidebar's gold). */
 export function UnderlineTabs<T extends string>({ value, onChange, options, name, trailing }: {
   value: T; onChange: (v: T) => void; options: { v: T; label: string; icon: Icon }[]; name: string; trailing?: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-6 border-b border-[#e4e9f3]">
-      <div role="tablist" aria-label={name} className="flex min-w-0 gap-6 overflow-x-auto">
+    <div className="relative flex flex-wrap items-center gap-x-6">
+      <span aria-hidden="true" className="absolute bottom-0 left-0 h-px w-1/2 bg-[#e4e9f3]" />
+      <div role="tablist" aria-label={name} className="relative flex flex-wrap gap-x-6">
         {options.map(({ v, label, icon: I }) => {
           const on = v === value;
           return (
             <button key={v} type="button" role="tab" aria-selected={on} onClick={() => onChange(v)}
-              className={`-mb-px flex items-center gap-1.5 whitespace-nowrap border-b-[3px] pb-3 pt-4 text-[14px] ${on ? 'border-primary font-bold text-primary' : 'border-transparent font-semibold text-muted-foreground hover:text-foreground'}`}>
+              className={`flex items-center gap-1.5 whitespace-nowrap border-b-[3px] pb-3 pt-4 text-[14px] ${on ? 'border-[#f3c33d] font-bold text-primary' : 'border-transparent font-semibold text-muted-foreground hover:text-foreground'}`}>
               <I className="h-4 w-4" aria-hidden="true" />{label}
             </button>
           );

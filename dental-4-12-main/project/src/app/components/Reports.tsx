@@ -725,7 +725,7 @@ export const Reports = () => {
                     const on = activeReportTab === tab.id;
                     return (
                       <button key={tab.id} type="button" role="tab" aria-selected={on} onClick={() => setActiveReportTab(tab.id)}
-                        className={`relative whitespace-nowrap rounded-t-xl px-4 py-2.5 text-[13px] font-bold ${on ? 'bg-card text-foreground' : 'text-white hover:bg-white/10'}`}>
+                        className={`relative whitespace-nowrap rounded-t-xl px-4 py-2.5 text-[12px] font-bold ${on ? 'bg-card text-foreground' : 'text-white hover:bg-white/10'}`}>
                         {tab.label}
                         {on && (
                           <>
