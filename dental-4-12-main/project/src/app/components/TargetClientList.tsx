@@ -67,10 +67,10 @@ const AGE_GROUPS: readonly string[] = DOH_AGE_BRACKETS;
 
 type Period = 'daily' | 'monthly' | 'quarterly' | 'annual';
 const PERIOD_TILES: TileOption<Period>[] = [
-  { v: 'daily', label: 'One day', hint: 'e.g. today', icon: Calendar },
-  { v: 'monthly', label: 'One month', hint: 'e.g. October', icon: CalendarDays },
+  { v: 'daily', label: 'Day', hint: 'e.g. today', icon: Calendar },
+  { v: 'monthly', label: 'Month', hint: 'e.g. October', icon: CalendarDays },
   { v: 'quarterly', label: 'Quarter', hint: '3 months', icon: CalendarRange },
-  { v: 'annual', label: 'Whole year', hint: 'Jan to Dec', icon: CalendarDays },
+  { v: 'annual', label: 'Year', hint: 'Jan to Dec', icon: CalendarDays },
 ];
 
 /** Inclusive start / exclusive end for the period containing `anchor`.
@@ -936,7 +936,7 @@ export const TargetClientList = () => {
             </Step>
             <Step n={2} label="Pick any day in that period">
               <div className="flex flex-wrap gap-2">
-                <Field icon={Calendar}>
+                <Field icon={Calendar} chevron={false}>
                   <input type="date" aria-label="A day inside the period" value={anchor}
                     onChange={(e) => e.target.value && setAnchor(e.target.value)} className={fieldInputClass} />
                 </Field>
@@ -946,7 +946,7 @@ export const TargetClientList = () => {
         }
         status={<>You are viewing <b>{periodLabel}</b> · <b>{visible.length}</b> client{visible.length !== 1 ? 's' : ''} consulted{selectedSchool ? ' · selected school' : ' · all schools'}</>}
         actions={
-          <ActionBox title="Save this list">
+          <ActionBox n={3} title="Save this list">
             <ActionButton kind="excel" caption="For the City Health Office" onClick={onXlsx} disabled={visible.length === 0} busy={building} />
             <ActionButton kind="pdf" caption="The exact two-page form" onClick={onPdf} busy={building} />
           </ActionBox>

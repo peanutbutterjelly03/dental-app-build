@@ -157,7 +157,7 @@ export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null 
       status={<>You are viewing <b>{schoolName ?? 'all schools'}</b> · <b>{schoolYear ? `school year ${schoolYear}` : 'all years to date'}</b></>}
       actions={
         // PDF *and* Excel: aggregate counts, no patient names, bounded width (Sprint 85).
-        <ActionBox title="Save or print this summary">
+        <ActionBox n={2} title="Save this summary">
           <ActionButton kind="excel" caption="Open in Excel" onClick={onXlsx} disabled={loading || !!error} busy={building && preview.kind === 'excel'} />
           <ActionButton kind="pdf" caption="To email or keep" onClick={onPdf} disabled={loading || !!error} busy={building && preview.kind === 'pdf'} />
         </ActionBox>

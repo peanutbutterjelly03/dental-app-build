@@ -7,6 +7,7 @@
 - **FHSIS** now takes One month / Quarter / Half year / Whole year (the workbook's 24 sheets). `shared/fhsis.ts` accepts `YYYY-MM` or `YYYY-MM..YYYY-MM` (`inPeriod`); a longer period is the sum of its months. Test: `shared/fhsis.test.ts`.
 - **Only real filters are shown.** Program Report, School Summary and DOH Consolidated are SCHOOL-YEAR based, so they get the school-year select (one shared `dohSchoolYear`), not a month. The DOH table header and file names now say school year instead of the removed month. TCL keeps its real periods (day / month / quarter / year + a date). Consent Form has nothing to pick.
 - Internal Reports: section tiles replace the sub-tab pills; period steps apply to Treatment Summary and Overview only (Condition Summary is not period-based).
+- **Style (user pick, 2026-10-08, "tinted band"):** pale-blue band, steps side by side as flex columns that wrap, thick navy outlines, solid-navy active segment, Excel green / PDF orange / Print navy, one white status line. Period choices are short segmented switches (Month/Quarter/Half/Year), not tiles. Selects have their own border stripped inside `Field` (the global select style drew a second box).
 - Not built: age/sex band picker for TCL (the app has one table, not 27 sheets), Excel on Internal Reports.
 - Checked: tsc, vitest, vite build. NOT checked in a browser (no backend in the session): look at all 7 tabs at 390 / 768 / 1280.
 

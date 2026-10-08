@@ -68,10 +68,10 @@ const ORDINALS = ['1st', '2nd', '3rd', '4th'];
 // the Annual. A longer period is the sum of its months (shared/fhsis.ts).
 type PeriodKind = 'month' | 'quarter' | 'half' | 'year';
 const PERIOD_TILES: TileOption<PeriodKind>[] = [
-  { v: 'month', label: 'One month', hint: 'e.g. October', icon: Calendar },
+  { v: 'month', label: 'Month', hint: 'e.g. October', icon: Calendar },
   { v: 'quarter', label: 'Quarter', hint: '3 months', icon: CalendarRange },
-  { v: 'half', label: 'Half year', hint: '6 months', icon: CalendarRange },
-  { v: 'year', label: 'Whole year', hint: 'Jan to Dec', icon: CalendarDays },
+  { v: 'half', label: 'Half', hint: '6 months', icon: CalendarRange },
+  { v: 'year', label: 'Year', hint: 'Jan to Dec', icon: CalendarDays },
 ];
 const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -203,7 +203,7 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
       }
       status={<>You are viewing <b>{periodShort}</b> · <b>{visits}</b> visit{visits === 1 ? '' : 's'} counted · {schoolName || 'All schools'}</>}
       actions={
-        <ActionBox>
+        <ActionBox n={3}>
           <ActionButton kind="excel" caption="For the City Health Office" onClick={onXlsx} disabled={loading || !!error} busy={building && preview.kind === 'excel'} />
           <ActionButton kind="pdf" caption="To email or keep" onClick={onPdf} disabled={loading || !!error} busy={building && preview.kind === 'pdf'} />
         </ActionBox>

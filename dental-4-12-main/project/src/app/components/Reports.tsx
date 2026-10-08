@@ -181,15 +181,15 @@ const GRADE_BAND_TILES: TileOption<'elem' | 'hs'>[] = [
   { v: 'hs', label: 'Grade 7–10', hint: 'High school', icon: GraduationCap },
 ];
 const SECTION_TILES: TileOption<'treatment' | 'conditions' | 'admin'>[] = [
-  { v: 'treatment', label: 'Treatment Summary', hint: 'Procedures done', icon: Stethoscope },
-  { v: 'conditions', label: 'Condition Summary', hint: 'Oral conditions found', icon: Activity },
+  { v: 'treatment', label: 'Treatment', hint: 'Procedures done', icon: Stethoscope },
+  { v: 'conditions', label: 'Conditions', hint: 'Oral conditions found', icon: Activity },
   { v: 'admin', label: 'Overview', hint: 'Risk, consent, referrals', icon: LayoutDashboard },
 ];
 const PERIOD_TILES: TileOption<'monthly' | 'quarterly' | 'biannual' | 'annual'>[] = [
-  { v: 'monthly', label: 'One month', hint: 'e.g. October', icon: Calendar },
+  { v: 'monthly', label: 'Month', hint: 'e.g. October', icon: Calendar },
   { v: 'quarterly', label: 'Quarter', hint: '3 months', icon: CalendarRange },
-  { v: 'biannual', label: 'Half year', hint: '6 months', icon: CalendarRange },
-  { v: 'annual', label: 'Whole year', hint: 'Jan to Dec', icon: CalendarDays },
+  { v: 'biannual', label: 'Half', hint: '6 months', icon: CalendarRange },
+  { v: 'annual', label: 'Year', hint: 'Jan to Dec', icon: CalendarDays },
 ];
 const ALL_GRADES_INT = ['Kinder','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10'];
 const CONDITIONS  = ['Caries (Primary)','Caries (Permanent)','Gingivitis','Malocclusion','Orally Fit'];
@@ -738,12 +738,12 @@ export const Reports = () => {
                 <Step n={1} label="Which school year?">{yearSelect}</Step>
                 {hasSecondary && (
                   <Step n={2} label="Which grades?">
-                    <PeriodTiles<GradeBand> name="Grade band" value={gradeBand} onChange={setGradeBand} options={GRADE_BAND_TILES} />
+                    <PeriodTiles<GradeBand> icons name="Grade band" value={gradeBand} onChange={setGradeBand} options={GRADE_BAND_TILES} />
                   </Step>
                 )}
                 <Step n={hasSecondary ? 3 : 2} label="Hide rows or grades? (optional)">
                   <button type="button" onClick={() => setShowDohPicker((v) => !v)} aria-expanded={showDohPicker}
-                    className="flex min-h-[44px] items-center gap-2 rounded-xl border-[1.5px] border-border bg-card px-4 text-sm font-semibold text-foreground hover:bg-gray-50">
+                    className="flex min-h-[44px] items-center gap-2 rounded-xl border-2 border-primary bg-white px-4 text-[15px] font-bold text-primary hover:bg-primary/10">
                     <SlidersHorizontal className="h-5 w-5 text-primary" aria-hidden="true" />
                     {showDohPicker ? 'Done' : `Rows & grades${dohHiddenCount ? ` (${dohHiddenCount} hidden)` : ''}`}
                   </button>
@@ -758,7 +758,7 @@ export const Reports = () => {
               <LiveUpdatedStamp at={dohLastUpdated} />
             </>}
             actions={
-              <ActionBox>
+              <ActionBox n={hasSecondary ? 4 : 3}>
                 <ActionButton kind="excel" caption="For the City Health Office" onClick={handleDownloadExcel} busy={building && preview.kind === 'excel'} />
                 <ActionButton kind="pdf" caption="To email or keep" onClick={handleDownloadPdf} busy={building && preview.kind === 'pdf'} />
                 <ActionButton kind="print" caption="Send to the printer" onClick={() => window.print()} />
@@ -1008,12 +1008,12 @@ export const Reports = () => {
             steps={
               <>
                 <Step n={1} label="What do you want to see?">
-                  <PeriodTiles<'treatment' | 'conditions' | 'admin'> name="Report section" value={internalSection} onChange={setInternalSection} options={SECTION_TILES} />
+                  <PeriodTiles<'treatment' | 'conditions' | 'admin'> icons name="Report section" value={internalSection} onChange={setInternalSection} options={SECTION_TILES} />
                 </Step>
                 {internalSection !== 'conditions' && (
                   <Step n={2} label="How long a period?">
+                    <div className="flex flex-wrap gap-2">
                     <PeriodTiles<'monthly' | 'quarterly' | 'biannual' | 'annual'> name="Period length" value={periodType} onChange={setPeriodType} options={PERIOD_TILES} />
-                    <div className="mt-2 flex flex-wrap gap-2">
                       {periodType !== 'annual' && (
                         <Field icon={Calendar}>
                           <select aria-label="Period" className={fieldInputClass}
@@ -1061,7 +1061,7 @@ export const Reports = () => {
                       </Field>
                       {hasIntFilters && (
                         <button type="button" onClick={clearIntFilters}
-                          className="flex min-h-[44px] items-center gap-1.5 rounded-xl border-[1.5px] border-red-200 px-4 text-sm font-semibold text-destructive hover:bg-red-50">
+                          className="flex min-h-[44px] items-center gap-1.5 rounded-xl border-2 border-red-300 bg-white px-4 text-[15px] font-bold text-destructive hover:bg-red-50">
                           <X className="h-4 w-4" aria-hidden="true" /> Clear
                         </button>
                       )}
@@ -1071,7 +1071,7 @@ export const Reports = () => {
               </>
             }
             status={<>
-              You are viewing <b>{SECTION_TILES.find(t => t.v === internalSection)?.label}</b>
+              You are viewing <b>{internalSection === 'admin' ? 'Overview' : internalSection === 'treatment' ? 'Treatment Summary' : 'Condition Summary'}</b>
               {internalSection !== 'conditions' && <> · <b>{periodLabel}</b></>}
               {internalSection !== 'admin' && hasIntFilters && <> · filtered</>}
             </>}

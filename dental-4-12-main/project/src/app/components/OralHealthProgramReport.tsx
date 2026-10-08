@@ -570,7 +570,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null, 
             <Step n={1} label="Which school year?">{yearPicker}</Step>
             <Step n={2} label="Hide rows or columns? (optional)">
               <button type="button" onClick={() => setShowPicker((v) => !v)} aria-expanded={showPicker}
-                className="flex min-h-[44px] items-center gap-2 rounded-xl border-[1.5px] border-border bg-card px-4 text-sm font-semibold text-foreground hover:bg-gray-50">
+                className="flex min-h-[44px] items-center gap-2 rounded-xl border-2 border-primary bg-white px-4 text-[15px] font-bold text-primary hover:bg-primary/10">
                 <SlidersHorizontal className="h-5 w-5 text-primary" aria-hidden="true" />
                 {showPicker ? 'Done' : `Rows & columns${hiddenCount ? ` (${hiddenCount} hidden)` : ''}`}
               </button>
@@ -579,7 +579,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null, 
         }
         status={<>You are viewing <b>{schoolYear ? `school year ${schoolYear}` : 'all years to date'}</b> · {schoolName ?? 'all schools'}</>}
         actions={
-          <ActionBox>
+          <ActionBox n={3}>
             <ActionButton kind="excel" caption="For the City Health Office" onClick={onXlsx} busy={building && preview.kind === 'excel'} />
             <ActionButton kind="pdf" caption="To email or keep" onClick={onPdf} busy={building && preview.kind === 'pdf'} />
           </ActionBox>
