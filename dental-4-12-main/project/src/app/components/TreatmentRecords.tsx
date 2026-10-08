@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router';
-import { Clipboard, Search, Droplet, ShieldCheck, Sparkles, Wrench, Timer, RotateCcw, Scissors, Syringe, MessageCircle, Eye, ChevronUp, MoreVertical, Trash2, Users, CircleDashed, type LucideIcon } from 'lucide-react';
+import { Clipboard, Search, Droplet, ShieldCheck, Sparkles, Wrench, Timer, Scissors, Syringe, MessageCircle, Eye, ChevronUp, MoreVertical, Trash2, Users, CircleDashed, type LucideIcon } from 'lucide-react';
 import { LevelChip } from './risk/RiskReviewDialog';
 import { GradePill } from './GradePill';
 import { PipelineStatusPill } from './PipelineStatusPill';
@@ -35,11 +35,13 @@ const CATEGORY_META: Record<string, { label: string; icon: LucideIcon; bg: strin
   FV: { label: 'Fluoride Varnish', icon: Droplet, bg: '#ECFDF5', fg: '#059669' },
   PFS: { label: 'Pit & Fissure Sealant', icon: ShieldCheck, bg: '#FEF3E2', fg: '#C2760C' },
   OP: { label: 'Oral Prophylaxis', icon: Sparkles, bg: '#F0F9FF', fg: '#0369A1' },
-  PF: { label: 'Permanent Filling', icon: Wrench, bg: '#FDF2F8', fg: '#BE185D' },
+  CO: { label: 'Composite Filling', icon: Wrench, bg: '#FDF2F8', fg: '#BE185D' },
+  GI: { label: 'Glass Ionomer Cement', icon: Wrench, bg: '#FFF7ED', fg: '#C2410C' },
   TF: { label: 'Temporary Filling', icon: Timer, bg: '#F5F3FF', fg: '#7C3AED' },
-  TR: { label: 'Tooth Restoration', icon: RotateCcw, bg: '#FFF7ED', fg: '#C2410C' },
   X: { label: 'Extraction', icon: Scissors, bg: '#FEF2F2', fg: '#DC2626' },
   SDF: { label: 'Silver Diamine Fluoride', icon: Syringe, bg: '#ECFEFF', fg: '#0E7490' },
+  P: { label: 'Pontic', icon: Wrench, bg: '#EEF2FF', fg: '#4338CA' },
+  JC: { label: 'Jacket Crown', icon: ShieldCheck, bg: '#FDF2F8', fg: '#BE185D' },
   CONS: { label: 'Consultation', icon: MessageCircle, bg: '#F3F4F6', fg: '#4B5563' },
 };
 

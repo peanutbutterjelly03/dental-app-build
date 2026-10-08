@@ -49,6 +49,8 @@ export const conditionColors: Record<string, string> = {
   'jc': 'bg-pink-50 border-pink-300',
   'P': 'bg-indigo-50 border-indigo-400',
   'p': 'bg-indigo-50 border-indigo-300',
+  'RF': 'bg-amber-100 border-amber-400',
+  'rf': 'bg-amber-100 border-amber-300',
 };
 
 /**
@@ -95,6 +97,7 @@ export const rareConditionCodes = [
   { code: 'S', label: 'Supernumerary Tooth', perm: 'S', temp: 's' },
   { code: 'JC', label: 'Jacket Crown', perm: 'JC', temp: 'jc' },
   { code: 'P', label: 'Pontic', perm: 'P', temp: 'p' },
+  { code: 'RF', label: 'Root Fragment', perm: 'RF', temp: 'rf' },
 ];
 export const conditionCodes = [...commonConditionCodes, ...rareConditionCodes];
 

@@ -115,7 +115,7 @@ async function main() {
     // Restorations (ART) where there is decay to restore.
     if (hashIndex(id + "art", 3) === 0) {
       const count = 1 + hashIndex(id + "m", 2); // 1-2 teeth
-      for (const t of RESTORABLE.slice(0, count)) await tooth(chart1._id, t, "d", "TR");
+      for (const t of RESTORABLE.slice(0, count)) await tooth(chart1._id, t, "d", "CO");
     }
 
     // Extraction is rarer than restoration, as it should be.

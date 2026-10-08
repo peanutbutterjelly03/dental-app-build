@@ -94,7 +94,7 @@ const CONSENT_TEXT =
 const SERVICE_COLUMNS: { label: string; code: string | null }[] = [
   { label: 'Oral Prophylaxis', code: 'OP' },
   { label: 'Temporary Filling', code: 'TF' },
-  { label: 'Permanent Filling', code: 'PF' },
+  { label: 'Permanent Filling', code: 'CO' },
   { label: 'Sealant', code: 'PFS' },
   { label: 'Extraction', code: 'X' },
   { label: 'Flouride', code: 'FV' },

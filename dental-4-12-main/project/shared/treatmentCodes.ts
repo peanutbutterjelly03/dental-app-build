@@ -22,11 +22,13 @@ export const treatmentCodes = [
   { code: 'FV', label: 'Fluoride Varnish' },
   { code: 'PFS', label: 'Pit and Fissure Sealant' },
   { code: 'OP', label: 'Oral Prophylaxis', local: 'Linis' },
-  { code: 'PF', label: 'Permanent Filling', local: 'Pasta' },
+  { code: 'CO', label: 'Composite Filling', local: 'Pasta' },
+  { code: 'GI', label: 'Glass Ionomer Cement', local: 'Pasta' },
   { code: 'TF', label: 'Temporary Filling', local: 'Pansamantalang pasta' },
-  { code: 'TR', label: 'Tooth Restoration', local: 'Pasta' },
   { code: 'X', label: 'Extraction', local: 'Bunot' },
   { code: 'SDF', label: 'Silver Diamine Fluoride' },
+  { code: 'P', label: 'Pontic' },
+  { code: 'JC', label: 'Jacket Crown' },
   { code: 'CONS', label: 'Consultation' },
 ];
 

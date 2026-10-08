@@ -326,8 +326,9 @@ const SERVICE_COLUMNS: ServiceCol[] = [
   // The app rendered ✓ for the first four, and Sprint 82 additionally created a
   // DUPLICATE Temporary Filling column by adding the tooth-count variant beside
   // the tick one. Both errors corrected here against the workbook.
-  { group: 'OTHER SERVICES', label: 'Composite Filling (Tooth Count)', value: (r) => String(r.toothCounts['PF'] ?? '') },
-  { group: 'OTHER SERVICES', label: 'ART (Tooth Count)', value: (r) => String(r.toothCounts['TR'] ?? '') },
+  { group: 'OTHER SERVICES', label: 'Composite Filling (Tooth Count)', value: (r) => String(r.toothCounts['CO'] ?? '') },
+  // ART has no chart code since TR was retired (2026-10-08) -- column kept, left blank, as the official form requires.
+  { group: 'OTHER SERVICES', label: 'ART (Tooth Count)', value: () => '' },
   { group: 'OTHER SERVICES', label: 'Temporary Filling (Tooth Count)', value: (r) => String(r.toothCounts['TF'] ?? '') },
   { group: 'OTHER SERVICES', label: 'Extraction (Tooth Count)', value: (r) => String(r.toothCounts['X'] ?? '') },
   // ONE column, here — between Extraction and the sealant — per the filed
