@@ -180,7 +180,7 @@ export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null 
       <PanelRow>
         <PeriodDatesBoxes />
         <GroupBox title="School year" icon={GraduationCap} className="w-full lg:w-auto lg:px-6">{yearPicker}</GroupBox>
-        <div className="flex lg:ml-auto">
+        <div className="flex self-start lg:ml-auto">
           <FiltersButton count={activeFilters}>
             {filterDefs.map((f) => (
               <div key={f.label}>
