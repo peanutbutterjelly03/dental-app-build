@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect, useRef, useSyncExternalStore } from 'react';
 import { useNavigate } from 'react-router';
-import { Eye, Users, Calendar, Clipboard, ClipboardList, Shield, Stethoscope, SlidersHorizontal, PanelLeftClose, PanelLeftOpen, X, ChevronDown, MoreVertical, CircleDashed } from 'lucide-react';
-import { LevelChip } from './risk/RiskReviewDialog';
+import { Eye, Users, Calendar, Clipboard, ClipboardList, Shield, Stethoscope, SlidersHorizontal, PanelLeftClose, PanelLeftOpen, X, ChevronDown, MoreVertical, Check } from 'lucide-react';
 import { GradePill } from './GradePill';
 import { PipelineStatusPill } from './PipelineStatusPill';
 import { getSchoolColor } from '../utils/schoolColors';
@@ -686,49 +685,74 @@ export const DentalChartNav = () => {
             now only starts the mode; word is just "Dequeue", not "Dequeue
             Selected"). */}
         {bulkSelectMode && (
-          <div className="px-5 sm:px-6 py-2.5 bg-foreground flex flex-wrap items-center gap-2 text-sm">
-            <span className="text-xs font-normal text-white">
-              {selectedForDequeue.size > 0 ? `${selectedForDequeue.size} selected` : 'Check rows or click a Grade/Section badge to select'}
-            </span>
-            <button
-              onClick={toggleSelectAllQueued}
-              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-normal ${
-                allQueuedInViewSelected ? 'bg-white text-foreground' : 'bg-white/10 text-white hover:bg-white/20'
-              }`}
-            >
-              All
-            </button>
-            {Array.from(activeGradeCriteria).map((g) => (
-              <button
-                key={`g-${g}`}
-                onClick={() => toggleGradeCriterion(g)}
-                className="inline-flex items-center gap-1.5 rounded-full bg-white/10 text-white px-2.5 py-1 text-xs font-normal hover:bg-white/20"
-              >
-                {g} <X className="w-3 h-3" />
-              </button>
-            ))}
-            {Array.from(activeSectionCriteria).map((s) => (
-              <button
-                key={`s-${s}`}
-                onClick={() => toggleSectionCriterion(s)}
-                className="inline-flex items-center gap-1.5 rounded-full bg-white/10 text-white px-2.5 py-1 text-xs font-normal hover:bg-white/20"
-              >
-                {s} section <X className="w-3 h-3" />
-              </button>
-            ))}
-            <div className="flex-1" />
-            <button
-              disabled={selectedForDequeue.size === 0}
-              onClick={() => setPendingDequeue({ ids: Array.from(selectedForDequeue), label: `${selectedForDequeue.size} student${selectedForDequeue.size === 1 ? '' : 's'}` })}
-              className={`rounded-lg px-3 py-1.5 text-xs font-normal ${
-                selectedForDequeue.size === 0 ? 'bg-white/10 text-white/40 cursor-not-allowed' : 'bg-destructive text-white hover:opacity-90'
-              }`}
-            >
-              Dequeue
-            </button>
-            <button onClick={exitBulkSelectMode} className="text-xs font-normal text-white/60 hover:text-white">
-              Cancel
-            </button>
+          <div className="grid gap-2.5 bg-[#0b0b0c] px-5 py-3 text-xs text-white sm:px-6">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-bold">
+                  {selectedForDequeue.size > 0 ? `${selectedForDequeue.size} selected` : 'Check rows or click a Grade/Section badge to select'}
+                </span>
+                {/* Same bar as Student Records' bulk queue: All keeps a visible
+                    border in both states (dashed while off, solid blue with a
+                    check once everyone queued and in view is picked). */}
+                <button
+                  onClick={toggleSelectAllQueued}
+                  aria-pressed={allQueuedInViewSelected}
+                  className={`inline-flex items-center gap-1.5 rounded-full border-[1.5px] px-[11px] py-1 text-xs ${
+                    allQueuedInViewSelected
+                      ? 'border-[#5f7bff] bg-[#3a54b4] font-semibold text-white'
+                      : 'border-dashed border-[#8fa3ff] bg-transparent text-[#c9d5ff] hover:bg-white/10'
+                  }`}
+                >
+                  {allQueuedInViewSelected && <Check className="h-3 w-3" strokeWidth={3} />} All
+                </button>
+                {selectedForDequeue.size > 0 && (
+                  <button
+                    onClick={() => { setSelectedForDequeue(new Set()); setActiveGradeCriteria(new Set()); setActiveSectionCriteria(new Set()); }}
+                    className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-[#ff6b6b]/60 px-[11px] py-1 text-xs text-red-300 hover:bg-white/10"
+                  >
+                    <X className="h-3 w-3" /> Deselect all
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  disabled={selectedForDequeue.size === 0}
+                  onClick={() => setPendingDequeue({ ids: Array.from(selectedForDequeue), label: `${selectedForDequeue.size} student${selectedForDequeue.size === 1 ? '' : 's'}` })}
+                  className={`rounded-full px-4 py-2 text-xs font-bold ${
+                    selectedForDequeue.size === 0 ? 'cursor-not-allowed bg-white/10 text-white/40' : 'bg-[#b4233c] text-white hover:brightness-110'
+                  }`}
+                >
+                  Dequeue{selectedForDequeue.size > 0 ? ` ${selectedForDequeue.size}` : ''}
+                </button>
+                <button onClick={exitBulkSelectMode} className="text-xs font-normal text-red-400 hover:text-red-300">
+                  Cancel
+                </button>
+              </div>
+            </div>
+            {/* Chosen grades and sections: one labelled box each, chips wrap
+                inside it so every chip stays visible and removable. */}
+            {([
+              { label: 'Grade', values: Array.from(activeGradeCriteria), toggle: toggleGradeCriterion },
+              { label: 'Section', values: Array.from(activeSectionCriteria), toggle: toggleSectionCriterion },
+            ] as const).map((g) =>
+              g.values.length === 0 ? null : (
+                <div key={g.label} className="flex items-start gap-2 rounded-[10px] border border-[#3a3d46] py-1.5 pl-2.5 pr-2">
+                  <span className="flex-none pt-1.5 text-[10.5px] uppercase tracking-[0.06em] text-[#a4abbd]">{g.label}</span>
+                  <div className="flex min-w-0 flex-wrap gap-1.5">
+                    {g.values.map((v) => (
+                      <button
+                        key={`${g.label}-${v}`}
+                        onClick={() => g.toggle(v)}
+                        aria-label={`Remove ${g.label.toLowerCase()} ${v}`}
+                        className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-[#8fa3ff] bg-[#1b2140] px-[11px] py-1 text-xs text-white hover:bg-[#242c5a]"
+                      >
+                        {v} <X className="h-3 w-3" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ),
+            )}
           </div>
         )}
 
@@ -757,7 +781,8 @@ export const DentalChartNav = () => {
                 </th>
                 <th className="text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">#</th>
                 <th className="text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Student</th>
-                <th className="text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Risk</th>
+                <th className="text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Grade</th>
+                <th className="text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Section</th>
                 <th className="text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground w-36">Status</th>
                 {/* Position in the actual queue (queueStorage's stored order,
                     user 2026-09-25) — NOT the row index in `#`, which follows
@@ -776,7 +801,7 @@ export const DentalChartNav = () => {
                   {/* Extra top padding (user, 2026-09-27) -- pushes the icon
                       further from the column header row than a plain py-10
                       did, so it doesn't read as cramped against it. */}
-                  <td colSpan={7} className="px-4 pt-20 pb-10 text-center">
+                  <td colSpan={8} className="px-4 pt-20 pb-10 text-center">
                     <div className="w-10 h-10 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
                       <Users className="w-4 h-4 text-muted-foreground/60" />
                     </div>
@@ -825,13 +850,37 @@ export const DentalChartNav = () => {
                         <span className="truncate">{p.name}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-2.5">
-                      {p.riskLevel ? (
-                        <LevelChip level={p.riskLevel as 'High' | 'Medium' | 'Low'} small />
+                    {/* Grade and Section badges, as on Student Records: in bulk
+                        mode a queued student's badge selects every queued
+                        student of that grade or section. */}
+                    <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                      {!p.grade ? (
+                        <span className="text-muted-foreground">—</span>
+                      ) : bulkSelectMode && queuePosition >= 0 ? (
+                        <button
+                          onClick={() => toggleGradeCriterion(p.grade)}
+                          title={activeGradeCriteria.has(p.grade) ? `Deselect all of ${p.grade}` : `Select all of ${p.grade}`}
+                          className={`rounded-full ${activeGradeCriteria.has(p.grade) ? 'ring-2 ring-primary' : 'hover:ring-2 hover:ring-primary/30'}`}
+                        >
+                          <GradePill grade={p.grade} />
+                        </button>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-normal text-slate-500">
-                          <CircleDashed className="h-3.5 w-3.5" aria-hidden="true" /> Not assessed
-                        </span>
+                        <GradePill grade={p.grade} />
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-muted-foreground" onClick={(e) => e.stopPropagation()}>
+                      {!p.section ? (
+                        <span>—</span>
+                      ) : bulkSelectMode && queuePosition >= 0 ? (
+                        <button
+                          onClick={() => toggleSectionCriterion(p.section)}
+                          title={activeSectionCriteria.has(p.section) ? `Deselect ${p.section} section` : `Select all of ${p.section} section`}
+                          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${activeSectionCriteria.has(p.section) ? 'bg-foreground text-white' : 'bg-gray-100 text-foreground hover:bg-gray-200'}`}
+                        >
+                          {p.section}
+                        </button>
+                      ) : (
+                        p.section
                       )}
                     </td>
                     <td className="px-4 py-2.5 w-36"><PipelineStatusPill status={p.pipelineStatus} isRpcDueThisMonth={rpcDueThisMonthIds.has(p.id)} /></td>
