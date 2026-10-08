@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { FileBarChart, FileSpreadsheet, FileText, AlertTriangle, AlertCircle, CheckCircle, Users, Calendar, CalendarDays, CalendarRange, GraduationCap, UserRound, VenusAndMars, SlidersHorizontal, Stethoscope, Activity, LayoutDashboard, X } from 'lucide-react';
-import { PeriodTiles, fieldInputClass, ActionButton, PanelShell, PanelRow, ActionGroup, GreyButton, BOX_W, UnderlineTabs, GroupBox, Underlined, FiltersButton, FilterChip, type TileOption } from './ReportControls';
+import { PeriodTiles, PeriodSwitch, fieldInputClass, ActionButton, PanelShell, PanelRow, ActionGroup, GreyButton, BOX_W, UnderlineTabs, GroupBox, Underlined, FiltersButton, FilterChip, type TileOption } from './ReportControls';
 import { RangePicker } from './RangePicker';
 import { toLocalDateString } from '../utils/localDate';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -188,13 +188,6 @@ const SECTION_TILES: TileOption<'treatment' | 'conditions' | 'admin'>[] = [
   { v: 'admin', label: 'Overview', hint: 'Risk, consent, referrals', icon: LayoutDashboard },
 ];
 type PeriodKind = 'range' | 'monthly' | 'quarterly' | 'biannual' | 'annual';
-const PERIOD_TILES: TileOption<PeriodKind>[] = [
-  { v: 'range', label: 'Range', hint: 'Pick a start and an end date. The same day twice is one day.', icon: CalendarRange },
-  { v: 'monthly', label: 'Month', hint: 'e.g. October', icon: Calendar },
-  { v: 'quarterly', label: 'Quarter', hint: '3 months', icon: CalendarRange },
-  { v: 'biannual', label: 'Half', hint: '6 months', icon: CalendarRange },
-  { v: 'annual', label: 'Year', hint: 'Jan to Dec', icon: CalendarDays },
-];
 const ALL_GRADES_INT = ['Kinder','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10'];
 const CONDITIONS  = ['Caries (Primary)','Caries (Permanent)','Gingivitis','Malocclusion','Orally Fit'];
 type GX = Record<string,{M:number,F:number}>;
@@ -1018,7 +1011,8 @@ export const Reports = () => {
                 {internalSection !== 'conditions' && (
                   <>
                     <GroupBox title="Time period" className="w-full lg:w-[400px]">
-                      <PeriodTiles<PeriodKind> full name="Time period" value={periodType} onChange={setPeriodType} options={PERIOD_TILES} />
+                      <PeriodSwitch<PeriodKind> name="Time period" value={periodType} onChange={setPeriodType}
+                        options={[{ v: 'range', kind: 'range' }, { v: 'monthly', kind: 'month' }, { v: 'quarterly', kind: 'quarter' }, { v: 'biannual', kind: 'half' }, { v: 'annual', kind: 'year' }]} />
                     </GroupBox>
                     <GroupBox title="Dates" className="w-full lg:w-auto lg:px-6">
                       {periodType === 'range' ? (

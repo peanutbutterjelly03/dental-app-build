@@ -3,7 +3,7 @@ import { usePrintOrientation } from '../hooks/usePrintOrientation';
 import { Calendar, CalendarDays, CalendarRange } from 'lucide-react';
 import { RangePicker } from './RangePicker';
 import { formatDate, toLocalDateString } from '../utils/localDate';
-import { PanelShell, PanelRow, GroupBox, Underlined, PeriodTiles, fieldInputClass, ActionGroup, ActionButton, BOX_W, type TileOption } from './ReportControls';
+import { PanelShell, PanelRow, GroupBox, Underlined, PeriodSwitch, fieldInputClass, ActionGroup, ActionButton, BOX_W } from './ReportControls';
 import { useFhsisData, FHSIS_BANDS, type FhsisBandKey, type Measure } from '../hooks/useFhsisData';
 import { buildDohReportPdf } from '../utils/exportPdf';
 import { buildXlsx } from '../utils/exportXlsx';
@@ -69,13 +69,6 @@ const ORDINALS = ['1st', '2nd', '3rd', '4th'];
 // The workbook has 24 FHSIS sheets: 12 months, 4 quarters, 2 semi-annual and
 // the Annual. A longer period is the sum of its months (shared/fhsis.ts).
 type PeriodKind = 'range' | 'month' | 'quarter' | 'half' | 'year';
-const PERIOD_TILES: TileOption<PeriodKind>[] = [
-  { v: 'range', label: 'Range', hint: 'Pick a start and an end date. The same day twice is one day.', icon: CalendarRange },
-  { v: 'month', label: 'Month', hint: 'e.g. October', icon: Calendar },
-  { v: 'quarter', label: 'Quarter', hint: '3 months', icon: CalendarRange },
-  { v: 'half', label: 'Half', hint: '6 months', icon: CalendarRange },
-  { v: 'year', label: 'Year', hint: 'Jan to Dec', icon: CalendarDays },
-];
 const pad = (n: number) => String(n).padStart(2, '0');
 
 /** `pick` is the month (1-12), quarter (1-4) or half (1-2); ignored for a year. */
@@ -181,7 +174,8 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
     <PanelShell>
       <PanelRow>
         <GroupBox title="Time period" className={BOX_W}>
-          <PeriodTiles<PeriodKind> full name="Time period" value={kind} options={PERIOD_TILES}
+          <PeriodSwitch<PeriodKind> name="Time period" value={kind}
+            options={[{ v: 'range', kind: 'range' }, { v: 'month', kind: 'month' }, { v: 'quarter', kind: 'quarter' }, { v: 'half', kind: 'half' }, { v: 'year', kind: 'year' }]}
             onChange={(k) => { setKind(k); setPick(k === 'month' ? now.getMonth() + 1 : 1); }} />
         </GroupBox>
         <GroupBox title="Dates" className="w-full lg:w-auto lg:px-6">

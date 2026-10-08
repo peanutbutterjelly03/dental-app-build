@@ -15,6 +15,49 @@ type Icon = ComponentType<{ className?: string }>;
 
 export interface TileOption<T extends string> { v: T; label: string; hint: string; icon: Icon }
 
+export type PeriodKindName = 'range' | 'month' | 'quarter' | 'half' | 'year';
+const SPANS: Record<PeriodKindName, { label: string; caption: string; months: number | null }> = {
+  range: { label: 'Range', caption: 'Pick dates', months: null },
+  month: { label: 'Month', caption: '1 month', months: 1 },
+  quarter: { label: 'Quarter', caption: '3 months', months: 3 },
+  half: { label: 'Half', caption: '6 months', months: 6 },
+  year: { label: 'Year', caption: '12 months', months: 12 },
+};
+
+/** The Time period switch (user pick, 2026-10-08): one joined bar, the chosen
+ *  cell solid navy, each cell with its length in words and a 12-cell bar that
+ *  shows how much of a year it covers (a dashed bar for Range, whose length is
+ *  up to the user). The bar is only a picture of the length, never of which
+ *  month is chosen. */
+export function PeriodSwitch<T extends string>({ value, onChange, options, name }: {
+  value: T; onChange: (v: T) => void; options: { v: T; kind: PeriodKindName }[]; name: string;
+}) {
+  return (
+    <div role="radiogroup" aria-label={name} className="flex w-full overflow-hidden rounded-[10px] border-[1.5px] border-primary">
+      {options.map(({ v, kind }, i) => {
+        const on = v === value;
+        const sp = SPANS[kind];
+        return (
+          <button key={v} type="button" role="radio" aria-checked={on} title={sp.caption} onClick={() => onChange(v)}
+            className={`min-w-0 flex-1 px-1.5 py-2 text-center ${i < options.length - 1 ? 'border-r border-[#c9d4ec]' : ''} ${on ? 'bg-primary text-white' : 'bg-white text-primary hover:bg-primary/5'}`}>
+            <div className="text-[12.5px] font-bold">{sp.label}</div>
+            <div className={`text-[10.5px] font-normal ${on ? 'text-[#c9d4ec]' : 'text-[#7a859b]'}`}>{sp.caption}</div>
+            {sp.months === null ? (
+              <div aria-hidden="true" className="mt-1.5 h-1.5 rounded-sm" style={{ background: `repeating-linear-gradient(90deg, ${on ? '#fff' : '#9fb0d6'} 0 4px, transparent 4px 6px)` }} />
+            ) : (
+              <div aria-hidden="true" className="mt-1.5 grid grid-cols-12 gap-0.5">
+                {Array.from({ length: 12 }, (_, k) => (
+                  <i key={k} className={`block h-1.5 rounded-sm ${k < (sp.months as number) ? (on ? 'bg-[#f3c33d]' : 'bg-primary') : (on ? 'bg-white/30' : 'bg-[#dfe5f0]')}`} />
+                ))}
+              </div>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /** A soft segmented switch: one choice at a time, the chosen one a white chip.
  *  (Kept the PeriodTiles name; `icons` adds each option's icon.) */
 export function PeriodTiles<T extends string>({ value, onChange, options, name, icons = false, full = false }: {

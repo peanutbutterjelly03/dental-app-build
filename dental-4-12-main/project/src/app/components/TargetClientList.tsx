@@ -9,7 +9,7 @@ import { useRPCTracking, SOUND_TEMPORARY, SOUND_PERMANENT } from '../hooks/useRP
 import type { VisitServices } from '../../../shared/rpcTracking';
 import { SkeletonTable } from './Skeleton';
 import { Calendar, CalendarDays, CalendarRange } from 'lucide-react';
-import { PanelShell, PanelRow, GroupBox, Underlined, PeriodTiles, fieldInputClass, ActionGroup, ActionButton, BOX_W, type TileOption } from './ReportControls';
+import { PanelShell, PanelRow, GroupBox, Underlined, PeriodSwitch, fieldInputClass, ActionGroup, ActionButton, BOX_W } from './ReportControls';
 import { RangePicker } from './RangePicker';
 import { formatDate, toLocalDateString } from '../utils/localDate';
 import { buildSheetsXlsx } from '../utils/exportXlsx';
@@ -68,13 +68,6 @@ const AGE_GROUPS: readonly string[] = DOH_AGE_BRACKETS;
 
 type Period = 'range' | 'monthly' | 'quarterly' | 'half' | 'annual';
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-const PERIOD_TILES: TileOption<Period>[] = [
-  { v: 'range', label: 'Range', hint: 'Pick a start and an end date. The same day twice is one day.', icon: CalendarRange },
-  { v: 'monthly', label: 'Month', hint: 'e.g. October', icon: CalendarDays },
-  { v: 'quarterly', label: 'Quarter', hint: '3 months', icon: CalendarRange },
-  { v: 'half', label: 'Half', hint: '6 months', icon: CalendarRange },
-  { v: 'annual', label: 'Year', hint: 'Jan to Dec', icon: CalendarDays },
-];
 
 /** Inclusive start / exclusive end for the period containing `anchor`.
  *  Built from local date parts, not UTC — a consultation is filed under the
@@ -945,7 +938,8 @@ export const TargetClientList = () => {
       <PanelShell>
         <PanelRow>
           <GroupBox title="Time period" className={BOX_W}>
-            <PeriodTiles<Period> full name="Time period" value={period} onChange={setPeriod} options={PERIOD_TILES} />
+            <PeriodSwitch<Period> name="Time period" value={period} onChange={setPeriod}
+              options={[{ v: 'range', kind: 'range' }, { v: 'monthly', kind: 'month' }, { v: 'quarterly', kind: 'quarter' }, { v: 'half', kind: 'half' }, { v: 'annual', kind: 'year' }]} />
           </GroupBox>
           <GroupBox title="Dates" className="w-full lg:w-auto lg:px-6">
             {period === 'range' ? (
