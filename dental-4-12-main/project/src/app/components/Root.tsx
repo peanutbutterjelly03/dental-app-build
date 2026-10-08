@@ -6,7 +6,7 @@ import {
   Clipboard, FileBarChart, UserCog, History,
   ChevronDown, ChevronRight, Menu, X, School, Archive, Bell, ArrowLeftRight
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { getSchoolShortName, getSchoolAcronym } from '../utils/schoolColors';
 
 // The role label used to sit where this icon now does -- removed to save
@@ -454,7 +454,13 @@ export const Root = () => {
   const labelCls = collapsed ? 'block md:hidden' : 'block';
   const badgeCls = collapsed ? 'inline-block md:hidden' : 'inline-block';
 
-  const TabLink = ({ tab }: { tab: typeof allTabs[0] }) => {
+  // ⚠ RENDER FUNCTIONS, NOT COMPONENTS. These used to be `const TabLink = (...) =>`
+  // used as <TabLink />, i.e. a brand-new component type on every Root render, so
+  // React unmounted and re-created every nav link each time Root re-rendered
+  // (notification polling, sync status, any state change). A click that straddled
+  // one of those re-renders lost its target: the sidebar looked normal and the
+  // click did nothing. Called as plain functions they keep their DOM nodes.
+  const renderTabLink = ({ tab }: { tab: typeof allTabs[0] }) => {
     const isActive = isTabActive(tab.path);
     const Icon = tab.icon;
     return (
@@ -500,7 +506,7 @@ export const Root = () => {
   // for top-level items). Students itself still navigates normally on click;
   // only the chevron toggles the group, via stopPropagation so it doesn't
   // also trigger the Link.
-  const StudentsGroup = ({ studentsTab, children }: { studentsTab: typeof allTabs[0]; children: typeof allTabs }) => {
+  const renderStudentsGroup = ({ studentsTab, children }: { studentsTab: typeof allTabs[0]; children: typeof allTabs }) => {
     // ⚠ `/dental-chart/:id` (singular, an individual student's chart) and
     // `/students/…` (e.g. update-school-year) are NOT prefixes of any tab's
     // own path (`/patients`, `/dental-charts` plural, `/treatment-records`),
@@ -781,9 +787,9 @@ export const Root = () => {
             if (tab.path === '/notifications') return null;
             if (tab.id === 3) {
               const studentsChildren = visibleTabs.filter((t) => t.id === 4 || t.id === 6);
-              return <StudentsGroup key={tab.id} studentsTab={tab} children={studentsChildren} />;
+              return <Fragment key={tab.id}>{renderStudentsGroup({ studentsTab: tab, children: studentsChildren })}</Fragment>;
             }
-            return <TabLink key={tab.id} tab={tab} />;
+            return <Fragment key={tab.id}>{renderTabLink({ tab })}</Fragment>;
           })}
         </nav>
 
