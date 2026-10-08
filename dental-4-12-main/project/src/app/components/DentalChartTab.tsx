@@ -107,6 +107,7 @@ export interface ChartTabMarking {
   codesOpen: boolean;
   closeCodes: () => void;
   applyCode: (kind: 'condition' | 'treatment', key: string) => void;
+  clearSelection: () => void;
   toggleToothFromKeyboard: (tooth: number) => void;
   canUndo: boolean;
   undoMark: () => void;
@@ -208,7 +209,7 @@ export function DentalChartTab({
   drafts: ChartTabDrafts;
   marking: ChartTabMarking;
 }) {
-  const { markType, changeMarkType, selectedTeeth, codesOpen, closeCodes, applyCode, toggleToothFromKeyboard, canUndo, undoMark, rareOpen, setRareOpen } = marking;
+  const { markType, changeMarkType, selectedTeeth, codesOpen, closeCodes, applyCode, clearSelection, toggleToothFromKeyboard, canUndo, undoMark, rareOpen, setRareOpen } = marking;
   const {
     setChartingMode, goToStudent, setEditMode, cancelEdit, handleSave, setExplicitVisit, setConfirmClear,
     handleToothPointerDown, syncChartDateFromConditions, syncVisitDateFromServices,
@@ -684,6 +685,8 @@ export function DentalChartTab({
                     {rareOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                     More ({rareConditionCodes.length})
                   </button>
+                  <button type="button" onClick={clearSelection} title="Clear marks on selected teeth" aria-label="Clear marks on selected teeth"
+                    className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border text-red-600 hover:bg-red-50 hover:border-red-300"><Trash2 className="h-4 w-4" /></button>
                   {rareOpen && (
                     <div className="mt-1 flex basis-full flex-wrap gap-1.5">
                       {rareConditionCodes.map((c) => (
@@ -703,6 +706,8 @@ export function DentalChartTab({
                       {t.code}
                     </button>
                   ))}
+                  <button type="button" onClick={clearSelection} title="Clear marks on selected teeth" aria-label="Clear marks on selected teeth"
+                    className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border text-red-600 hover:bg-red-50 hover:border-red-300"><Trash2 className="h-4 w-4" /></button>
                 </div>
               )}
             </div>

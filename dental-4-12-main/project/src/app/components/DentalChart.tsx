@@ -968,6 +968,27 @@ export const DentalChart = () => {
     toast.success(`${removed ? `Removed ${label} from` : `Marked ${label} on`} ${targets.length} tooth${targets.length === 1 ? '' : 's'}. Not saved until Save Chart.`);
   };
 
+  // Trash button in the codes popover: wipe what is marked on the selected
+  // teeth for the active tab (condition clears the whole tooth, as removing a
+  // condition code already does; treatment clears the treatment only).
+  const clearSelection = () => {
+    const targets = [...selectedTeeth].filter(canSelect);
+    if (targets.length === 0) return;
+    setLastMarkUndo(currentChart);
+    const next = { ...currentChart };
+    targets.forEach((n) => {
+      next[n] = markType === 'condition'
+        ? { condition: '', treatment: '', visitNumber: null }
+        : { ...(next[n] as ChartEntry), treatment: '' };
+    });
+    setDraftChart(next);
+    syncDatesFromChart(next);
+    setSelectedTeeth(new Set());
+    setCodesOpen(false);
+    setRareConditionsOpen(false);
+    toast.success(`Cleared ${targets.length} tooth${targets.length === 1 ? '' : 's'}. Not saved until Save Chart.`);
+  };
+
   const undoMark = () => {
     if (!lastMarkUndo) return;
     setDraftChart(lastMarkUndo);
@@ -2224,7 +2245,7 @@ export const DentalChart = () => {
             treatmentTeethVisit2={treatmentTeethVisit2}
             marking={{
               markType, changeMarkType, selectedTeeth, codesOpen, closeCodes: () => { setSelectedTeeth(new Set()); setCodesOpen(false); setRareConditionsOpen(false); },
-              applyCode: applyCodeToSelection, toggleToothFromKeyboard, canUndo: !!lastMarkUndo, undoMark,
+              applyCode: applyCodeToSelection, clearSelection, toggleToothFromKeyboard, canUndo: !!lastMarkUndo, undoMark,
               rareOpen: rareConditionsOpen, setRareOpen: setRareConditionsOpen,
             }}
             actions={{
