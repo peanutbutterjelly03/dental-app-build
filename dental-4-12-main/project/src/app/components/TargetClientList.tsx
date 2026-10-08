@@ -66,12 +66,13 @@ import { cariesStatus } from '../../../shared/cariesStatus';
 // The form's printed bracket labels — the shared DOH set (BUG-02), not a copy.
 const AGE_GROUPS: readonly string[] = DOH_AGE_BRACKETS;
 
-type Period = 'range' | 'monthly' | 'quarterly' | 'annual';
+type Period = 'range' | 'monthly' | 'quarterly' | 'half' | 'annual';
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const PERIOD_TILES: TileOption<Period>[] = [
   { v: 'range', label: 'Range', hint: 'Pick a start and an end date. The same day twice is one day.', icon: CalendarRange },
   { v: 'monthly', label: 'Month', hint: 'e.g. October', icon: CalendarDays },
   { v: 'quarterly', label: 'Quarter', hint: '3 months', icon: CalendarRange },
+  { v: 'half', label: 'Half', hint: '6 months', icon: CalendarRange },
   { v: 'annual', label: 'Year', hint: 'Jan to Dec', icon: CalendarDays },
 ];
 
@@ -100,7 +101,12 @@ function periodRange(anchor: string, period: Period, rangeStart: string, rangeEn
     const qStart = Math.floor((m - 1) / 3) * 3;
     const start = new Date(y, qStart, 1);
     const end = new Date(y, qStart + 3, 1);
-    return { start, end, label: `${fmtMon(start)} – ${fmtMon(new Date(y, qStart + 2, 1))}` };
+    return { start, end, label: `${fmtMon(start)} to ${fmtMon(new Date(y, qStart + 2, 1))}` };
+  }
+  if (period === 'half') {
+    const hStart = m <= 6 ? 0 : 6;
+    const start = new Date(y, hStart, 1);
+    return { start, end: new Date(y, hStart + 6, 1), label: `${fmtMon(start)} to ${fmtMon(new Date(y, hStart + 5, 1))}` };
   }
   const start = new Date(y, 0, 1);
   const end = new Date(y + 1, 0, 1);
@@ -934,8 +940,8 @@ export const TargetClientList = () => {
       {/* Controls: see ReportControls.tsx. Excel is listed first — the City
           Health Office requires it (decided 2026-09-03). The TCL is 66 columns;
           Excel paginates columns natively. PDF (added 2026-10-06) is the exact
-          two-page form. Range/month/quarter/year are the periods this
-          report really supports; there is no half-year here. */}
+          two-page form. Range, month, quarter, half and year all filter by the
+          consultation date. */}
       <PanelShell>
         <PanelRow>
           <GroupBox title="Time period" className={BOX_W}>
@@ -947,12 +953,13 @@ export const TargetClientList = () => {
             ) : (
               <div className="flex w-full gap-4">
                 {period !== 'annual' && (
-                  <Underlined label={period === 'monthly' ? 'Month' : 'Quarter'} icon={Calendar} chevron>
+                  <Underlined label={period === 'monthly' ? 'Month' : period === 'quarterly' ? 'Quarter' : 'Half'} icon={Calendar} chevron>
                     <select aria-label="Period" className={`${fieldInputClass} !pr-5`}
-                      value={period === 'monthly' ? anchorMonth : Math.floor((anchorMonth - 1) / 3) + 1}
-                      onChange={(e) => { const n = Number(e.target.value); setAnchor(`${anchorYear}-${String(period === 'monthly' ? n : (n - 1) * 3 + 1).padStart(2, '0')}-01`); }}>
+                      value={period === 'monthly' ? anchorMonth : period === 'quarterly' ? Math.floor((anchorMonth - 1) / 3) + 1 : anchorMonth < 7 ? 1 : 2}
+                      onChange={(e) => { const n = Number(e.target.value); setAnchor(`${anchorYear}-${String(period === 'monthly' ? n : period === 'quarterly' ? (n - 1) * 3 + 1 : (n - 1) * 6 + 1).padStart(2, '0')}-01`); }}>
                       {period === 'monthly' && MONTH_NAMES.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
                       {period === 'quarterly' && [1, 2, 3, 4].map((q) => <option key={q} value={q}>Quarter {q} ({MONTH_NAMES[(q - 1) * 3].slice(0, 3)} to {MONTH_NAMES[q * 3 - 1].slice(0, 3)})</option>)}
+                      {period === 'half' && [1, 2].map((h) => <option key={h} value={h}>{h === 1 ? '1st half (Jan to Jun)' : '2nd half (Jul to Dec)'}</option>)}
                     </select>
                   </Underlined>
                 )}

@@ -21,5 +21,8 @@ describe('buildFhsisCounts period', () => {
   it('sums a quarter from its months', () => expect(firstVisits('2026-04..2026-06')).toBe(1));
   it('sums a half year', () => expect(firstVisits('2026-01..2026-06')).toBe(2));
   it('sums a whole year', () => expect(firstVisits('2026-01..2026-12')).toBe(3));
+  it('counts a day range, inclusive of both ends', () => expect(firstVisits('2026-04-15..2026-10-15')).toBe(2));
+  it('counts one day', () => expect(firstVisits('2026-04-15..2026-04-15')).toBe(1));
+  it('excludes days outside the range', () => expect(firstVisits('2026-04-16..2026-10-14')).toBe(0));
   it('counts nothing for an empty period', () => expect(firstVisits('')).toBe(0));
 });

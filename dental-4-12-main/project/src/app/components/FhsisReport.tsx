@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react';
 import { usePrintOrientation } from '../hooks/usePrintOrientation';
 import { Calendar, CalendarDays, CalendarRange } from 'lucide-react';
+import { RangePicker } from './RangePicker';
+import { formatDate, toLocalDateString } from '../utils/localDate';
 import { PanelShell, PanelRow, GroupBox, Underlined, PeriodTiles, fieldInputClass, ActionGroup, ActionButton, BOX_W, type TileOption } from './ReportControls';
 import { useFhsisData, FHSIS_BANDS, type FhsisBandKey, type Measure } from '../hooks/useFhsisData';
 import { buildDohReportPdf } from '../utils/exportPdf';
@@ -66,8 +68,9 @@ const ORDINALS = ['1st', '2nd', '3rd', '4th'];
 
 // The workbook has 24 FHSIS sheets: 12 months, 4 quarters, 2 semi-annual and
 // the Annual. A longer period is the sum of its months (shared/fhsis.ts).
-type PeriodKind = 'month' | 'quarter' | 'half' | 'year';
+type PeriodKind = 'range' | 'month' | 'quarter' | 'half' | 'year';
 const PERIOD_TILES: TileOption<PeriodKind>[] = [
+  { v: 'range', label: 'Range', hint: 'Pick a start and an end date. The same day twice is one day.', icon: CalendarRange },
   { v: 'month', label: 'Month', hint: 'e.g. October', icon: Calendar },
   { v: 'quarter', label: 'Quarter', hint: '3 months', icon: CalendarRange },
   { v: 'half', label: 'Half', hint: '6 months', icon: CalendarRange },
@@ -76,7 +79,11 @@ const PERIOD_TILES: TileOption<PeriodKind>[] = [
 const pad = (n: number) => String(n).padStart(2, '0');
 
 /** `pick` is the month (1-12), quarter (1-4) or half (1-2); ignored for a year. */
-function describePeriod(kind: PeriodKind, pick: number, year: number) {
+function describePeriod(kind: PeriodKind, pick: number, year: number, rangeStart: string, rangeEnd: string) {
+  if (kind === 'range') {
+    const label = rangeStart === rangeEnd ? formatDate(rangeStart) : `${formatDate(rangeStart)} to ${formatDate(rangeEnd)}`;
+    return { key: `${rangeStart}..${rangeEnd}`, short: label, printed: label.toUpperCase() };
+  }
   const first = kind === 'month' ? pick : kind === 'quarter' ? (pick - 1) * 3 + 1 : kind === 'half' ? (pick - 1) * 6 + 1 : 1;
   const last = kind === 'month' ? pick : kind === 'quarter' ? first + 2 : kind === 'half' ? first + 5 : 12;
   const key = first === last ? `${year}-${pad(first)}` : `${year}-${pad(first)}..${year}-${pad(last)}`;
@@ -96,7 +103,9 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
   const [kind, setKind] = useState<PeriodKind>('month');
   const [pick, setPick] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
-  const { key: month, short: periodShort, printed: periodPrinted } = describePeriod(kind, pick, year);
+  const [rangeStart, setRangeStart] = useState(() => toLocalDateString(new Date(now.getFullYear(), now.getMonth(), 1)));
+  const [rangeEnd, setRangeEnd] = useState(() => toLocalDateString(now));
+  const { key: month, short: periodShort, printed: periodPrinted } = describePeriod(kind, pick, year, rangeStart, rangeEnd);
   const { counts, monthsWithData, loading, error } = useFhsisData(month, schoolName);
   const printableRef = useRef<HTMLDivElement>(null);
   const { preview, building, previewPdf, previewExcel, closePreview, confirmDownload } = usePreviewModal();
@@ -176,6 +185,9 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
             onChange={(k) => { setKind(k); setPick(k === 'month' ? now.getMonth() + 1 : 1); }} />
         </GroupBox>
         <GroupBox title="Dates" className={BOX_W}>
+          {kind === 'range' ? (
+            <RangePicker start={rangeStart} end={rangeEnd} onChange={(a, b) => { setRangeStart(a); setRangeEnd(b); }} />
+          ) : (
           <div className="flex w-full gap-4">
             {kind !== 'year' && (
               <Underlined label={kind === 'month' ? 'Month' : kind === 'quarter' ? 'Quarter' : 'Half'} icon={Calendar} chevron>
@@ -195,6 +207,7 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
               </select>
             </Underlined>
           </div>
+          )}
         </GroupBox>
         <ActionGroup>
           <ActionButton kind="excel" caption="For the City Health Office" onClick={onXlsx} disabled={loading || !!error} busy={building && preview.kind === 'excel'} />

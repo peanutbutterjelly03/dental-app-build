@@ -27,7 +27,7 @@ export interface FhsisInput {
   iptrs: FhsisIptr[];
   pcrs: FhsisPreventive[];
   schools: FhsisSchool[];
-  /** "YYYY-MM", or "YYYY-MM..YYYY-MM" for a multi-month period — what the form reports. */
+  /** A month, a month range or a day range (see `inPeriod`) — what the form reports. */
   month: string;
   /** School NAME as the dropdown carries it, or "" for all schools. */
   schoolName: string;
@@ -88,14 +88,16 @@ export const emptyCounts = (): Counts =>
     FHSIS_BANDS.map((b) => [b.key, { first: emptyMeasure(), completed: emptyMeasure() }]),
   ) as Counts;
 
-/** `period` is "YYYY-MM" (one month) or "YYYY-MM..YYYY-MM" (first..last month,
- *  inclusive) for a quarter, half-year or year. A quarter is just the sum of
- *  its months, so the same tally covers all four. "YYYY-MM" strings compare
- *  correctly as text. */
+/** `period` is "YYYY-MM" (one month), "YYYY-MM..YYYY-MM" (first..last month,
+ *  inclusive: a quarter, half-year or year), or "YYYY-MM-DD..YYYY-MM-DD" (first
+ *  and last DAY, inclusive; the same day twice is one day). A longer period is
+ *  just the sum of its parts, so one tally covers all of them. The strings
+ *  compare correctly as text. */
 const inPeriod = (d: Date, period: string) => {
-  const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const [from, to = from] = period.split('..');
-  return ym >= from && ym <= to;
+  const key = from.length > 7 ? day : day.slice(0, 7);
+  return key >= from && key <= to;
 };
 
 
