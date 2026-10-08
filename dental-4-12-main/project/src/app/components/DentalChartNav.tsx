@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
+import { useState, useMemo, useEffect, useRef, useSyncExternalStore } from 'react';
 import { useNavigate } from 'react-router';
 import { Eye, Users, Calendar, Clipboard, ClipboardList, Shield, Stethoscope, SlidersHorizontal, PanelLeftClose, PanelLeftOpen, X, ChevronDown, MoreVertical, CircleDashed } from 'lucide-react';
 import { LevelChip } from './risk/RiskReviewDialog';
@@ -335,55 +335,7 @@ export const DentalChartNav = () => {
   // own rows internally (see regionRef/rowsBoxRef below) instead of paging,
   // so every filtered row renders and scrolling the box reaches the rest.
 
-  // Adaptive, PINNED queue card (user, 2026-09-26 — fixed AGAIN: sticking the
-  // card to the document at `top: TOPBAR_H` worked for where it landed, but
-  // any page that can scroll at all gets the BROWSER's own scrollbar, which
-  // is chrome outside our DOM and always spans the full window from y:0 --
-  // it visually ran straight through the fixed top bar. The actual fix is to
-  // never let the page/document scroll in the first place: this whole
-  // section becomes its OWN bounded, internally-scrolling region (height =
-  // remaining viewport, `overflow-y-auto`), so any scrollbar it shows is
-  // confined to its own box, below the top bar, not the window's. The queue
-  // card then sticks at `top-0` of THAT region instead of the document, and
-  // fills the same remaining height once stuck -- the rows box inside it
-  // keeps its own separate internal scroll for the list itself, unchanged.
-  const regionRef = useRef<HTMLDivElement | null>(null);
-  const rowsBoxRef = useRef<HTMLDivElement | null>(null);
-  const [regionHeight, setRegionHeight] = useState<number | null>(null);
-
-  useEffect(() => {
-    // Always flush to the true screen edge, scrolled or not (user,
-    // 2026-09-28: "it should always touch the edge of the screen even if i
-    // scrolled till the bottom or end of the page") -- the Treatment
-    // Queue's sidebar-bottom cap (added earlier the same day) is
-    // deliberately NOT ported here; this queue always stays flush.
-    const measure = () => {
-      if (!regionRef.current) return;
-      const top = regionRef.current.getBoundingClientRect().top;
-      setRegionHeight(Math.max(window.innerHeight - top, 200));
-    };
-    measure();
-    window.addEventListener('resize', measure);
-    const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
-    resizeObserver?.observe(document.body);
-    return () => {
-      window.removeEventListener('resize', measure);
-      resizeObserver?.disconnect();
-    };
-  }, [studentsLoading]);
-
-  // Trims any stray page scroll the estimate above leaves behind -- mainly
-  // <main>'s own bottom padding (p-4/md:p-8 around every routed page, see
-  // Root.tsx), which the negative margin below cancels but isn't the only
-  // possible source. Same correction pass RPC Monitoring and Student
-  // Records use.
-  useLayoutEffect(() => {
-    if (regionHeight == null) return;
-    const overflow = document.documentElement.scrollHeight - window.innerHeight;
-    if (overflow > 0) {
-      setRegionHeight((h) => (h == null ? h : Math.max(h - overflow, 200)));
-    }
-  }, [regionHeight]);
+  // Nothing on this page is pinned or height-capped (user, 2026-10-08): the page scrolls as a whole, and the queue table grows with its rows.
 
   if (studentsLoading) {
     return (
@@ -450,7 +402,7 @@ export const DentalChartNav = () => {
   ];
 
   return (
-    <div ref={regionRef} className="space-y-4 overflow-y-auto no-scrollbar -mt-1 md:-mt-4 -mb-4 md:-mb-8" style={{ height: regionHeight ?? undefined }}>
+    <div className="space-y-4">
       {/* The region starts 0.25rem (1rem on laptop) above the page padding so the pinned queue card sits closer to the top bar; the header's own top padding gives that back at rest. */}
       {/* Page-level identity header, above the stat row and the queue itself
           (user, 2026-09-25). No card/border -- sits directly on the page.
@@ -613,7 +565,7 @@ export const DentalChartNav = () => {
           always flush against the bottom of the screen once pinned -- unlike
           RPC Monitoring/Student Records' "Hide" toggle, there's no shorter
           state here where a rounded bottom corner would ever be correct. */}
-      <div className="sticky top-0 z-30 flex flex-col bg-card rounded-t-2xl border border-border shadow-sm overflow-clip" style={{ height: regionHeight ?? undefined }}>
+      <div className="flex flex-col bg-card rounded-2xl border border-border shadow-sm overflow-clip">
         {/* Queue card's own header, restyled after the RAMHIS "Patient
             Queue" reference exactly -- icon badge, gray eyebrow, title with
             a count pill, one-line description, search + view toggle at the
@@ -784,7 +736,7 @@ export const DentalChartNav = () => {
             2026-09-26) -- column headings stick to the TOP OF THIS BOX via
             `sticky` on each `<th>`, not the `<tr>` (a sticky `<tr>` renders
             as a duplicate mid-table in some browsers, see PatientList). */}
-        <div ref={rowsBoxRef} className="min-h-0 flex-1 overflow-auto">
+        <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
@@ -792,7 +744,7 @@ export const DentalChartNav = () => {
                     bulkSelectMode is on (see the "⋮" menu above) -- only
                     queued rows get one even then, since there's nothing to
                     select on an un-queued Full List row. */}
-                <th className="sticky top-0 z-10 px-4 py-3 sm:pl-6 bg-gray-100 w-8">
+                <th className="px-4 py-3 sm:pl-6 bg-gray-100 w-8">
                   {bulkSelectMode && queuedInView.length > 0 && (
                     <input
                       type="checkbox"
@@ -803,16 +755,16 @@ export const DentalChartNav = () => {
                     />
                   )}
                 </th>
-                <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">#</th>
-                <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Student</th>
-                <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Risk</th>
-                <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground w-36">Status</th>
+                <th className="text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">#</th>
+                <th className="text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Student</th>
+                <th className="text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Risk</th>
+                <th className="text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground w-36">Status</th>
                 {/* Position in the actual queue (queueStorage's stored order,
                     user 2026-09-25) — NOT the row index in `#`, which follows
                     this list's own alphabetical sort and can disagree with
                     who was queued first. Blank for a student never queued. */}
-                <th className="sticky top-0 z-10 text-center px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Queue #</th>
-                <th className="sticky top-0 z-10 text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground sm:pr-6">Actions</th>
+                <th className="text-center px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Queue #</th>
+                <th className="text-left px-4 py-3 bg-gray-100 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground sm:pr-6">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
