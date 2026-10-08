@@ -24,8 +24,8 @@ const SPANS: Record<PeriodKindName, { label: string; caption: string; months: nu
   year: { label: 'Year', caption: '12 months', months: 12 },
 };
 
-/** The Time period switch (user pick, 2026-10-08): one joined bar, the chosen
- *  cell solid navy, each cell with its length in words and a 12-cell bar that
+/** The Time period switch (user pick "A", 2026-10-08): five separate tiles, the
+ *  chosen tile solid navy, each cell with its length in words and a 12-cell bar that
  *  shows how much of a year it covers (a dashed bar for Range, whose length is
  *  up to the user). The bar is only a picture of the length, never of which
  *  month is chosen. */
@@ -33,13 +33,13 @@ export function PeriodSwitch<T extends string>({ value, onChange, options, name 
   value: T; onChange: (v: T) => void; options: { v: T; kind: PeriodKindName }[]; name: string;
 }) {
   return (
-    <div role="radiogroup" aria-label={name} className="flex w-full overflow-hidden rounded-[10px] border-[1.5px] border-primary">
-      {options.map(({ v, kind }, i) => {
+    <div role="radiogroup" aria-label={name} className="grid w-full grid-cols-5 gap-2">
+      {options.map(({ v, kind }) => {
         const on = v === value;
         const sp = SPANS[kind];
         return (
           <button key={v} type="button" role="radio" aria-checked={on} title={sp.caption} onClick={() => onChange(v)}
-            className={`min-w-0 flex-1 px-1.5 py-2 text-center ${i < options.length - 1 ? 'border-r border-[#c9d4ec]' : ''} ${on ? 'bg-primary text-white' : 'bg-white text-primary hover:bg-primary/5'}`}>
+            className={`min-w-0 rounded-[10px] border-[1.5px] px-1.5 py-2 text-center ${on ? 'border-primary bg-primary text-white' : 'border-[#dfe5f0] bg-white text-primary hover:border-[#c9d4ec] hover:bg-primary/5'}`}>
             <div className="text-[12.5px] font-bold">{sp.label}</div>
             <div className={`text-[10.5px] font-normal ${on ? 'text-[#c9d4ec]' : 'text-[#7a859b]'}`}>{sp.caption}</div>
             {sp.months === null ? (
