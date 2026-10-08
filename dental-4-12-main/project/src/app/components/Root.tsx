@@ -157,11 +157,11 @@ const UserMenu = ({ user, schoolLabel, onAccountSettings, onLogout }: { user: { 
         <div role="menu" className="absolute right-0 top-[calc(100%+10px)] z-10 w-[290px] overflow-hidden rounded-[22px] border border-white/10 p-2.5 text-white shadow-[0_22px_54px_rgba(10,16,40,0.45)]" style={{ background: 'linear-gradient(160deg, #34469F 0%, #24316C 42%, #17234D 100%)' }}>
           {/* Dark navy menu (user pick, 2026-10-08) in the avatar chip's own blue, with the gradient kept soft. */}
           <div className="flex items-center gap-3 px-2.5 pb-3.5 pt-2.5">
-            <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-white/15 text-[17px] font-bold">{firstLetter}</span>
+            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-white/15 text-[15px] font-bold">{firstLetter}</span>
             <div className="min-w-0">
-              <span className="block text-[10px] font-bold uppercase tracking-[0.14em] text-[#C5CFF5]">Signed in as</span>
-              <strong className="block truncate text-[15px] font-bold">{user.name}</strong>
-              <span className="block truncate text-xs font-semibold capitalize text-[#D8DFFA]">{user.role.replace('_', ' ')} · {schoolLabel}</span>
+              <span className="block text-[9px] font-bold uppercase tracking-[0.14em] text-[#C5CFF5]">Signed in as</span>
+              <strong className="block truncate text-[13px] font-bold">{user.name}</strong>
+              <span className="block truncate text-[11px] font-semibold capitalize text-[#D8DFFA]">{user.role.replace('_', ' ')} · {schoolLabel}</span>
             </div>
           </div>
           <div className="mx-1.5 border-t border-white/15" />
@@ -169,9 +169,9 @@ const UserMenu = ({ user, schoolLabel, onAccountSettings, onLogout }: { user: { 
             type="button"
             role="menuitem"
             onClick={() => { setOpen(false); onAccountSettings(); }}
-            className="mt-1.5 flex w-full items-center gap-3 rounded-[14px] px-2.5 py-3 text-left text-[13.5px] font-bold text-white transition-colors hover:bg-white/15"
+            className="mt-1.5 flex w-full items-center gap-3 rounded-[14px] px-2.5 py-2.5 text-left text-[12px] font-bold text-white transition-colors hover:bg-white/15"
           >
-            <UserCog className="h-[17px] w-[17px] text-[#D5DCFF]" />
+            <UserCog className="h-4 w-4 text-[#D5DCFF]" />
             <span>Account Settings</span>
             <ChevronRight className="ml-auto h-4 w-4 text-[#B5C1F2]" />
           </button>
@@ -180,9 +180,9 @@ const UserMenu = ({ user, schoolLabel, onAccountSettings, onLogout }: { user: { 
               type="button"
               role="menuitem"
               onClick={() => { setOpen(false); requestSyncReport(); }}
-              className="flex w-full items-center gap-3 rounded-[14px] px-2.5 py-3 text-left text-[13.5px] font-bold text-white transition-colors hover:bg-white/15"
+              className="flex w-full items-center gap-3 rounded-[14px] px-2.5 py-2.5 text-left text-[12px] font-bold text-white transition-colors hover:bg-white/15"
             >
-              <History className="h-[17px] w-[17px] text-[#D5DCFF]" />
+              <History className="h-4 w-4 text-[#D5DCFF]" />
               <span>Sync History</span>
               <ChevronRight className="ml-auto h-4 w-4 text-[#B5C1F2]" />
             </button>
@@ -192,9 +192,9 @@ const UserMenu = ({ user, schoolLabel, onAccountSettings, onLogout }: { user: { 
             type="button"
             role="menuitem"
             onClick={() => { setOpen(false); onLogout(); }}
-            className="flex w-full items-center gap-3 rounded-[14px] px-2.5 py-3 text-left text-[13.5px] font-bold text-[#FFB3C3] transition-colors hover:bg-[rgba(255,120,150,0.2)]"
+            className="flex w-full items-center gap-3 rounded-[14px] px-2.5 py-2.5 text-left text-[12px] font-bold text-[#FFB3C3] transition-colors hover:bg-[rgba(255,120,150,0.2)]"
           >
-            <LogOut className="h-[17px] w-[17px]" />
+            <LogOut className="h-4 w-4" />
             <span>Log out</span>
           </button>
         </div>
