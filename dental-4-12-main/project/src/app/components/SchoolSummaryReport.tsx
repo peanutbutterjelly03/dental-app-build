@@ -148,8 +148,7 @@ export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null 
       const blob = await buildXlsx(
         rows,
         [
-          { label: schoolName ?? 'All schools', value: (r) => r.label },
-          { label: '', value: (r) => r.code },
+          { label: schoolName ?? 'All schools', value: (r) => (r.label && r.code ? `${r.label} ${r.code}` : r.label || r.code) },
           { label: 'MALE', value: (r) => show(r.male.persons) },
           { label: 'TOTAL', value: (r) => show(r.male.teeth) },
           { label: 'FEMALE', value: (r) => show(r.female.persons) },
@@ -265,13 +264,12 @@ export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null 
             <thead>
               <tr ref={titleRowRef} className="[&>th]:sticky [&>th]:top-0 [&>th]:z-20">
                 {/* The paper sheet's single top band carries the school name. */}
-                <th colSpan={6} className="border-b border-gray-300 bg-[#CFDDF6] px-2 py-2 text-center text-[12px] font-bold uppercase tracking-wide text-[#273A78]">
+                <th colSpan={5} className="border-b border-gray-300 bg-[#CFDDF6] px-2 py-2 text-center text-[12px] font-bold uppercase tracking-wide text-[#273A78]">
                   {schoolName ?? 'All schools'}
                 </th>
               </tr>
               <tr className="[&>th]:sticky [&>th]:top-[var(--ss-r1)] [&>th]:z-20 [&>th]:bg-gray-200">
                 <th className={`${TH} text-left font-semibold`} />
-                <th className={TH} />
                 <th className={`${TH} font-semibold`}>MALE</th>
                 <th className={`${TH} font-semibold`}>TOTAL</th>
                 <th className={`${TH} font-semibold`}>FEMALE</th>
@@ -281,8 +279,12 @@ export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null 
             <tbody>
               {rows.map((row, i) => (
                 <tr key={`${row.label}-${row.code}-${i}`}>
-                  <td className={`${TD} font-medium text-foreground`}>{row.label}</td>
-                  <td className={`${TD} text-center font-medium`}>{row.code}</td>
+                  <td className={`${TD} font-medium text-foreground`}>
+                    <div className="flex items-baseline justify-between gap-4">
+                      <span>{row.label}</span>
+                      <span>{row.code}</span>
+                    </div>
+                  </td>
                   <td className={`${TD} text-center tabular-nums`}>{show(row.male.persons)}</td>
                   <td className={`${TD} text-center tabular-nums`}>{show(row.male.teeth)}</td>
                   <td className={`${TD} text-center tabular-nums`}>{show(row.female.persons)}</td>
