@@ -1,7 +1,7 @@
 import { compareStudentsDefault } from '../utils/studentSort';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router';
-import { ArrowLeft, Save, ChevronLeft, ChevronRight, Shield, Users, FileText, Plus, Pencil, Trash2, Download, X, Maximize2, Check, ChevronUp, ChevronDown, ShieldCheck, ShieldAlert, Shield as ShieldIcon, MoreVertical } from 'lucide-react';
+import { ArrowLeft, Save, ChevronLeft, ChevronRight, Shield, Users, FileText, Plus, Pencil, Trash2, Download, X, Maximize2, Check, ChevronUp, ChevronDown, ShieldCheck, ShieldAlert, MoreVertical, Lock } from 'lucide-react';
 import { buildPagesPdf } from '../utils/exportPdf';
 import { usePreviewModal } from '../hooks/usePreviewModal';
 import { PreviewModal } from './PreviewModal';
@@ -2562,72 +2562,68 @@ export const DentalChart = () => {
           the dialog and the real wording on the sheet is how someone confirms
           against a form that says something else. */}
       {confirmConsent && (
-        <Modal onClose={() => setConfirmConsent(null)} maxWidth="max-w-[666px]">
-          <div className="flex items-start gap-3 p-6 border-b border-border">
-            <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${confirmConsent.revert ? 'bg-warning' : 'bg-primary'}`}>
-              {confirmConsent.revert ? <ShieldAlert className="w-5 h-5 text-white" /> : <ShieldCheck className="w-5 h-5 text-white" />}
+        <Modal onClose={() => setConfirmConsent(null)} maxWidth="max-w-[720px]">
+          {/* Styled after the Patient Consent dialog (user, 2026-10-11): tinted header, a soft rounded reading card, a lock note, a ruled footer. */}
+          <div className="flex items-start gap-4 border-b border-[#E6EAF5] bg-[#F8F9FF] px-7 py-6">
+            <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl shadow-[0_4px_10px_rgba(36,59,122,0.25)] ${confirmConsent.revert ? 'bg-warning' : 'bg-[#243B7A]'}`}>
+              {confirmConsent.revert ? <ShieldAlert className="h-5 w-5 text-white" /> : <ShieldCheck className="h-5 w-5 text-white" />}
             </div>
             <div className="min-w-0">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-primary mb-1">Guardian Consent</div>
-              <h2 className="text-lg font-bold text-foreground">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#1E2A5E]">Guardian consent</div>
+              <h2 className="mt-1 text-xl font-extrabold text-foreground">
                 {confirmConsent.revert ? 'Revert consent to pending?' : 'Confirm consent obtained'}
               </h2>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="mt-1 text-[13px] text-muted-foreground">
                 {confirmConsent.revert
                   ? `This says the signed copy for ${confirmConsent.schoolYear} is NOT on file after all.`
                   : `Confirm a signed physical copy of the form below is on file for ${confirmConsent.schoolYear} before continuing.`}
               </p>
             </div>
           </div>
-          {!confirmConsent.revert && (
-            <div className="p-6 pb-0">
-              <div className="rounded-lg border border-border bg-canvas p-4 max-h-64 overflow-y-auto text-xs text-foreground space-y-3">
-                <p className="font-bold text-sm">Parents/Guardian Consent Form</p>
+          <div className="space-y-4 px-7 py-6">
+            {!confirmConsent.revert && (
+              <div className="max-h-72 space-y-3 overflow-y-auto rounded-2xl border border-[#E6EAF5] bg-[#FBFCFF] p-6 text-[13px] leading-7 text-foreground">
+                <p className="text-sm font-bold">Parents/Guardian Consent Form</p>
                 <p className="text-muted-foreground">
                   Ang dentista po ng ating school clinic ay magsasagawa ng serbisyong dental sa mga mag-aaral na may
                   layuning makapagbigay ng preventive at curative treatment. Ang mga serbisyo dental ay ang mga sumusunod:
                 </p>
                 <ul className="space-y-2">
                   {CONSENT_SERVICES.map((sv) => (
-                    <li key={sv.label}>
+                    <li key={sv.label} className="leading-6">
                       <span className="font-semibold">{sv.label}</span>
                       {sv.note && <span className="block text-muted-foreground">{sv.note}</span>}
                     </li>
                   ))}
                 </ul>
-                <p className="pt-2 border-t border-border font-medium">
+                <p className="border-t border-[#E6EAF5] pt-3 font-medium">
                   Oo, pumapayag ako na bigyan ng serbisyong dental ang aking anak/apo/pamangkin.
                 </p>
               </div>
-            </div>
-          )}
-          <div className="p-6 space-y-4">
-            <div className="flex items-start gap-2.5 rounded-lg bg-warning-surface p-3">
-              <ShieldIcon className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
-              {/* ⚠ Worded to be TRUE. Hers says the tick "cannot be undone" and
-                  hides the box once complete. Ours can be reverted — the model
-                  hook clears `consent_given_at` on the way back, and that path
-                  exists precisely so a mis-tick can be corrected without a
-                  database edit. Saying "cannot be undone" when it can is the
-                  same class of untruth as a control that only looks like it
-                  works, so the wording follows the behaviour. */}
-              <p className="text-xs text-warning">
-                {confirmConsent.revert
-                  ? 'The recorded consent date for this school year will be cleared.'
-                  : `This records consent for ${confirmConsent.schoolYear} only, and stamps the date. It can be reverted here, which clears that date.`}
-              </p>
+            )}
+            <div className="flex items-start gap-3 rounded-2xl border border-[#E6EAF5] bg-[#F7F8FF] px-4 py-3">
+              <Lock className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#243B7A]" />
+              {/* ⚠ Worded to be TRUE: this tick CAN be reverted (the model hook clears `consent_given_at` on the way back), so it never says "cannot be undone". */}
+              <div className="min-w-0">
+                <p className="text-[12.5px] font-bold text-[#1E2A5E]">{confirmConsent.revert ? 'Consent date' : 'What this records'}</p>
+                <p className="text-xs text-[#1E2A5E]/80">
+                  {confirmConsent.revert
+                    ? 'The recorded consent date for this school year will be cleared.'
+                    : `This records consent for ${confirmConsent.schoolYear} only, and stamps the date. It can be reverted here, which clears that date.`}
+                </p>
+              </div>
             </div>
           </div>
-          <div className="flex gap-3 p-6 pt-0">
+          <div className="flex justify-end gap-3 border-t border-[#E6EAF5] px-7 py-5">
             <button onClick={() => setConfirmConsent(null)}
-              className="flex-1 px-4 py-2 border border-border text-foreground rounded-lg hover:bg-gray-50 text-sm font-medium">
+              className="rounded-xl border border-border bg-white px-6 py-2.5 text-sm font-medium text-foreground hover:bg-gray-50">
               Cancel
             </button>
             <button
               onClick={() => { const revert = confirmConsent.revert; setConfirmConsent(null); handleToggleConsent(!revert); }}
-              className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-white text-sm font-medium ${confirmConsent.revert ? 'bg-warning hover:opacity-90' : 'bg-primary hover:bg-primary-hover'}`}
+              className={`flex items-center justify-center gap-2 rounded-xl px-6 py-2.5 text-sm font-semibold text-white shadow-[0_6px_14px_rgba(36,59,122,0.28)] ${confirmConsent.revert ? 'bg-warning hover:opacity-90' : 'bg-[#243B7A] hover:bg-primary-hover'}`}
             >
-              <Check className="w-4 h-4" /> {confirmConsent.revert ? 'Revert to pending' : 'Confirm consent'}
+              <Check className="h-4 w-4" /> {confirmConsent.revert ? 'Revert to pending' : 'Confirm consent'}
             </button>
           </div>
         </Modal>
