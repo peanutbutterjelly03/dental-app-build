@@ -283,7 +283,7 @@ export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null 
                   <td className={`${TD} font-medium text-foreground`}>
                     <div className="flex items-baseline justify-between gap-4">
                       <span>{row.label}</span>
-                      <span className="pr-[30%]">{row.code}</span>
+                      <span className="pr-[20%]">{row.code}</span>
                     </div>
                   </td>
                   <td className={`${TD} text-center tabular-nums`}>{show(row.male.persons)}</td>
