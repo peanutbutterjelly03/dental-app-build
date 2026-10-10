@@ -3,6 +3,8 @@ import { Clock, FileBarChart, FileSpreadsheet, FileText, AlertTriangle, AlertCir
 import { PeriodDatesBoxes, type PeriodDatesValue } from './PeriodDatesBoxes';
 import { GradeSexTable, gridData } from './GradeSexTable';
 import { useReportLayout } from '../hooks/useReportLayout';
+import { ReportLayoutMenu } from './ReportLayoutMenu';
+import { cellText, layoutColumns, layoutRows, showAll, type LCol, type LRow } from '../../../shared/reportLayout';
 import { ExportMenu, PeriodTiles, PeriodSwitch, fieldInputClass, PanelShell, PanelRow, BOX_W, UnderlineTabs, GroupBox, Underlined, FiltersButton, FilterChip, type TileOption } from './ReportControls';
 import { RangePicker } from './RangePicker';
 import { buildXlsx, buildSheetsXlsx } from '../utils/exportXlsx';
@@ -343,44 +345,59 @@ export const Reports = () => {
   // real vs. not yet wireable.
   const V = (grade: string, age: string, sex: 'M'|'F', field: string): number =>
     getRealCount(grade, age, sex, field) ?? 0;
-  // Hidden rows and grade columns on the Consolidated report, remembered per
-  // browser (Sprint 73). Same rule as the other two report tabs: hiding
-  // changes the OUTPUT, not just the view.
-  //
-  // ⚠ A hidden column here leaves in a FILE that can be forwarded without the
-  // screen it came from. (This tab was once the only one that could export;
-  // Sprints 85 and 88 gave the Program Report, Target Client List, IPTR and
-  // School Summary their own controls, so the same care applies there.) The PDF inherits hiding for free (html2canvas captures the DOM), but
-  // the Excel path is fed `rows` and `grades` explicitly and must be handed the
-  // FILTERED lists — otherwise the spreadsheet would silently disagree with
-  // both the screen and the PDF.
-  const [hiddenDohRows, setHiddenDohRows] = useState<Set<string>>(() => {
-    try { const r = window.localStorage.getItem('doh-hidden-rows'); return new Set(r ? JSON.parse(r) as string[] : []); }
-    catch { return new Set(); }
-  });
-  const [hiddenGrades, setHiddenGrades] = useState<Set<string>>(() => {
-    try { const r = window.localStorage.getItem('doh-hidden-grades'); return new Set(r ? JSON.parse(r) as string[] : []); }
-    catch { return new Set(); }
-  });
-  const [showDohPicker, setShowDohPicker] = useState(false);
-  const persistSet = (key: string, next: Set<string>) => {
-    try { window.localStorage.setItem(key, JSON.stringify([...next])); } catch { /* private mode */ }
-  };
-  const toggleIn = (setter: (f: (p: Set<string>) => Set<string>) => void, key: string, storeKey: string) =>
-    setter((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
-      persistSet(storeKey, next);
-      return next;
-    });
+  // Hidden and added rows and columns, renamed labels and typed cells of this
+  // report live in its saved layout (right-click a cell). Hiding CHANGES THE
+  // OUTPUT, not just the view: the PDF inherits it (it captures the DOM), the
+  // Excel file is built from the same lists, and the sheet is stamped
+  // "SHORTENED FORM" so a shortened return is never mistaken for the complete one.
+  const dohLayoutApi = useReportLayout('doh_consolidated');
+  const dohLayout = dohLayoutApi.layout;
 
   const [gradeBand, setGradeBand] = useState<GradeBand>('elem');
   const dohGrades = gradeBand === 'hs' ? HS_GRADES : ELEM_GRADES;
-  const visibleGrades = dohGrades.filter((g) => !hiddenGrades.has(g));
-  // Section headers follow their content: a header whose data rows are all
-  // hidden would sit over nothing.
-  const visibleDohRows = DOH_ROWS.filter((r) => r.type === 'header' || !hiddenDohRows.has(r.label));
-  const dohHiddenCount = hiddenDohRows.size + hiddenGrades.size;
+
+  // Column units, before the layout: per grade each age bracket (an M/F pair) and
+  // the grade's Total, then the summary brackets. Keys survive a band switch.
+  const baseDohCols: LCol[] = [
+    { key: 'label', label: 'INDICATORS', locked: true },
+    ...dohGrades.flatMap((g) => [
+      ...GRADE_BRACKETS[g].ages.map((a) => ({ key: `${g}|${a}`, label: a, group: GRADE_BRACKETS[g].label })),
+      { key: `${g}|T`, label: 'Total', group: GRADE_BRACKETS[g].label },
+    ]),
+    ...SUMMARY_BRACKETS.map((b) => ({ key: `S|${b}`, label: b, group: 'SUMMARY' })),
+  ];
+  const dohLCols = layoutColumns(baseDohCols, dohLayout);
+  const dohLabelCol = dohLCols[0];
+  const dohUnits = dohLCols.filter((c) => !c.locked);
+  const dohUnitWidth = (c: LCol) => (c.added ? 1 : 2);
+  const dohCells = dohUnits.reduce((n, c) => n + dohUnitWidth(c), 0);
+  const dohGroups = dohUnits.reduce<{ label: string; span: number; keys: string[] }[]>((acc, c) => {
+    const last = acc[acc.length - 1];
+    if (last && last.label === (c.group ?? '')) { last.span += dohUnitWidth(c); last.keys.push(c.key); }
+    else acc.push({ label: c.group ?? '', span: dohUnitWidth(c), keys: [c.key] });
+    return acc;
+  }, []);
+
+  // Rows: the layout's rows, then a section header only when something still
+  // sits under it (a header over nothing is noise). Rows are keyed by position.
+  type DohRowV = RowDef & { key: string; added?: boolean };
+  const dohRowKey = (i: number) => `r${i}`;
+  const baseDohRows: LRow[] = DOH_ROWS.map((r, i) => ({ key: dohRowKey(i), label: r.label }));
+  const laidDohRows = layoutRows(baseDohRows, dohLayout);
+  const visibleDohRows: DohRowV[] = (() => {
+    const mapped: DohRowV[] = laidDohRows.map((lr) => {
+      if (lr.added) return { type: 'data', key: lr.key, label: lr.label, field: '', added: true } as DohRowV;
+      const src = DOH_ROWS[Number(lr.key.slice(1))];
+      return { ...src, key: lr.key, label: lr.label } as DohRowV;
+    });
+    return mapped.filter((r, i) => {
+      if (r.type !== 'header') return true;
+      for (let j = i + 1; j < mapped.length && mapped[j].type !== 'header'; j++) return true;
+      return false;
+    });
+  })();
+  const dohSubLines: LRow[] = [];
+  const dohHiddenCount = dohLayout.hidden_rows.length + dohLayout.hidden_cols.length;
   // Printed/exported copies must say which band they cover — two PDFs for the
   // same school and month are otherwise indistinguishable once submitted.
   const bandLabel = gradeBand === 'hs' ? 'Grade 7-10' : 'Kinder-Grade 6';
@@ -491,16 +508,26 @@ export const Reports = () => {
     const filename = `DOH_Consolidated_${schoolPart}_${bandSlug}_${dohPeriodSlug}.xlsx`;
     previewExcel('DOH Consolidated Report', filename, async () => {
       try {
+        const hasTotal = (g: string, sex: 'M' | 'F', field: string) => GRADE_BRACKETS[g].ages.reduce((n, a) => n + V(g, a, sex, field), 0);
         return await buildDohReportXlsx({
-          grades: visibleGrades,
-          gradeBrackets: GRADE_BRACKETS,
-          summaryBrackets: SUMMARY_BRACKETS,
-          rows: visibleDohRows,
-          getCell: (g, a, s, f) => V(g, a, s, f),
+          labelHeader: dohLabelCol.label,
+          units: dohUnits.map((u) => {
+            if (u.added) return { key: u.key, group: u.group ?? '', groupKind: u.group === 'SUMMARY' ? 'summary' : 'grade', label: u.label, added: true } as const;
+            const [head, tail] = u.key.split('|');
+            if (head === 'S') {
+              return { key: u.key, group: u.group ?? '', groupKind: 'summary', label: u.label, value: (f: string, s: 'M' | 'F') => sumSummaryBracket(f, s, tail) } as const;
+            }
+            return {
+              key: u.key, group: u.group ?? '', groupKind: 'grade', label: u.label, total: tail === 'T',
+              value: (f: string, s: 'M' | 'F') => (tail === 'T' ? hasTotal(head, s, f) : V(head, tail, s, f)),
+            } as const;
+          }),
+          rows: visibleDohRows.map((r) => ({ type: r.type, key: r.key, label: r.label, field: 'field' in r ? r.field : undefined, indent: 'indent' in r ? r.indent : undefined, added: r.added })),
+          typed: (rk, ck) => cellText(dohLayout, rk, ck),
           school: reportSchool ? getSchoolShortName(reportSchool) : 'All Schools',
           // The spreadsheet has to say it is shortened: unlike the printout,
           // a file gets forwarded without the screen it came from.
-          monthYear: `${dohPeriodLabel} · ${bandLabel}${dohHiddenCount ? ` · SHORTENED — ${hiddenDohRows.size} row(s), ${hiddenGrades.size} grade(s) hidden` : ''}`,
+          monthYear: `${dohPeriodLabel} · ${bandLabel}${dohHiddenCount ? ` · SHORTENED — ${dohLayout.hidden_rows.length} row(s), ${dohLayout.hidden_cols.length} column(s) hidden` : ''}`,
         });
       } catch (err) {
         setDownloadError(err instanceof Error ? err.message : 'Failed to generate Excel');
@@ -728,22 +755,6 @@ export const Reports = () => {
     }
   };
 
-// Build column definitions: for each grade, each age bracket, M and F
-  const cols: { grade:string; age:string; sex:'M'|'F' }[] = [];
-  visibleGrades.forEach(g => {
-    GRADE_BRACKETS[g].ages.forEach(a => {
-      cols.push({ grade:g, age:a, sex:'M' });
-      cols.push({ grade:g, age:a, sex:'F' });
-    });
-  });
-
-  // Summary cols: per age bracket, M and F
-  const sumCols: { bracket:string; sex:'M'|'F' }[] = [];
-  SUMMARY_BRACKETS.forEach(b => {
-    sumCols.push({ bracket:b, sex:'M' });
-    sumCols.push({ bracket:b, sex:'F' });
-  });
-
   const thBase = "text-center px-1 py-1 text-[9px] font-semibold border-r border-b border-gray-300";
   const tdBase = "text-center px-1 py-1 font-mono border-r border-b border-gray-300 text-[10px]";
 
@@ -864,19 +875,12 @@ export const Reports = () => {
                 <div className="flex">
                 <FiltersButton count={dohHiddenCount}>
                   <p className="text-[12px] text-muted-foreground">
-                    {dohHiddenCount ? `${hiddenDohRows.size} row(s) and ${hiddenGrades.size} grade(s) hidden. Hiding also changes the PDF and Excel.` : 'All rows and grades are shown.'}
+                    {dohHiddenCount ? `${dohLayout.hidden_rows.length} row(s) and ${dohLayout.hidden_cols.length} column(s) hidden. Hiding also changes the PDF and Excel.` : 'All rows and columns are shown.'}
                   </p>
-                  <button type="button" onClick={() => setShowDohPicker((v) => !v)}
-                    className="flex h-9 items-center gap-2 rounded-[10px] border border-[#e3e7ef] bg-[#f1f3f8] px-3 text-[12.5px] font-bold text-[#46536d] hover:bg-[#e9ecf3]">
-                    <SlidersHorizontal className="h-4 w-4 text-[#7a859b]" aria-hidden="true" />
-                    {showDohPicker ? 'Close rows and grades' : 'Choose rows and grades'}
-                  </button>
-                  {dohHiddenCount > 0 && (
+                  <p className="text-[12px] text-muted-foreground">Right-click the table to hide, add or rename rows and columns.</p>
+                  {dohHiddenCount > 0 && dohLayoutApi.canEdit && (
                     <button type="button" className="h-9 rounded-[10px] text-[12.5px] font-bold text-primary hover:underline"
-                      onClick={() => {
-                        setHiddenDohRows(new Set()); persistSet('doh-hidden-rows', new Set());
-                        setHiddenGrades(new Set()); persistSet('doh-hidden-grades', new Set());
-                      }}>Show everything</button>
+                      onClick={() => dohLayoutApi.update((l) => showAll(l))}>Show everything</button>
                   )}
                 </FiltersButton>
                 <ExportMenu joined busy={building} onPrint={() => window.print()} onPdf={handleDownloadPdf} onExcel={handleDownloadExcel}
@@ -933,51 +937,6 @@ export const Reports = () => {
             );
           })()}
 
-          {showDohPicker && (
-            <div className="bg-card rounded-xl border border-border p-4 space-y-3 text-xs">
-              <p className="text-muted-foreground">
-                Untick to hide. Hiding changes the <span className="font-medium text-foreground">PDF and Excel</span> too,
-                not just the screen — this is the one report that leaves as a file, so anything hidden is stamped
-                on the sheet itself.
-              </p>
-              <div>
-                <div className="font-semibold text-foreground mb-1.5">Grades</div>
-                <div className="flex flex-wrap gap-3">
-                  {dohGrades.map((g) => (
-                    <label key={g} className="flex items-center gap-1.5 cursor-pointer">
-                      <input type="checkbox" checked={!hiddenGrades.has(g)}
-                        onChange={() => toggleIn(setHiddenGrades, g, 'doh-hidden-grades')}
-                        className="w-3.5 h-3.5 rounded accent-primary" />
-                      <span>{g}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <div className="font-semibold text-foreground mb-1.5">Rows</div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
-                  {DOH_ROWS.filter((r) => r.type !== 'header').map((r) => (
-                    <label key={r.label} className="flex items-center gap-1.5 cursor-pointer">
-                      <input type="checkbox" checked={!hiddenDohRows.has(r.label)}
-                        onChange={() => toggleIn(setHiddenDohRows, r.label, 'doh-hidden-rows')}
-                        className="w-3.5 h-3.5 rounded accent-primary" />
-                      <span className="truncate" title={r.label}>{r.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              {dohHiddenCount > 0 && (
-                <button
-                  onClick={() => {
-                    setHiddenDohRows(new Set()); persistSet('doh-hidden-rows', new Set());
-                    setHiddenGrades(new Set()); persistSet('doh-hidden-grades', new Set());
-                  }}
-                  className="px-2 py-1 border border-border rounded-md text-foreground hover:bg-gray-50"
-                >Show everything</button>
-              )}
-            </div>
-          )}
-
           {/* Table */}
           <div id="doh-report-printable" className="form-print relative bg-card rounded-t-xl border border-[#A9BDE6] overflow-hidden -mb-4 md:-mb-8">
             {/* ref goes on the scrollable inner div, not the overflow-hidden outer
@@ -990,15 +949,16 @@ export const Reports = () => {
                   precisely the case this warning exists to prevent. */}
               {dohHiddenCount > 0 && (
                 <p className="px-3 py-2 text-[11px] font-semibold text-destructive border-b border-border">
-                  SHORTENED FORM — not the complete DOH report: {hiddenDohRows.size} row(s) and{' '}
-                  {hiddenGrades.size} grade(s) hidden.
+                  SHORTENED FORM — not the complete DOH report: {dohLayout.hidden_rows.length} row(s) and{' '}
+                  {dohLayout.hidden_cols.length} column(s) hidden.
                 </p>
               )}
+              <ReportLayoutMenu api={dohLayoutApi} columns={dohLCols} rows={laidDohRows} extraRows={dohSubLines}>
               <table style={{borderCollapse:'separate', borderSpacing:0, fontSize:'10px', whiteSpace:'nowrap', ['--doh-r1' as string]: `${dohRowH.r0}px`, ['--doh-r2' as string]: `${dohRowH.r0 + dohRowH.r1}px`, ['--doh-r3' as string]: `${dohRowH.r0 + dohRowH.r1 + dohRowH.r2}px`}}>
                 {/* ── TITLE ── */}
                 <thead>
                   <tr ref={dohRow0Ref} className="[&>th]:sticky [&>th]:top-0 [&>th]:z-20">
-                    <th colSpan={1 + cols.length*2 + sumCols.length*2 + 2}
+                    <th colSpan={1 + dohCells}
                       className="text-center py-2 px-3 bg-[#CFDDF6] border-b border-gray-300 text-[12px] font-bold text-[#273A78] uppercase tracking-wide">
                       {/* Pinned to the visible width (100cqw = this scroller) so the title stays centred on screen
                           instead of in the middle of a table several screens wide; in the PDF capture the scroller
@@ -1012,130 +972,104 @@ export const Reports = () => {
                   {/* ── ROW 1: GRADE HEADERS ── */}
                   <tr ref={dohRow1Ref} className="bg-gray-50 border-b border-border [&>th]:sticky [&>th]:top-[var(--doh-r1)] [&>th]:z-20">
                     {/* Phones (< sm): the frozen label column is a fixed 9rem and
-                        wraps, so data columns show beside it (it used to take
-                        321 of 346 px at 390 px wide, user-reported 2026-10-04).
-                        sm and up are unchanged. The PDF export renders at the
-                        table's full width, so it always gets the sm+ layout. */}
-                    <th data-doh="indicator" rowSpan={3} className="sticky left-0 bg-gray-50 !z-30 text-left align-bottom px-2 py-2 border-r border-b border-gray-300 text-[11px] font-semibold text-foreground min-w-[240px] max-sm:w-36 max-sm:min-w-36">
-                      INDICATORS
+                        wraps, so data columns show beside it. sm and up are unchanged.
+                        The PDF export renders at the table's full width, so it always gets the sm+ layout. */}
+                    <th data-doh="indicator" data-ck="label" rowSpan={3} className="sticky left-0 bg-gray-50 !z-30 text-left align-bottom px-2 py-2 border-r border-b border-gray-300 text-[11px] font-semibold text-foreground min-w-[240px] max-sm:w-36 max-sm:min-w-36">
+                      {dohLabelCol.label}
                     </th>
-                    {visibleGrades.map(g => {
-                      const bracketCount = GRADE_BRACKETS[g].ages.length;
-                      // Each bracket has 2 sex cols + 2 total cols
-                      const colSpanCount = bracketCount * 2 + 2;
-                      return (
-                        <th key={g} data-doh="grade" colSpan={colSpanCount}
-                          className={`${thBase} bg-blue-50 text-blue-800 border-r border-gray-300`}>
-                          {GRADE_BRACKETS[g].label}
-                        </th>
-                      );
-                    })}
-                    <th data-doh="summary" colSpan={sumCols.length}
-                      className={`${thBase} bg-purple-50 text-purple-800`}>
-                      SUMMARY
-                    </th>
+                    {dohGroups.map((g, i) => (
+                      <th key={`${g.label}-${i}`} data-doh={g.label === 'SUMMARY' ? 'summary' : 'grade'} data-cg={g.keys.join(',')} data-cgl={g.label} colSpan={g.span}
+                        className={`${thBase} ${g.label === 'SUMMARY' ? 'bg-purple-50 text-purple-800' : 'bg-blue-50 text-blue-800 border-r border-gray-300'}`}>
+                        {g.label}
+                      </th>
+                    ))}
                   </tr>
 
-                  {/* ── ROW 2: AGE BRACKET HEADERS ── */}
+                  {/* ── ROW 2: AGE BRACKET HEADERS ── (a column added from the menu is one cell and spans rows 2 and 3) */}
                   <tr ref={dohRow2Ref} className="bg-gray-50 border-b border-border [&>th]:sticky [&>th]:top-[var(--doh-r2)] [&>th]:z-20 [&>th]:bg-gray-50">
-                    {visibleGrades.map(g =>
-                      [...GRADE_BRACKETS[g].ages.map(a => (
-                        <th key={g+a} colSpan={2}
-                          className={`${thBase} text-muted-foreground text-[8px]`}>
-                          {a}
-                        </th>
-                      )),
-                      <th key={g+'total'} colSpan={2}
-                        className={`${thBase} text-blue-700 font-bold border-r border-gray-300`}>
-                        Total
-                      </th>]
-                    )}
-                    {SUMMARY_BRACKETS.map(b => (
-                      <th key={'sum'+b} colSpan={2}
-                        className={`${thBase} text-purple-700 text-[8px]`}>
-                        {b}
+                    {dohUnits.map((u) => (
+                      <th key={u.key} data-ck={u.key} colSpan={dohUnitWidth(u)} rowSpan={u.added ? 2 : 1}
+                        className={`${thBase} ${u.key.endsWith('|T') ? 'text-blue-700 font-bold border-r border-gray-300' : u.group === 'SUMMARY' ? 'text-purple-700 text-[8px]' : 'text-muted-foreground text-[8px]'}`}>
+                        {u.label}
                       </th>
                     ))}
                   </tr>
 
                   {/* ── ROW 3: M/F HEADERS ── */}
                   <tr className="bg-gray-50 border-b-2 border-border [&>th]:sticky [&>th]:top-[var(--doh-r3)] [&>th]:z-20 [&>th]:bg-gray-50">
-                    {visibleGrades.map(g =>
-                      [...GRADE_BRACKETS[g].ages.flatMap(a => [
-                        <th key={g+a+'M'} className={`${thBase} text-blue-600 w-6`}>M</th>,
-                        <th key={g+a+'F'} className={`${thBase} text-pink-700 w-6`}>F</th>,
-                      ]),
-                      <th key={g+'totM'} className={`${thBase} text-blue-700 font-bold w-6`}>M</th>,
-                      <th key={g+'totF'} className={`${thBase} text-pink-700 font-bold border-r border-gray-300 w-6`}>F</th>]
-                    )}
-                    {SUMMARY_BRACKETS.flatMap(b => [
-                      <th key={'sum'+b+'M'} className={`${thBase} text-blue-600 w-6`}>M</th>,
-                      <th key={'sum'+b+'F'} className={`${thBase} text-pink-700 w-6`}>F</th>,
-                    ])}
+                    {dohUnits.filter((u) => !u.added).map((u) => (
+                      <Fragment key={u.key}>
+                        <th data-ck={u.key} className={`${thBase} ${u.key.endsWith('|T') ? 'text-blue-700 font-bold' : 'text-blue-600'} w-6`}>M</th>
+                        <th data-ck={u.key} className={`${thBase} ${u.key.endsWith('|T') ? 'text-pink-700 font-bold border-r border-gray-300' : 'text-pink-700'} w-6`}>F</th>
+                      </Fragment>
+                    ))}
                   </tr>
                 </thead>
 
                 {/* ── BODY ── */}
                 <tbody>
-                  {visibleDohRows.map((row, idx) => {
+                  {visibleDohRows.map((row) => {
                     if (row.type === 'header') {
-                      const restCols = cols.length*2 + dohGrades.length*2 + sumCols.length;
                       return (
-                        <tr key={idx} className="bg-blue-50 [&>td]:border-b [&>td]:border-gray-300">
-                          <td className="sticky left-0 z-10 px-3 py-1 font-bold text-blue-900 text-[10px] uppercase tracking-wide bg-blue-50 min-w-[240px] max-sm:min-w-0">
+                        <tr key={row.key} data-rk={row.key} className="bg-blue-50 [&>td]:border-b [&>td]:border-gray-300">
+                          <td data-ck="label" data-rk={row.key} className="sticky left-0 z-10 px-3 py-1 font-bold text-blue-900 text-[10px] uppercase tracking-wide bg-blue-50 min-w-[240px] max-sm:min-w-0">
                             <div className="max-sm:w-32 max-sm:whitespace-normal max-sm:break-words">{row.label}</div>
                           </td>
-                          <td colSpan={restCols} className="bg-blue-50" />
+                          <td colSpan={dohCells} className="bg-blue-50" />
                         </tr>
                       );
                     }
 
                     const isSub   = row.type === 'sub';
-                    const field   = row.field;
+                    const field   = 'field' in row ? row.field : '';
                     const labelPadding = isSub ? 'pl-8 italic text-muted-foreground' : (row as any).indent ? 'pl-5 text-foreground' : 'font-medium text-foreground';
 
                     return (
-                      <tr key={idx} className="group hover:bg-yellow-50 transition-colors">
+                      <tr key={row.key} data-rk={row.key} className="group hover:bg-yellow-50 transition-colors">
                         {/* Label */}
-                        <td className={`sticky left-0 bg-card group-hover:bg-yellow-50 border-r border-b border-gray-300 px-2 py-0.5 text-[10px] transition-colors ${labelPadding} min-w-[240px] max-sm:min-w-0`}>
+                        <td data-ck="label" data-rk={row.key} className={`sticky left-0 bg-card group-hover:bg-yellow-50 border-r border-b border-gray-300 px-2 py-0.5 text-[10px] transition-colors ${labelPadding} min-w-[240px] max-sm:min-w-0`}>
                           {/* the <table> sets white-space: nowrap; phones let the label wrap */}
                           <div className="max-sm:w-32 max-sm:whitespace-normal max-sm:break-words">{row.label}</div>
                         </td>
 
-                        {/* Per grade per age bracket M/F + grade total M/F */}
-                        {visibleGrades.map(g => {
-                          const ages = GRADE_BRACKETS[g].ages;
-                          const ageCells = ages.flatMap(a => {
-                            const mv = V(g, a, 'M', field);
-                            const fv = V(g, a, 'F', field);
-                            return [
-                              <td key={g+a+'M'} className={`${tdBase} text-foreground w-6`}>{cell(mv)}</td>,
-                              <td key={g+a+'F'} className={`${tdBase} text-foreground w-6`}>{cell(fv)}</td>,
-                            ];
-                          });
-                          const totM = ages.reduce((s,a) => s+V(g,a,'M',field),0);
-                          const totF = ages.reduce((s,a) => s+V(g,a,'F',field),0);
-                          return [
-                            ...ageCells,
-                            <td key={g+'totM'} className={`${tdBase} font-bold text-blue-700 w-6`}>{cell(totM)}</td>,
-                            <td key={g+'totF'} className={`${tdBase} font-bold text-pink-700 border-r border-gray-300 w-6`}>{cell(totF)}</td>,
-                          ];
-                        })}
-
-                        {/* Summary columns */}
-                        {SUMMARY_BRACKETS.flatMap(b => {
-                          const mv = sumSummaryBracket(field,'M',b);
-                          const fv = sumSummaryBracket(field,'F',b);
-                          return [
-                            <td key={'sum'+b+'M'} className={`${tdBase} text-purple-700 w-6`}>{cell(mv)}</td>,
-                            <td key={'sum'+b+'F'} className={`${tdBase} text-purple-700 w-6`}>{cell(fv)}</td>,
-                          ];
+                        {dohUnits.map((u) => {
+                          // A cell of a row or column the user added holds typed text, never a computed figure.
+                          if (row.added || u.added) {
+                            return <td key={u.key} data-ck={u.key} data-rk={row.key} colSpan={dohUnitWidth(u)} className={`${tdBase} text-foreground`}>{cellText(dohLayout, row.key, u.key)}</td>;
+                          }
+                          const [head, tail] = u.key.split('|');
+                          if (head === 'S') {
+                            return (
+                              <Fragment key={u.key}>
+                                <td data-ck={u.key} data-rk={row.key} className={`${tdBase} text-purple-700 w-6`}>{cell(sumSummaryBracket(field, 'M', tail))}</td>
+                                <td data-ck={u.key} data-rk={row.key} className={`${tdBase} text-purple-700 w-6`}>{cell(sumSummaryBracket(field, 'F', tail))}</td>
+                              </Fragment>
+                            );
+                          }
+                          if (tail === 'T') {
+                            const ages = GRADE_BRACKETS[head].ages;
+                            const totM = ages.reduce((n, a) => n + V(head, a, 'M', field), 0);
+                            const totF = ages.reduce((n, a) => n + V(head, a, 'F', field), 0);
+                            return (
+                              <Fragment key={u.key}>
+                                <td data-ck={u.key} data-rk={row.key} className={`${tdBase} font-bold text-blue-700 w-6`}>{cell(totM)}</td>
+                                <td data-ck={u.key} data-rk={row.key} className={`${tdBase} font-bold text-pink-700 border-r border-gray-300 w-6`}>{cell(totF)}</td>
+                              </Fragment>
+                            );
+                          }
+                          return (
+                            <Fragment key={u.key}>
+                              <td data-ck={u.key} data-rk={row.key} className={`${tdBase} text-foreground w-6`}>{cell(V(head, tail, 'M', field))}</td>
+                              <td data-ck={u.key} data-rk={row.key} className={`${tdBase} text-foreground w-6`}>{cell(V(head, tail, 'F', field))}</td>
+                            </Fragment>
+                          );
                         })}
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
+              </ReportLayoutMenu>
             </div>
             <GridEdgeButtons edge={dohEdge} onStep={stepDoh} leftInFirstColumn />
           </div>
