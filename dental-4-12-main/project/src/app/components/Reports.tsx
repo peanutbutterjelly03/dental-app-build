@@ -734,8 +734,8 @@ export const Reports = () => {
     sumCols.push({ bracket:b, sex:'F' });
   });
 
-  const thBase = "text-center px-1 py-1 text-[9px] font-semibold border-r border-b border-gray-200";
-  const tdBase = "text-center px-1 py-1 font-mono border-r border-b border-gray-200 text-[10px]";
+  const thBase = "text-center px-1 py-1 text-[9px] font-semibold border-r border-b border-gray-300";
+  const tdBase = "text-center px-1 py-1 font-mono border-r border-b border-gray-300 text-[10px]";
 
   // Two-tier report categories: a primary card per category, plus an
   // ordered pill row of that category's own reports underneath. Order and
@@ -1008,7 +1008,7 @@ export const Reports = () => {
                 <thead>
                   <tr ref={dohRow0Ref} className="[&>th]:sticky [&>th]:top-0 [&>th]:z-20">
                     <th colSpan={1 + cols.length*2 + sumCols.length*2 + 2}
-                      className="text-center py-2 px-3 bg-[#CFDDF6] border-b border-gray-200 text-[11px] font-bold text-[#273A78] uppercase tracking-wide">
+                      className="text-center py-2 px-3 bg-[#CFDDF6] border-b border-gray-300 text-[11px] font-bold text-[#273A78] uppercase tracking-wide">
                       {/* Pinned to the visible width (100cqw = this scroller) so the title stays centred on screen
                           instead of in the middle of a table several screens wide; in the PDF capture the scroller
                           is the full table, so it centres over the whole table there. */}
@@ -1025,7 +1025,7 @@ export const Reports = () => {
                         321 of 346 px at 390 px wide, user-reported 2026-10-04).
                         sm and up are unchanged. The PDF export renders at the
                         table's full width, so it always gets the sm+ layout. */}
-                    <th data-doh="indicator" rowSpan={3} className="sticky left-0 bg-gray-50 !z-30 text-left align-bottom px-2 py-2 border-r border-b border-gray-200 text-[11px] font-semibold text-foreground min-w-[240px] max-sm:w-36 max-sm:min-w-36">
+                    <th data-doh="indicator" rowSpan={3} className="sticky left-0 bg-gray-50 !z-30 text-left align-bottom px-2 py-2 border-r border-b border-gray-300 text-[11px] font-semibold text-foreground min-w-[240px] max-sm:w-36 max-sm:min-w-36">
                       INDICATORS
                     </th>
                     {visibleGrades.map(g => {
@@ -1034,7 +1034,7 @@ export const Reports = () => {
                       const colSpanCount = bracketCount * 2 + 2;
                       return (
                         <th key={g} data-doh="grade" colSpan={colSpanCount}
-                          className={`${thBase} bg-blue-50 text-blue-800 border-r border-gray-200`}>
+                          className={`${thBase} bg-blue-50 text-blue-800 border-r border-gray-300`}>
                           {GRADE_BRACKETS[g].label}
                         </th>
                       );
@@ -1055,7 +1055,7 @@ export const Reports = () => {
                         </th>
                       )),
                       <th key={g+'total'} colSpan={2}
-                        className={`${thBase} text-blue-700 font-bold border-r border-gray-200`}>
+                        className={`${thBase} text-blue-700 font-bold border-r border-gray-300`}>
                         Total
                       </th>]
                     )}
@@ -1075,7 +1075,7 @@ export const Reports = () => {
                         <th key={g+a+'F'} className={`${thBase} text-pink-700 w-6`}>F</th>,
                       ]),
                       <th key={g+'totM'} className={`${thBase} text-blue-700 font-bold w-6`}>M</th>,
-                      <th key={g+'totF'} className={`${thBase} text-pink-700 font-bold border-r border-gray-200 w-6`}>F</th>]
+                      <th key={g+'totF'} className={`${thBase} text-pink-700 font-bold border-r border-gray-300 w-6`}>F</th>]
                     )}
                     {SUMMARY_BRACKETS.flatMap(b => [
                       <th key={'sum'+b+'M'} className={`${thBase} text-blue-600 w-6`}>M</th>,
@@ -1090,7 +1090,7 @@ export const Reports = () => {
                     if (row.type === 'header') {
                       const restCols = cols.length*2 + dohGrades.length*2 + sumCols.length;
                       return (
-                        <tr key={idx} className="bg-blue-50 [&>td]:border-b [&>td]:border-gray-200">
+                        <tr key={idx} className="bg-blue-50 [&>td]:border-b [&>td]:border-gray-300">
                           <td className="sticky left-0 z-10 px-3 py-1 font-bold text-blue-900 text-[10px] uppercase tracking-wide bg-blue-50 min-w-[240px] max-sm:min-w-0">
                             <div className="max-sm:w-32 max-sm:whitespace-normal max-sm:break-words">{row.label}</div>
                           </td>
@@ -1106,7 +1106,7 @@ export const Reports = () => {
                     return (
                       <tr key={idx} className="group hover:bg-yellow-50 transition-colors">
                         {/* Label */}
-                        <td className={`sticky left-0 bg-card group-hover:bg-yellow-50 border-r border-b border-gray-200 px-2 py-0.5 text-[10px] transition-colors ${labelPadding} min-w-[240px] max-sm:min-w-0`}>
+                        <td className={`sticky left-0 bg-card group-hover:bg-yellow-50 border-r border-b border-gray-300 px-2 py-0.5 text-[10px] transition-colors ${labelPadding} min-w-[240px] max-sm:min-w-0`}>
                           {/* the <table> sets white-space: nowrap; phones let the label wrap */}
                           <div className="max-sm:w-32 max-sm:whitespace-normal max-sm:break-words">{row.label}</div>
                         </td>
@@ -1127,7 +1127,7 @@ export const Reports = () => {
                           return [
                             ...ageCells,
                             <td key={g+'totM'} className={`${tdBase} font-bold text-blue-700 w-6`}>{cell(totM)}</td>,
-                            <td key={g+'totF'} className={`${tdBase} font-bold text-pink-700 border-r border-gray-200 w-6`}>{cell(totF)}</td>,
+                            <td key={g+'totF'} className={`${tdBase} font-bold text-pink-700 border-r border-gray-300 w-6`}>{cell(totF)}</td>,
                           ];
                         })}
 
