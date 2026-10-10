@@ -12,7 +12,7 @@
 // Nothing here may import mongoose or React.
 
 export interface SumStudent { _id: string; school_id: string; sex: string }
-export interface SumIptr { _id: string; student_id: string; school_year: string }
+export interface SumIptr { _id: string; student_id: string; school_year: string; grade_level?: string | null; section?: string | null }
 export interface SumOral { iptr_id: string; gingivitis?: boolean; debris?: boolean; calculus?: boolean }
 export interface SumChart { _id: string; iptr_id: string }
 export interface SumTooth { chart_id: string; condition?: string | null; treatment_code?: string | null }
@@ -27,11 +27,16 @@ export interface SchoolSummaryInput {
   toothRecords: SumTooth[];
   schoolName: string | null;
   schoolYear: string | null;
+  /** Optional: only students whose IPTR for the year carries this grade / section. */
+  grade?: string | null;
+  section?: string | null;
 }
 
 export interface SchoolSummaryOutput {
   tally: SchoolSummaryTally;
   years: string[];
+  /** Sections present for the school and year in scope (before any grade/section filter), sorted. */
+  sections: string[];
   /** Students whose sex is blank or unrecognised: counted in no column, and said
    *  out loud on screen rather than quietly folded into one. */
   unsexed: number;
@@ -101,7 +106,7 @@ function sexOf(raw: string | undefined): Sex | null {
 
 
 export function buildSchoolSummary(input: SchoolSummaryInput): SchoolSummaryOutput {
-  const { schools, students, iptrs, orals, charts, toothRecords, schoolName, schoolYear } = input;
+  const { schools, students, iptrs, orals, charts, toothRecords, schoolName, schoolYear, grade = null, section = null } = input;
 
   const years = [...new Set(iptrs.map((i) => i.school_year))].sort().reverse();
 
@@ -109,7 +114,15 @@ export function buildSchoolSummary(input: SchoolSummaryInput): SchoolSummaryOutp
   const schoolId = schoolName ? schools.find((s) => s.school_name === schoolName)?._id ?? null : null;
   const scopedStudents = schoolId ? students.filter((s) => s.school_id === schoolId) : students;
 
-  const yearIptrs = schoolYear ? iptrs.filter((i) => i.school_year === schoolYear) : iptrs;
+  const yearIptrsAll = schoolYear ? iptrs.filter((i) => i.school_year === schoolYear) : iptrs;
+  const scopedIds = new Set(scopedStudents.map((s) => s._id));
+  const sections = [...new Set(yearIptrsAll.filter((i) => scopedIds.has(i.student_id) && i.section).map((i) => String(i.section)))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  // Grade / section narrow the sheet to students whose IPTR for the year has
+  // that grade / section; a student with no matching IPTR is left out entirely.
+  const filtering = !!(grade || section);
+  const yearIptrs = filtering
+    ? yearIptrsAll.filter((i) => (!grade || i.grade_level === grade) && (!section || i.section === section))
+    : yearIptrsAll;
   const iptrIdsByStudent = new Map<string, string[]>();
   for (const i of yearIptrs) {
     const list = iptrIdsByStudent.get(i.student_id) ?? [];
@@ -142,6 +155,7 @@ export function buildSchoolSummary(input: SchoolSummaryInput): SchoolSummaryOutp
   let skipped = 0;
 
   for (const student of scopedStudents) {
+    if (filtering && !iptrIdsByStudent.has(student._id)) continue;
     const sex = sexOf(student.sex);
     if (!sex) { skipped++; continue; }
     next.students[sex]++;
@@ -197,5 +211,5 @@ export function buildSchoolSummary(input: SchoolSummaryInput): SchoolSummaryOutp
   };
 
 
-  return { tally: next, years, unsexed: skipped };
+  return { tally: next, years, sections, unsexed: skipped };
 }

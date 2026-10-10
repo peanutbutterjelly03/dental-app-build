@@ -709,7 +709,7 @@ router.get("/stats/school-summary", requireAuth, asyncHandler(async (req, res) =
   const [schools, students, iptrs, orals, charts, toothRecords] = await Promise.all([
     School.find(active).select("_id school_name").lean(),
     Student.find(studentFilter).select("_id school_id sex").lean(),
-    StudentIptr.find(active).select("_id student_id school_year").lean(),
+    StudentIptr.find(active).select("_id student_id school_year grade_level section").lean(),
     OralHealthCondition.find(active).select("iptr_id gingivitis debris calculus").lean(),
     DentalChart.find(active).select("_id iptr_id").lean(),
     ToothRecord.find(active).select("chart_id condition treatment_code").lean(),
@@ -719,7 +719,7 @@ router.get("/stats/school-summary", requireAuth, asyncHandler(async (req, res) =
   const out = buildSchoolSummary({
     schools: (schools as any[]).map((s) => ({ _id: str(s._id), school_name: str(s.school_name) })),
     students: (students as any[]).map((s) => ({ _id: str(s._id), school_id: str(s.school_id), sex: str(s.sex) })),
-    iptrs: (iptrs as any[]).map((i) => ({ _id: str(i._id), student_id: str(i.student_id), school_year: str(i.school_year) })),
+    iptrs: (iptrs as any[]).map((i) => ({ _id: str(i._id), student_id: str(i.student_id), school_year: str(i.school_year), grade_level: i.grade_level ?? null, section: i.section ?? null })),
     orals: (orals as any[]).map((o) => ({
       iptr_id: str(o.iptr_id),
       gingivitis: o.gingivitis,
@@ -734,6 +734,8 @@ router.get("/stats/school-summary", requireAuth, asyncHandler(async (req, res) =
     })),
     schoolName: typeof req.query.school === "string" && req.query.school ? req.query.school : null,
     schoolYear: typeof req.query.school_year === "string" && req.query.school_year ? req.query.school_year : null,
+    grade: typeof req.query.grade === "string" && req.query.grade ? req.query.grade : null,
+    section: typeof req.query.section === "string" && req.query.section ? req.query.section : null,
   });
 
   res.json(out);

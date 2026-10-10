@@ -33,9 +33,10 @@ const emptyTally = (): SchoolSummaryTally => ({
   noFluoride: { Male: 0, Female: 0 },
 });
 
-export function useSchoolSummary(schoolName: string | null, schoolYear: string | null) {
+export function useSchoolSummary(schoolName: string | null, schoolYear: string | null, grade: string | null = null, section: string | null = null) {
   const [tally, setTally] = useState<SchoolSummaryTally>(emptyTally);
   const [years, setYears] = useState<string[]>([]);
+  const [sections, setSections] = useState<string[]>([]);
   const [unsexed, setUnsexed] = useState(0);
   const { loading, beginLoad, endLoad } = useLoadPhase();
   const [error, setError] = useState<string | null>(null);
@@ -53,11 +54,14 @@ export function useSchoolSummary(schoolName: string | null, schoolYear: string |
       const params = new URLSearchParams();
       if (schoolName) params.set('school', schoolName);
       if (schoolYear) params.set('school_year', schoolYear);
+      if (grade) params.set('grade', grade);
+      if (section) params.set('section', section);
       const qs = params.toString();
       const data = await apiClient.get<SchoolSummaryOutput>(`/stats/school-summary${qs ? `?${qs}` : ''}`);
       if (isStale()) return;
       setTally(data.tally ?? emptyTally());
       setYears(data.years ?? []);
+      setSections(data.sections ?? []);
       setUnsexed(data.unsexed ?? 0);
       setError(null);
     } catch (err) {
@@ -66,7 +70,7 @@ export function useSchoolSummary(schoolName: string | null, schoolYear: string |
     } finally {
       if (!isStale()) endLoad();
     }
-  }, [schoolName, schoolYear, beginLoad, endLoad]);
+  }, [schoolName, schoolYear, grade, section, beginLoad, endLoad]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -80,6 +84,8 @@ export function useSchoolSummary(schoolName: string | null, schoolYear: string |
     tally,
     /** School years present in the data, newest first. */
     years,
+    /** Sections present for the school and year in scope. */
+    sections,
     /** Students whose sex is blank or unrecognised: counted in no column, and
      *  said out loud on screen rather than quietly folded into one. */
     unsexedCount: unsexed,

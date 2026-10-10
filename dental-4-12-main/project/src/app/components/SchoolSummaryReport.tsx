@@ -107,7 +107,18 @@ interface Props {
 export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null }: Props) {
   // → A short summary sheet, not a wide grid.
   usePrintOrientation('portrait');
-  const { tally, unsexedCount, loading, error } = useSchoolSummary(schoolName, schoolYear);
+  // Grade and Section really narrow the sheet (server-side). Age and Sex are not wired yet.
+  const [ageF, setAgeF] = useState('all');
+  const [gradeF, setGradeF] = useState('all');
+  const [sectionF, setSectionF] = useState('all');
+  const [sexF, setSexF] = useState('all');
+  const { tally, sections, unsexedCount, loading, error } = useSchoolSummary(
+    schoolName, schoolYear, gradeF === 'all' ? null : gradeF, sectionF === 'all' ? null : sectionF,
+  );
+  // A section that no longer exists for the school or year in view would silently show an empty sheet.
+  useEffect(() => {
+    if (sectionF !== 'all' && sections.length > 0 && !sections.includes(sectionF)) setSectionF('all');
+  }, [sections, sectionF]);
   const printableRef = useRef<HTMLDivElement>(null);
   // Height of the pinned title row, so the column header row sticks right under it.
   const titleRowRef = useRef<HTMLTableRowElement>(null);
@@ -166,13 +177,11 @@ export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null 
   // own state but are NOT read by this sheet yet (the user will say what they
   // should do), so a plain line under the panel says so. The School year box is
   // the control that actually scopes the sheet.
-  const [ageF, setAgeF] = useState('all');
-  const [gradeF, setGradeF] = useState('all');
-  const [sexF, setSexF] = useState('all');
-  const activeFilters = [ageF, gradeF, sexF].filter((v) => v !== 'all').length;
+  const activeFilters = [ageF, gradeF, sectionF, sexF].filter((v) => v !== 'all').length;
   const filterDefs = [
     { label: 'Age', value: ageF, set: (v: string) => { setAgeF(v); setGradeF('all'); }, opts: [['all', 'All ages'], ['4 & below', 'Age: 4 & below'], ['5-9', 'Age: 5-9'], ['10-14', 'Age: 10-14'], ['15-19', 'Age: 15-19'], ['20 & above', 'Age: 20 & above']] },
     { label: 'Grade', value: gradeF, set: (v: string) => { setGradeF(v); setAgeF('all'); }, opts: [['all', 'All grades'], ...['Kinder', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'].map((g) => [g, g])] },
+    { label: 'Section', value: sectionF, set: setSectionF, opts: [['all', 'All sections'], ...sections.map((x) => [x, x])] },
     { label: 'Sex', value: sexF, set: setSexF, opts: [['all', 'All sex'], ['M', 'Male'], ['F', 'Female']] },
   ];
   const panel = (
@@ -202,12 +211,13 @@ export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null 
           <span className="text-[10.5px] font-bold uppercase tracking-[0.07em] text-muted-foreground">Showing</span>
           {ageF !== 'all' && <FilterChip onRemove={() => setAgeF('all')}>{`Age ${ageF}`}</FilterChip>}
           {gradeF !== 'all' && <FilterChip onRemove={() => setGradeF('all')}>{gradeF}</FilterChip>}
+          {sectionF !== 'all' && <FilterChip onRemove={() => setSectionF('all')}>{`Section ${sectionF}`}</FilterChip>}
           {sexF !== 'all' && <FilterChip onRemove={() => setSexF('all')}>{sexF === 'M' ? 'Male' : 'Female'}</FilterChip>}
-          <button type="button" onClick={() => { setAgeF('all'); setGradeF('all'); setSexF('all'); }} className="ml-auto text-[13px] font-bold text-destructive hover:underline">Clear all</button>
+          <button type="button" onClick={() => { setAgeF('all'); setGradeF('all'); setSectionF('all'); setSexF('all'); }} className="ml-auto text-[13px] font-bold text-destructive hover:underline">Clear all</button>
         </div>
       )}
       <p className="mt-4 text-[11.5px] text-muted-foreground">
-        Time period, Dates and Filters are not connected to this sheet yet. It still follows the school year.
+        Time period, Dates, Age and Sex are not connected to this sheet yet. It follows the school year, grade and section.
       </p>
       <p className="sr-only" aria-live="polite">Showing {schoolName ?? 'all schools'}, {schoolYear ? `school year ${schoolYear}` : 'all years to date'}</p>
     </PanelShell>
@@ -241,13 +251,18 @@ export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null 
   return (
     <div className="space-y-8">
       {panel}
-      <div className="rounded-2xl border border-[#dfe5f0] bg-card px-5 py-4 shadow-[0_14px_30px_-22px_rgba(36,59,122,0.5)]">
-        <h2 className="text-base font-extrabold text-foreground">School Summary Sheet</h2>
-        <dl className="mt-2 flex flex-wrap gap-y-2 [&>div]:border-l [&>div]:border-[#dfe5f0] [&>div]:px-4 [&>div:first-child]:border-l-0 [&>div:first-child]:pl-0 [&_dt]:text-[9px] [&_dt]:font-extrabold [&_dt]:uppercase [&_dt]:tracking-[0.08em] [&_dt]:text-muted-foreground [&_dd]:text-[12px] [&_dd]:font-bold">
-          <div><dt>School</dt><dd>{schoolName ?? 'All schools'}</dd></div>
-          <div><dt>School year</dt><dd>{schoolYear ?? 'All years to date'}</dd></div>
-          <div><dt>Barangay</dt><dd>Tanyag, Taguig City</dd></div>
-        </dl>
+      <div className="rounded-2xl bg-gradient-to-br from-[#273c7b] to-[#1b2d63] px-5 py-4 text-white">
+        <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#aebbe0]">School Summary Sheet</div>
+        <h2 className="mt-0.5 text-[19px] font-extrabold">{schoolName ?? 'All schools'}</h2>
+        <div className="mt-2.5 flex flex-wrap gap-2">
+          {[
+            `School year ${schoolYear ?? 'All years to date'}`,
+            gradeF === 'all' ? 'All grades' : gradeF,
+            sectionF === 'all' ? 'All sections' : `Section ${sectionF}`,
+          ].map((t) => (
+            <span key={t} className="rounded-full bg-white/15 px-3 py-0.5 text-xs font-semibold">{t}</span>
+          ))}
+        </div>
       </div>
 
       <div className="form-print relative overflow-hidden rounded-xl border border-[#A9BDE6] bg-card">
