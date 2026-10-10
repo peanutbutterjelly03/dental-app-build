@@ -265,7 +265,7 @@ export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null 
             <thead>
               <tr ref={titleRowRef} className="[&>th]:sticky [&>th]:top-0 [&>th]:z-20">
                 {/* The paper sheet's single top band carries the school name. */}
-                <th colSpan={5} className="border-b border-gray-300 bg-[#CFDDF6] px-2 py-2 text-center text-[12px] font-bold uppercase tracking-wide text-[#273A78]">
+                <th colSpan={5} className="border-b border-gray-300 bg-[#CFDDF6] px-2 py-2 text-center text-[13px] font-bold uppercase tracking-wide text-[#273A78]">
                   {schoolName ?? 'All schools'}
                 </th>
               </tr>
