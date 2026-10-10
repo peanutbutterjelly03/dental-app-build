@@ -688,6 +688,8 @@ export function DentalChartTab({
                       {c.perm === '✓' ? <span className="text-2xl leading-none">✓</span> : conditionCodeText(c)}
                     </button>
                   ))}
+                  {/* More and the clear button sit on their own row under the codes (user, 2026-10-11). */}
+                  <span aria-hidden="true" className="basis-full" />
                   <button type="button" onClick={() => setRareOpen((v) => !v)} className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 hover:underline">
                     {rareOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                     More ({paletteMoreConditionCodes.length})
