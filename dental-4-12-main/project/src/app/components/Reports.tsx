@@ -892,16 +892,6 @@ export const Reports = () => {
             <p className="sr-only" aria-live="polite">Showing {dohPeriodLabel}, {reportSchool ? getSchoolShortName(reportSchool) : 'all schools'}</p>
           </PanelShell>
 
-          {/* How the two year-varying figures in this table are derived. Both
-              used to be computed against TODAY, which silently rewrote past
-              reports every time a student was promoted or had a birthday. */}
-          <p className="text-xs text-muted-foreground pb-3">
-            Covering <span className="font-medium text-foreground">{dohPeriodLabel}</span>. A student is counted when their first recorded visit falls in this period; a record with no recorded visit has no date to place it and is left out. Grade is the grade recorded for that student&apos;s school year, and age is their age at that first visit — not their grade or age today.
-            {unplacedCount > 0 && (
-              <> <span className="font-medium text-foreground">{unplacedCount} record{unplacedCount === 1 ? '' : 's'}</span> in this range predate grade being stored per school year, so {unplacedCount === 1 ? 'it appears' : 'they appear'} in the totals but in no grade column.</>
-            )}
-          </p>
-
           {showDohPicker && (
             <div className="bg-card rounded-xl border border-border p-4 space-y-3 text-xs">
               <p className="text-muted-foreground">
