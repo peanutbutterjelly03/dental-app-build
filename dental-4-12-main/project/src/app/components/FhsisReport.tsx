@@ -320,7 +320,7 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
         <table className="w-full min-w-[1100px] text-xs" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
           <thead>
             <tr>
-              <th colSpan={12} className="border-b border-gray-300 bg-[#CFDDF6] px-3 py-2 text-center text-[11px] font-bold uppercase tracking-wide text-[#273A78]">
+              <th colSpan={12} className="border-b border-gray-300 bg-[#CFDDF6] px-3 py-2.5 text-center text-[14px] font-bold uppercase tracking-wide text-[#273A78]">
                 Oral Health Care Services
               </th>
             </tr>
