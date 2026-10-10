@@ -6,7 +6,6 @@ import { buildPagesPdf } from '../utils/exportPdf';
 import { usePreviewModal } from '../hooks/usePreviewModal';
 import { PreviewModal } from './PreviewModal';
 import { getGradeColor } from '../utils/gradeColors';
-import { BMI_NOTE } from '../utils/bmi';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from './Toast';
 import { useStudentNav } from '../hooks/useStudentNav';
@@ -547,6 +546,12 @@ export const DentalChart = () => {
   // Consent is confirmed against the FORM, not against a bare "are you sure"
   // (Sprint 169, hers). `revert` distinguishes the two directions.
   const [confirmConsent, setConfirmConsent] = useState<{ schoolYear: string; revert: boolean } | null>(null);
+  // The school-year list shows three years at a time so the card never changes height;
+  // yearTop is the first one shown, the arrows move it, and selecting a year scrolls it into view.
+  const [yearTop, setYearTop] = useState(0);
+  useEffect(() => {
+    setYearTop((t) => (selectedYear < t ? selectedYear : selectedYear > t + 2 ? selectedYear - 2 : t));
+  }, [selectedYear]);
   const [rareConditionsOpen, setRareConditionsOpen] = useState(false);
 
   useEffect(() => {
@@ -1963,102 +1968,83 @@ export const DentalChart = () => {
               )}
           </div>
         </div>
-        {(saveError || basicInfoExpanded || (showStickyYearBar && years.length > 0)) && (
-          <div className="flex flex-col gap-4 px-5 py-4">
-            {saveError && <p className="text-sm text-destructive">{saveError}</p>}
-            {basicInfoExpanded && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3 text-sm">
-              {[
-                // "May 30, 2013", not 2013-05-30 — hers, and it is what a person
-                // reads a birthday as.
-                // Her field ORDER, not just her fields: Birthday, Age, Place of
-                // Birth, Sex — then Address, Occupation, Contact.
-                ['Birthday', student.birthday ? formatDate(student.birthday) : '—'],
-                ['Age', patientAge === null ? '—' : `${patientAge} years`],
-                ['Place of Birth', student.place_of_birth || '—'],
-                ['Sex', student.sex],
-                ['Address', student.address],
-                // Guardian's occupation — the label is "Occupation" on the paper
-                // IPTR and on her card, so it stays that word here too.
-                ['Occupation', student.guardian_occupation || '—'],
-                ['Contact', student.contact_number || '—'],
-                ['Guardian', student.guardian_name || '—'],
-                ['Guardian Contact', student.guardian_contact || '—'],
-                ['PhilHealth', student.philhealth_number ? `${student.philhealth_number} (${student.philhealth_status || 'None'})` : '—'],
-                // ⚠ Height, Weight and BMI are NOT here any more (Sprint 173,
-                // hers). This card is identity and contact facts; a clinical
-                // measurement belongs with the rest of the measurements, on
-                // History, where it is also entered.
-              ].map(([label, val]) => (
-                <div key={label}>
-                  <div className="text-xs font-medium text-muted-foreground">{label}</div>
-                  <div className="font-semibold text-foreground" title={label === 'BMI' ? BMI_NOTE : undefined}>{val}</div>
-                </div>
-              ))}
-            </div>
-            )}
-            {showStickyYearBar && years.length > 0 && (
-              <div className="order-first -mx-5 -mt-4 overflow-x-auto border-b border-border bg-[#F5F8FF] px-5 py-2.5">
-              <div className="flex min-w-max items-center gap-2">
-              <span className="mr-1 text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted-foreground">School year</span>
-              {years.map((y, idx) => {
-                // BUG-12: the year's DMFT comes from the latest charting that
-                // HAS records, not from whichever charting is newest. An empty
-                // charting made this read "DMFT: 0" for a student with 14 decayed
-                // teeth recorded a day earlier. No records at all prints 0 (user, 2026-09-25; was "—").
-                const yrChart: Record<number, ChartEntry> = {};
-                for (const tr of y.dmftToothRecords ?? []) yrChart[tr.tooth_number] = { condition: tr.condition, treatment: tr.treatment_code ?? '' };
-                const yrDmft = computeDMFT(yrChart);
-                // BUG-13: permanent (DMFT) and deciduous (dmft) stay separate, as in the
-                // DMFT History table. 0 when nothing is charted (user, 2026-09-25).
-                const yrDmftLabel = `DMFT ${yrDmft.T} · dmft ${yrDmft.t}`;
-                const isActive = selectedYear === idx;
-                // Marks the actual current school year regardless of which
-                // year is SELECTED (user, 2026-09-28: "highlight or maybe a
-                // label that emphasize the current school year") -- a solid
-                // green pill around the year label itself, so it reads at a
-                // glance even when a different (older) year is the one being
-                // viewed, distinct from the blue selected-tab styling above.
-                const isCurrentYear = y.iptr.school_year === schoolYearLabel();
-                return (
-                  <div key={y.iptr._id} className={`relative flex flex-shrink-0 items-center rounded-full border ${isActive ? 'border-primary bg-primary text-white shadow-sm' : 'border-border bg-card text-muted-foreground hover:text-foreground'}`}>
-                    <button type="button" onClick={() => { setSelectedYear(idx); setSelectedChartId(null); setExplicitVisit(null); }} className={`flex items-center gap-2 py-1.5 pl-3.5 text-left text-[13px] font-bold transition-all ${canEdit ? 'pr-8' : 'pr-3.5'}`}>
-                      {isCurrentYear && <span className={`h-2 w-2 rounded-full ${isActive ? 'bg-emerald-300' : 'bg-emerald-600'}`} title="Current school year" />}
-                      <span>{y.iptr.school_year}</span>
-                      <span className={`text-[11px] font-medium ${isActive ? 'text-white/80' : 'text-muted-foreground'}`}>
-                        {activeTab === 'chart' ? `${yrDmftLabel} · ` : ''}{formatDateStamp(examinedDate(y.oralCondition, y.dentalChart, y.toothRecords))}
-                      </span>
-                    </button>
-                    {canEdit && (
-                      <button type="button" onClick={(e) => openYearMenu(e, idx)}
-                        title="Record options" aria-label={`Options for ${y.iptr.school_year}`} aria-expanded={yearMenuOpen && yearMenuIdx === idx}
-                        className={`absolute right-1 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full transition-colors ${isActive ? 'text-white/80 hover:bg-white/15 hover:text-white' : 'text-muted-foreground hover:bg-gray-100 hover:text-foreground'}`}>
-                        <MoreVertical className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                    {false && (
-                      <button type="button" onClick={(e) => { e.stopPropagation(); setConfirmDeleteYear(idx); }} className="border-l border-border px-2 text-muted-foreground transition-colors hover:bg-card hover:text-destructive" title={`Remove ${y.iptr.school_year}`}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    )}
+        {/* Consent strip (user pick, 2026-10-11): History tab only, right under the tabs.
+            Shown in both states so a mis-tick stays revertible; both directions open the confirmation. */}
+        {activeTab === 'history' && years.length > 0 && yearIptr && (
+          <div className={`flex items-center gap-2.5 px-5 py-2 text-[12.5px] font-semibold ${consentComplete ? 'bg-[#F0FDF4] text-[#15803D]' : 'bg-[#FFFBEB] text-[#B45309]'}`}>
+            {consentComplete ? <ShieldCheck className="h-4 w-4 flex-shrink-0" /> : <ShieldAlert className="h-4 w-4 flex-shrink-0" />}
+            <span className="min-w-0 truncate">{consentComplete ? 'Consent obtained' : 'Consent pending'} for {yearIptr.school_year}</span>
+            <button
+              type="button"
+              onClick={() => { if (canEdit) setConfirmConsent({ schoolYear: yearIptr.school_year, revert: consentComplete }); }}
+              disabled={!canEdit}
+              className={`ml-auto flex flex-shrink-0 items-center gap-2 rounded-full bg-white py-1 pl-1.5 pr-3 text-[12px] font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${canEdit ? 'cursor-pointer' : 'cursor-default'} ${consentComplete ? 'text-[#15803D]' : 'text-[#475569]'}`}
+            >
+              <span className={`relative inline-block h-[18px] w-8 rounded-full ${consentComplete ? 'bg-[#15803D]' : 'bg-[#CBD5E1]'}`}>
+                <span className={`absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.2)] ${consentComplete ? 'right-0.5' : 'left-0.5'}`} />
+              </span>
+              {consentComplete ? 'Obtained' : 'Mark obtained'}
+            </button>
+          </div>
+        )}
+        {saveError && <p className="px-5 pt-3 text-sm text-destructive">{saveError}</p>}
+        {(() => {
+          const showYears = showStickyYearBar && years.length > 0;
+          if (!basicInfoExpanded && !showYears) return null;
+          const rowH = activeTab === 'chart' ? 'md:h-16' : 'md:h-[52px]';
+          const listH = activeTab === 'chart' ? 'md:h-[204px]' : 'md:h-[168px]';
+          const canUp = yearTop > 0;
+          const canDown = yearTop + 3 < years.length;
+          // Info is collapsed and there is no Chart toolbar: the list gets the whole row.
+          const wide = !basicInfoExpanded && activeTab !== 'chart';
+          return (
+            <div className={showYears && !wide ? 'grid md:grid-cols-[168px_minmax(0,1fr)]' : ''}>
+              {showYears && (
+                <div className={`flex flex-col gap-1.5 border-b border-border bg-[#F5F8FF] px-2.5 py-2.5 ${wide ? '' : 'md:border-b-0 md:border-r'}`}>
+                  <div className="flex items-center justify-between px-1.5 text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted-foreground">
+                    <span>School year</span>
+                    {years.length > 3 && <span className="text-[10.5px] font-semibold normal-case tracking-normal">{yearTop + 1}-{Math.min(yearTop + 3, years.length)} of {years.length}</span>}
                   </div>
-                );
-              })}
-              {/* ⚠ Her ⋮ menu, replacing "Edit Years" (Sprint 172). The old
-                  control was a MODE: press it, trash icons appear on every
-                  year chip, press again to leave. A mode that arms a
-                  destructive action on every row is a worse shape than a menu
-                  that names one thing and does it.
-
-                  Delete now acts on the SELECTED year, which is the one whose
-                  data is on screen — you cannot arm a delete for a year you
-                  are not looking at.
-
-                  NOT copied: her "Edit <year>'s date" item. It writes
-                  `date_opened`, which her STUDENT_IPTR has and ours does not.
-                  A menu item that saves nowhere is the placeholder CLAUDE.md
-                  forbids, so it is left out rather than stubbed. */}
-              {canEdit && yearMenuOpen && (
+                  <div className={`flex items-stretch gap-1.5 ${wide ? '' : 'md:flex-col'}`}>
+                    <button type="button" disabled={!canUp} onClick={() => setYearTop((t) => Math.max(0, t - 1))} aria-label="Previous school years" title="Previous school years"
+                      className={`grid w-7 flex-shrink-0 place-items-center rounded-lg border border-border bg-white text-primary transition-opacity disabled:opacity-35 ${wide ? '' : 'md:h-6 md:w-full'}`}>
+                      <ChevronUp className={`h-3.5 w-3.5 -rotate-90 ${wide ? '' : 'md:rotate-0'}`} />
+                    </button>
+                    <div className={`flex min-w-0 flex-1 gap-1.5 overflow-hidden ${wide ? '' : `md:flex-col ${listH}`}`}>
+                      {years.slice(yearTop, yearTop + 3).map((y, k) => {
+                        const idx = yearTop + k;
+                        const isActive = selectedYear === idx;
+                        const isCurrentYear = y.iptr.school_year === schoolYearLabel();
+                        // BUG-12: DMFT comes from the latest charting that HAS records. Permanent and deciduous stay separate (BUG-13); 0 when nothing is charted.
+                        const yrChart: Record<number, ChartEntry> = {};
+                        for (const tr of y.dmftToothRecords ?? []) yrChart[tr.tooth_number] = { condition: tr.condition, treatment: tr.treatment_code ?? '' };
+                        const yrDmft = computeDMFT(yrChart);
+                        return (
+                          <div key={y.iptr._id} className={`relative min-w-0 flex-1 md:flex-none ${wide ? '' : rowH}`}>
+                            <button type="button" onClick={() => { setSelectedYear(idx); setSelectedChartId(null); setExplicitVisit(null); }}
+                              className={`flex h-full w-full flex-col justify-center gap-0.5 rounded-[10px] py-1.5 pl-2.5 text-left transition-all ${canEdit ? 'pr-7' : 'pr-2.5'} ${isActive ? 'bg-white text-primary shadow-[0_1px_4px_rgba(0,0,0,0.14)]' : 'text-muted-foreground hover:text-foreground'}`}>
+                              <span className={`w-max max-w-full truncate text-[13px] font-bold ${isCurrentYear ? 'rounded-full bg-emerald-600 px-2.5 py-0.5 text-white' : ''}`} title={isCurrentYear ? 'Current school year' : undefined}>{y.iptr.school_year}</span>
+                              {activeTab === 'chart' && <span className="truncate text-[11px] font-medium">DMFT {yrDmft.T} · dmft {yrDmft.t}</span>}
+                              <span className="truncate text-[11px] font-normal">{formatDateStamp(examinedDate(y.oralCondition, y.dentalChart, y.toothRecords))}</span>
+                            </button>
+                            {canEdit && (
+                              <button type="button" onClick={(e) => openYearMenu(e, idx)}
+                                title="Record options" aria-label={`Options for ${y.iptr.school_year}`} aria-expanded={yearMenuOpen && yearMenuIdx === idx}
+                                className="absolute right-0.5 top-1 grid h-6 w-6 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-gray-100 hover:text-foreground">
+                                <MoreVertical className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <button type="button" disabled={!canDown} onClick={() => setYearTop((t) => Math.min(Math.max(0, years.length - 3), t + 1))} aria-label="More school years" title="More school years"
+                      className={`grid w-7 flex-shrink-0 place-items-center rounded-lg border border-border bg-white text-primary transition-opacity disabled:opacity-35 ${wide ? '' : 'md:h-6 md:w-full'}`}>
+                      <ChevronDown className={`h-3.5 w-3.5 -rotate-90 ${wide ? '' : 'md:rotate-0'}`} />
+                    </button>
+                  </div>
+                  {/* Her ⋮ menu (Sprint 172): Delete acts on the SELECTED year. Her "Edit <year>'s date" item is NOT copied: it writes `date_opened`, which our STUDENT_IPTR does not have, and a menu item that saves nowhere is a placeholder. */}
+                  {canEdit && yearMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setYearMenuOpen(false)} />
                   <div
@@ -2077,83 +2063,55 @@ export const DentalChart = () => {
                   </div>
                 </>
               )}
-              {/* Sprint 163 — Charting Mode and Legend sit at the right end of
-                  the YEAR ROW, level with the year chips, which is where hers
-                  are. They were below the charting picker, half a screen down
-                  from the tab that owns them. Chart tab only: neither means
-                  anything on History or Consent. */}
-              {activeTab === 'chart' && (
-                <div className="ml-auto flex flex-shrink-0 items-center gap-2 py-2 pr-1">
-                  {!chartingMode && (
-                    <button
-                      type="button"
-                      onClick={() => setChartingMode(true)}
-                      title="Full-screen charting — Escape exits"
-                      className="flex items-center gap-1.5 rounded-lg border border-primary px-2.5 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
-                    >
-                      <Maximize2 className="w-3.5 h-3.5" /> Charting Mode
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setLegendOpen(true)}
-                    className="flex items-center gap-1.5 rounded-lg bg-primary px-2.5 py-1.5 text-xs font-semibold text-white transition-colors hover:opacity-90"
-                  >
-                    <FileText className="w-3.5 h-3.5" /> Legend
-                  </button>
                 </div>
               )}
-              </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ── CONSENT BANNER (Sprint 167, hers) ──────────────────────────────
-          History tab only. It is registration data — a dentist mid-chart or
-          mid-treatment-entry does not need it repeated on every tab, and the
-          card's chip above already carries the status everywhere else.
-
-          ⚠ NO APPROVAL DATE SHOWN, even though `consent_given_at` now exists:
-          every record predating this sprint has null there, and printing
-          "—" beside a completed consent reads as a missing signature rather
-          than a missing field. It goes in once the data is real. */}
-      {activeTab === 'history' && years.length > 0 && yearIptr && (
-        // Navy "Consent" title bar like the Dental Chart panels, applied in
-        // full (user pick "D", 2026-09-25 — no separate coloured icon block;
-        // the shield moves into a status pill next to the text).
-        <div className={`flex items-center gap-3 overflow-hidden rounded-xl border bg-card py-3 pl-4 pr-3 shadow-[0_8px_24px_rgba(15,23,42,0.08)] sm:gap-4 ${consentComplete ? 'border-[#86EFAC]' : 'border-[#FCD34D]'}`}>
-          <span className={`grid h-10 w-10 flex-shrink-0 place-items-center rounded-full ${consentComplete ? 'bg-[#DCFCE7] text-[#15803D]' : 'bg-[#FEF3C7] text-[#B45309]'}`}>
-            {consentComplete ? <ShieldCheck className="h-5 w-5" /> : <ShieldAlert className="h-5 w-5" />}
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted-foreground">Guardian consent</div>
-            <div className="truncate text-[14px] font-bold leading-tight text-foreground">
-              {consentComplete ? `Physical copy obtained for ${yearIptr.school_year}` : `Not yet obtained for ${yearIptr.school_year}`}
+              {(basicInfoExpanded || activeTab === 'chart') && (
+                <div className="min-w-0 space-y-3 px-5 py-4">
+                  {activeTab === 'chart' && (
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      {!chartingMode && (
+                        <button type="button" onClick={() => setChartingMode(true)} title="Full-screen charting. Escape exits"
+                          className="flex items-center gap-1.5 rounded-lg border border-primary px-2.5 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/10">
+                          <Maximize2 className="h-3.5 w-3.5" /> Charting Mode
+                        </button>
+                      )}
+                      <button type="button" onClick={() => setLegendOpen(true)}
+                        className="flex items-center gap-1.5 rounded-lg bg-primary px-2.5 py-1.5 text-xs font-semibold text-white transition-colors hover:opacity-90">
+                        <FileText className="h-3.5 w-3.5" /> Legend
+                      </button>
+                    </div>
+                  )}
+                  {basicInfoExpanded && (
+                    <div className={`grid grid-cols-2 gap-x-6 gap-y-3.5 text-sm ${showYears ? 'md:grid-cols-3' : 'md:grid-cols-4'}`}>
+                      {[
+                        // Her field ORDER: Birthday, Age, Place of Birth, Sex, then Address, Occupation (the guardian's), Contact. An empty value prints a faint italic "None".
+                        ['Birthday', student.birthday ? formatDate(student.birthday) : ''],
+                        ['Age', patientAge === null ? '' : `${patientAge} years`],
+                        ['Place of Birth', student.place_of_birth || ''],
+                        ['Sex', student.sex || ''],
+                        ['Address', student.address || ''],
+                        ['Occupation', student.guardian_occupation || ''],
+                        ['Contact', student.contact_number || ''],
+                        ['Guardian', student.guardian_name || ''],
+                        ['Guardian Contact', student.guardian_contact || ''],
+                        ['PhilHealth', student.philhealth_number ? `${student.philhealth_number} (${student.philhealth_status || 'None'})` : ''],
+                        // Height, Weight and BMI are NOT here (Sprint 173): a clinical measurement belongs on History, where it is entered.
+                      ].map(([label, val]) => (
+                        <div key={label}>
+                          <div className="text-xs font-medium text-muted-foreground">{label}</div>
+                          <div className="font-semibold text-foreground">
+                            {val || <span className="text-[11px] font-normal italic text-[#B6BFCC]">None</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-            {yearGrade ? (
-              <div className="whitespace-nowrap text-xs" style={{ color: getGradeColor(yearGrade).solid }}>
-                {yearGrade}{yearSection ? `-${yearSection}` : ''}
-              </div>
-            ) : (
-              <div className="text-[10.5px] text-muted-foreground">Grade/section not recorded for this year</div>
-            )}
-          </div>
-          {/* Shown in both states: a mis-tick must stay revertible. Both directions open the confirmation. */}
-          <button
-            type="button"
-            onClick={() => { if (canEdit) setConfirmConsent({ schoolYear: yearIptr.school_year, revert: consentComplete }); }}
-            disabled={!canEdit}
-            className={`flex flex-shrink-0 items-center gap-2 rounded-full py-1.5 pl-2 pr-3 text-[12px] font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${canEdit ? 'cursor-pointer' : 'cursor-default'} ${consentComplete ? 'bg-[#F0FDF4] text-[#15803D]' : 'bg-[#F1F5F9] text-[#475569] hover:bg-[#E8EDF4]'}`}
-          >
-            <span className={`relative inline-block h-[18px] w-8 rounded-full ${consentComplete ? 'bg-[#15803D]' : 'bg-[#CBD5E1]'}`}>
-              <span className={`absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.15)] ${consentComplete ? 'right-0.5' : 'left-0.5'}`} />
-            </span>
-            {consentComplete ? 'Obtained' : 'Mark obtained'}
-          </button>
-        </div>
-      )}
+          );
+        })()}
+      </div>
 
       {/* Tab Content */}
       <div className={activeTab === 'chart' ? 'relative' : 'relative overflow-hidden bg-card rounded-xl border border-border shadow-[0_8px_24px_rgba(15,23,42,0.08)]'}>
