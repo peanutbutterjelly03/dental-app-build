@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePrintOrientation } from '../hooks/usePrintOrientation';
 import { useSchoolSummary, type BySex, type SchoolSummaryTally } from '../hooks/useSchoolSummary';
 import { SkeletonTable } from './Skeleton';
