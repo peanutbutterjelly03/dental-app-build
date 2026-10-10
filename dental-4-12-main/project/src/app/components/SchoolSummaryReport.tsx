@@ -58,13 +58,13 @@ const ROWS: Row[] = [
   { label: 'Gingivitis', code: '', source: { kind: 'condition', key: 'gingivitis' } },
   { label: 'Debris', code: '', source: { kind: 'condition', key: 'debris' } },
   { label: 'Calculus', code: '', source: { kind: 'condition', key: 'calculus' } },
-  { label: 'Total Number Decayed', code: '(D)', source: { kind: 'code', code: 'D' } },
+  { label: 'Total Number of Permanent:', code: '(D)', source: { kind: 'code', code: 'D' } },
   { label: '', code: '(M)', source: { kind: 'code', code: 'M' } },
   { label: '', code: '(F)', source: { kind: 'code', code: 'F' } },
   { label: '', code: '(X)', source: { kind: 'code', code: 'X' } },
   // ⚠ The form asks for (d)(f)(x) and NO (m) — standard dft, because a missing
   // primary tooth is usually natural exfoliation. Not an omission to fix.
-  { label: 'Number Total decayed', code: '(d)', source: { kind: 'code', code: 'd' } },
+  { label: 'Total Number of Temporary:', code: '(d)', source: { kind: 'code', code: 'd' } },
   { label: '', code: '(f)', source: { kind: 'code', code: 'f' } },
   { label: '', code: '(x)', source: { kind: 'code', code: 'x' } },
   { label: 'Very Good', code: '(VG)', source: { kind: 'blank' } },
