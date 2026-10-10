@@ -111,9 +111,9 @@ function MedChip({ label, checked, onToggle, disabled, details, med, setText }: 
 function SectionCard({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
     <div className="overflow-hidden rounded-xl border border-[#CBD5E1] bg-card shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
-      <div className="flex items-center justify-between gap-3 bg-primary px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-white">
+      <div className="flex items-center justify-between gap-3 bg-primary px-4 py-2 text-[13px] font-semibold uppercase tracking-wider text-white">
         <span>{title}</span>
-        {hint && <span className="text-[11px] font-normal normal-case tracking-normal text-white/80">{hint}</span>}
+        {hint && <span className="text-[12px] font-normal normal-case tracking-normal text-white/80">{hint}</span>}
       </div>
       <div className="p-4">{children}</div>
     </div>
