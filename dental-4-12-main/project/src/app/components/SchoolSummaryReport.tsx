@@ -252,10 +252,10 @@ export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null 
         </dl>
       </div>
 
-      <div className="form-print relative -mb-4 overflow-hidden rounded-t-xl border border-[#A9BDE6] bg-card md:-mb-8">
+      <div className="form-print relative overflow-hidden rounded-xl border border-[#A9BDE6] bg-card">
       <div
         ref={printableRef}
-        className="no-scrollbar max-h-[max(320px,calc(100vh_-_94px))] overflow-auto rounded-t-xl print:max-h-none [&_tr>:last-child]:border-r-0"
+        className="no-scrollbar max-h-[max(320px,calc(100vh_-_94px))] overflow-auto rounded-xl print:max-h-none [&_tr>:last-child]:border-r-0 [&_tbody>tr:last-child>td]:border-b-0"
         style={{ ['--ss-r1' as string]: `${titleH}px` }}
       >
         {/* Wide content scrolls inside its own container, so the table never
