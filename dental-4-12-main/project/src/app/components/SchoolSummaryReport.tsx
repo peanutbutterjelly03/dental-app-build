@@ -68,7 +68,7 @@ const ROWS: Row[] = [
   { label: '', code: '(f)', source: { kind: 'code', code: 'f' } },
   { label: '', code: '(x)', source: { kind: 'code', code: 'x' } },
   { label: 'Very Good', code: '(VG)', source: { kind: 'blank' } },
-  { label: 'No Flouride', code: '', source: { kind: 'noFluoride' } },
+  { label: 'No. of Flouride Varnish Application', code: '', source: { kind: 'noFluoride' } },
 ];
 
 /** `null` renders as the no-source mark; a number renders as itself. */
