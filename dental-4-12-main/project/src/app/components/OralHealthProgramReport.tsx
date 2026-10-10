@@ -7,12 +7,12 @@ import { useDohReportData } from '../hooks/useDohReportData';
 import { SkeletonTable } from './Skeleton';
 import { BLOCKED_TITLE } from '../utils/dohFormStyle';
 
-// Colour coding copied cell for cell from the filed Excel form (user, 2026-10-06): orange section bands,
-// solid BLACK blocked cells, light-blue total columns, yellow grand total, pink sub-row captions.
-const PR_ORANGE = '!bg-[#FFC000] text-black';
+// Colour coding from the filed Excel form (user, 2026-10-06), with the yellow/orange bands changed to blue 2026-10-10: blue section bands,
+// solid BLACK blocked cells, light-blue total columns, darker-blue grand total, pink sub-row captions.
+const PR_ORANGE = '!bg-[#CFDDF6] text-[#273A78]';
 const PR_BLOCKED = 'bg-gray-300';
 const PR_TOTAL = 'bg-[#DDEBF7] font-bold';
-const PR_GRAND = 'bg-[#FFFF00] font-bold';
+const PR_GRAND = 'bg-[#BCD1F2] font-bold';
 const PR_SUBROW = '!bg-[#EAD1DC]';
 import { buildDohReportPdf } from '../utils/exportPdf';
 import { buildXlsx } from '../utils/exportXlsx';
