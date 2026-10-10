@@ -415,7 +415,7 @@ export const OralHealthProgramReport = ({ schoolName = null }: { schoolName?: st
 
   const th = 'px-2 py-2 text-[11px] font-semibold text-foreground border border-t-0 border-l-0 border-gray-400 whitespace-nowrap';
   const td = 'px-2 py-1.5 text-xs text-foreground border border-t-0 border-l-0 border-gray-400 text-center tabular-nums';
-  const labelTd = 'bg-[#FFF2CC] pl-7 pr-2 py-1.5 text-xs text-foreground border border-t-0 border-l-0 border-gray-400 whitespace-normal text-left';
+  const labelTd = 'bg-card pl-7 pr-2 py-1.5 text-xs text-foreground border border-t-0 border-l-0 border-gray-400 whitespace-normal text-left';
 
   const section = (title: string) => (
     // Orange band across the full width, as printed. Painted on the TD as well as the TR: html2canvas (the PDF
@@ -423,7 +423,7 @@ export const OralHealthProgramReport = ({ schoolName = null }: { schoolName?: st
     // Two cells, like every other row: a title cell frozen over the label columns, and the rest of the bar,
     // which scrolls with the data (user, 2026-10-06: the section rows stay fixed when scrolling sideways).
     <tr className={PR_ORANGE}>
-      <td className={`${labelTd} font-bold ${PR_ORANGE} sticky left-0 z-10`} colSpan={2}>{title}</td>
+      <td className={`${labelTd} font-bold ${PR_ORANGE} `} colSpan={2}>{title}</td>
       <td className={`${td} ${PR_ORANGE}`} colSpan={visibleCols.length * 2 + 1} />
     </tr>
   );
@@ -486,9 +486,9 @@ export const OralHealthProgramReport = ({ schoolName = null }: { schoolName?: st
           {r.subRows.map((sub, i) => (
             <tr key={sub.key} className="hover:bg-gray-50">
               {i === 0 && (
-                <td className={`${labelTd} align-middle !whitespace-normal sticky left-0 z-10`} rowSpan={r.subRows!.length}>{r.label}</td>
+                <td className={`${labelTd} align-middle !whitespace-normal`} rowSpan={r.subRows!.length}>{r.label}</td>
               )}
-              <td className={`${labelTd} ${PR_SUBROW} text-[11px] sticky left-[26rem] z-10`}>{sub.label}</td>
+              <td className={`${labelTd} ${PR_SUBROW} text-[11px]`}>{sub.label}</td>
               {valueCells(sub)}
             </tr>
           ))}
@@ -499,7 +499,7 @@ export const OralHealthProgramReport = ({ schoolName = null }: { schoolName?: st
     // A plain indicator spans both label columns, as the form does.
     return (
       <tr key={r.key} className="hover:bg-gray-50">
-        <td className={`${labelTd} sticky left-0 z-10 ${r.indent ? '!pl-11' : ''}`} colSpan={2}>{r.label}</td>
+        <td className={`${labelTd} ${r.indent ? '!pl-11' : ''}`} colSpan={2}>{r.label}</td>
         {valueCells(r)}
       </tr>
     );
@@ -713,7 +713,7 @@ export const OralHealthProgramReport = ({ schoolName = null }: { schoolName?: st
                 rendered — see the note above about the adult / senior citizen /
                 pregnant-women sections. */}
             <tr ref={row1Ref} className="[&>th]:sticky [&>th]:top-0 [&>th]:z-20">
-              <th className={`${th} text-left align-bottom !left-0 !z-30 bg-[#FFF2CC]`} rowSpan={3} colSpan={2}>INDICATORS</th>
+              <th className={`${th} text-left align-bottom bg-card`} rowSpan={3} colSpan={2}>INDICATORS</th>
               {visibleGroups.map((g, i) => (
                 <th key={`${g.label}-${i}`} className={`${th} ${PR_ORANGE}`} colSpan={g.span * SEXES.length}>
                   {g.label}
