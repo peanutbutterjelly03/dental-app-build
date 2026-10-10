@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { Fragment, useRef, useState } from 'react';
 import { usePrintOrientation } from '../hooks/usePrintOrientation';
 import { Calendar, CalendarDays, CalendarRange, Clock } from 'lucide-react';
 import { RangePicker } from './RangePicker';
@@ -228,134 +228,159 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
   }
   if (loading) return <div className="space-y-4">{panel}<SkeletonTable rows={12} /></div>;
 
-  const cell = (v: number) => <td className="border-r border-b border-gray-300 px-2 py-1.5 text-center tabular-nums">{v}</td>;
+  const TD = 'border-r border-b border-gray-300 px-2 py-1.5';
+  const cell = (v: number) => <td className={`${TD} text-center tabular-nums`}>{v}</td>;
   const blank = (title: string) => (
-    <td className="border-r border-b border-gray-300 px-2 py-1.5 text-center text-muted-foreground" title={title}>
+    <td className={`${TD} text-center text-muted-foreground`} title={title}>
       —
     </td>
   );
   const NO_FACILITY_FIELD = 'Not recorded — no visit counted here has its facility-based flag set. The flag is optional when recording an RPC visit, and visits recorded before it existed have no value.';
   const NO_PREGNANCY = 'Not recorded by this system — no pregnancy field exists in the schema.';
 
+  // The form's two halves, copied from the FHSIS sheet of 2026_Form_2_with_FHSIS:
+  // FIRST VISIT on the left, COMPLETED 2 VISITS on the right, side by side. The
+  // left half starts with the infants row; the right half has none. Numbering is
+  // the form's own: infants and children 1-4 both print "1.".
+  type FRow = { band: FhsisBandKey; kind: 'main' | 'sub'; n: number; suffix?: 'a' | 'b'; label: string };
+  const buildSide = (measure: Measure): FRow[] => {
+    const verb = measure === 'first' ? 'had their 1st visit' : 'completed 2 visits';
+    const rows: FRow[] = [];
+    FHSIS_BANDS.forEach((band, idx) => {
+      if (band.key === 'infants') {
+        if (measure === 'first') rows.push({ band: band.key, kind: 'main', n: 1, label: '1. Infants 0-11 months old who had their first dental visit' });
+        return;
+      }
+      rows.push({ band: band.key as FhsisBandKey, kind: 'main', n: idx, label: `${idx}. ${band.label} who ${verb} to an oral health care professional within a year` });
+      for (const suffix of ['a', 'b'] as const) {
+        rows.push({
+          band: band.key as FhsisBandKey, kind: 'sub', n: idx, suffix,
+          label: `${idx}${suffix}. ${band.label} who ${verb} to a ${suffix === 'a' ? 'facility-based' : 'non-facility-based'} oral health care professional within a year`,
+        });
+      }
+    });
+    return rows;
+  };
+  const leftRows = buildSide('first');
+  const rightRows = buildSide('completed');
+  const pairs = Math.max(leftRows.length, rightRows.length);
+
+  const emptyHalf = <><td className={TD} /><td className={TD} /><td className={TD} /><td className={TD} /><td className={TD} colSpan={2} /></>;
+  const half = (r: FRow | undefined, measure: Measure) => {
+    if (!r) return emptyHalf;
+    const c = counts[r.band][measure];
+    if (r.kind === 'main') {
+      return (
+        <>
+          <td className={TD}>{r.label}</td>
+          {cell(c.male)}{cell(c.female)}{cell(c.male + c.female)}
+          <td className={TD} colSpan={2} />
+        </>
+      );
+    }
+    const sub = r.suffix === 'a' ? c.facility : c.nonFacility;
+    const unrecorded = c.unrecorded.male + c.unrecorded.female;
+    // A cell with nothing flagged prints "—" (not recorded), never 0: "0" would
+    // claim nobody had facility-based care.
+    const anyFlagged = c.facility.male + c.facility.female + c.nonFacility.male + c.nonFacility.female > 0;
+    return (
+      <>
+        <td className={`${TD} pl-6 text-muted-foreground`}>{r.label}</td>
+        {anyFlagged ? cell(sub.male) : blank(NO_FACILITY_FIELD)}
+        {anyFlagged ? cell(sub.female) : blank(NO_FACILITY_FIELD)}
+        {anyFlagged ? cell(sub.male + sub.female) : blank(NO_FACILITY_FIELD)}
+        <td className={`${TD} text-[11px]`} colSpan={2}>
+          {!anyFlagged ? 'not recorded' : unrecorded > 0 ? `${unrecorded} visit${unrecorded === 1 ? '' : 's'} not classified` : ''}
+        </td>
+      </>
+    );
+  };
+  const pregHalf = (measure: Measure, suffix: '' | 'a' | 'b') => {
+    const verb = measure === 'first' ? 'had their 1st visit' : 'completed 2 visits';
+    const kindText = suffix === 'a' ? ' to a facility-based oral health care professional' : suffix === 'b' ? ' to a non-facility-based oral health care professional' : ' to an oral health care professional';
+    return (
+      <>
+        <td className={`${TD} ${suffix ? 'pl-6 text-muted-foreground' : ''}`}>6{suffix}. Pregnant Women who {verb}{kindText} within a year</td>
+        {blank(NO_PREGNANCY)}{blank(NO_PREGNANCY)}{blank(NO_PREGNANCY)}{blank(NO_PREGNANCY)}
+        <td className={`${TD} text-[11px]`}>not recorded</td>
+      </>
+    );
+  };
+  const hd = 'border-r border-b border-gray-300 bg-gray-50 px-2 py-1.5 text-center font-semibold';
+  const hdInd = 'border-r border-b border-gray-300 bg-gray-50 px-2 py-2 text-left align-bottom text-[11px] font-semibold';
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-8">
       {/* Controls: see ReportControls.tsx. */}
       {panel}
 
-      {/* ref is on the OUTER box so the School/Month header band and the section
-          title are captured WITH the table. html2canvas clips to the ref'd
-          element's own rendered box, so a banner placed outside it shows on
-          screen and is silently missing from the PDF — the exact trap noted on
-          the DOH Consolidated report. */}
+      {/* ref is on the OUTER box so the School/Month row and the section title
+          are captured WITH the table. html2canvas clips to the ref'd element's
+          own rendered box, so a banner placed outside it shows on screen and is
+          silently missing from the PDF. */}
       <div ref={printableRef} className="form-print no-scrollbar overflow-x-auto rounded-t-xl border border-[#A9BDE6] bg-card [&_tr>:last-child]:border-r-0">
-        <table className="w-full min-w-[900px] text-xs" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+        <table className="w-full min-w-[1100px] text-xs" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
           <thead>
             <tr>
-              <th colSpan={5} className="border-b border-gray-300 bg-[#CFDDF6] px-3 py-2 text-center text-[11px] font-bold uppercase tracking-wide text-[#273A78]">
-                Section D: Oral Health Care Services
+              <th colSpan={6} className="border-r border-b border-gray-300 px-3 py-2 text-left font-bold">School: {schoolName || 'All schools'}</th>
+              <th colSpan={6} className="border-b border-gray-300 px-3 py-2 text-right font-bold">Month: {periodPrinted}</th>
+            </tr>
+            <tr>
+              <th colSpan={12} className="border-b border-gray-300 bg-[#CFDDF6] px-3 py-2 text-center text-[11px] font-bold uppercase tracking-wide text-[#273A78]">
+                Section D. Oral Health Care Services
               </th>
             </tr>
-            <tr className="bg-gray-50">
-              <th rowSpan={2} className="border-r border-b border-gray-300 px-2 py-2 text-left align-bottom text-[11px] font-semibold">INDICATORS</th>
-              <th colSpan={2} className="border-r border-b border-gray-300 px-2 py-1.5">Sex</th>
-              <th rowSpan={2} className="border-r border-b border-gray-300 px-2 py-1.5">Total</th>
-              <th rowSpan={2} className="border-r border-b border-gray-300 px-2 py-1.5">Remarks</th>
+            <tr>
+              {[0, 1].map((i) => (
+                <Fragment key={i}>
+                  <th key={`ind${i}`} rowSpan={2} className={hdInd}>INDICATORS</th>
+                  <th key={`sex${i}`} colSpan={2} className={hd}>Sex</th>
+                  <th key={`tot${i}`} rowSpan={2} className={hd}>Total</th>
+                  <th key={`rem${i}`} rowSpan={2} colSpan={2} className={hd}>Remarks</th>
+                </Fragment>
+              ))}
             </tr>
-            <tr className="bg-gray-50">
-              <th className="border-r border-b border-gray-300 px-2 py-1.5">Male</th>
-              <th className="border-r border-b border-gray-300 px-2 py-1.5">Female</th>
+            <tr>
+              {[0, 1].map((i) => (
+                <Fragment key={i}>
+                  <th key={`m${i}`} className={hd}>Male</th>
+                  <th key={`f${i}`} className={hd}>Female</th>
+                </Fragment>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {MEASURES.map((measure) => (
-              <>
-                <tr key={measure.key} className={FORM_SECTION_BAND}>
-                  <td colSpan={5} className={`border-r border-b border-gray-300 px-2 py-1.5 font-semibold ${FORM_SECTION_BAND}`}>
-                    {measure.heading}
-                  </td>
-                </tr>
-                {FHSIS_BANDS.map((band, idx) => {
-                  const c = counts[band.key as FhsisBandKey][measure.key];
-                  // Infants have no facility/non-facility split on the form.
-                  const hasSubRows = band.key !== 'infants';
-                  const n = idx + 1;
-                  return (
-                    <>
-                      <tr key={`${measure.key}-${band.key}`}>
-                        <td className="border-r border-b border-gray-300 px-2 py-1.5">
-                          {band.key === 'infants'
-                            ? `${n}. Infants 0-11 months old who had their first dental visit`
-                            : `${n}. ${measure.caption(band.label)}`}
-                        </td>
-                        {cell(c.male)}
-                        {cell(c.female)}
-                        {cell(c.male + c.female)}
-                        <td className="border-r border-b border-gray-300 px-2 py-1.5" />
-                      </tr>
-                      {hasSubRows &&
-                        (['a', 'b'] as const).map((suffix) => {
-                          const sub = suffix === 'a' ? c.facility : c.nonFacility;
-                          const unrecorded = c.unrecorded.male + c.unrecorded.female;
-                          // Only render figures once SOMETHING in this cell was
-                          // actually flagged. With every visit unflagged (all
-                          // pre-Sprint-81 data) a "0" would be a false claim —
-                          // "nobody had facility-based care" — where "—" is the
-                          // true one: not recorded. A true 0 and an unfillable
-                          // cell are different claims and the form shows them
-                          // differently.
-                          const anyFlagged = c.facility.male + c.facility.female + c.nonFacility.male + c.nonFacility.female > 0;
-                          return (
-                          <tr key={`${measure.key}-${band.key}-${suffix}`} className="text-muted-foreground">
-                            <td className="border-r border-b border-gray-300 px-2 py-1.5 pl-6">
-                              {n}
-                              {suffix}. {band.label} who{' '}
-                              {measure.key === 'first' ? 'had their 1st visit' : 'completed 2 visits'} to a{' '}
-                              {suffix === 'a' ? 'facility-based' : 'non-facility-based'} oral health care professional
-                              within a year
-                            </td>
-                            {anyFlagged ? cell(sub.male) : blank(NO_FACILITY_FIELD)}
-                            {anyFlagged ? cell(sub.female) : blank(NO_FACILITY_FIELD)}
-                            {anyFlagged ? cell(sub.male + sub.female) : blank(NO_FACILITY_FIELD)}
-                            <td className="border-r border-b border-gray-300 px-2 py-1.5 text-[11px]">
-                              {!anyFlagged
-                                ? 'not recorded'
-                                : unrecorded > 0
-                                  // Says why a + b is short of the total, so the
-                                  // gap reads as missing data and not as an
-                                  // arithmetic error on a filed form.
-                                  ? `${unrecorded} visit${unrecorded === 1 ? '' : 's'} not classified`
-                                  : ''}
-                            </td>
-                          </tr>
-                          );
-                        })}
-                    </>
-                  );
-                })}
-              </>
-            ))}
-
-            {/* Pregnant women — on the form, no source in the system. */}
             <tr className={FORM_SECTION_BAND}>
-              <td colSpan={5} className={`border-r border-b border-gray-300 px-2 py-1.5 font-semibold ${FORM_SECTION_BAND}`}>
-                PREGNANT WOMEN (by age group)
+              <td colSpan={12} className={`border-b border-gray-300 px-2 py-1.5 font-semibold ${FORM_SECTION_BAND}`}>
+                FIRST VISIT TO AN ORAL HEALTH CARE PROFESSIONAL
               </td>
             </tr>
-            {MEASURES.map((measure) =>
-              PREGNANT_AGE_GROUPS.map((group) => (
-                <tr key={`preg-${measure.key}-${group}`} className="text-muted-foreground">
-                  <td className="border-r border-b border-gray-300 px-2 py-1.5">
-                    6. Pregnant Women {group} who{' '}
-                    {measure.key === 'first' ? 'had their 1st visit' : 'completed 2 visits'} to an oral health care
-                    professional within a year
-                  </td>
-                  {blank(NO_PREGNANCY)}
-                  {blank(NO_PREGNANCY)}
-                  {blank(NO_PREGNANCY)}
-                  <td className="border-r border-b border-gray-300 px-2 py-1.5 text-[11px]">not recorded</td>
-                </tr>
-              )),
-            )}
+            {Array.from({ length: pairs }, (_, i) => (
+              <tr key={`row-${i}`}>
+                {half(leftRows[i], 'first')}
+                {half(rightRows[i], 'completed')}
+              </tr>
+            ))}
+            {/* Pregnant women — on the form, no source in the system. */}
+            <tr>
+              {[0, 1].map((i) => (
+                <Fragment key={i}>
+                  <th key={`pi${i}`} rowSpan={2} className={hdInd}>INDICATORS</th>
+                  <th key={`pa${i}`} colSpan={3} className={hd}>Age Group</th>
+                  <th key={`pt${i}`} rowSpan={2} className={hd}>Total</th>
+                  <th key={`pr${i}`} rowSpan={2} className={hd}>Remarks</th>
+                </Fragment>
+              ))}
+            </tr>
+            <tr>
+              {[0, 1].flatMap((i) => ['10-14', '15-19', '20-49'].map((g) => <th key={`pg${i}${g}`} className={hd}>{g}</th>))}
+            </tr>
+            {(['', 'a', 'b'] as const).map((suffix) => (
+              <tr key={`preg-${suffix}`}>
+                {pregHalf('first', suffix)}
+                {pregHalf('completed', suffix)}
+              </tr>
+            ))}
           </tbody>
         </table>
 
@@ -363,7 +388,7 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
           Counts come from recorded preventive-care visits for the selected period. Cells marked “—” are left blank
           rather than estimated: pregnancy status has no field in this system at all, and a facility-based sub-row is
           blank when none of the visits counted in it were classified. Where some were, the sub-rows show real figures
-          and Remarks states how many visits are unclassified — so the two sub-rows may add up to less than the total.
+          and Remarks states how many visits are unclassified, so the two sub-rows may add up to less than the total.
         </p>
       </div>
       <PreviewModal
