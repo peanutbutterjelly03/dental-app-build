@@ -29,6 +29,7 @@ export function useReportLayout(reportKey: ReportKey) {
   const pick = (doc: StoredLayout): ReportLayout => ({
     report_key: reportKey,
     hidden_cols: doc.hidden_cols ?? [],
+    hidden_rows: doc.hidden_rows ?? [],
     added_cols: doc.added_cols ?? [],
     added_rows: doc.added_rows ?? [],
     labels: doc.labels ?? [],

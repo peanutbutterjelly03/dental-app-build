@@ -6,7 +6,10 @@
 // cells of rows/columns the user added are editable.
 
 /** Every report table that carries a layout. Add a key here when a table is wired. */
-export const REPORT_KEYS = ['procedure_counts', 'condition_counts', 'school_summary'] as const;
+export const REPORT_KEYS = [
+  'procedure_counts', 'condition_counts', 'school_summary',
+  'doh_consolidated', 'program_report', 'fhsis', 'target_client_list', 'others_referrals',
+] as const;
 export type ReportKey = typeof REPORT_KEYS[number];
 
 export interface AddedItem { key: string; label: string; /** Key it sits after; null = at the very start. */ after: string | null }
@@ -16,6 +19,7 @@ export interface CellValue { row: string; col: string; value: string }
 export interface ReportLayout {
   report_key: ReportKey;
   hidden_cols: string[];
+  hidden_rows: string[];
   added_cols: AddedItem[];
   added_rows: AddedItem[];
   /** Keys are `c:<columnKey>` or `r:<rowKey>`. */
@@ -24,7 +28,7 @@ export interface ReportLayout {
 }
 
 export const emptyLayout = (report_key: ReportKey): ReportLayout => ({
-  report_key, hidden_cols: [], added_cols: [], added_rows: [], labels: [], cells: [],
+  report_key, hidden_cols: [], hidden_rows: [], added_cols: [], added_rows: [], labels: [], cells: [],
 });
 
 export interface LCol { key: string; label: string; /** Header group the column sits under (e.g. a grade). */ group?: string; added?: boolean; /** Never hidden (the label column). */ locked?: boolean }
@@ -60,10 +64,28 @@ export function layoutColumns(base: LCol[], layout: ReportLayout): LCol[] {
     .map((c) => ({ ...c, label: labelOf(layout, 'c', c.key, c.label) }));
 }
 
-/** The rows to draw: added rows inserted and labels renamed. */
+/** The rows to draw: added rows inserted, hidden rows removed, labels renamed. */
 export function layoutRows(base: LRow[], layout: ReportLayout): LRow[] {
+  const hidden = new Set(layout.hidden_rows);
   return withAdded(base, layout.added_rows, (a) => ({ key: a.key, label: a.label, added: true }))
+    .filter((r) => !hidden.has(r.key))
     .map((r) => ({ ...r, label: labelOf(layout, 'r', r.key, r.label) }));
+}
+
+/** Rows split over several lists (a form's sections). An added row joins the list
+ *  that holds its anchor, so it appears once, in the right section; a row added
+ *  at the very start goes to the first list. */
+export function layoutRowGroups(lists: LRow[][], layout: ReportLayout): LRow[][] {
+  const home = new Map<string, number>();
+  lists.forEach((l, i) => l.forEach((r) => home.set(r.key, i)));
+  const perList: AddedItem[][] = lists.map(() => []);
+  for (const a of layout.added_rows) {
+    const at = a.after === null ? 0 : home.get(a.after);
+    if (at === undefined) continue;
+    home.set(a.key, at);
+    perList[at].push(a);
+  }
+  return lists.map((l, i) => layoutRows(l, { ...layout, added_rows: perList[i] }));
 }
 
 export const cellText = (layout: ReportLayout, row: string, col: string): string =>
@@ -86,6 +108,12 @@ export function hideColumns(layout: ReportLayout, keys: string[]): ReportLayout 
   return { ...layout, hidden_cols: [...new Set([...layout.hidden_cols, ...keys])].slice(0, LIMITS.hidden) };
 }
 export const showAllColumns = (layout: ReportLayout): ReportLayout => ({ ...layout, hidden_cols: [] });
+export function hideRows(layout: ReportLayout, keys: string[]): ReportLayout {
+  return { ...layout, hidden_rows: [...new Set([...layout.hidden_rows, ...keys])].slice(0, LIMITS.hidden) };
+}
+export const showAllRows = (layout: ReportLayout): ReportLayout => ({ ...layout, hidden_rows: [] });
+/** Bring back every hidden row and column. */
+export const showAll = (layout: ReportLayout): ReportLayout => ({ ...layout, hidden_cols: [], hidden_rows: [] });
 export function setLabel(layout: ReportLayout, prefix: 'c' | 'r', key: string, value: string): ReportLayout {
   const k = `${prefix}:${key}`;
   const rest = layout.labels.filter((l) => l.key !== k);
@@ -125,6 +153,7 @@ export function layoutProblems(body: Partial<ReportLayout>): string[] {
     if (!Array.isArray(v) || v.length > max) p.push(`${name} is too long.`);
   };
   arr(body.hidden_cols, LIMITS.hidden, 'Hidden columns');
+  arr(body.hidden_rows, LIMITS.hidden, 'Hidden rows');
   arr(body.added_cols, LIMITS.cols, 'Added columns');
   arr(body.added_rows, LIMITS.rows, 'Added rows');
   arr(body.labels, LIMITS.labels, 'Labels');
@@ -136,5 +165,6 @@ export function layoutProblems(body: Partial<ReportLayout>): string[] {
   for (const l of body.labels ?? []) if (tooLong(l?.key, 80) || tooLong(l?.value, LIMITS.label)) { p.push('A label is not valid.'); break; }
   for (const c of body.cells ?? []) if (tooLong(c?.row, 64) || tooLong(c?.col, 64) || tooLong(c?.value, LIMITS.cell)) { p.push('A cell is not valid.'); break; }
   for (const k of body.hidden_cols ?? []) if (tooLong(k, 80)) { p.push('A hidden column is not valid.'); break; }
+  for (const k of body.hidden_rows ?? []) if (tooLong(k, 80)) { p.push('A hidden row is not valid.'); break; }
   return p;
 }

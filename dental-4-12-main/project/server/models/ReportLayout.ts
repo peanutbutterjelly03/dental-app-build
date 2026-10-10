@@ -26,6 +26,7 @@ const reportLayoutSchema = new mongoose.Schema(
   {
     report_key: { type: String, required: true, enum: REPORT_KEYS },
     hidden_cols: { type: [{ type: String, maxlength: 80 }], default: [] },
+    hidden_rows: { type: [{ type: String, maxlength: 80 }], default: [] },
     added_cols: { type: [addedSchema], default: [] },
     added_rows: { type: [addedSchema], default: [] },
     labels: { type: [new mongoose.Schema({ key: { type: String, maxlength: 80 }, value: { type: String, maxlength: LIMITS.label } }, { _id: false })], default: [] },

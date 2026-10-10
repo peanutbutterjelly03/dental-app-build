@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
-  addColumn, addRow, hideColumns, removeAdded, resetLayout, setCell, setLabel, showAllColumns, isEditableCell, cellText,
+  addColumn, addRow, hideColumns, hideRows, removeAdded, resetLayout, setCell, setLabel, showAll, isEditableCell, cellText,
   type LCol, type LRow,
 } from '../../../shared/reportLayout';
 import type { ReportLayoutApi } from '../hooks/useReportLayout';
@@ -33,8 +33,13 @@ const parse = (el: Element | null): Target => {
   };
 };
 
-export function ReportLayoutMenu({ api, columns, rows, children }: {
-  api: ReportLayoutApi; columns: LCol[]; rows: LRow[]; children: ReactNode;
+export function ReportLayoutMenu({ api, columns, rows, extraRows = [], footerKeys = [], children }: {
+  api: ReportLayoutApi; columns: LCol[]; rows: LRow[];
+  /** Rows that can be renamed and hidden but are not places to insert beside (a form's sub-rows). */
+  extraRows?: LRow[];
+  /** Keys of rows below the list (a TOTAL row): only "add row above" and cell edits apply. */
+  footerKeys?: string[];
+  children: ReactNode;
 }) {
   const { layout, update, canEdit } = api;
   const [at, setAt] = useState<{ x: number; y: number; t: Target } | null>(null);
@@ -60,6 +65,7 @@ export function ReportLayoutMenu({ api, columns, rows, children }: {
 
   const col = (key?: string) => columns.find((c) => c.key === key);
   const row = (key?: string) => rows.find((r) => r.key === key);
+  const extra = (key?: string) => extraRows.find((r) => r.key === key);
 
   const open = (x: number, y: number, t: Target, initial?: Mode) => {
     setAt({ x, y, t });
@@ -78,7 +84,7 @@ export function ReportLayoutMenu({ api, columns, rows, children }: {
     const t = parse(e.target as Element);
     if (!t.ck || !t.rk) return;
     const c = col(t.ck);
-    const r = row(t.rk);
+    const r = row(t.rk) ?? extra(t.rk);
     if (!isEditableCell(!!r?.added, !!c?.added)) return;
     e.preventDefault();
     editCell(e.clientX, e.clientY, t);
@@ -97,12 +103,16 @@ export function ReportLayoutMenu({ api, columns, rows, children }: {
   const t = at?.t;
   const c = col(t?.ck);
   const r = row(t?.rk);
+  const x = r ? undefined : extra(t?.rk);
+  const isFooter = !!t?.rk && !r && !x && footerKeys.includes(t.rk);
   const colIdx = c ? columns.findIndex((x) => x.key === c.key) : -1;
   const prevCol = colIdx > 0 ? columns[colIdx - 1].key : null;
   const rowIdx = r ? rows.findIndex((x) => x.key === r.key) : -1;
   const prevRow = rowIdx > 0 ? rows[rowIdx - 1].key : null;
-  const editable = !!(t?.ck && t?.rk) && isEditableCell(!!r?.added, !!c?.added);
-  const hiddenCount = layout.hidden_cols.length;
+  const editable = !!(t?.ck && t?.rk) && isEditableCell(!!(r ?? x)?.added, !!c?.added);
+  const hiddenCols = layout.hidden_cols.length;
+  const hiddenRows = layout.hidden_rows.length;
+  const hiddenCount = hiddenCols + hiddenRows;
   const lastRow = rows.length ? rows[rows.length - 1].key : null;
 
   const item = (label: string, run: () => void, opts: { danger?: boolean } = {}) => (
@@ -131,21 +141,28 @@ export function ReportLayoutMenu({ api, columns, rows, children }: {
                   {!c.locked && item('Add column to the left', () => ask('New column name', '', (v) => update((l) => addColumn(l, prevCol, v))))}
                   {item('Add column to the right', () => ask('New column name', '', (v) => update((l) => addColumn(l, c.key, v))))}
                   {item('Rename column', () => ask('Column name', c.label, (v) => update((l) => setLabel(l, 'c', c.key, v))))}
-                  {!c.locked && !c.added && item('Hide column', done(() => update((l) => hideColumns(l, [c.key]))))}
+                  {!c.locked && item('Hide column', done(() => update((l) => hideColumns(l, [c.key]))))}
                   {c.added && item('Delete this added column', done(() => update((l) => removeAdded(l, 'c', c.key))), { danger: true })}
                 </>
               )}
               {t?.cg && t.cg.length > 0 && !t.ck && item(`Hide ${t.cgl ?? 'these'} columns`, done(() => update((l) => hideColumns(l, t.cg!))))}
-              {t?.ck && c && t?.rk && sep('s1')}
+              {t?.ck && c && t?.rk && (r || x || isFooter) && sep('s1')}
               {t?.rk && r && (
                 <>
                   {item('Add row above', () => ask('New row name', '', (v) => update((l) => addRow(l, prevRow, v))))}
                   {item('Add row below', () => ask('New row name', '', (v) => update((l) => addRow(l, r.key, v))))}
                   {item('Rename row', () => ask('Row name', r.label, (v) => update((l) => setLabel(l, 'r', r.key, v))))}
+                  {item('Hide row', done(() => update((l) => hideRows(l, [r.key]))))}
                   {r.added && item('Delete this added row', done(() => update((l) => removeAdded(l, 'r', r.key))), { danger: true })}
                 </>
               )}
-              {t?.rk && !r && lastRow !== undefined && item('Add row above this', () => ask('New row name', '', (v) => update((l) => addRow(l, lastRow, v))))}
+              {x && (
+                <>
+                  {item('Rename row', () => ask('Row name', x.label, (v) => update((l) => setLabel(l, 'r', x.key, v))))}
+                  {item('Hide row', done(() => update((l) => hideRows(l, [x.key]))))}
+                </>
+              )}
+              {isFooter && item('Add row above this', () => ask('New row name', '', (v) => update((l) => addRow(l, lastRow, v))))}
               {editable && (
                 <>
                   {sep('s2')}
@@ -153,7 +170,7 @@ export function ReportLayoutMenu({ api, columns, rows, children }: {
                 </>
               )}
               {sep('s3')}
-              {hiddenCount > 0 && item(`Show hidden columns (${hiddenCount})`, done(() => update((l) => showAllColumns(l))))}
+              {hiddenCount > 0 && item(`Show hidden ${hiddenCols && hiddenRows ? 'rows and columns' : hiddenRows ? 'rows' : 'columns'} (${hiddenCount})`, done(() => update((l) => showAll(l))))}
               {item('Reset table layout', done(() => update((l) => resetLayout(l))), { danger: true })}
             </>
           )}
@@ -180,14 +197,16 @@ function InputStep({ title, initial, onSubmit, onCancel }: { title: string; init
   );
 }
 
-/** Small "n hidden" line shown above a table that has hidden columns, so they can be brought back without a right click. Not printed. */
+/** Small "n hidden" chip shown on a table that has hidden rows or columns, so they can be brought back without a right click. Not printed. */
 export function HiddenColumnsNote({ api }: { api: ReportLayoutApi }) {
-  const n = api.layout.hidden_cols.length;
-  if (!n || !api.canEdit) return null;
+  const c = api.layout.hidden_cols.length;
+  const r = api.layout.hidden_rows.length;
+  if (!(c + r) || !api.canEdit) return null;
+  const what = [c ? `${c} column${c === 1 ? '' : 's'}` : '', r ? `${r} row${r === 1 ? '' : 's'}` : ''].filter(Boolean).join(' and ');
   return (
-    <button type="button" onClick={() => api.update((l) => showAllColumns(l))}
+    <button type="button" onClick={() => api.update((l) => showAll(l))}
       className="print-hide rounded-full bg-white/15 px-3 py-0.5 text-xs font-semibold text-white hover:bg-white/25">
-      {n} hidden column{n === 1 ? '' : 's'}. Show
+      {what} hidden. Show
     </button>
   );
 }

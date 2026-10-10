@@ -426,7 +426,11 @@ export const Reports = () => {
     const r1 = dohRow1Ref.current;
     const r2 = dohRow2Ref.current;
     if (!r0 || !r1 || !r2) return;
-    const measure = () => setDohRowH({ r0: r0.offsetHeight, r1: r1.offsetHeight, r2: r2.offsetHeight });
+    // Bail out when nothing changed: this effect runs after every render, so a new object each time would loop.
+    const measure = () => setDohRowH((prev) => {
+      const next = { r0: r0.offsetHeight, r1: r1.offsetHeight, r2: r2.offsetHeight };
+      return prev.r0 === next.r0 && prev.r1 === next.r1 && prev.r2 === next.r2 ? prev : next;
+    });
     measure();
     if (typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(measure);

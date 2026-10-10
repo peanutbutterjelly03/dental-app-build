@@ -18,10 +18,12 @@ import { buildDohReportPdf } from '../utils/exportPdf';
 import { buildXlsx } from '../utils/exportXlsx';
 import { usePreviewModal } from '../hooks/usePreviewModal';
 import { PreviewModal } from './PreviewModal';
-import { SlidersHorizontal } from 'lucide-react';
 import { PanelShell, PanelRow, FiltersButton, ExportMenu } from './ReportControls';
 import { PeriodDatesBoxes, type PeriodDatesValue } from './PeriodDatesBoxes';
 import { toLocalDateString } from '../utils/localDate';
+import { useReportLayout } from '../hooks/useReportLayout';
+import { cellText, layoutColumns, layoutRowGroups, layoutRows, showAll, type LCol, type LRow } from '../../../shared/reportLayout';
+import { ReportLayoutMenu } from './ReportLayoutMenu';
 
 /** What a no-source cell says in the exported workbook — the same mark the
  *  screen shows, so the file makes the identical claims as the report. */
@@ -165,6 +167,8 @@ type Row = {
    *  form with a missing line. A parent carrying sub-rows renders NO values
    *  itself — its `field` is meaningless and stays null. */
   subRows?: Row[];
+  /** A row the user added through the right-click menu: no computed values, cells hold typed text. */
+  added?: boolean;
 };
 
 /** Section A of the paper form. Read off Appendix F (`image18`) on 2026-09-03
@@ -314,15 +318,6 @@ const OTHER_ROWS: Row[] = [
  *  (both Adolescent and Pregnant Women carry "10-14 y/o"). */
 const colKey = (c: Col) => `${c.group}|${c.label}`;
 
-function loadSet(key: string): Set<string> {
-  try {
-    const raw = window.localStorage.getItem(key);
-    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
-  } catch {
-    return new Set();
-  }
-}
-
 export const OralHealthProgramReport = ({ schoolName = null }: { schoolName?: string | null }) => {
   // → A wide banded grid, like the consolidated report.
   usePrintOrientation('landscape');
@@ -337,16 +332,15 @@ export const OralHealthProgramReport = ({ schoolName = null }: { schoolName?: st
   });
   const { getRealTotal, loading } = useDohReportData(null, schoolName, period.start, period.end);
 
-  // Hidden rows/columns and expanded parents, remembered per browser.
+  // Hidden rows and columns, added rows and columns, and renamed labels live in
+  // the saved layout of this table (right-click a cell; see ReportLayoutMenu).
   //
-  // ⚠ Hiding CHANGES THE OUTPUT, not just the view — the dentist asked for
-  // that explicitly ("so report can change content ... like excels"). A print
-  // of this form therefore may not be the complete standard form, so the note
-  // under the table NAMES what is hidden. An incomplete form that looks
-  // complete is the failure mode worth preventing.
-  const [hiddenRows, setHiddenRows] = useState<Set<string>>(() => loadSet('ohprf-hidden-rows'));
-  const [hiddenCols, setHiddenCols] = useState<Set<string>>(() => loadSet('ohprf-hidden-cols'));
-  const [showPicker, setShowPicker] = useState(false);
+  // ⚠ Hiding CHANGES THE OUTPUT, not just the view. A print of this form
+  // therefore may not be the complete standard form, so the note above the
+  // table NAMES what is hidden. An incomplete form that looks complete is the
+  // failure mode worth preventing.
+  const layoutApi = useReportLayout('program_report');
+  const layout = layoutApi.layout;
   const { preview, building, previewPdf, previewExcel, closePreview, confirmDownload } = usePreviewModal();
   // Wraps only the table, so the PDF carries the form and not the toolbar.
   const printableRef = useRef<HTMLDivElement>(null);
@@ -361,7 +355,8 @@ export const OralHealthProgramReport = ({ schoolName = null }: { schoolName?: st
     const r1 = row1Ref.current;
     const r2 = row2Ref.current;
     if (!r1 || !r2) return;
-    const measure = () => setRowH({ r1: r1.offsetHeight, r2: r2.offsetHeight });
+    // Bail out when nothing changed: this effect runs after every render, so a new object each time would loop.
+    const measure = () => setRowH((prev) => (prev.r1 === r1.offsetHeight && prev.r2 === r2.offsetHeight ? prev : { r1: r1.offsetHeight, r2: r2.offsetHeight }));
     measure();
     if (typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(measure);
@@ -370,25 +365,45 @@ export const OralHealthProgramReport = ({ schoolName = null }: { schoolName?: st
     return () => ro.disconnect();
   });
 
-  const persist = (key: string, next: Set<string>) => {
-    try { window.localStorage.setItem(key, JSON.stringify([...next])); } catch { /* private mode */ }
-  };
-  const toggle = (set: Set<string>, key: string) => {
-    const next = new Set(set);
-    if (next.has(key)) next.delete(key); else next.add(key);
-    return next;
-  };
-  const visibleCols = COLUMNS.filter((c) => !hiddenCols.has(colKey(c)));
-  // Recomputed from what is actually shown — a group band spanning hidden
+  // Columns as the saved layout draws them. The first one is the (locked) label column.
+  const baseLCols: LCol[] = [
+    { key: 'label', label: 'INDICATORS', locked: true },
+    ...COLUMNS.map((c) => ({ key: colKey(c), label: c.label, group: c.group })),
+  ];
+  const lcols = layoutColumns(baseLCols, layout);
+  const labelCol = lcols[0];
+  const dataCols = lcols.filter((c) => !c.locked);
+  const colByKey = new Map(COLUMNS.map((c) => [colKey(c), c]));
+  /** Cells a column draws: a form column is an M/F pair, an added column is one cell. */
+  const widthOf = (c: LCol) => (c.added ? 1 : SEXES.length);
+  const totalCells = dataCols.reduce((n, c) => n + widthOf(c), 0);
+  // Recomputed from what is actually shown: a group band spanning hidden
   // columns would push the whole header out of alignment with its body.
-  const visibleGroups = visibleCols.reduce<{ label: string; span: number }[]>((acc, c) => {
+  const visibleGroups = dataCols.reduce<{ label: string; span: number; keys: string[] }[]>((acc, c) => {
     const last = acc[acc.length - 1];
-    if (last && last.label === c.group) last.span += 1;
-    else acc.push({ label: c.group, span: 1 });
+    if (last && last.label === (c.group ?? '')) { last.span += widthOf(c); last.keys.push(c.key); }
+    else acc.push({ label: c.group ?? '', span: widthOf(c), keys: [c.key] });
     return acc;
   }, []);
-  const hiddenCount = hiddenRows.size + hiddenCols.size;
-  const rowVisible = (r: Row) => !hiddenRows.has(r.key);
+  const hiddenCount = layout.hidden_rows.length + layout.hidden_cols.length;
+
+  // Rows: each section's list, with added rows inserted, hidden ones removed and
+  // labels renamed. A form-mandated sub-row can be hidden or renamed like any row.
+  const sectionLists: Row[][] = [UTILIZATION_ROWS, STATUS_ROWS, SERVICE_ROWS, OTHER_ROWS];
+  const sourceRow = new Map<string, Row>(sectionLists.flat().map((r) => [r.key, r]));
+  const laidSections = layoutRowGroups(sectionLists.map((l) => l.map((r) => ({ key: r.key, label: r.label }))), layout);
+  const subLines: LRow[] = [];
+  const resolved: Row[][] = laidSections.map((list) => list.flatMap((lr): Row[] => {
+    if (lr.added) return [{ key: lr.key, label: lr.label, field: null, added: true }];
+    const src = sourceRow.get(lr.key)!;
+    if (!src.subRows) return [{ ...src, label: lr.label }];
+    // Sub-rows can be hidden or renamed, never inserted beside, so no added rows join their lists.
+    const subs = layoutRows(src.subRows.map((x) => ({ key: x.key, label: x.label })), { ...layout, added_rows: [] });
+    if (!subs.length) return [];
+    subLines.push(...subs);
+    return [{ ...src, label: lr.label, subRows: subs.map((x) => ({ ...src.subRows!.find((o) => o.key === x.key)!, label: x.label })) }];
+  }));
+  const allListedRows: LRow[] = laidSections.flat();
 
   // The form's columns are age × sex only. This reads the hook's across-all-
   // grades total rather than summing getRealCount over a grade list: that sum
@@ -424,71 +439,93 @@ export const OralHealthProgramReport = ({ schoolName = null }: { schoolName?: st
     // which scrolls with the data (user, 2026-10-06: the section rows stay fixed when scrolling sideways).
     <tr className={PR_ORANGE}>
       <td className={`${labelTd} font-bold ${PR_ORANGE} `} colSpan={2}>{title}</td>
-      <td className={`${td} ${PR_ORANGE}`} colSpan={visibleCols.length * 2 + 1} />
+      <td className={`${td} ${PR_ORANGE}`} colSpan={totalCells + 1} />
     </tr>
   );
   /** The all-black rows between sections were removed (user, 2026-10-06); the orange section bars separate them. */
   const spacer = (_key: string): React.ReactNode => null;
   /** A blocked cell: the whole row, or the form's blocked leading columns. */
   const isBlocked = (r: Row, c: Col) => !!r.blocked || (r.blockedThrough !== undefined && COLUMNS.indexOf(c) <= r.blockedThrough);
+  const typedText = (r: Row, c: LCol) => cellText(layout, r.key, c.key);
   /** Zero shows EMPTY, a count shows as a number, and "—" is still "no source" (user, 2026-10-06). */
   const show = (v: number | null) => (v === null || v === 0 ? '' : v);
 
   /** The line printed directly under each line, within its own section (sections are separated by their bar). */
   const nextLine = new Map<string, Row | undefined>();
-  [UTILIZATION_ROWS, STATUS_ROWS, SERVICE_ROWS, OTHER_ROWS].forEach((list) => {
-    const lines = list.filter(rowVisible).flatMap((r) => r.subRows ?? [r]);
+  resolved.forEach((list) => {
+    const lines = list.flatMap((r) => r.subRows ?? [r]);
     lines.forEach((l, i) => nextLine.set(l.key, lines[i + 1]));
   });
 
   /** The value cells for one line — every age/sex column plus the grand total.
    *  Shared by plain rows and sub-rows, which carry identical value grids. */
-  const valueCells = (r: Row) => (
-    <>
-      {visibleCols.map((c, ci) => SEXES.map((s, si) => {
-        const v = cell(r.field, c, s);
-        const key = `${c.group}-${c.label}-${s}`;
-        // A blocked cell carries no value and no dash: the paper form fills it solid, meaning "do not write here".
-        // Only the INSIDE borders of a gray block are dropped (between its cells, left to right and top to bottom);
-        // its outline stays, drawn by the border of the cell on its outer side.
-        if (isBlocked(r, c)) {
-          const rightCol = visibleCols[ci + 1];
-          const keepRight = si === 1 && (rightCol ? !isBlocked(r, rightCol) : !!r.blocked === false);
-          const below = nextLine.get(r.key);
-          const keepBottom = !below || !isBlocked(below, c);
-          return <td key={key} className={`${td} ${PR_BLOCKED}${keepRight ? '' : ' !border-r-0'}${keepBottom ? '' : ' !border-b-0'}`} title={BLOCKED_TITLE} />;
-        }
-        return (
-          <td key={key} className={`${td} ${c.label.startsWith('Total') ? PR_TOTAL : ''} ${v === null ? 'text-muted-foreground' : ''}`}>
-            {show(v)}
+  const valueCells = (r: Row) => {
+    // A row the user added: no computed values, one typed cell per column.
+    if (r.added) {
+      return (
+        <>
+          {dataCols.map((c) => (
+            <td key={c.key} data-ck={c.key} data-rk={r.key} colSpan={widthOf(c)} className={td}>{typedText(r, c)}</td>
+          ))}
+          <td className={`${td} ${PR_GRAND}`} />
+        </>
+      );
+    }
+    return (
+      <>
+        {dataCols.map((lc) => {
+          // A column the user added has no computed values: it holds typed text.
+          if (lc.added) {
+            return <td key={lc.key} data-ck={lc.key} data-rk={r.key} className={td}>{typedText(r, lc)}</td>;
+          }
+          const c = colByKey.get(lc.key)!;
+          const ci = dataCols.findIndex((x) => x.key === lc.key);
+          return <Fragment key={lc.key}>{SEXES.map((s, si) => {
+            const v = cell(r.field, c, s);
+            const key = `${lc.key}-${s}`;
+            // A blocked cell carries no value and no dash: the paper form fills it solid, meaning "do not write here".
+            // Only the INSIDE borders of a gray block are dropped (between its cells, left to right and top to bottom);
+            // its outline stays, drawn by the border of the cell on its outer side.
+            if (isBlocked(r, c)) {
+              const rightLc = dataCols[ci + 1];
+              const rightCol = rightLc && !rightLc.added ? colByKey.get(rightLc.key) : undefined;
+              const keepRight = si === 1 && (rightLc ? (!rightCol || !isBlocked(r, rightCol)) : !!r.blocked === false);
+              const below = nextLine.get(r.key);
+              const keepBottom = !below || !isBlocked(below, c);
+              return <td key={key} data-ck={lc.key} data-rk={r.key} className={`${td} ${PR_BLOCKED}${keepRight ? '' : ' !border-r-0'}${keepBottom ? '' : ' !border-b-0'}`} title={BLOCKED_TITLE} />;
+            }
+            return (
+              <td key={key} data-ck={lc.key} data-rk={r.key} className={`${td} ${c.label.startsWith('Total') ? PR_TOTAL : ''} ${v === null ? 'text-muted-foreground' : ''}`}>
+                {show(v)}
+              </td>
+            );
+          })}</Fragment>;
+        })}
+        {r.blocked ? (
+          <td className={`${td} ${PR_BLOCKED}`} title={BLOCKED_TITLE} />
+        ) : (
+          <td className={`${td} ${PR_GRAND}`}>
+            {show(rowTotal(r.field))}
           </td>
-        );
-      }))}
-      {r.blocked ? (
-        <td className={`${td} ${PR_BLOCKED}`} title={BLOCKED_TITLE} />
-      ) : (
-        <td className={`${td} ${PR_GRAND}`}>
-          {show(rowTotal(r.field))}
-        </td>
-      )}
-    </>
-  );
+        )}
+      </>
+    );
+  };
 
   const renderRow = (r: Row): React.ReactNode => {
-    if (!rowVisible(r)) return null;
-
     // An indicator with the form's own two-line split: the label spans its
-    // sub-rows and carries NO values of its own, exactly as printed. The
-    // sub-rows are not collapsible — they are part of the form.
+    // sub-rows and carries NO values of its own, exactly as printed. A sub-row
+    // can be hidden or renamed from the right-click menu, but it is never
+    // collapsed by default — it is part of the form.
     if (r.subRows) {
       return (
         <Fragment key={r.key}>
           {r.subRows.map((sub, i) => (
-            <tr key={sub.key} className="hover:bg-gray-50">
+            <tr key={sub.key} data-rk={sub.key} className="hover:bg-gray-50">
               {i === 0 && (
-                <td className={`${labelTd} align-middle !whitespace-normal`} rowSpan={r.subRows!.length}>{r.label}</td>
+                <td data-ck="label" data-rk={r.key} className={`${labelTd} align-middle !whitespace-normal`} rowSpan={r.subRows!.length}>{r.label}</td>
               )}
-              <td className={`${labelTd} ${PR_SUBROW} text-[11px]`}>{sub.label}</td>
+              <td data-ck="label" data-rk={sub.key} className={`${labelTd} ${PR_SUBROW} text-[11px]`}>{sub.label}</td>
               {valueCells(sub)}
             </tr>
           ))}
@@ -498,8 +535,8 @@ export const OralHealthProgramReport = ({ schoolName = null }: { schoolName?: st
 
     // A plain indicator spans both label columns, as the form does.
     return (
-      <tr key={r.key} className="hover:bg-gray-50">
-        <td className={`${labelTd} ${r.indent ? '!pl-11' : ''}`} colSpan={2}>{r.label}</td>
+      <tr key={r.key} data-rk={r.key} className="hover:bg-gray-50">
+        <td data-ck="label" data-rk={r.key} className={`${labelTd} ${r.indent ? '!pl-11' : ''}`} colSpan={2}>{r.label}</td>
         {valueCells(r)}
       </tr>
     );
@@ -527,18 +564,24 @@ export const OralHealthProgramReport = ({ schoolName = null }: { schoolName?: st
       const rows: XRow[] = [];
       const push = (section: string, list: Row[]) => {
         for (const r of list) {
-          if (!rowVisible(r)) continue;
           const emit = (row: Row, indicator: string, sub: string) => {
             rows.push({
               section,
               indicator,
               sub,
-              cells: visibleCols.flatMap((c) => SEXES.map((s) => {
-                if (isBlocked(row, c)) return '';
-                const v = cell(row.field, c, s);
-                return v === null || v === 0 ? '' : v;
-              })),
-              total: row.blocked ? '' : (rowTotal(row.field) || ''),
+              // The file holds exactly what the screen draws: hidden columns left out,
+              // added columns in. Typed text of an added row sits in the first cell of a column's pair.
+              cells: dataCols.flatMap((lc): (string | number)[] => {
+                if (row.added) return lc.added ? [typedText(row, lc)] : [typedText(row, lc), ''];
+                if (lc.added) return [typedText(row, lc)];
+                const c = colByKey.get(lc.key)!;
+                return SEXES.map((s) => {
+                  if (isBlocked(row, c)) return '';
+                  const v = cell(row.field, c, s);
+                  return v === null || v === 0 ? '' : v;
+                });
+              }),
+              total: row.blocked || row.added ? '' : (rowTotal(row.field) || ''),
             });
           };
           // A parent with sub-rows has no values of its own on the form, so it
@@ -547,19 +590,18 @@ export const OralHealthProgramReport = ({ schoolName = null }: { schoolName?: st
           else emit(r, r.label, '');
         }
       };
-      push('A. Patient Seeking Behaviour', UTILIZATION_ROWS);
-      push('B. Oral Health Status', STATUS_ROWS);
-      push('C. Services Rendered', SERVICE_ROWS);
-      push('Other Procedures', OTHER_ROWS);
+      push('A. Patient Seeking Behaviour', resolved[0]);
+      push('B. Oral Health Status', resolved[1]);
+      push('C. Services Rendered', resolved[2]);
+      push('Other Procedures', resolved[3]);
 
+      // Header labels line up with the cells above: one per cell, so an added column is one column.
+      const cellLabels = dataCols.flatMap((lc) => (lc.added ? [`${lc.group ?? ''} · ${lc.label}`] : SEXES.map((s) => `${lc.group ?? ''} · ${lc.label} · ${s}`)));
       const cols = [
         { label: 'Section', value: (r: XRow) => r.section },
-        { label: 'Indicator', value: (r: XRow) => r.indicator },
+        { label: labelCol.label, value: (r: XRow) => r.indicator },
         { label: '', value: (r: XRow) => r.sub },
-        ...visibleCols.flatMap((c, ci) => SEXES.map((s, si) => ({
-          label: `${c.group} · ${c.label} · ${s}`,
-          value: (r: XRow) => r.cells[ci * SEXES.length + si] ?? '',
-        }))),
+        ...cellLabels.map((label, i) => ({ label, value: (r: XRow) => r.cells[i] ?? '' })),
         { label: 'Grand Total', value: (r: XRow) => r.total },
       ];
       return buildXlsx(rows, cols, 'Program Report');
@@ -576,13 +618,13 @@ export const OralHealthProgramReport = ({ schoolName = null }: { schoolName?: st
           <div className="flex self-start lg:ml-auto">
             <FiltersButton count={hiddenCount}>
               <p className="text-[12px] text-muted-foreground">
-                {hiddenCount ? `${hiddenRows.size} row(s) and ${hiddenCols.size} column(s) hidden. Hidden items do not print.` : 'All rows and columns are shown.'}
+                {hiddenCount ? `${layout.hidden_rows.length} row(s) and ${layout.hidden_cols.length} column(s) hidden. Hidden items do not print.` : 'All rows and columns are shown.'}
               </p>
-              <button type="button" onClick={() => setShowPicker((v) => !v)}
-                className="flex h-9 items-center gap-2 rounded-[10px] border border-[#e3e7ef] bg-[#f1f3f8] px-3 text-[12.5px] font-bold text-[#46536d] hover:bg-[#e9ecf3]">
-                <SlidersHorizontal className="h-4 w-4 text-[#7a859b]" aria-hidden="true" />
-                {showPicker ? 'Close rows and columns' : 'Choose rows and columns'}
-              </button>
+              <p className="text-[12px] text-muted-foreground">Right-click the table to hide, add or rename rows and columns.</p>
+              {hiddenCount > 0 && layoutApi.canEdit && (
+                <button type="button" className="h-9 rounded-[10px] text-[12.5px] font-bold text-primary hover:underline"
+                  onClick={() => layoutApi.update((l) => showAll(l))}>Show everything</button>
+              )}
             </FiltersButton>
             <ExportMenu joined busy={building} onPrint={() => window.print()} onPdf={onPdf} onExcel={onXlsx}
               excelDisabledReason={loading ? 'Loading' : undefined} pdfDisabledReason={loading ? 'Loading' : undefined} />
@@ -630,8 +672,8 @@ export const OralHealthProgramReport = ({ schoolName = null }: { schoolName?: st
               <div className="mt-3 space-y-1 border-t border-[#dfe5f0] pt-2.5 text-xs text-muted-foreground">
                 {hiddenCount > 0 && (
                   <p><span className="font-semibold text-foreground">This form is not the complete standard form:</span>{' '}
-                  {hiddenRows.size} row{hiddenRows.size === 1 ? '' : 's'} and {hiddenCols.size} column
-                  {hiddenCols.size === 1 ? '' : 's'} are hidden, and hidden items do not print.</p>
+                  {layout.hidden_rows.length} row{layout.hidden_rows.length === 1 ? '' : 's'} and {layout.hidden_cols.length} column
+                  {layout.hidden_cols.length === 1 ? '' : 's'} are hidden, and hidden items do not print.</p>
                 )}
                 {UNVERIFIED_COUNT > 0 && (
                   <p><span className="border-b border-dotted border-amber-500">Dotted</span> column captions
@@ -644,57 +686,6 @@ export const OralHealthProgramReport = ({ schoolName = null }: { schoolName?: st
         );
       })()}
 
-      {showPicker && (
-        <div className="bg-card rounded-xl border border-border p-4 space-y-3 text-xs">
-          <p className="text-muted-foreground">
-            Untick to hide. Hiding changes what is <span className="font-medium text-foreground">printed</span>,
-            not just what is on screen — the note under the table records anything hidden, so a shortened form
-            is never mistaken for the complete one.
-          </p>
-          <div>
-            <div className="font-semibold text-foreground mb-1.5">Columns</div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5">
-              {COLUMNS.map((c) => (
-                <label key={colKey(c)} className="flex items-center gap-1.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={!hiddenCols.has(colKey(c))}
-                    onChange={() => setHiddenCols((p) => { const n = toggle(p, colKey(c)); persist('ohprf-hidden-cols', n); return n; })}
-                    className="w-3.5 h-3.5 rounded accent-primary"
-                  />
-                  <span className="truncate" title={`${c.group} · ${c.label}`}>{c.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-          <div>
-            <div className="font-semibold text-foreground mb-1.5">Rows</div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
-              {[...UTILIZATION_ROWS, ...STATUS_ROWS, ...SERVICE_ROWS, ...OTHER_ROWS].map((r) => (
-                <label key={r.key} className="flex items-center gap-1.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={!hiddenRows.has(r.key)}
-                    onChange={() => setHiddenRows((p) => { const n = toggle(p, r.key); persist('ohprf-hidden-rows', n); return n; })}
-                    className="w-3.5 h-3.5 rounded accent-primary"
-                  />
-                  <span className="truncate" title={r.label}>{r.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-          {hiddenCount > 0 && (
-            <button
-              onClick={() => {
-                setHiddenRows(new Set()); persist('ohprf-hidden-rows', new Set());
-                setHiddenCols(new Set()); persist('ohprf-hidden-cols', new Set());
-              }}
-              className="px-2 py-1 border border-border rounded-md text-foreground hover:bg-gray-50"
-            >Show everything</button>
-          )}
-        </div>
-      )}
-
       {/* The box fills the screen below the top strip and touches its bottom edge (negative bottom margin
           cancels the page padding), so the header rows and the two label columns stay frozen and only the
           cells scroll. The PDF capture lifts the height limit. */}
@@ -704,59 +695,64 @@ export const OralHealthProgramReport = ({ schoolName = null }: { schoolName?: st
         className="form-print no-scrollbar cursor-grab bg-card rounded-t-xl border border-[#A9BDE6] overflow-auto print:max-h-none [&_tbody>tr:last-child>td]:border-b-0 [&_tbody_tr>:last-child]:border-r-0 [&_thead_tr:first-child>:last-child]:border-r-0"
         style={{ maxHeight: `max(320px, calc(100vh - ${TOPBAR_H + 18}px))`, ['--ohp-r2' as string]: `${rowH.r1}px`, ['--ohp-r3' as string]: `${rowH.r1 + rowH.r2}px` }}
       >
+        <ReportLayoutMenu api={layoutApi} columns={lcols} rows={allListedRows} extraRows={subLines}>
         <table className="border-separate border-spacing-0 w-full">
           <colgroup><col style={{ width: '26rem', minWidth: '26rem', maxWidth: '26rem' }} /><col style={{ width: '9rem', minWidth: '9rem', maxWidth: '9rem' }} /></colgroup>
           <thead className="bg-gray-50">
             {/* Three header levels, matching the paper form: population group
-                → age column → M/F. This file previously had only the lower two,
-                which made the band a third of its printed height and dropped
-                the grouping that tells a reader why the age columns are cut
-                where they are. Only the groups Floral can actually populate are
+                → age column → M/F. Only the groups Floral can actually populate are
                 rendered — see the note above about the adult / senior citizen /
-                pregnant-women sections. */}
+                pregnant-women sections. A column added from the right-click menu
+                is one cell wide and spans the two lower header rows. */}
             <tr ref={row1Ref} className="[&>th]:sticky [&>th]:top-0 [&>th]:z-20">
-              <th className={`${th} text-left align-bottom bg-card`} rowSpan={3} colSpan={2}>INDICATORS</th>
+              <th data-ck="label" className={`${th} text-left align-bottom bg-card`} rowSpan={3} colSpan={2}>{labelCol.label}</th>
               {visibleGroups.map((g, i) => (
-                <th key={`${g.label}-${i}`} className={`${th} ${PR_ORANGE}`} colSpan={g.span * SEXES.length}>
+                <th key={`${g.label}-${i}`} data-cg={g.keys.join(',')} data-cgl={g.label} className={`${th} ${PR_ORANGE}`} colSpan={g.span}>
                   {g.label}
                 </th>
               ))}
               <th className={`${th} align-bottom bg-gray-50`} rowSpan={3}>Grand<br />Total</th>
             </tr>
             <tr ref={row2Ref} className="[&>th]:sticky [&>th]:top-[var(--ohp-r2)] [&>th]:z-20">
-              {visibleCols.map((c, i) => (
-                <th key={`${c.label}-${i}`} className={`${th} bg-white`} colSpan={2}>
-                  {/* Dotted underline marks a caption read off the low-res scan
-                      that still needs checking against the paper form. */}
-                  <span className={c.unverified ? 'border-b border-dotted border-amber-500' : ''}
-                        title={c.unverified ? 'Caption unverified — check against the paper DOH form' : undefined}>
-                    {c.label}
-                  </span>
-                </th>
-              ))}
+              {dataCols.map((lc, i) => {
+                const c = colByKey.get(lc.key);
+                return (
+                  <th key={`${lc.key}-${i}`} data-ck={lc.key} className={`${th} bg-white`} colSpan={lc.added ? 1 : 2} rowSpan={lc.added ? 2 : 1}>
+                    {/* Dotted underline marks a caption read off the low-res scan
+                        that still needs checking against the paper form. */}
+                    <span className={c?.unverified ? 'border-b border-dotted border-amber-500' : ''}
+                          title={c?.unverified ? 'Caption unverified — check against the paper DOH form' : undefined}>
+                      {lc.label}
+                    </span>
+                  </th>
+                );
+              })}
             </tr>
             <tr className="[&>th]:sticky [&>th]:top-[var(--ohp-r3)] [&>th]:z-20">
-              {visibleCols.map((c, i) => SEXES.map((s) => (
-                <th key={`${c.label}-${i}-${s}`} className={`${th} w-10 bg-white`}>{s}</th>
-              )))}
+              {dataCols.filter((c) => !c.added).map((lc) => (
+                <Fragment key={lc.key}>
+                  {SEXES.map((s) => <th key={s} data-ck={lc.key} className={`${th} w-10 bg-white`}>{s}</th>)}
+                </Fragment>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {/* Lettered A–D, as the paper form numbers them. The app used
-                I/II/III and was missing section A entirely. */}
+            {/* Lettered A–D, as the paper form numbers them. */}
             {section('A. Patient Seeking Behaviour')}
-            {UTILIZATION_ROWS.map(renderRow)}
+            {resolved[0].map(renderRow)}
             {spacer('sp-a')}
             {section('B. Oral Health Status')}
-            {STATUS_ROWS.map(renderRow)}
+            {resolved[1].map(renderRow)}
             {spacer('sp-b')}
             {section('C. Services Rendered')}
-            {SERVICE_ROWS.map(renderRow)}
+            {resolved[2].map(renderRow)}
             {spacer('sp-c')}
             {section('Other Procedures')}
-            {OTHER_ROWS.map(renderRow)}
+            {resolved[3].map(renderRow)}
           </tbody>
         </table>
+        </ReportLayoutMenu>
+        {layoutApi.error && <p className="print-hide px-4 py-2 text-xs text-destructive">{layoutApi.error}</p>}
       </div>
       <GridEdgeButtons edge={edge} onStep={step} leftInFirstColumn />
       </div>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { emptyLayout, layoutColumns, layoutRows, addColumn, addRow, hideColumns, showAllColumns, setLabel, setCell, removeAdded, isEditableCell, cellText, layoutProblems, type LCol, type LRow } from './reportLayout';
+import { emptyLayout, layoutColumns, layoutRows, layoutRowGroups, hideRows, showAll, addColumn, addRow, hideColumns, showAllColumns, setLabel, setCell, removeAdded, isEditableCell, cellText, layoutProblems, type LCol, type LRow } from './reportLayout';
 
 const cols: LCol[] = [
   { key: 'name', label: 'Procedure', locked: true },
@@ -69,5 +69,17 @@ describe('report layout', () => {
     expect(layoutProblems({ report_key: 'nope' as never })).not.toEqual([]);
     expect(layoutProblems({ cells: [{ row: 'r', col: 'c', value: 'x'.repeat(500) }] })).not.toEqual([]);
     expect(layoutProblems({ report_key: 'procedure_counts', hidden_cols: ['a'] })).toEqual([]);
+  });
+  it('hides rows and brings them back with showAll', () => {
+    const l = hideRows(base(), ['r1']);
+    expect(layoutRows(rows, l).map((r) => r.key)).toEqual(['r2']);
+    expect(layoutRows(rows, showAll(l)).length).toBe(2);
+  });
+  it('puts an added row in the section that holds its anchor, once', () => {
+    const lists: LRow[][] = [[{ key: 'a1', label: 'A1' }], [{ key: 'b1', label: 'B1' }]];
+    const l = addRow(addRow(base(), 'b1', 'In B'), null, 'At start');
+    const [first, second] = layoutRowGroups(lists, l);
+    expect(first.map((r) => r.label)).toEqual(['At start', 'A1']);
+    expect(second.map((r) => r.label)).toEqual(['B1', 'In B']);
   });
 });

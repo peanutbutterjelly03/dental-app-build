@@ -109,7 +109,7 @@ export function GradeSexTable(props: GridInput & { eyebrow: string; title: strin
           </div>
         </div>
       </div>
-      <ReportLayoutMenu api={api} columns={cols} rows={rows}>
+      <ReportLayoutMenu api={api} columns={cols} rows={rows} footerKeys={showTotalRow ? [TOTAL_ROW] : []}>
         <div className="no-scrollbar overflow-x-auto">
           <table className="w-full text-[13px]" style={{ borderCollapse: 'collapse', minWidth: `${Math.max(480, 230 + leafCols.length * 66)}px` }}>
             <thead>
