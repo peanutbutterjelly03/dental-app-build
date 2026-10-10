@@ -1006,7 +1006,7 @@ export const Reports = () => {
               <table style={{borderCollapse:'separate', borderSpacing:0, fontSize:'10px', whiteSpace:'nowrap', ['--doh-r1' as string]: `${dohRowH.r0}px`, ['--doh-r2' as string]: `${dohRowH.r0 + dohRowH.r1}px`, ['--doh-r3' as string]: `${dohRowH.r0 + dohRowH.r1 + dohRowH.r2}px`}}>
                 {/* ── TITLE ── */}
                 <thead>
-                  <tr ref={dohRow0Ref} className="[&>th]:sticky [&>th]:top-0 [&>th]:z-10">
+                  <tr ref={dohRow0Ref} className="[&>th]:sticky [&>th]:top-0 [&>th]:z-20">
                     <th colSpan={1 + cols.length*2 + sumCols.length*2 + 2}
                       className="text-center py-2 px-3 bg-[#CFDDF6] border-b border-border text-[11px] font-bold text-[#273A78] uppercase tracking-wide">
                       {/* Pinned to the visible width (100cqw = this scroller) so the title stays centred on screen
@@ -1019,13 +1019,13 @@ export const Reports = () => {
                   </tr>
 
                   {/* ── ROW 1: GRADE HEADERS ── */}
-                  <tr ref={dohRow1Ref} className="bg-gray-50 border-b border-border [&>th]:sticky [&>th]:top-[var(--doh-r1)] [&>th]:z-10">
+                  <tr ref={dohRow1Ref} className="bg-gray-50 border-b border-border [&>th]:sticky [&>th]:top-[var(--doh-r1)] [&>th]:z-20">
                     {/* Phones (< sm): the frozen label column is a fixed 9rem and
                         wraps, so data columns show beside it (it used to take
                         321 of 346 px at 390 px wide, user-reported 2026-10-04).
                         sm and up are unchanged. The PDF export renders at the
                         table's full width, so it always gets the sm+ layout. */}
-                    <th data-doh="indicator" rowSpan={3} className="sticky left-0 bg-gray-50 !z-20 text-left px-2 py-1 border-r border-border text-[10px] font-semibold text-muted-foreground min-w-[240px] max-sm:w-36 max-sm:min-w-36">
+                    <th data-doh="indicator" rowSpan={3} className="sticky left-0 bg-gray-50 !z-30 text-left px-2 py-1 border-r border-border text-[10px] font-semibold text-muted-foreground min-w-[240px] max-sm:w-36 max-sm:min-w-36">
                       Indicator
                     </th>
                     {visibleGrades.map(g => {
@@ -1046,7 +1046,7 @@ export const Reports = () => {
                   </tr>
 
                   {/* ── ROW 2: AGE BRACKET HEADERS ── */}
-                  <tr ref={dohRow2Ref} className="bg-gray-50 border-b border-border [&>th]:sticky [&>th]:top-[var(--doh-r2)] [&>th]:z-10 [&>th]:bg-gray-50">
+                  <tr ref={dohRow2Ref} className="bg-gray-50 border-b border-border [&>th]:sticky [&>th]:top-[var(--doh-r2)] [&>th]:z-20 [&>th]:bg-gray-50">
                     {visibleGrades.map(g =>
                       [...GRADE_BRACKETS[g].ages.map(a => (
                         <th key={g+a} colSpan={2}
@@ -1068,7 +1068,7 @@ export const Reports = () => {
                   </tr>
 
                   {/* ── ROW 3: M/F HEADERS ── */}
-                  <tr className="bg-gray-50 border-b-2 border-border [&>th]:sticky [&>th]:top-[var(--doh-r3)] [&>th]:z-10 [&>th]:bg-gray-50">
+                  <tr className="bg-gray-50 border-b-2 border-border [&>th]:sticky [&>th]:top-[var(--doh-r3)] [&>th]:z-20 [&>th]:bg-gray-50">
                     {visibleGrades.map(g =>
                       [...GRADE_BRACKETS[g].ages.flatMap(a => [
                         <th key={g+a+'M'} className={`${thBase} text-blue-600 w-6`}>M</th>,
