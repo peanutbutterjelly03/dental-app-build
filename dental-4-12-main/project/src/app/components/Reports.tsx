@@ -1211,48 +1211,87 @@ export const Reports = () => {
           {internalSection === 'treatment' && (
             <div className="space-y-4">
 
-              {/* Table */}
-              <div className="bg-card rounded-xl border border-border overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-foreground">Procedure Counts</h3>
-                </div>
-                <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead className="bg-gray-50 border-b border-border">
-                    <tr>
-                      <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">Procedure</th>
-                      <th className="text-center px-4 py-2.5 font-semibold text-blue-500 uppercase tracking-wide text-[10px]">Male</th>
-                      <th className="text-center px-4 py-2.5 font-semibold text-pink-500 uppercase tracking-wide text-[10px]">Female</th>
-                      <th className="text-center px-4 py-2.5 font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {TREATMENT_ROWS.map(p => {
-                      const m = cnt(realTreatmentMatrix, p, 'M');
-                      const f = cnt(realTreatmentMatrix, p, 'F');
-                      const t = m + f;
-                      return (
-                        <tr key={p} className="hover:bg-gray-50">
-                          <td className="px-4 py-2.5 font-medium text-foreground">{labelForCode.get(p) ?? p}</td>
-                          <td className="px-4 py-2.5 text-center text-blue-700">{m}</td>
-                          <td className="px-4 py-2.5 text-center text-pink-700">{f}</td>
-                          <td className="px-4 py-2.5 text-center font-bold text-foreground">{t}</td>
-                        </tr>
-                      );
-                    })}
-                    <tr className="bg-gray-50 border-t-2 border-border">
-                      <td className="px-4 py-2.5 font-bold text-foreground">TOTAL</td>
-                      <td className="px-4 py-2.5 text-center font-bold text-blue-700">{TREATMENT_ROWS.reduce((s,p)=>s+cnt(realTreatmentMatrix,p,'M'),0)}</td>
-                      <td className="px-4 py-2.5 text-center font-bold text-pink-700">{TREATMENT_ROWS.reduce((s,p)=>s+cnt(realTreatmentMatrix,p,'F'),0)}</td>
-                      <td className="px-4 py-2.5 text-center font-bold text-foreground">{TREATMENT_ROWS.reduce((s,p)=>s+cnt(realTreatmentMatrix,p,'all'),0)}</td>
-                    </tr>
-                  </tbody>
-                </table>
-                </div>
-                <p className="px-4 py-2 text-[11px] text-muted-foreground border-t border-gray-100">
-                  Counted from tooth-level treatment records; each is dated by its chart's charting date (tooth records carry no individual date).
-                </p>
-              </div>
+              {/* Procedure counts by grade: Male and Female under each grade, then the totals. */}
+              {(() => {
+                const gradeCols = activeGrades ?? ALL_GRADES_INT;
+                const sumAll = (sex: 'M' | 'F' | 'all') => TREATMENT_ROWS.reduce((n, p) => n + cnt(realTreatmentMatrix, p, sex), 0);
+                const totM = sumAll('M');
+                const totF = sumAll('F');
+                const totAll = sumAll('all');
+                const hdr = 'border-l border-white/20 px-1.5 py-2 text-center text-[11px] font-extrabold tracking-wide text-white';
+                const sub = 'border-l border-white/10 px-1.5 py-1.5 text-center text-[10px] font-bold text-white/90';
+                return (
+                  <div className="overflow-hidden rounded-2xl border border-[#A9BDE6] bg-card">
+                    <div className="bg-gradient-to-br from-[#273c7b] to-[#1b2d63] px-5 py-3.5 text-white">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#aebbe0]">Internal Reports</div>
+                          <div className="text-lg font-extrabold">Procedure Counts</div>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          <span className="rounded-full bg-white/15 px-3 py-0.5 text-xs font-bold">Male {totM}</span>
+                          <span className="rounded-full bg-white/15 px-3 py-0.5 text-xs font-bold">Female {totF}</span>
+                          <span className="rounded-full bg-white px-3 py-0.5 text-xs font-bold text-[#1b2d63]">Total {totAll}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="no-scrollbar overflow-x-auto">
+                      <table className="w-full min-w-[720px] text-[13px]" style={{ borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr className="bg-[#1b2d63]">
+                            <th rowSpan={2} className="min-w-[220px] px-4 py-2 text-left text-[11px] font-extrabold tracking-wide text-white">PROCEDURE</th>
+                            {gradeCols.map((g) => <th key={g} colSpan={2} className={`${hdr} border-b border-b-white/25`}>{g.toUpperCase()}</th>)}
+                            <th colSpan={3} className={`${hdr} border-b border-b-white/25 bg-[#2c4690]`}>TOTAL</th>
+                          </tr>
+                          <tr className="bg-[#1b2d63]">
+                            {gradeCols.map((g) => (
+                              <Fragment key={g}><th className={sub}>MALE</th><th className={sub}>FEMALE</th></Fragment>
+                            ))}
+                            <th className={`${sub} bg-[#2c4690]`}>MALE</th>
+                            <th className={`${sub} bg-[#2c4690]`}>FEMALE</th>
+                            <th className={`${sub} bg-[#2c4690]`}>TOTAL</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {TREATMENT_ROWS.map((p) => {
+                            const m = cnt(realTreatmentMatrix, p, 'M');
+                            const f = cnt(realTreatmentMatrix, p, 'F');
+                            return (
+                              <tr key={p} className="border-b border-[#dfe5f0] hover:bg-[#f8faff]">
+                                <td className="px-4 py-2 font-medium text-foreground">{labelForCode.get(p) ?? p}</td>
+                                {gradeCols.map((g) => (
+                                  <Fragment key={g}>
+                                    <td className="px-1.5 py-2 text-center tabular-nums text-blue-700">{getCount(realTreatmentMatrix, p, g, 'M')}</td>
+                                    <td className="px-1.5 py-2 text-center tabular-nums text-pink-700">{getCount(realTreatmentMatrix, p, g, 'F')}</td>
+                                  </Fragment>
+                                ))}
+                                <td className="bg-[#eef3fd] px-1.5 py-2 text-center font-bold tabular-nums text-blue-700">{m}</td>
+                                <td className="bg-[#eef3fd] px-1.5 py-2 text-center font-bold tabular-nums text-pink-700">{f}</td>
+                                <td className="bg-[#eef3fd] px-1.5 py-2 text-center font-bold tabular-nums text-foreground">{m + f}</td>
+                              </tr>
+                            );
+                          })}
+                          <tr className="border-t-2 border-[#dfe5f0] font-extrabold">
+                            <td className="px-4 py-2.5">TOTAL</td>
+                            {gradeCols.map((g) => (
+                              <Fragment key={g}>
+                                <td className="px-1.5 py-2.5 text-center tabular-nums text-blue-700">{TREATMENT_ROWS.reduce((n, p) => n + getCount(realTreatmentMatrix, p, g, 'M'), 0)}</td>
+                                <td className="px-1.5 py-2.5 text-center tabular-nums text-pink-700">{TREATMENT_ROWS.reduce((n, p) => n + getCount(realTreatmentMatrix, p, g, 'F'), 0)}</td>
+                              </Fragment>
+                            ))}
+                            <td className="bg-[#eef3fd] px-1.5 py-2.5 text-center tabular-nums text-blue-700">{totM}</td>
+                            <td className="bg-[#eef3fd] px-1.5 py-2.5 text-center tabular-nums text-pink-700">{totF}</td>
+                            <td className="bg-[#eef3fd] px-1.5 py-2.5 text-center tabular-nums">{totAll}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className="border-t border-[#dfe5f0] px-4 py-2 text-[11px] text-muted-foreground">
+                      Counted from tooth-level treatment records; each is dated by its chart's charting date (tooth records carry no individual date).
+                    </p>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
