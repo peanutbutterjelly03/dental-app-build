@@ -11,7 +11,8 @@ import { buildXlsx } from '../utils/exportXlsx';
 import { usePreviewModal } from '../hooks/usePreviewModal';
 import { PreviewModal } from './PreviewModal';
 import { SkeletonTable } from './Skeleton';
-import { FORM_SECTION_BAND } from '../utils/dohFormStyle';
+// Section bands: the app's light blue, matching the other report tabs (was the form's amber).
+const FORM_SECTION_BAND = 'bg-[#CFDDF6] text-[#273A78]';
 
 // ─── FHSIS · SECTION D. ORAL HEALTH CARE SERVICES ────────────────────────────
 // Transcribed from the "FHSIS" sheet of the workbook the user supplied
@@ -227,9 +228,9 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
   }
   if (loading) return <div className="space-y-4">{panel}<SkeletonTable rows={12} /></div>;
 
-  const cell = (v: number) => <td className="border border-gray-300 px-2 py-1.5 text-center tabular-nums">{v}</td>;
+  const cell = (v: number) => <td className="border-r border-b border-gray-300 px-2 py-1.5 text-center tabular-nums">{v}</td>;
   const blank = (title: string) => (
-    <td className="border border-gray-300 px-2 py-1.5 text-center text-muted-foreground" title={title}>
+    <td className="border-r border-b border-gray-300 px-2 py-1.5 text-center text-muted-foreground" title={title}>
       —
     </td>
   );
@@ -246,38 +247,30 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
           element's own rendered box, so a banner placed outside it shows on
           screen and is silently missing from the PDF — the exact trap noted on
           the DOH Consolidated report. */}
-      <div ref={printableRef} className="form-print overflow-x-auto rounded-lg border border-gray-200 bg-card p-4">
-        {/* Header band, as printed. */}
-        <div className="mb-3 text-sm">
-          <div className="flex flex-wrap gap-x-8 gap-y-1">
-            <span>
-              <span className="font-semibold">School:</span> {schoolName || 'All schools'}
-            </span>
-            <span>
-              <span className="font-semibold">Month:</span> {periodPrinted}
-            </span>
-          </div>
-          <div className="mt-2 font-semibold">SECTION D. ORAL HEALTH CARE SERVICES</div>
-        </div>
-
-        <table className="w-full min-w-[900px] border-collapse text-xs">
+      <div ref={printableRef} className="form-print no-scrollbar overflow-x-auto rounded-t-xl border border-[#A9BDE6] bg-card [&_tr>:last-child]:border-r-0">
+        <table className="w-full min-w-[900px] text-xs" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
           <thead>
-            <tr className="bg-gray-50">
-              <th rowSpan={2} className="border border-gray-300 px-2 py-1.5 text-left">Indicators</th>
-              <th colSpan={2} className="border border-gray-300 px-2 py-1.5">Sex</th>
-              <th rowSpan={2} className="border border-gray-300 px-2 py-1.5">Total</th>
-              <th rowSpan={2} className="border border-gray-300 px-2 py-1.5">Remarks</th>
+            <tr>
+              <th colSpan={5} className="border-b border-gray-300 bg-[#CFDDF6] px-3 py-2 text-center text-[11px] font-bold uppercase tracking-wide text-[#273A78]">
+                Section D: Oral Health Care Services
+              </th>
             </tr>
             <tr className="bg-gray-50">
-              <th className="border border-gray-300 px-2 py-1.5">Male</th>
-              <th className="border border-gray-300 px-2 py-1.5">Female</th>
+              <th rowSpan={2} className="border-r border-b border-gray-300 px-2 py-2 text-left align-bottom text-[11px] font-semibold">INDICATORS</th>
+              <th colSpan={2} className="border-r border-b border-gray-300 px-2 py-1.5">Sex</th>
+              <th rowSpan={2} className="border-r border-b border-gray-300 px-2 py-1.5">Total</th>
+              <th rowSpan={2} className="border-r border-b border-gray-300 px-2 py-1.5">Remarks</th>
+            </tr>
+            <tr className="bg-gray-50">
+              <th className="border-r border-b border-gray-300 px-2 py-1.5">Male</th>
+              <th className="border-r border-b border-gray-300 px-2 py-1.5">Female</th>
             </tr>
           </thead>
           <tbody>
             {MEASURES.map((measure) => (
               <>
                 <tr key={measure.key} className={FORM_SECTION_BAND}>
-                  <td colSpan={5} className={`border border-gray-300 px-2 py-1.5 font-semibold ${FORM_SECTION_BAND}`}>
+                  <td colSpan={5} className={`border-r border-b border-gray-300 px-2 py-1.5 font-semibold ${FORM_SECTION_BAND}`}>
                     {measure.heading}
                   </td>
                 </tr>
@@ -289,7 +282,7 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
                   return (
                     <>
                       <tr key={`${measure.key}-${band.key}`}>
-                        <td className="border border-gray-300 px-2 py-1.5">
+                        <td className="border-r border-b border-gray-300 px-2 py-1.5">
                           {band.key === 'infants'
                             ? `${n}. Infants 0-11 months old who had their first dental visit`
                             : `${n}. ${measure.caption(band.label)}`}
@@ -297,7 +290,7 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
                         {cell(c.male)}
                         {cell(c.female)}
                         {cell(c.male + c.female)}
-                        <td className="border border-gray-300 px-2 py-1.5" />
+                        <td className="border-r border-b border-gray-300 px-2 py-1.5" />
                       </tr>
                       {hasSubRows &&
                         (['a', 'b'] as const).map((suffix) => {
@@ -313,7 +306,7 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
                           const anyFlagged = c.facility.male + c.facility.female + c.nonFacility.male + c.nonFacility.female > 0;
                           return (
                           <tr key={`${measure.key}-${band.key}-${suffix}`} className="text-muted-foreground">
-                            <td className="border border-gray-300 px-2 py-1.5 pl-6">
+                            <td className="border-r border-b border-gray-300 px-2 py-1.5 pl-6">
                               {n}
                               {suffix}. {band.label} who{' '}
                               {measure.key === 'first' ? 'had their 1st visit' : 'completed 2 visits'} to a{' '}
@@ -323,7 +316,7 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
                             {anyFlagged ? cell(sub.male) : blank(NO_FACILITY_FIELD)}
                             {anyFlagged ? cell(sub.female) : blank(NO_FACILITY_FIELD)}
                             {anyFlagged ? cell(sub.male + sub.female) : blank(NO_FACILITY_FIELD)}
-                            <td className="border border-gray-300 px-2 py-1.5 text-[11px]">
+                            <td className="border-r border-b border-gray-300 px-2 py-1.5 text-[11px]">
                               {!anyFlagged
                                 ? 'not recorded'
                                 : unrecorded > 0
@@ -344,14 +337,14 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
 
             {/* Pregnant women — on the form, no source in the system. */}
             <tr className={FORM_SECTION_BAND}>
-              <td colSpan={5} className={`border border-gray-300 px-2 py-1.5 font-semibold ${FORM_SECTION_BAND}`}>
+              <td colSpan={5} className={`border-r border-b border-gray-300 px-2 py-1.5 font-semibold ${FORM_SECTION_BAND}`}>
                 PREGNANT WOMEN (by age group)
               </td>
             </tr>
             {MEASURES.map((measure) =>
               PREGNANT_AGE_GROUPS.map((group) => (
                 <tr key={`preg-${measure.key}-${group}`} className="text-muted-foreground">
-                  <td className="border border-gray-300 px-2 py-1.5">
+                  <td className="border-r border-b border-gray-300 px-2 py-1.5">
                     6. Pregnant Women {group} who{' '}
                     {measure.key === 'first' ? 'had their 1st visit' : 'completed 2 visits'} to an oral health care
                     professional within a year
@@ -359,14 +352,14 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
                   {blank(NO_PREGNANCY)}
                   {blank(NO_PREGNANCY)}
                   {blank(NO_PREGNANCY)}
-                  <td className="border border-gray-300 px-2 py-1.5 text-[11px]">not recorded</td>
+                  <td className="border-r border-b border-gray-300 px-2 py-1.5 text-[11px]">not recorded</td>
                 </tr>
               )),
             )}
           </tbody>
         </table>
 
-        <p className="mt-3 text-xs text-muted-foreground">
+        <p className="px-3 py-2.5 text-xs text-muted-foreground">
           Counts come from recorded preventive-care visits for the selected period. Cells marked “—” are left blank
           rather than estimated: pregnancy status has no field in this system at all, and a facility-based sub-row is
           blank when none of the visits counted in it were classified. Where some were, the sub-rows show real figures
