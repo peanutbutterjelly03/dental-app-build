@@ -7,10 +7,13 @@ import { formatDate, toLocalDateString } from '../utils/localDate';
 import { PanelShell, PanelRow, GroupBox, Underlined, PeriodSwitch, fieldInputClass, ExportMenu, BOX_W } from './ReportControls';
 import { useFhsisData, FHSIS_BANDS, type FhsisBandKey, type Measure } from '../hooks/useFhsisData';
 import { buildDohReportPdf } from '../utils/exportPdf';
-import { buildXlsx } from '../utils/exportXlsx';
+import { buildSheetsXlsx } from '../utils/exportXlsx';
 import { usePreviewModal } from '../hooks/usePreviewModal';
 import { PreviewModal } from './PreviewModal';
 import { SkeletonTable } from './Skeleton';
+import { useReportLayout } from '../hooks/useReportLayout';
+import { cellText, layoutColumns, layoutRowGroups, layoutRows, showAll, type LCol, type LRow } from '../../../shared/reportLayout';
+import { ReportLayoutMenu } from './ReportLayoutMenu';
 // Section band: same look as the DOH Consolidated section rows (light blue fill, bold uppercase navy text).
 const FORM_SECTION_BAND = 'bg-blue-50 text-blue-900';
 
@@ -114,6 +117,8 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
     return () => ro.disconnect();
   }, [loading, error]);
   const printableRef = useRef<HTMLDivElement>(null);
+  const layoutApi = useReportLayout('fhsis');
+  const layout = layoutApi.layout;
   // Heights of the pinned rows (title, two header rows), so each sticks right under the one above.
   const rowTitleRef = useRef<HTMLTableRowElement>(null);
   const rowH1Ref = useRef<HTMLTableRowElement>(null);
@@ -141,55 +146,50 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
   const onXlsx = async () => {
     setXlsxBusy(true);
     try {
-      const blob = await (async () => {
-      type Row = { indicator: string; male: string; female: string; total: string; remarks: string };
-      const rows: Row[] = [];
-      const dash = { male: '', female: '', total: '', remarks: '' };
-      for (const measure of MEASURES) {
-        rows.push({ indicator: measure.heading, male: '', female: '', total: '', remarks: '' });
-        FHSIS_BANDS.forEach((band, idx) => {
-          const c = counts[band.key as FhsisBandKey][measure.key];
-          const n = idx + 1;
-          rows.push({
-            indicator:
-              band.key === 'infants'
-                ? `${n}. Infants 0-11 months old who had their first dental visit`
-                : `${n}. ${measure.caption(band.label)}`,
-            male: String(c.male),
-            female: String(c.female),
-            total: String(c.male + c.female),
-            remarks: '',
-          });
-          if (band.key === 'infants') return;
-          for (const suffix of ['a', 'b'] as const) {
-            rows.push({
-              indicator: `${n}${suffix}. ${band.label} who ${measure.key === 'first' ? 'had their 1st visit' : 'completed 2 visits'} to a ${suffix === 'a' ? 'facility-based' : 'non-facility-based'} oral health care professional within a year`,
-              ...dash,
-            });
-          }
-        });
-      }
-      rows.push({ indicator: 'PREGNANT WOMEN (by age group)', male: '', female: '', total: '', remarks: '' });
-      for (const measure of MEASURES) {
-        for (const group of PREGNANT_AGE_GROUPS) {
-          rows.push({
-            indicator: `6. Pregnant Women ${group} who ${measure.key === 'first' ? 'had their 1st visit' : 'completed 2 visits'} to an oral health care professional within a year`,
-            ...dash,
-          });
-        }
-      }
-      return buildXlsx(
-        rows,
-        [
-          { label: `Indicators — School: ${schoolName || 'All schools'} — Month: ${periodPrinted}`, value: (r) => r.indicator },
-          { label: 'Male', value: (r) => r.male },
-          { label: 'Female', value: (r) => r.female },
-          { label: 'Total', value: (r) => r.total },
-          { label: 'Remarks', value: (r) => r.remarks },
-        ],
-        'FHSIS Section D',
-      );
-      })();
+      // Same lists the screen renders, so hidden items stay out and added/renamed ones come through.
+      const mainCols = (['L', 'R'] as const).flatMap((h) => [halves[h].ind, ...halves[h].data]);
+      const cellFor = (h: 'L' | 'R', pairKey: string, rowAdded: boolean, r: FRow | undefined, measure: Measure, label: string, blanked: boolean) => {
+        const { ind, data } = halves[h];
+        const empty = blanked || (!rowAdded && !r);
+        const indText = empty ? '' : rowAdded ? (h === 'L' ? label : cellText(layout, pairKey, ind.key)) : label;
+        return [indText, ...data.map((c) => {
+          if (empty) return '';
+          if (rowAdded || c.added) return cellText(layout, pairKey, c.key);
+          return String(calc(r, measure, c.key.slice(2) as 'M' | 'F' | 'T' | 'R').v);
+        })];
+      };
+      const mainRows: string[][] = [
+        mainCols.map((c) => (c.group ? `${c.group}: ${c.label}` : c.label)),
+        ...laidPairs.map((lr) => {
+          const i = Number(lr.key.slice(1));
+          const right = lr.added ? undefined : laidRight.get(`p${i}R`);
+          return [
+            ...cellFor('L', lr.key, !!lr.added, lr.added ? undefined : leftRows[i], 'first', lr.label, false),
+            ...cellFor('R', lr.key, !!lr.added, lr.added ? undefined : rightRows[i], 'completed', right?.label ?? '', !lr.added && !right),
+          ];
+        }),
+      ];
+      const pregHead = ['INDICATORS', 'Age Group: 10-14', 'Age Group: 15-19', 'Age Group: 20-49', 'Total', 'Remarks'];
+      const pregRows: string[][] = [
+        [...pregHead, ...pregHead],
+        ...laidPreg.map((lr) => {
+          const i = Number(lr.key.slice(1));
+          const right = lr.added ? undefined : laidRight.get(`g${i}R`);
+          const half = (pre: 'PL' | 'PR', label: string, blanked: boolean) => [
+            blanked ? '' : (lr.added && pre === 'PR' ? cellText(layout, lr.key, `${pre}:ind`) : label),
+            ...[0, 1, 2, 3, 4].map((k) => (lr.added ? cellText(layout, lr.key, `${pre}:${k}`) : '')),
+          ];
+          return [...half('PL', lr.label, false), ...half('PR', right?.label ?? '', !lr.added && !right)];
+        }),
+      ];
+      const sheetCols = (n: number, title: string) => Array.from({ length: n }, (_, i) => ({
+        label: i === 0 ? title : '', value: (r: string[]) => r[i] ?? '',
+      }));
+      const title = `Indicators. School: ${schoolName || 'All schools'}. Month: ${periodPrinted}`;
+      const blob = await buildSheetsXlsx([
+        { name: 'FHSIS Section D', rows: mainRows, columns: sheetCols(mainCols.length, title) },
+        { name: 'Pregnant women', rows: pregRows, columns: sheetCols(12, 'PREGNANT WOMEN (by age group)') },
+      ]);
       downloadBlob(blob, `${baseName}.xlsx`);
     } finally {
       setXlsxBusy(false);
@@ -245,10 +245,6 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
   if (loading) return <div className="space-y-4">{panel}<SkeletonTable rows={12} /></div>;
 
   const TD = 'border-r border-b border-gray-300 px-2 py-1.5';
-  const cell = (v: number) => <td className={`${TD} text-center tabular-nums`}>{v}</td>;
-  const blank = (title: string) => (
-    <td className={TD} title={title} />
-  );
   const NO_FACILITY_FIELD = 'Not recorded — no visit counted here has its facility-based flag set. The flag is optional when recording an RPC visit, and visits recorded before it existed have no value.';
   const NO_PREGNANCY = 'Not recorded by this system — no pregnancy field exists in the schema.';
 
@@ -279,125 +275,218 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
   const rightRows = buildSide('completed');
   const pairs = Math.max(leftRows.length, rightRows.length);
 
-  const emptyHalf = <><td className={TD} /><td className={TD} /><td className={TD} /><td className={TD} /><td className={TD} colSpan={2} /></>;
-  const half = (r: FRow | undefined, measure: Measure) => {
-    if (!r) return emptyHalf;
+  // ── Layout: columns per half, rows as pairs (a left row and the right row beside it) ──
+  // Column keys are `L:`/`R:` + M | F | T | R (Male, Female, Total, Remarks); the label columns are locked.
+  const baseCols: LCol[] = ['L', 'R'].flatMap((h) => [
+    { key: `${h}:ind`, label: 'INDICATORS', locked: true },
+    { key: `${h}:M`, label: 'Male', group: 'Sex' },
+    { key: `${h}:F`, label: 'Female', group: 'Sex' },
+    { key: `${h}:T`, label: 'Total' },
+    { key: `${h}:R`, label: 'Remarks' },
+  ]);
+  // A column added from the menu stands alone (one cell, spanning both header rows).
+  const laidCols = layoutColumns(baseCols, layout).map((c) => (c.added ? { ...c, group: undefined } : c));
+  const halves: Record<'L' | 'R', { ind: LCol; data: LCol[] }> = { L: { ind: baseCols[0], data: [] }, R: { ind: baseCols[5], data: [] } };
+  {
+    let side: 'L' | 'R' = 'L';
+    for (const c of laidCols) {
+      if (c.key === 'R:ind') { side = 'R'; halves.R.ind = c; continue; }
+      if (c.key === 'L:ind') { halves.L.ind = c; continue; }
+      halves[side].data.push(c);
+    }
+  }
+  const widthOf = (c: LCol) => (c.key.endsWith(':R') ? 2 : 1);
+  const halfCells = (h: 'L' | 'R') => 1 + halves[h].data.reduce((n, c) => n + widthOf(c), 0);
+  const totalCells = halfCells('L') + halfCells('R');
+
+  const pairBase: LRow[] = Array.from({ length: pairs }, (_, i) => ({ key: `p${i}`, label: leftRows[i]?.label ?? '' }));
+  const PREG = ['', 'a', 'b'] as const;
+  const pregLabel = (measure: Measure, suffix: '' | 'a' | 'b') => {
+    const verb = measure === 'first' ? 'had their 1st visit' : 'completed 2 visits';
+    const kindText = suffix === 'a' ? ' to a facility-based oral health care professional' : suffix === 'b' ? ' to a non-facility-based oral health care professional' : ' to an oral health care professional';
+    return `6${suffix}. Pregnant Women who ${verb}${kindText} within a year`;
+  };
+  const pregBase: LRow[] = PREG.map((sfx, i) => ({ key: `g${i}`, label: pregLabel('first', sfx) }));
+  const [laidPairs, laidPreg] = layoutRowGroups([pairBase, pregBase], layout);
+  // The right half's own labels: renamable and hideable on their own, anchored to their pair.
+  const rightBase: LRow[] = [
+    ...rightRows.map((r, i) => ({ key: `p${i}R`, label: r.label, anchor: `p${i}` })),
+    ...PREG.map((sfx, i) => ({ key: `g${i}R`, label: pregLabel('completed', sfx), anchor: `g${i}` })),
+  ];
+  const laidRight = new Map(layoutRows(rightBase, { ...layout, added_rows: [] }).map((r) => [r.key, r]));
+  const hiddenRowCount = layout.hidden_rows.length;
+  const hiddenColCount = layout.hidden_cols.length;
+
+  /** The text of one computed cell of a half, or '' where the form leaves it empty. */
+  const calc = (r: FRow | undefined, measure: Measure, col: 'M' | 'F' | 'T' | 'R'): { v: string | number; title?: string } => {
+    if (!r) return { v: '' };
     const c = counts[r.band][measure];
     if (r.kind === 'main') {
-      return (
-        <>
-          <td className={TD}>{r.label}</td>
-          {cell(c.male)}{cell(c.female)}{cell(c.male + c.female)}
-          <td className={TD} colSpan={2} />
-        </>
-      );
+      return col === 'M' ? { v: c.male } : col === 'F' ? { v: c.female } : col === 'T' ? { v: c.male + c.female } : { v: '' };
     }
     const sub = r.suffix === 'a' ? c.facility : c.nonFacility;
     const unrecorded = c.unrecorded.male + c.unrecorded.female;
-    // A cell with nothing flagged prints "—" (not recorded), never 0: "0" would
+    // A cell with nothing flagged stays blank (not recorded), never 0: "0" would
     // claim nobody had facility-based care.
     const anyFlagged = c.facility.male + c.facility.female + c.nonFacility.male + c.nonFacility.female > 0;
-    return (
-      <>
-        <td className={`${TD} pl-6 text-muted-foreground`}>{r.label}</td>
-        {anyFlagged ? cell(sub.male) : blank(NO_FACILITY_FIELD)}
-        {anyFlagged ? cell(sub.female) : blank(NO_FACILITY_FIELD)}
-        {anyFlagged ? cell(sub.male + sub.female) : blank(NO_FACILITY_FIELD)}
-        <td className={`${TD} text-[11px]`} colSpan={2}>
-          {!anyFlagged ? '' : unrecorded > 0 ? `${unrecorded} visit${unrecorded === 1 ? '' : 's'} not classified` : ''}
-        </td>
-      </>
-    );
+    if (col === 'R') return { v: !anyFlagged ? '' : unrecorded > 0 ? `${unrecorded} visit${unrecorded === 1 ? '' : 's'} not classified` : '' };
+    if (!anyFlagged) return { v: '', title: NO_FACILITY_FIELD };
+    return col === 'M' ? { v: sub.male } : col === 'F' ? { v: sub.female } : { v: sub.male + sub.female };
   };
-  const pregHalf = (measure: Measure, suffix: '' | 'a' | 'b') => {
-    const verb = measure === 'first' ? 'had their 1st visit' : 'completed 2 visits';
-    const kindText = suffix === 'a' ? ' to a facility-based oral health care professional' : suffix === 'b' ? ' to a non-facility-based oral health care professional' : ' to an oral health care professional';
-    return (
-      <>
-        <td className={`${TD} ${suffix ? 'pl-6 text-muted-foreground' : ''}`}>6{suffix}. Pregnant Women who {verb}{kindText} within a year</td>
-        {blank(NO_PREGNANCY)}{blank(NO_PREGNANCY)}{blank(NO_PREGNANCY)}{blank(NO_PREGNANCY)}
-        <td className={TD} />
-      </>
-    );
-  };
+
   const hd = 'border-r border-b border-gray-300 bg-gray-200 px-2 py-1.5 text-center font-semibold';
   const hdInd = 'border-r border-b border-gray-300 bg-gray-200 px-2 py-2 text-left align-bottom text-[11px] font-semibold';
+
+  /** One half of a body row: its label cell, then a cell per visible column. */
+  const halfRow = (h: 'L' | 'R', pairKey: string, rowAdded: boolean, r: FRow | undefined, measure: Measure, label: string, blanked: boolean) => {
+    const { ind, data } = halves[h];
+    const rk = h === 'R' && !rowAdded ? `${pairKey}R` : pairKey;
+    const sub = r?.kind === 'sub';
+    const empty = blanked || (!rowAdded && !r);
+    const labelText = rowAdded ? (h === 'L' ? label : cellText(layout, pairKey, ind.key)) : label;
+    return (
+      <>
+        <td data-ck={ind.key} data-rk={rk} className={`${TD} ${sub ? 'pl-6 text-muted-foreground' : ''}`}>{empty ? '' : labelText}</td>
+        {data.map((c) => {
+          if (empty) return <td key={c.key} className={TD} colSpan={widthOf(c)} />;
+          if (rowAdded || c.added) {
+            return <td key={c.key} data-ck={c.key} data-rk={rk} colSpan={widthOf(c)} className={`${TD} text-center`}>{cellText(layout, pairKey, c.key)}</td>;
+          }
+          const kind = c.key.slice(2) as 'M' | 'F' | 'T' | 'R';
+          const out = calc(r, measure, kind);
+          return kind === 'R'
+            ? <td key={c.key} data-ck={c.key} data-rk={rk} colSpan={2} className={`${TD} text-[11px]`}>{out.v}</td>
+            : <td key={c.key} data-ck={c.key} data-rk={rk} className={`${TD} text-center tabular-nums`} title={out.title}>{out.v}</td>;
+        })}
+      </>
+    );
+  };
+
+  /** A header half: label cell, then the Sex group (Male/Female) and the standalone columns. */
+  const headHalf = (h: 'L' | 'R') => {
+    const { ind, data } = halves[h];
+    const out: React.ReactNode[] = [<th key={ind.key} data-ck={ind.key} rowSpan={2} className={hdInd}>{ind.label}</th>];
+    for (let i = 0; i < data.length;) {
+      const c = data[i];
+      if (c.group === 'Sex') {
+        let j = i;
+        while (j < data.length && data[j].group === 'Sex') j++;
+        const run = data.slice(i, j);
+        out.push(<th key={`sex-${c.key}`} colSpan={run.length} data-cg={run.map((x) => x.key).join(',')} data-cgl="Sex" className={hd}>Sex</th>);
+        i = j;
+      } else {
+        out.push(<th key={c.key} data-ck={c.key} rowSpan={2} colSpan={widthOf(c)} className={hd}>{c.label}</th>);
+        i++;
+      }
+    }
+    return out;
+  };
+
+  // Rows the menu can rename/hide beside the pair rows (the right half's own labels).
+  const rightExtras = [...laidRight.values()];
 
   return (
     <div className="space-y-8">
       {/* Controls: see ReportControls.tsx. */}
       {panel}
 
-      {/* ref is on the OUTER box so the School/Month row and the section title
-          are captured WITH the table. html2canvas clips to the ref'd element's
-          own rendered box, so a banner placed outside it shows on screen and is
-          silently missing from the PDF. */}
+      {/* ref is on the OUTER box so the title and the sheet are captured WITH the
+          table. html2canvas clips to the ref'd element's own rendered box, so a
+          banner placed outside it shows on screen and is silently missing from the PDF. */}
       <div className="form-print relative -mb-4 overflow-hidden rounded-t-xl border border-[#A9BDE6] bg-card md:-mb-8">
       <div
         ref={printableRef}
         className="no-scrollbar max-h-[max(320px,calc(100vh_-_94px))] overflow-auto rounded-t-xl print:max-h-none [&_tr>:last-child]:border-r-0"
         style={{ ['--fh-r1' as string]: `${rowH.r0}px`, ['--fh-r2' as string]: `${rowH.r0 + rowH.r1}px`, ['--fh-r3' as string]: `${rowH.r0 + rowH.r1 + rowH.r2}px` }}
       >
+        {hiddenRowCount + hiddenColCount > 0 && (
+          <p className="border-b border-gray-300 px-3 py-2 text-[11px] font-semibold text-destructive">
+            SHORTENED FORM: not the complete FHSIS form. {hiddenRowCount} row(s) and {hiddenColCount} column(s) hidden.
+          </p>
+        )}
+        <ReportLayoutMenu api={layoutApi} columns={laidCols} rows={[...laidPairs, ...laidPreg]} extraRows={rightExtras}>
         <table className="w-full min-w-[1100px] text-xs" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
           <thead>
             <tr ref={rowTitleRef} className="[&>th]:sticky [&>th]:top-0 [&>th]:z-20">
-              <th colSpan={12} className="border-b border-gray-300 bg-[#CFDDF6] px-3 py-2 text-center text-[12px] font-bold uppercase tracking-wide text-[#273A78]">
+              <th colSpan={totalCells} className="border-b border-gray-300 bg-[#CFDDF6] px-3 py-2 text-center text-[12px] font-bold uppercase tracking-wide text-[#273A78]">
                 Oral Health Care Services
               </th>
             </tr>
             <tr ref={rowH1Ref} className="[&>th]:sticky [&>th]:top-[var(--fh-r1)] [&>th]:z-20">
-              {[0, 1].map((i) => (
-                <Fragment key={i}>
-                  <th key={`ind${i}`} rowSpan={2} className={hdInd}>INDICATORS</th>
-                  <th key={`sex${i}`} colSpan={2} className={hd}>Sex</th>
-                  <th key={`tot${i}`} rowSpan={2} className={hd}>Total</th>
-                  <th key={`rem${i}`} rowSpan={2} colSpan={2} className={hd}>Remarks</th>
-                </Fragment>
-              ))}
+              {headHalf('L')}
+              {headHalf('R')}
             </tr>
             <tr ref={rowH2Ref} className="[&>th]:sticky [&>th]:top-[var(--fh-r2)] [&>th]:z-20">
-              {[0, 1].map((i) => (
-                <Fragment key={i}>
-                  <th key={`m${i}`} className={hd}>Male</th>
-                  <th key={`f${i}`} className={hd}>Female</th>
+              {(['L', 'R'] as const).map((h) => (
+                <Fragment key={h}>
+                  {halves[h].data.filter((c) => c.group === 'Sex').map((c) => <th key={c.key} data-ck={c.key} className={hd}>{c.label}</th>)}
                 </Fragment>
               ))}
             </tr>
           </thead>
           <tbody>
             <tr className={`${FORM_SECTION_BAND} [&>td]:sticky [&>td]:top-[var(--fh-r3)] [&>td]:z-20`}>
-              <td colSpan={12} className={`border-b border-gray-300 px-3 py-1.5 font-bold uppercase tracking-wide ${FORM_SECTION_BAND}`}>
+              <td colSpan={totalCells} className={`border-b border-gray-300 px-3 py-1.5 font-bold uppercase tracking-wide ${FORM_SECTION_BAND}`}>
                 FIRST VISIT TO AN ORAL HEALTH CARE PROFESSIONAL
               </td>
             </tr>
-            {Array.from({ length: pairs }, (_, i) => (
-              <tr key={`row-${i}`}>
-                {half(leftRows[i], 'first')}
-                {half(rightRows[i], 'completed')}
-              </tr>
-            ))}
-            {/* Pregnant women — on the form, no source in the system. */}
+            {laidPairs.map((lr) => {
+              const i = Number(lr.key.slice(1));
+              const right = lr.added ? undefined : laidRight.get(`p${i}R`);
+              return (
+                <tr key={lr.key} data-rk={lr.key}>
+                  {halfRow('L', lr.key, !!lr.added, lr.added ? undefined : leftRows[i], 'first', lr.label, false)}
+                  {halfRow('R', lr.key, !!lr.added, lr.added ? undefined : rightRows[i], 'completed', right?.label ?? '', !lr.added && !right)}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {/* Pregnant women: on the form, no source in the system. Its own table, since its
+            columns (age groups) differ from the block above. */}
+        <table className="w-full min-w-[1100px] text-xs" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+          <thead>
             <tr>
               {[0, 1].map((i) => (
                 <Fragment key={i}>
-                  <th key={`pi${i}`} rowSpan={2} className={hdInd}>INDICATORS</th>
-                  <th key={`pa${i}`} colSpan={3} className={hd}>Age Group</th>
-                  <th key={`pt${i}`} rowSpan={2} className={hd}>Total</th>
-                  <th key={`pr${i}`} rowSpan={2} className={hd}>Remarks</th>
+                  <th rowSpan={2} className={hdInd}>INDICATORS</th>
+                  <th colSpan={3} className={hd}>Age Group</th>
+                  <th rowSpan={2} className={hd}>Total</th>
+                  <th rowSpan={2} className={hd}>Remarks</th>
                 </Fragment>
               ))}
             </tr>
             <tr>
               {[0, 1].flatMap((i) => ['10-14', '15-19', '20-49'].map((g) => <th key={`pg${i}${g}`} className={hd}>{g}</th>))}
             </tr>
-            {(['', 'a', 'b'] as const).map((suffix) => (
-              <tr key={`preg-${suffix}`}>
-                {pregHalf('first', suffix)}
-                {pregHalf('completed', suffix)}
-              </tr>
-            ))}
+          </thead>
+          <tbody>
+            {laidPreg.map((lr) => {
+              const i = Number(lr.key.slice(1));
+              const right = lr.added ? undefined : laidRight.get(`g${i}R`);
+              const half = (side: 'L' | 'R', label: string, blanked: boolean) => {
+                const rk = side === 'R' && !lr.added ? `${lr.key}R` : lr.key;
+                const pre = side === 'L' ? 'PL' : 'PR';
+                return (
+                  <>
+                    <td data-ck={`${pre}:ind`} data-rk={rk} className={`${TD} ${i > 0 ? 'pl-6 text-muted-foreground' : ''}`}>{blanked ? '' : (lr.added && side === 'R' ? cellText(layout, lr.key, `${pre}:ind`) : label)}</td>
+                    {[0, 1, 2, 3, 4].map((k) => (
+                      <td key={k} data-ck={`${pre}:${k}`} data-rk={rk} className={TD} title={!lr.added && !blanked ? NO_PREGNANCY : undefined}>{lr.added ? cellText(layout, lr.key, `${pre}:${k}`) : ''}</td>
+                    ))}
+                  </>
+                );
+              };
+              return (
+                <tr key={lr.key} data-rk={lr.key}>
+                  {half('L', lr.label, false)}
+                  {half('R', right?.label ?? '', !lr.added && !right)}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
+        </ReportLayoutMenu>
+        {layoutApi.error && <p className="print-hide px-4 py-2 text-xs text-destructive">{layoutApi.error}</p>}
       </div>
       </div>
       <PreviewModal

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import {
   addColumn, addRow, hideColumns, hideRows, removeAdded, resetLayout, setCell, setLabel, showAll, isEditableCell, cellText,
   type LCol, type LRow,
@@ -100,6 +101,7 @@ export function ReportLayoutMenu({ api, columns, rows, extraRows = [], footerKey
 
   const ask = (title: string, initial: string, onSubmit: (v: string) => void) => setMode({ kind: 'input', title, initial, onSubmit });
 
+  const prevOf = (key: string): string | null => { const i = rows.findIndex((x) => x.key === key); return i > 0 ? rows[i - 1].key : null; };
   const t = at?.t;
   const c = col(t?.ck);
   const r = row(t?.rk);
@@ -126,7 +128,7 @@ export function ReportLayoutMenu({ api, columns, rows, extraRows = [], footerKey
   return (
     <div onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} className="contents">
       {children}
-      {at && (
+      {at && createPortal(
         <div ref={box} role="menu" aria-label="Table options"
           style={{ position: 'fixed', left: Math.min(at.x, window.innerWidth - 250), top: Math.min(at.y, window.innerHeight - 330), zIndex: 60 }}
           className="print-hide w-60 rounded-xl border border-[#dfe6f4] bg-white py-1.5 shadow-[0_18px_34px_-14px_rgba(20,33,61,0.45)]">
@@ -158,6 +160,8 @@ export function ReportLayoutMenu({ api, columns, rows, extraRows = [], footerKey
               )}
               {x && (
                 <>
+                  {x.anchor && item('Add row above', () => ask('New row name', '', (v) => update((l) => addRow(l, prevOf(x.anchor!), v))))}
+                  {x.anchor && item('Add row below', () => ask('New row name', '', (v) => update((l) => addRow(l, x.anchor!, v))))}
                   {item('Rename row', () => ask('Row name', x.label, (v) => update((l) => setLabel(l, 'r', x.key, v))))}
                   {item('Hide row', done(() => update((l) => hideRows(l, [x.key]))))}
                 </>
@@ -174,7 +178,8 @@ export function ReportLayoutMenu({ api, columns, rows, extraRows = [], footerKey
               {item('Reset table layout', done(() => update((l) => resetLayout(l))), { danger: true })}
             </>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
@@ -183,7 +188,7 @@ export function ReportLayoutMenu({ api, columns, rows, extraRows = [], footerKey
 function InputStep({ title, initial, onSubmit, onCancel }: { title: string; initial: string; onSubmit: (v: string) => void; onCancel: () => void }) {
   const [value, setValue] = useState(initial);
   const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => { ref.current?.focus(); ref.current?.select(); }, []);
+  useEffect(() => { ref.current?.focus({ preventScroll: true }); ref.current?.select(); }, []);
   return (
     <form className="px-3 pb-2 pt-1" onSubmit={(e) => { e.preventDefault(); onSubmit(value); }}>
       <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.07em] text-muted-foreground">{title}</label>

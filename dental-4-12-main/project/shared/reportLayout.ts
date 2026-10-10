@@ -32,7 +32,11 @@ export const emptyLayout = (report_key: ReportKey): ReportLayout => ({
 });
 
 export interface LCol { key: string; label: string; /** Header group the column sits under (e.g. a grade). */ group?: string; added?: boolean; /** Never hidden (the label column). */ locked?: boolean }
-export interface LRow { key: string; label: string; added?: boolean }
+export interface LRow {
+  key: string; label: string; added?: boolean;
+  /** For a row that is not itself a place to insert beside (one half of a paired row): the row it belongs to, which add-above/below use. */
+  anchor?: string;
+}
 
 // Hard caps. They guard the API (a layout is a document, not a data store) and
 // keep a runaway edit from bloating every report load.
