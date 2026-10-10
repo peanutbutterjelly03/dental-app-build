@@ -2,6 +2,13 @@
 
 **Compressed 2026-09-04 (hygiene pass; previous one 2026-07-11).** Completed-sprint history → `docs/BUILD-LOG.md`; pre-2026-07-11 narratives → git history (`git show 73bc4e47:HANDOFF.md`). **This file keeps ONLY live state: current status, the resume note, unresolved findings, open work, user-only items, warnings and durable gotchas. A finished sprint belongs in BUILD-LOG the moment it is finished — do not let them accumulate here again.**
 
+## ⭐ TREATMENT CODES: per-condition palette, coloured, one tooth at a time (2026-10-10, branch `revUI`)
+- `shared/treatmentRules.ts` `treatmentOptionsFor(condition)` decides which treatment codes show per tooth condition (user's table: Sound->PFS; D->SDF1/SDF2 + CO/GI/ART/TF; M->P; F/JC/P->"treated already"; X->SDF1/SDF2 + XO; Un->no recommendation; S->XO). SDF is a label only; SDF1/SDF2 are the markable codes. Test: `shared/treatmentRules.test.ts`.
+- **Claude's own calls (user asked me to decide; no authoritative DOH source found):** RF (root fragment) -> extraction only; TF offered for EVERY decayed tooth. Revisit with the dentist.
+- X is DISPLAYED as XO (`display` in `shared/treatmentCodes.ts`); STORED code stays `X` because reports/TCL/Section B read it.
+- Treatment mode is single-tooth (click selects one, no drag/bulk); Clear All still clears treatments in bulk. Treatment buttons coloured via `treatmentColors` (`dentalChartCodes.ts`).
+- Verified in a Playwright harness with mock API (per-condition lists, single selection, XO tag). Not verified against real data.
+
 ## ⭐ SYNC REPORT, drawn instead of read (2026-10-11, branch `revUI`)
 - User picks: design 4, then teeth style 1, then the date-first 7-day layout, then "two panels". The history is organised by DATE first (`offline/syncReportVisual.ts` `buildDateGroups`: newest date first, students needing attention first inside a date), and each date holds one `StudentDay` card per student (`SyncReportDay.tsx`): an **Original** panel (grey) on the left and an **After sync** panel (blue) on the right, with what changed highlighted, plus "Saved offline <time>". Teeth appear as numbers grouped under their condition ("Decayed 22 23 24", Original side "No record"), yes/no findings as switches (No to Yes), measurements as numbers with a before/after bar, anything else as a short row. A new dental chart adds no line of its own.
 - Only students with changes are listed (no "No changes" chip, group or footer count). **Removed on purpose:** the per-student checkbox, "Restore selected" and per-student "Restore all to original" (the approved mockup had none). Replacements: "Restore this day" on each date header and "Restore" on each student card, both sent as new audited edits through `pickVersion`.

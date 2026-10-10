@@ -101,6 +101,15 @@ export const rareConditionCodes = [
 ];
 export const conditionCodes = [...commonConditionCodes, ...rareConditionCodes];
 
+// Treatment buttons carry a colour by group, like the condition buttons (user, 2026-10-11):
+// preventive teal, restorative blue, and the surgical and prosthetic codes the same colours
+// as the matching conditions (X orange, P indigo, JC pink).
+export const treatmentColors: Record<string, string> = {
+  PFS: 'bg-teal-100 border-teal-400', SDF1: 'bg-teal-50 border-teal-400', SDF2: 'bg-teal-50 border-teal-400',
+  CO: 'bg-blue-100 border-blue-400', GI: 'bg-blue-100 border-blue-400', ART: 'bg-blue-50 border-blue-400', TF: 'bg-blue-50 border-blue-400',
+  X: 'bg-orange-100 border-orange-400', P: 'bg-indigo-50 border-indigo-400', JC: 'bg-pink-50 border-pink-400',
+};
+
 // The PALETTE's own split (user, 2026-10-11): RF/rf (Root Fragment) sits on the main row
 // next to X/x. This changes only which buttons show where; `conditionCodes` above, and the
 // order everything else reads it in, is untouched.

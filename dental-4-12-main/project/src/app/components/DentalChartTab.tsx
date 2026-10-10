@@ -9,6 +9,7 @@ import type { IptrYearData } from '../hooks/useDentalChartData';
 import type { StudentNavEntry } from '../hooks/useStudentNav';
 import type { SectionBRow } from '../../../shared/iptrSectionB';
 import { AutosaveStatus, type AutosaveState } from './AutosaveStatus';
+import { treatmentOptionsFor } from '../../../shared/treatmentRules';
 import { oralConditionChips, serviceChips, type OralDraft, type ServiceField } from './iptrDrafts';
 import {
   upperPermanent,
@@ -26,6 +27,7 @@ import {
   TREATMENT_VARIANT_CODES,
   treatmentDisplay,
   treatmentLabel,
+  treatmentColors,
   type computeDMFT,
   type ChartEntry,
 } from '../utils/dentalChartCodes';
@@ -311,7 +313,7 @@ export function DentalChartTab({
         {/* Blue, not teal: the palette selects conditions in teal and
             treatments in blue, but this rendered the treatment code in the
             condition colour, crossing the two vocabularies on the teeth. */}
-        {treat && <div className="text-[8px] md:text-[10px] font-semibold text-blue-700 leading-none">{treat}</div>}
+        {treat && <div className="text-[8px] md:text-[10px] font-semibold text-blue-700 leading-none">{treatmentDisplay(treat)}</div>}
         {/* Which visit this tooth's treatment was recorded at (2026-09-25) --
             now that Visit 1 and Visit 2 share one chart instead of each
             getting their own. Absent for teeth charted outside the visit
@@ -707,32 +709,60 @@ export function DentalChartTab({
                     </div>
                   )}
                 </div>
-              ) : (
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {TREATMENT_PALETTE_GROUPS.map((g, gi) => (
-                    <div key={g.label} className="basis-full space-y-1.5">
-                      <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{g.label}</div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {g.codes.map((code) => {
-                          const t = perToothTreatmentCodes.find((x) => x.code === code);
-                          if (!t) return null;
-                          const variant = TREATMENT_VARIANT_CODES.includes(code);
-                          return (
-                            <button key={code} type="button" title={treatmentLabel(t)} onClick={() => applyCode('treatment', code)}
-                              className={`${paletteBtn} ${variant ? 'border-dashed' : ''} ${allHave('treatment', code) ? 'bg-blue-600 text-white ring-2 ring-blue-300 border-blue-600' : `${variant ? 'bg-blue-50 text-blue-900' : 'bg-card text-foreground'} border-border hover:border-blue-400`}`}>
-                              {treatmentDisplay(code)}
-                            </button>
-                          );
-                        })}
-                        {gi === TREATMENT_PALETTE_GROUPS.length - 1 && (
-                          <button type="button" onClick={clearSelection} title="Clear marks on selected teeth" aria-label="Clear marks on selected teeth"
-                            className="ml-auto inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border text-red-600 hover:bg-red-50 hover:border-red-300"><Trash2 className="h-4 w-4" /></button>
-                        )}
-                      </div>
+              ) : (() => {
+                // One tooth at a time. The codes offered depend on the condition it was charted with
+                // (shared/treatmentRules.ts); SDF itself is a label, only SDF1 and SDF2 can be marked.
+                const tooth = [...selectedTeeth][0];
+                const cond = tooth !== undefined ? currentChart[tooth]?.condition ?? '' : '';
+                const opts = treatmentOptionsFor(cond);
+                const condLabel = conditionCodes.find((c) => c.perm === cond.toUpperCase() || c.temp === cond.toLowerCase() || c.code === cond)?.label;
+                const trash = (
+                  <button type="button" onClick={clearSelection} title="Clear the treatment on this tooth" aria-label="Clear the treatment on this tooth"
+                    className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-white/80 text-red-600 hover:bg-red-50 hover:border-red-300"><Trash2 className="h-4 w-4" /></button>
+                );
+                return (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <div className="basis-full text-xs text-muted-foreground">
+                      {condLabel ? <>Charted as <b className="text-foreground">{condLabel}</b></> : null}
                     </div>
-                  ))}
-                </div>
-              )}
+                    {opts.codes.length === 0 && (
+                      <div className="basis-full rounded-lg border border-dashed border-border bg-white/60 px-3 py-2 text-[12.5px] text-foreground">
+                        {opts.none ?? 'No treatment codes are set for this condition.'}
+                      </div>
+                    )}
+                    {TREATMENT_PALETTE_GROUPS.map((g) => {
+                      const codes = g.codes.filter((code) => opts.codes.includes(code));
+                      if (codes.length === 0) return null;
+                      const hasSdf = codes.some((c) => c === 'SDF1' || c === 'SDF2');
+                      return (
+                        <div key={g.label} className="basis-full space-y-1.5">
+                          <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{g.label}</div>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {hasSdf && (
+                              <>
+                                <span title="SDF itself cannot be marked. Choose SDF 1 or SDF 2." className="inline-flex h-10 cursor-default items-center rounded-md border-[1.5px] border-dotted border-teal-400 px-3 text-sm font-bold text-teal-800">SDF</span>
+                                <span aria-hidden="true" className="text-muted-foreground">→</span>
+                              </>
+                            )}
+                            {codes.map((code) => {
+                              const t = perToothTreatmentCodes.find((x) => x.code === code);
+                              if (!t) return null;
+                              const variant = TREATMENT_VARIANT_CODES.includes(code);
+                              return (
+                                <button key={code} type="button" title={treatmentLabel(t)} onClick={() => applyCode('treatment', code)}
+                                  className={`${paletteBtn} text-foreground ${variant ? 'border-dashed' : ''} ${treatmentColors[code] ?? 'bg-card border-border'} ${allHave('treatment', code) ? 'ring-2 ring-blue-600 ring-offset-1 font-extrabold' : 'hover:brightness-95'}`}>
+                                  {treatmentDisplay(code)}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div className="flex basis-full">{trash}</div>
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>
@@ -913,7 +943,7 @@ export function DentalChartTab({
                       const v2 = treatmentTeethVisit2[t.code] ?? [];
                       return (
                         <tr key={t.code}>
-                          <td className={sumCell}><span className="mr-1 font-bold">{t.code}</span>{t.label}</td>
+                          <td className={sumCell}><span className="mr-1 font-bold">{treatmentDisplay(t.code)}</span>{t.label}</td>
                           <td className={`${sumCell}`}>{v1.length ? v1.length : ''}</td>
                           <td className={sumCell}><ToothTags teeth={v1} tone="blue" /></td>
                           <td className={`${sumCell}`}>{v2.length ? v2.length : ''}</td>

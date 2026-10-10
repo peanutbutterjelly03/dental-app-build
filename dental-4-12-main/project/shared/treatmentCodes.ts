@@ -26,7 +26,9 @@ export const treatmentCodes: { code: string; label: string; local?: string; disp
   { code: 'GI', label: 'Glass Ionomer Cement', local: 'Pasta' },
   { code: 'ART', label: 'Atraumatic Restorative Treatment', local: 'Pasta' },
   { code: 'TF', label: 'Temporary Filling', local: 'Pansamantalang pasta' },
-  { code: 'X', label: 'Extraction', local: 'Bunot' },
+  // Stored as X, shown as XO (user, 2026-10-11): the letter alone read like the X/x CONDITION. Only the
+  // display changed, so saved records and the reports that read X keep working.
+  { code: 'X', label: 'Extraction', local: 'Bunot', display: 'XO' },
   { code: 'SDF', label: 'Silver Diamine Fluoride' },
   { code: 'SDF1', label: 'Silver Diamine Fluoride, 1st Application', display: 'SDF 1' },
   { code: 'SDF2', label: 'Silver Diamine Fluoride, 2nd Application', display: 'SDF 2' },

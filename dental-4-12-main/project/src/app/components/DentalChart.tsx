@@ -12,6 +12,7 @@ import { useStudentNav } from '../hooks/useStudentNav';
 import { validateStudentValues } from '../../../shared/studentValidation';
 import { useDentalChartData, type IptrYearData } from '../hooks/useDentalChartData';
 import { AutosaveStatus } from './AutosaveStatus';
+import { treatmentOptionsFor } from '../../../shared/treatmentRules';
 import { createSaveScheduler, sameJson, hasTextChange, type SaveScheduler } from '../utils/chartAutosave';
 import { apiClient, ApiError, isQueuedResponse, QUEUED_SAVE_MESSAGE } from '../api/client';
 import { subscribeSyncReport } from '../offline/syncReport';
@@ -54,6 +55,7 @@ import {
   WHOLE_MOUTH_TREATMENT_CODES,
   conditionCodes,
   treatmentCodes,
+  treatmentDisplay,
   treatmentLabel,
   type ChartEntry,
 } from '../utils/dentalChartCodes';
@@ -956,6 +958,16 @@ export const DentalChart = () => {
 
   const handleToothPointerDown = (toothNumber: number) => {
     if (!canSelect(toothNumber)) return;
+    // Treatments are charted ONE tooth at a time (user, 2026-10-11): choosing a tooth replaces the
+    // previous one, and there is no drag across teeth.
+    if (markType === 'treatment') {
+      // Non-null so releasing the pointer opens the popup; handleToothPointerEnter ignores it in this mode.
+      dragSelectRef.current = true;
+      setChartError(null);
+      setCodesOpen(false);
+      setSelectedTeeth((prev) => (prev.size === 1 && prev.has(toothNumber) ? new Set() : new Set([toothNumber])));
+      return;
+    }
     const adding = !selectedTeeth.has(toothNumber);
     dragSelectRef.current = adding;
     setChartError(null);
@@ -965,7 +977,7 @@ export const DentalChart = () => {
 
   const handleToothPointerEnter = (toothNumber: number) => {
     const adding = dragSelectRef.current;
-    if (adding === null || !canSelect(toothNumber)) return;
+    if (adding === null || !canSelect(toothNumber) || markType === 'treatment') return;
     setSelectedTeeth((prev) => {
       if (prev.has(toothNumber) === adding) return prev;
       const next = new Set(prev);
@@ -978,6 +990,11 @@ export const DentalChart = () => {
   // (a keyboard press has no pointer-up to open them).
   const toggleToothFromKeyboard = (toothNumber: number) => {
     if (!canSelect(toothNumber)) return;
+    if (markType === 'treatment') {
+      setSelectedTeeth((prev) => (prev.size === 1 && prev.has(toothNumber) ? new Set() : new Set([toothNumber])));
+      setCodesOpen(true);
+      return;
+    }
     setSelectedTeeth((prev) => { const next = new Set(prev); if (next.has(toothNumber)) next.delete(toothNumber); else next.add(toothNumber); return next; });
     setCodesOpen(true);
   };
@@ -993,7 +1010,9 @@ export const DentalChart = () => {
   // already has removes it (the old click-again-to-clear rule). Draft only:
   // nothing reaches the database until Save Chart.
   const applyCodeToSelection = (kind: 'condition' | 'treatment', key: string) => {
-    const targets = [...selectedTeeth].filter(canSelect);
+    // A treatment is only charted where the condition allows it (shared/treatmentRules.ts).
+    const targets = [...selectedTeeth].filter(canSelect)
+      .filter((n) => kind !== 'treatment' || treatmentOptionsFor(currentChart[n]?.condition).codes.includes(key) || currentChart[n]?.treatment === key);
     if (targets.length === 0) return;
     setLastMarkUndo(currentChart);
     const next = { ...currentChart };
@@ -2412,7 +2431,7 @@ export const DentalChart = () => {
               <div className="space-y-1">
                 {treatmentCodes.map((t) => (
                   <div key={t.code} className="flex items-baseline gap-3 text-sm">
-                    <span className="font-mono font-bold text-primary w-16 shrink-0">{t.code}</span>
+                    <span className="font-mono font-bold text-primary w-16 shrink-0">{treatmentDisplay(t.code)}</span>
                     <span className="text-muted-foreground">{treatmentLabel(t)}</span>
                   </div>
                 ))}
