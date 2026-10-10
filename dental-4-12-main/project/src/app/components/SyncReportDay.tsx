@@ -1,13 +1,10 @@
 import { useState } from 'react';
 import { retryQueue } from '../offline/queueProcessor';
 import type { ReportRow, Version } from '../offline/syncReportModel';
-import {
-  LOWER_PERMANENT, LOWER_PRIMARY, UPPER_PERMANENT, UPPER_PRIMARY,
-  type DayView, type FlagSource, type ToothChange,
-} from '../offline/syncReportVisual';
+import type { DayView, FlagSource, ToothChange } from '../offline/syncReportVisual';
 
 // One student's changes on ONE day, drawn (user pick 4, 2026-10-11): charted teeth as
-// coloured squares on a small mouth map, yes/no findings as switches flipping on,
+// tooth numbers grouped under their condition, yes/no findings as switches flipping on,
 // measurements as before and after bars. The full field-by-field table is one click
 // away ("Details"), and it is where a field edited more than once offline can have an
 // earlier version kept. Anything that did NOT sync is always shown in full.
@@ -38,28 +35,40 @@ function Switch({ on }: { on: boolean }) {
   );
 }
 
-function TeethMap({ teeth }: { teeth: ToothChange[] }) {
-  const changed = new Map(teeth.map((t) => [t.tooth, t]));
-  const hasPrimary = teeth.some((t) => UPPER_PRIMARY.includes(t.tooth) || LOWER_PRIMARY.includes(t.tooth));
-  const hasPermanent = teeth.some((t) => UPPER_PERMANENT.includes(t.tooth) || LOWER_PERMANENT.includes(t.tooth));
-  const cell = (n: number) => {
-    const t = changed.get(n);
-    const c = t && !t.removed ? condOf(t.cond) : null;
-    return (
-      <span key={n} title={t ? `Tooth ${n}: ${t.removed ? 'cleared' : condOf(t.cond).word}` : `Tooth ${n}`}
-        style={c ? { background: c.bg, color: c.fg, borderColor: c.fg } : undefined}
-        className={`grid h-[26px] w-[22px] flex-shrink-0 place-items-center rounded-md border text-[8.5px] font-bold ${t ? (t.removed ? 'border-dashed border-slate-400 bg-white text-slate-500 line-through' : '') : 'border-border bg-muted/40 text-muted-foreground/70'}`}>
-        {n}
-      </span>
-    );
-  };
-  const row = (nums: number[]) => <div className="flex gap-[3px]">{nums.map(cell)}</div>;
+/** Teeth, grouped by what was charted on them (user pick 1 of 5, 2026-10-11): the numbers
+ *  under their condition, not one card per tooth and not a mouth map. */
+function TeethByCondition({ teeth }: { teeth: ToothChange[] }) {
+  const groups = new Map<string, number[]>();
+  for (const t of teeth) {
+    const key = t.removed ? '_cleared' : (t.cond || '_none').toUpperCase();
+    groups.set(key, [...(groups.get(key) ?? []), t.tooth]);
+  }
+  const order = ['D', 'F', 'M', 'X', 'T'];
+  const keys = [...groups.keys()].sort((a, b) => {
+    const ia = order.indexOf(a); const ib = order.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
+  });
   return (
     <div className="min-w-0">
-      <div className="mb-1 text-xs text-muted-foreground">Teeth charted <b className="text-foreground">{teeth.length}</b></div>
-      <div className="flex flex-col gap-1 overflow-x-auto pb-1">
-        {(hasPermanent || !hasPrimary) && <>{row(UPPER_PERMANENT)}{row(LOWER_PERMANENT)}</>}
-        {hasPrimary && <>{row(UPPER_PRIMARY)}{row(LOWER_PRIMARY)}</>}
+      <div className="mb-1.5 text-xs text-muted-foreground">Teeth charted <b className="text-foreground">{teeth.length}</b></div>
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-4 gap-y-1.5">
+        {keys.map((k) => {
+          const c = k === '_cleared' ? { bg: '#fff', fg: '#64748B', word: 'Cleared' } : k === '_none' ? { bg: '#FDE68A', fg: '#78350F', word: 'Charted' } : condOf(k);
+          const nums = [...(groups.get(k) ?? [])].sort((a, b) => a - b);
+          return (
+            <div key={k} className="contents">
+              <span className="flex items-center gap-2 pt-0.5 text-[12.5px] font-bold">
+                <span className="h-2.5 w-2.5 flex-shrink-0 rounded-[3px]" style={{ background: c.bg, border: `1px solid ${c.fg}` }} />{c.word}
+              </span>
+              <span className="flex flex-wrap gap-1">
+                {nums.map((n) => (
+                  <span key={n} title={`Tooth ${n}: ${c.word}`} style={{ background: c.bg, color: c.fg, borderColor: c.fg }}
+                    className={`grid h-[26px] min-w-[28px] place-items-center rounded-[7px] border px-1.5 text-xs font-extrabold ${k === '_cleared' ? 'border-dashed line-through' : ''}`}>{n}</span>
+                ))}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -117,7 +126,7 @@ export function DayCard({
 
       {picture && (
         <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
-          {day.teeth.length > 0 && <div className="min-w-0 flex-[1.4_1_16rem]"><TeethMap teeth={day.teeth} /></div>}
+          {day.teeth.length > 0 && <div className="min-w-0 flex-[1.4_1_16rem]"><TeethByCondition teeth={day.teeth} /></div>}
           {day.flags.length > 0 && (
             <div className="min-w-[13rem] flex-1">
               <div className="mb-1 text-xs text-muted-foreground">Findings and services</div>

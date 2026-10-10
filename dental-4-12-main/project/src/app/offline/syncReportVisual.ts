@@ -97,6 +97,9 @@ export function buildDays(rows: ReportRow[], now: number = Date.now()): DayView[
         continue;
       }
 
+      // A new dental chart is only the folder the teeth go in; saying so next to the teeth is noise.
+      if (r.resource === 'dental-charts' && r.op === 'create') continue;
+
       const source = FLAG_SOURCE[r.resource];
       if (source) {
         if (r.op === 'create') {
@@ -149,8 +152,3 @@ export function buildDays(rows: ReportRow[], now: number = Date.now()): DayView[
   // Newest day first.
   return days.sort((a, b) => (a.key < b.key ? 1 : -1));
 }
-
-export const UPPER_PERMANENT = [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28];
-export const LOWER_PERMANENT = [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38];
-export const UPPER_PRIMARY = [55, 54, 53, 52, 51, 61, 62, 63, 64, 65];
-export const LOWER_PRIMARY = [85, 84, 83, 82, 81, 71, 72, 73, 74, 75];

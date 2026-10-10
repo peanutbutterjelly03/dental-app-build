@@ -64,6 +64,14 @@ describe('buildDays', () => {
   });
 });
 
+describe('noise', () => {
+  it('a newly created dental chart adds no line of its own', () => {
+    const [d] = days([write({ resource: 'dental-charts', op: 'create', label: 'Dental chart added', subject: 'Dental chart', fields: [{ field: 'date_charted', before: undefined, after: '2026-10-10' }] }), tooth(11)]);
+    expect(d.texts).toEqual([]);
+    expect(d.teeth).toHaveLength(1);
+  });
+});
+
 describe('day helpers', () => {
   it('labels today, yesterday and older days', () => {
     expect(dayLabel(localDayKey(NOW), NOW)).toBe('Today');
