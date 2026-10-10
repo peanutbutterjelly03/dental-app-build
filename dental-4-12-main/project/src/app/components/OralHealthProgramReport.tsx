@@ -699,7 +699,7 @@ export const OralHealthProgramReport = ({ schoolName = null }: { schoolName?: st
       <div className="relative -mb-4 md:-mb-8">
       <div
         ref={printableRef}
-        className="form-print no-scrollbar cursor-grab bg-card rounded-t-xl border border-gray-400 overflow-auto print:max-h-none [&_tbody>tr:last-child>td]:border-b-0"
+        className="form-print no-scrollbar cursor-grab bg-card rounded-t-xl border border-[#A9BDE6] overflow-auto print:max-h-none [&_tbody>tr:last-child>td]:border-b-0"
         style={{ maxHeight: `max(320px, calc(100vh - ${TOPBAR_H + 18}px))`, ['--ohp-r2' as string]: `${rowH.r1}px`, ['--ohp-r3' as string]: `${rowH.r1 + rowH.r2}px` }}
       >
         <table className="border-separate border-spacing-0 w-full">
