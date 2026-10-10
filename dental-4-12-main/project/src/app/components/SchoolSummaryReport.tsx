@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { usePrintOrientation } from '../hooks/usePrintOrientation';
 import { useSchoolSummary, type BySex, type SchoolSummaryTally } from '../hooks/useSchoolSummary';
 import { SkeletonTable } from './Skeleton';
@@ -116,9 +116,6 @@ export function SchoolSummaryReport({ schoolName, schoolYear }: Props) {
     if (sectionF !== 'all' && sections.length > 0 && !sections.includes(sectionF)) setSectionF('all');
   }, [sections, sectionF]);
   const printableRef = useRef<HTMLDivElement>(null);
-  // Height of the pinned title row, so the column header row sticks right under it.
-  const titleRowRef = useRef<HTMLTableRowElement>(null);
-  const [titleH, setTitleH] = useState(34);
   const { preview, building, previewPdf, closePreview, confirmDownload } = usePreviewModal();
   const [xlsxBusy, setXlsxBusy] = useState(false);
 
@@ -218,17 +215,6 @@ export function SchoolSummaryReport({ schoolName, schoolYear }: Props) {
     </PanelShell>
   );
 
-  useEffect(() => {
-    const el = titleRowRef.current;
-    if (!el) return;
-    const measure = () => setTitleH(el.offsetHeight);
-    measure();
-    if (typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [loading, error]);
-
   if (loading) return <div className="space-y-3">{panel}<SkeletonTable rows={13} /></div>;
   if (error) {
     return (
@@ -241,88 +227,67 @@ export function SchoolSummaryReport({ schoolName, schoolYear }: Props) {
     );
   }
 
-  const TH = 'border-r border-b border-gray-300 px-2 py-1.5';
-  const TD = 'border-r border-b border-gray-300 px-2 py-1';
+  const hCell = 'px-2 py-2.5 text-center text-[11px] font-extrabold tracking-wide text-white';
+  // Male pair and Female pair alternate in two near-identical shades instead of drawing lines.
+  const hShade = (c: number) => (c >= 3 ? 'bg-[#233a7a]' : 'bg-[#1b2d63]');
+  const bShade = (c: number) => (c >= 3 ? 'bg-[#f5f8fe]' : '');
+  const TD = 'px-2 py-2.5 text-center tabular-nums';
   return (
     <div className="space-y-8">
       {panel}
-      <div className="rounded-2xl bg-gradient-to-br from-[#273c7b] to-[#1b2d63] px-5 py-4 text-white">
-        <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#aebbe0]">School Summary Sheet</div>
-        <h2 className="mt-0.5 text-[19px] font-extrabold">{schoolName ?? 'All schools'}</h2>
-        <div className="mt-2.5 flex flex-wrap gap-2">
-          {[
-            `School year ${schoolYear ?? 'All years to date'}`,
-            gradeF === 'all' ? 'All grades' : gradeF,
-            sectionF === 'all' ? 'All sections' : `Section ${sectionF}`,
-          ].map((t) => (
-            <span key={t} className="rounded-full bg-white/15 px-3 py-0.5 text-xs font-semibold">{t}</span>
-          ))}
-        </div>
-      </div>
-
-      <div className="form-print relative overflow-hidden rounded-xl border border-[#A9BDE6] bg-card">
-      <div
-        ref={printableRef}
-        className="no-scrollbar max-h-[max(320px,calc(100vh_-_94px))] overflow-auto rounded-xl print:max-h-none [&_tr>:last-child]:border-r-0 [&_tbody>tr:last-child>td]:border-b-0"
-        style={{ ['--ss-r1' as string]: `${titleH}px` }}
-      >
-        {/* Wide content scrolls inside its own container, so the table never
-            pushes the page sideways at 390px (CLAUDE.md, three device classes). */}
-        <div>
+      <div className="form-print relative overflow-hidden rounded-2xl border border-[#A9BDE6] bg-card">
+        <div
+          ref={printableRef}
+          className="no-scrollbar max-h-[max(320px,calc(100vh_-_94px))] overflow-auto rounded-2xl print:max-h-none [&_tbody>tr:last-child>td]:border-b-0"
+        >
+          {/* The sheet's top band carries the school name, as on the paper form; it is inside the printable
+              region on purpose. Wide content scrolls inside this container, never the page (CLAUDE.md,
+              three device classes). */}
+          <div className="bg-gradient-to-br from-[#273c7b] to-[#1b2d63] px-5 py-4 text-white">
+            <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#aebbe0]">School Summary Sheet</div>
+            <h2 className="mt-0.5 text-[19px] font-extrabold">{schoolName ?? 'All schools'}</h2>
+            <div className="mt-2.5 flex flex-wrap gap-2">
+              {[
+                `School year ${schoolYear ?? 'All years to date'}`,
+                gradeF === 'all' ? 'All grades' : gradeF,
+                sectionF === 'all' ? 'All sections' : `Section ${sectionF}`,
+              ].map((t) => (
+                <span key={t} className="rounded-full bg-white/15 px-3 py-0.5 text-xs font-semibold">{t}</span>
+              ))}
+            </div>
+          </div>
           <table className="w-full min-w-[800px] text-[13px]" style={{ borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
             <colgroup><col style={{ width: '27rem' }} /><col /><col /><col /><col /></colgroup>
             <thead>
-              <tr ref={titleRowRef} className="[&>th]:sticky [&>th]:top-0 [&>th]:z-20">
-                {/* The paper sheet's single top band carries the school name. */}
-                <th colSpan={5} className="border-b border-gray-300 bg-[#CFDDF6] px-2 py-2 text-center text-[14px] font-bold uppercase tracking-wide text-[#273A78]">
-                  {schoolName ?? 'All schools'}
-                </th>
-              </tr>
-              <tr className="[&>th]:sticky [&>th]:top-[var(--ss-r1)] [&>th]:z-20 [&>th]:bg-gray-200">
-                <th className={`${TH} text-left font-semibold`} />
-                <th className={`${TH} font-semibold`}>MALE</th>
-                <th className={`${TH} font-semibold`}>TOTAL</th>
-                <th className={`${TH} font-semibold`}>FEMALE</th>
-                <th className={`${TH} font-semibold`}>TOTAL</th>
+              <tr className="[&>th]:sticky [&>th]:top-0 [&>th]:z-20">
+                <th className={`${hCell} ${hShade(0)}`} />
+                {['MALE', 'TOTAL', 'FEMALE', 'TOTAL'].map((l, i) => <th key={i} className={`${hCell} ${hShade(i + 1)}`}>{l}</th>)}
               </tr>
             </thead>
             <tbody>
               {rows.map((row, i) => (
-                <tr key={`${row.label}-${row.code}-${i}`}>
-                  <td className={`${TD} font-medium text-foreground`}>
+                <tr key={`${row.label}-${row.code}-${i}`} className="border-b border-[#dfe5f0]">
+                  <td className="border-b border-[#dfe5f0] px-4 py-2.5 font-medium text-foreground">
                     <div className="flex items-baseline justify-between gap-4">
                       <span>{row.label}</span>
                       <span className="pr-[20%]">{row.code}</span>
                     </div>
                   </td>
-                  <td className={`${TD} text-center tabular-nums`}>{show(row.male.persons)}</td>
-                  <td className={`${TD} text-center tabular-nums`}>{show(row.male.teeth)}</td>
-                  <td className={`${TD} text-center tabular-nums`}>{show(row.female.persons)}</td>
-                  <td className={`${TD} text-center tabular-nums`}>{show(row.female.teeth)}</td>
+                  <td className={`${TD} border-b border-[#dfe5f0] ${bShade(1)}`}>{show(row.male.persons)}</td>
+                  <td className={`${TD} border-b border-[#dfe5f0] ${bShade(2)}`}>{show(row.male.teeth)}</td>
+                  <td className={`${TD} border-b border-[#dfe5f0] ${bShade(3)}`}>{show(row.female.persons)}</td>
+                  <td className={`${TD} border-b border-[#dfe5f0] ${bShade(4)}`}>{show(row.female.teeth)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
-
-        {/* Every claim the table makes, and every one it declines to make.
-            Inside the printable region deliberately: a filed copy that shows
-            "—" without saying why invites someone to read it as zero. */}
-        {/* ⚠ `print-hide` (Sprint 133): these notes explain the SYSTEM to a
-            reader on screen — why a cell reads "—", why there is no (m)
-            row — and none of them is printed on the paper sheet. They sit
-            inside the printable root because they belong beside the table
-            on screen, so print has to drop them explicitly. The sheet filed
-            with the City Health Office must look like the official form. */}
-        <div className="print-hide space-y-1 px-3 py-2.5 text-[11px] empty:hidden leading-relaxed text-muted-foreground">
           {unsexedCount > 0 && (
-            <p className="text-yellow-700">
+            <p className="print-hide px-4 py-2.5 text-[11px] leading-relaxed text-yellow-700">
               {unsexedCount} student{unsexedCount === 1 ? '' : 's'} in this scope {unsexedCount === 1 ? 'has' : 'have'}{' '}
               no recorded sex and {unsexedCount === 1 ? 'is' : 'are'} in neither column.
             </p>
           )}
         </div>
-      </div>
       </div>
       <PreviewModal
         open={preview.open}
