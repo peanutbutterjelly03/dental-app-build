@@ -756,7 +756,7 @@ export const OralHealthProgramReport = ({ schoolName = null }: { schoolName?: st
           </tbody>
         </table>
       </div>
-      <GridEdgeButtons edge={edge} onStep={step} yellow leftInFirstColumn />
+      <GridEdgeButtons edge={edge} onStep={step} leftInFirstColumn />
       </div>
       <PreviewModal
         open={preview.open}
