@@ -22,6 +22,7 @@ import { FileSpreadsheet, FileText } from 'lucide-react';
 import { buildPagesPdf } from '../utils/exportPdf';
 import { ageOn, ageBracketIndex, DOH_AGE_BRACKETS } from '../../../shared/age';
 import { cariesStatus } from '../../../shared/cariesStatus';
+import { getSchoolShortName } from '../utils/schoolColors';
 
 // ─── Target Client List for Oral Health Care and Services ────────────────────
 // Transcribed from the manuscript's APPENDIX E (not D — Appendix D is the DMFX
@@ -519,7 +520,6 @@ export const TargetClientList = () => {
     return dt >= start && dt < end;
   }), [rows, start, end]);
 
-  const withoutConsult = rows.length - rows.filter((r) => r.consultDate).length;
 
   // Hidden columns, remembered per browser. Hiding CHANGES WHAT PRINTS, which
   // is what the dentist asked for; the note above the table declares it so a
@@ -984,38 +984,42 @@ export const TargetClientList = () => {
         </PanelRow>
         <p className="sr-only" aria-live="polite">Showing {periodLabel}, {visible.length} client{visible.length !== 1 ? 's' : ''}</p>
       </PanelShell>
-      <div className="bg-card rounded-xl border border-border p-4">
-        <h2 className="text-sm font-bold text-foreground">Target Client List for Oral Health Care and Services</h2>
-        <p className="text-xs text-muted-foreground mt-2">
+      <div className="overflow-hidden rounded-2xl border border-[#dfe5f0] bg-card shadow-[0_14px_30px_-22px_rgba(36,59,122,0.5)]">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+          <h2 className="text-base font-extrabold text-foreground">Target Client List for Oral Health Care and Services</h2>
           <button
             onClick={() => setShowPicker((v) => !v)}
             aria-expanded={showPicker}
-            className="float-right ml-3 text-xs px-2 py-1 border border-border rounded-md text-foreground hover:bg-gray-50"
+            className="flex h-9 items-center gap-1.5 rounded-[10px] border border-[#e3e7ef] bg-[#f1f3f8] px-3.5 text-[12.5px] font-bold text-[#46536d] hover:bg-[#e9ecf3]"
           >{showPicker ? 'Done' : `Columns${hiddenCount ? ` (${hiddenCount} hidden)` : ''}`}</button>
-          <span className="font-semibold text-foreground">{periodLabel}</span> — showing {visible.length} client
-          {visible.length !== 1 ? 's' : ''} consulted{selectedSchool ? ' at the selected school' : ' across all schools'}.
-          {visible.length === 0 && latestConsult && (
-            <span className="text-amber-700 font-medium">
-              {' '}No consultation falls in this period; the most recent one on record is {formatDate(latestConsult)}.
-            </span>
-          )}
-          {withoutConsult > 0 && ` ${withoutConsult} enrolled client${withoutConsult !== 1 ? 's have' : ' has'} no recorded consultation and appear${withoutConsult !== 1 ? '' : 's'} in no period.`}
-        </p>
-        {rawError && <p className="text-xs text-destructive mt-1">{rawError}</p>}
-        <p className="text-xs text-muted-foreground mt-2">
-          Every column of the paper form is shown, including those the system cannot fill — a blank cell on a
-          DOH form is meaningful. Columns marked <span className="font-semibold">{NO_SOURCE}</span> have no
-          source: preventive care records store the visit date only, not the individual services performed at
-          it.
-          {hiddenCount > 0 && (
-            <> <span className="font-semibold text-foreground">This sheet is not the complete standard form:</span>{' '}
-            {hiddenCount} column{hiddenCount === 1 ? '' : 's'} hidden, and hidden columns do not print.</>
-          )}
-          {TCL_UNVERIFIED > 0 && (
-            <><span className="border-b border-dotted border-amber-500">Dotted</span> captions ({TCL_UNVERIFIED})
-            were read from a low-resolution scan of Appendix E and still need checking against the paper form.</>
-          )}
-        </p>
+        </div>
+        <dl className="flex flex-wrap border-t border-[#dfe5f0] bg-[#fafbfe] [&>div]:border-r [&>div]:border-[#dfe5f0] [&>div]:px-5 [&>div]:py-2.5 [&_dt]:text-[10px] [&_dt]:font-extrabold [&_dt]:uppercase [&_dt]:tracking-[0.08em] [&_dt]:text-muted-foreground [&_dd]:text-[17px] [&_dd]:font-bold [&_dd]:text-primary">
+          <div><dt>Period</dt><dd>{periodLabel}</dd></div>
+          <div><dt>School</dt><dd>{selectedSchool ? getSchoolShortName(selectedSchool) : 'All schools'}</dd></div>
+          <div><dt>Consulted</dt><dd>{visible.length}</dd></div>
+          <div><dt>Male · Female</dt><dd>{visible.filter((r) => r.sex === 'M').length} · {visible.filter((r) => r.sex === 'F').length}</dd></div>
+          <div className="!border-r-0 min-w-[14rem] flex-1">
+            <dt>Form note</dt>
+            <dd className="!text-xs !font-normal !text-muted-foreground"
+              title={`Every column of the paper form is shown, including those the system cannot fill — a blank cell on a DOH form is meaningful. Columns marked ${NO_SOURCE} have no source: preventive care records store the visit date only, not the individual services performed at it.`}>
+              Every form column is shown; a blank cell is meaningful. Columns marked <span className="font-semibold">{NO_SOURCE}</span> have no source in the system.
+            </dd>
+          </div>
+        </dl>
+        {(visible.length === 0 && latestConsult) || rawError || hiddenCount > 0 || TCL_UNVERIFIED > 0 ? (
+          <div className="space-y-1 border-t border-[#dfe5f0] px-5 py-2.5 text-xs text-muted-foreground">
+            {visible.length === 0 && latestConsult && (
+              <p className="font-medium text-amber-700">No consultation falls in this period; the most recent one on record is {formatDate(latestConsult)}.</p>
+            )}
+            {rawError && <p className="text-destructive">{rawError}</p>}
+            {hiddenCount > 0 && (
+              <p><span className="font-semibold text-foreground">This sheet is not the complete standard form:</span> {hiddenCount} column{hiddenCount === 1 ? '' : 's'} hidden, and hidden columns do not print.</p>
+            )}
+            {TCL_UNVERIFIED > 0 && (
+              <p><span className="border-b border-dotted border-amber-500">Dotted</span> captions ({TCL_UNVERIFIED}) were read from a low-resolution scan of Appendix E and still need checking against the paper form.</p>
+            )}
+          </div>
+        ) : null}
       </div>
 
       {showPicker && (
