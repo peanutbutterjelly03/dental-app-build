@@ -260,8 +260,8 @@ export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null 
         {/* Wide content scrolls inside its own container, so the table never
             pushes the page sideways at 390px (CLAUDE.md, three device classes). */}
         <div>
-          <table className="w-full min-w-[640px] text-xs" style={{ borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
-            <colgroup><col style={{ width: '15rem' }} /><col /><col /><col /><col /></colgroup>
+          <table className="w-full min-w-[720px] text-xs" style={{ borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
+            <colgroup><col style={{ width: '20rem' }} /><col /><col /><col /><col /></colgroup>
             <thead>
               <tr ref={titleRowRef} className="[&>th]:sticky [&>th]:top-0 [&>th]:z-20">
                 {/* The paper sheet's single top band carries the school name. */}
@@ -283,7 +283,7 @@ export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null 
                   <td className={`${TD} font-medium text-foreground`}>
                     <div className="flex items-baseline justify-between gap-4">
                       <span>{row.label}</span>
-                      <span>{row.code}</span>
+                      <span className="pr-[30%]">{row.code}</span>
                     </div>
                   </td>
                   <td className={`${TD} text-center tabular-nums`}>{show(row.male.persons)}</td>
