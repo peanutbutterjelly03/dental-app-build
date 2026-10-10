@@ -1490,7 +1490,7 @@ export const Reports = () => {
       {activeReportTab === 'tcl' && canSeeNamedClientLists && <TargetClientList />}
 
       {/* ── ORAL HEALTH PROGRAM REPORTING FORM (Appendix F) ── */}
-      {activeReportTab === 'ohprf' && <OralHealthProgramReport schoolYear={dohSchoolYear} schoolName={reportSchool} yearPicker={yearSelect} />}
+      {activeReportTab === 'ohprf' && <OralHealthProgramReport schoolName={reportSchool} />}
       {activeReportTab === 'fhsis' && <FhsisReport schoolName={reportSchool} />}
       {/* Per-school summary sheet — shares the DOH tab's school-year picker,
           like the Program Report (Sprint 57b). */}

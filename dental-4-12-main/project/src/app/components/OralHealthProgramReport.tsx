@@ -18,9 +18,10 @@ import { buildDohReportPdf } from '../utils/exportPdf';
 import { buildXlsx } from '../utils/exportXlsx';
 import { usePreviewModal } from '../hooks/usePreviewModal';
 import { PreviewModal } from './PreviewModal';
-import type { ReactNode } from 'react';
-import { GraduationCap, SlidersHorizontal } from 'lucide-react';
-import { PanelShell, PanelRow, GroupBox, ActionGroup, GreyButton, ActionButton } from './ReportControls';
+import { SlidersHorizontal } from 'lucide-react';
+import { PanelShell, PanelRow, FiltersButton, ExportMenu } from './ReportControls';
+import { PeriodDatesBoxes, type PeriodDatesValue } from './PeriodDatesBoxes';
+import { toLocalDateString } from '../utils/localDate';
 
 /** What a no-source cell says in the exported workbook — the same mark the
  *  screen shows, so the file makes the identical claims as the report. */
@@ -322,13 +323,19 @@ function loadSet(key: string): Set<string> {
   }
 }
 
-export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null, yearPicker = null }: { schoolYear?: string | null; schoolName?: string | null; yearPicker?: ReactNode }) => {
+export const OralHealthProgramReport = ({ schoolName = null }: { schoolName?: string | null }) => {
   // → A wide banded grid, like the consolidated report.
   usePrintOrientation('landscape');
   // Scoped to the SAME school the DOH tab's picker selects, not the sidebar's
   // current school — the two are different controls and this form is read
   // beside the consolidated report.
-  const { getRealTotal, loading } = useDohReportData(schoolYear, schoolName);
+  // Scope is a date period (Time period + Dates boxes), applied server-side to
+  // each record's first recorded visit — same rule as the DOH tab.
+  const [period, setPeriod] = useState<PeriodDatesValue>(() => {
+    const n = new Date();
+    return { kind: 'month', start: toLocalDateString(new Date(n.getFullYear(), n.getMonth(), 1)), end: toLocalDateString(new Date(n.getFullYear(), n.getMonth() + 1, 0)) };
+  });
+  const { getRealTotal, loading } = useDohReportData(null, schoolName, period.start, period.end);
 
   // Hidden rows/columns and expanded parents, remembered per browser.
   //
@@ -498,7 +505,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null, 
     );
   };
 
-  const exportBaseName = `OHPRF_${(schoolName ?? 'All Schools').replace(/[^\w]+/g, '-')}_${schoolYear ?? 'all-years'}`;
+  const exportBaseName = `OHPRF_${(schoolName ?? 'All Schools').replace(/[^\w]+/g, '-')}_${period.start}_to_${period.end}`;
 
   const onPdf = () => {
     if (!printableRef.current) return;
@@ -561,21 +568,27 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null, 
 
   return (
     <div className="space-y-8">
-      {/* Controls: see ReportControls.tsx. The period is the school year, picked
-          with the same control as the DOH tab (shared state, Sprint 57b). PDF
-          *and* Excel: aggregate counts, no names, bounded width. */}
+      {/* Controls: see ReportControls.tsx. The period is a date range, picked with
+          the same boxes as the DOH tab. PDF *and* Excel: aggregate counts, no names, bounded width. */}
       <PanelShell>
         <PanelRow>
-          <GroupBox title="School year" icon={GraduationCap} className="w-full lg:w-auto lg:px-6">{yearPicker}</GroupBox>
-          <ActionGroup>
-            <GreyButton icon={SlidersHorizontal} expanded={showPicker} onClick={() => setShowPicker((v) => !v)}>
-              {showPicker ? 'Done' : `Rows and columns: ${hiddenCount ? `${hiddenCount} hidden` : 'all shown'}`}
-            </GreyButton>
-            <ActionButton kind="excel" caption="For the City Health Office" onClick={onXlsx} busy={building && preview.kind === 'excel'} />
-            <ActionButton kind="pdf" caption="To email or keep" onClick={onPdf} busy={building && preview.kind === 'pdf'} />
-          </ActionGroup>
+          <PeriodDatesBoxes initialKind="month" onChange={setPeriod} />
+          <div className="flex self-start lg:ml-auto">
+            <FiltersButton count={hiddenCount}>
+              <p className="text-[12px] text-muted-foreground">
+                {hiddenCount ? `${hiddenRows.size} row(s) and ${hiddenCols.size} column(s) hidden. Hidden items do not print.` : 'All rows and columns are shown.'}
+              </p>
+              <button type="button" onClick={() => setShowPicker((v) => !v)}
+                className="flex h-9 items-center gap-2 rounded-[10px] border border-[#e3e7ef] bg-[#f1f3f8] px-3 text-[12.5px] font-bold text-[#46536d] hover:bg-[#e9ecf3]">
+                <SlidersHorizontal className="h-4 w-4 text-[#7a859b]" aria-hidden="true" />
+                {showPicker ? 'Close rows and columns' : 'Choose rows and columns'}
+              </button>
+            </FiltersButton>
+            <ExportMenu joined busy={building} onPrint={() => window.print()} onPdf={onPdf} onExcel={onXlsx}
+              excelDisabledReason={loading ? 'Loading' : undefined} pdfDisabledReason={loading ? 'Loading' : undefined} />
+          </div>
         </PanelRow>
-        <p className="sr-only" aria-live="polite">Showing {schoolYear ? `school year ${schoolYear}` : 'all years to date'}, {schoolName ?? 'all schools'}</p>
+        <p className="sr-only" aria-live="polite">Showing {period.start} to {period.end}, {schoolName ?? 'all schools'}</p>
       </PanelShell>
       <div className="bg-card rounded-xl border border-border p-4">
         <h2 className="text-sm font-bold text-foreground">Oral Health Program Reporting Form</h2>
