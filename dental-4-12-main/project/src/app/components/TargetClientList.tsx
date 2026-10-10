@@ -1011,7 +1011,7 @@ export const TargetClientList = () => {
         <div className="flex flex-wrap items-start justify-between gap-3 px-5 pb-4 pt-4">
           <div>
             <h2 className="text-base font-extrabold text-foreground">Target Client List for Oral Health Care and Services</h2>
-            <dl className="mt-2 flex flex-wrap gap-y-2 [&>div]:border-l [&>div]:border-[#dfe5f0] [&>div]:px-4 [&>div:first-child]:border-l-0 [&>div:first-child]:pl-0 [&_dt]:text-[10px] [&_dt]:font-extrabold [&_dt]:uppercase [&_dt]:tracking-[0.08em] [&_dt]:text-muted-foreground [&_dd]:text-[13.5px] [&_dd]:font-bold">
+            <dl className="mt-2 flex flex-wrap gap-y-2 [&>div]:border-l [&>div]:border-[#dfe5f0] [&>div]:px-4 [&>div:first-child]:border-l-0 [&>div:first-child]:pl-0 [&_dt]:text-[9px] [&_dt]:font-extrabold [&_dt]:uppercase [&_dt]:tracking-[0.08em] [&_dt]:text-muted-foreground [&_dd]:text-[12px] [&_dd]:font-bold">
               <div><dt>Period</dt><dd>{periodLabel}</dd></div>
               <div><dt>School</dt><dd>{selectedSchool ? getSchoolShortName(selectedSchool) : 'All schools'}</dd></div>
               <div><dt>Consulted</dt><dd className="tabular-nums text-primary">{visible.length}</dd></div>
