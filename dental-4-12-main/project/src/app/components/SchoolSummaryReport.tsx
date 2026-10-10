@@ -260,7 +260,7 @@ export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null 
         {/* Wide content scrolls inside its own container, so the table never
             pushes the page sideways at 390px (CLAUDE.md, three device classes). */}
         <div>
-          <table className="w-full min-w-[800px] text-xs" style={{ borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
+          <table className="w-full min-w-[800px] text-[13px]" style={{ borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
             <colgroup><col style={{ width: '27rem' }} /><col /><col /><col /><col /></colgroup>
             <thead>
               <tr ref={titleRowRef} className="[&>th]:sticky [&>th]:top-0 [&>th]:z-20">
