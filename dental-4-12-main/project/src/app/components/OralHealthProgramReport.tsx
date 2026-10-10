@@ -590,40 +590,57 @@ export const OralHealthProgramReport = ({ schoolName = null }: { schoolName?: st
         </PanelRow>
         <p className="sr-only" aria-live="polite">Showing {period.start} to {period.end}, {schoolName ?? 'all schools'}</p>
       </PanelShell>
-      <div className="bg-card rounded-xl border border-border p-4">
-        <h2 className="text-sm font-bold text-foreground">Oral Health Program Reporting Form</h2>
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <span className="text-xs text-muted-foreground">
-            {/* Names the scope the FIGURES actually cover. Falling back to the
-                sidebar's current school here would label all-schools data with
-                one school's name — the exact mislabelling this sprint fixes. */}
-            {schoolName ?? 'All schools'} · Barangay Tanyag, Taguig City
-          </span>
-        </div>
-        <p className="text-xs text-muted-foreground mt-2">
-          The paper form covers the whole city population; Floral holds school children only, so its
-          <span className="font-medium text-foreground"> adult, senior citizen and pregnant-women </span>
-          columns stay empty here. Rows that stay
-          <span className="font-semibold text-foreground"> blank </span>
-          exist on the form but have no source in the system yet: per-visit services are not recorded, only visit dates.
-        </p>
-        <p className="text-xs text-muted-foreground mt-2">
-          Every column and row of the paper form is shown, including those a school clinic can never fill —
-          a blank cell on this form is meaningful. Cells are left <span className="font-semibold text-foreground">blank</span>{' '}
-          where the system has no source at that granularity: it records a birthdate, not an age in months,
-          and records no pregnancy at all.
-          {hiddenCount > 0 && (
-            <> <span className="font-semibold text-foreground">This form is not the complete standard form:</span>{' '}
-            {hiddenRows.size} row{hiddenRows.size === 1 ? '' : 's'} and {hiddenCols.size} column
-            {hiddenCols.size === 1 ? '' : 's'} are hidden, and hidden items do not print.</>
-          )}
-          {UNVERIFIED_COUNT > 0 && (
-            <> <span className="border-b border-dotted border-amber-500">Dotted</span> column captions
-            ({UNVERIFIED_COUNT}) were read from a low-resolution scan of Appendix F and still need checking
-            against the paper form — they are marked rather than silently trusted.</>
-          )}
-        </p>
-      </div>
+      {(() => {
+        // Examined patients per the form's own column groups.
+        const groupTotal = (bands: AgeBand[]) =>
+          bands.reduce((n, b) => n + SEXES.reduce((m, sx) => m + (getRealTotal(b, sx, 'examined') ?? 0), 0), 0);
+        const groups: [string, number][] = [
+          ['Under five', groupTotal(['4 yrs & below'])],
+          ['Children above 5', groupTotal(['5-9 yrs'])],
+          ['Adolescent', groupTotal(['10-14 yrs', '15-19 yrs'])],
+          ['Adult', groupTotal(['20 yrs & above'])],
+        ];
+        const examined = groups.reduce((n, g) => n + g[1], 0);
+        const max = Math.max(...groups.map((g) => g[1]), 1);
+        return (
+          <div className="rounded-2xl border border-[#dfe5f0] bg-card px-5 py-4 shadow-[0_14px_30px_-22px_rgba(36,59,122,0.5)]">
+            <h2 className="text-base font-extrabold text-foreground">Oral Health Program Reporting Form</h2>
+            <p className="mt-0.5 text-[12.5px] text-muted-foreground">
+              {period.start} to {period.end} · {schoolName ?? 'All schools'} · Barangay Tanyag, Taguig City
+            </p>
+            <div className="mt-4 flex flex-wrap items-end gap-x-8 gap-y-4">
+              <div>
+                <div className="text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted-foreground">Examined</div>
+                <div className="text-[26px] font-extrabold leading-tight text-primary tabular-nums">{examined}</div>
+                <div className="text-[11px] text-muted-foreground">Patients given oral examination.</div>
+              </div>
+              <div role="img" aria-label="Examined patients by age group" className="flex h-[92px] min-w-[16rem] flex-1 items-end gap-3">
+                {groups.map(([label, n]) => (
+                  <div key={label} className="flex-1 text-center text-[11px]">
+                    <div className="font-extrabold tabular-nums text-primary">{n}</div>
+                    <div className="mx-auto my-0.5 rounded-t-[5px] bg-primary" style={{ height: Math.max((n / max) * 50, 2) }} />
+                    <div className="text-muted-foreground">{label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {(hiddenCount > 0 || UNVERIFIED_COUNT > 0) && (
+              <div className="mt-3 space-y-1 border-t border-[#dfe5f0] pt-2.5 text-xs text-muted-foreground">
+                {hiddenCount > 0 && (
+                  <p><span className="font-semibold text-foreground">This form is not the complete standard form:</span>{' '}
+                  {hiddenRows.size} row{hiddenRows.size === 1 ? '' : 's'} and {hiddenCols.size} column
+                  {hiddenCols.size === 1 ? '' : 's'} are hidden, and hidden items do not print.</p>
+                )}
+                {UNVERIFIED_COUNT > 0 && (
+                  <p><span className="border-b border-dotted border-amber-500">Dotted</span> column captions
+                  ({UNVERIFIED_COUNT}) were read from a low-resolution scan of Appendix F and still need checking
+                  against the paper form.</p>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {showPicker && (
         <div className="bg-card rounded-xl border border-border p-4 space-y-3 text-xs">
