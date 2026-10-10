@@ -323,7 +323,7 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
           <thead>
             <tr>
               <th colSpan={12} className="border-b border-gray-300 bg-[#CFDDF6] px-3 py-2 text-center text-[11px] font-bold uppercase tracking-wide text-[#273A78]">
-                Section D. Oral Health Care Services
+                Oral Health Care Services
               </th>
             </tr>
             <tr>
