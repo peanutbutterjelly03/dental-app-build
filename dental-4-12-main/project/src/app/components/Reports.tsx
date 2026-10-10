@@ -776,27 +776,6 @@ export const Reports = () => {
     );
   }
 
-  // School year picker, shared by the DOH tab, Program Report and School
-  // Summary (they all read dohSchoolYear). School year, not calendar month:
-  // the figures are per-IPTR, and an IPTR belongs to a school year.
-  const yearSelect = (
-    <Underlined icon={Calendar} chevron>
-      <select id="doh-school-year" aria-label="School year" value={dohSchoolYear ?? ''} onChange={e => setDohSchoolYear(e.target.value || null)}
-        className={`${fieldInputClass} !pr-5`}>
-        {/* "All years to date" stays: it is still the right answer for a cumulative count. */}
-        <option value="">All years to date</option>
-        {/* ⚠ The selected year is listed even when the database holds no
-            records for it, so the control always shows the year it is really
-            using — otherwise the <select> falls back to its FIRST option and
-            reads "All years to date" while the report filters to an empty year. */}
-        {dohSchoolYear && !dohYears.includes(dohSchoolYear) && (
-          <option value={dohSchoolYear}>{dohSchoolYear} (no records)</option>
-        )}
-        {dohYears.map(y => <option key={y} value={y}>{y}</option>)}
-      </select>
-    </Underlined>
-  );
-
   return (
     <div className="min-w-0 space-y-4">
       {/* Header band (user pick, 2026-10-06): the title and the school on top, the seven reports as tabs in two
