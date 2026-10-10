@@ -88,6 +88,21 @@ export async function resolveStudent(
     }
     if (iptrId) studentId = str((await lookup('student-iptrs', iptrId))?.student_id);
   }
+  if (!studentId) {
+    // A change with no body of its own (an archive) and no snapshot: look the record up
+    // by id and follow it to its chart or school year.
+    const rid = recordIdOf(write.endpoint);
+    const rec = rid && resource ? await lookup(resource, rid) : undefined;
+    if (rec) {
+      studentId = str(rec.student_id);
+      let iptrId = str(rec.iptr_id);
+      if (!studentId && !iptrId) {
+        const chartId = str(rec.chart_id);
+        if (chartId) iptrId = str((await lookup('dental-charts', chartId))?.iptr_id);
+      }
+      if (!studentId && iptrId) studentId = str((await lookup('student-iptrs', iptrId))?.student_id);
+    }
+  }
   if (!studentId) return {};
   const student = (await lookup('students', studentId)) ?? (resource === 'students' ? body : undefined);
   const last = str(student?.last_name);
@@ -99,6 +114,15 @@ export async function resolveStudent(
     studentName: last || first ? [last, first].filter(Boolean).join(', ') : undefined,
     studentSub: [grade, section].filter(Boolean).join(', ') || undefined,
   };
+}
+
+/** What an archived record was, as this device last saw it (a tooth's number and condition),
+ *  so the report can say which tooth was cleared instead of just "archived". */
+function archivedFields(write: QueuedWrite): { field: string; before: unknown; after: unknown }[] {
+  const snap = write.originalSnapshot ?? {};
+  return ['tooth_number', 'condition', 'treatment_code']
+    .filter((k) => snap[k] !== undefined && snap[k] !== null && snap[k] !== '')
+    .map((k) => ({ field: k, before: snap[k], after: undefined }));
 }
 
 export interface SyncOutcome {
@@ -141,7 +165,7 @@ export async function recordSync(runId: string, outcomes: SyncOutcome[]): Promis
         module: d.module,
         label: d.kind,
         subject: subjectOf(write),
-        fields: op === 'archive' ? [] : fieldChanges(write),
+        fields: op === 'archive' ? archivedFields(write) : fieldChanges(write),
         ...ctx,
       });
     }

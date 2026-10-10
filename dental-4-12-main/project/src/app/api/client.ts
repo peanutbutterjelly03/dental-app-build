@@ -114,7 +114,9 @@ async function writeRequest<T>(path: string, method: 'POST' | 'PUT' | 'PATCH', b
 // Returns undefined (no baseline, conflict detection just won't apply) for a
 // record not cached yet, or one that exists only on this device.
 async function captureBaselineSnapshot(path: string): Promise<Record<string, unknown> | undefined> {
-  const match = path.match(/^\/([a-z-]+)\/([a-f0-9]{24})$/i);
+  // `/archive` too: an archive carries no body, so this snapshot is the only thing that
+  // tells the sync report WHICH tooth (and so which student) it archived.
+  const match = path.match(/^\/([a-z-]+)\/([a-f0-9]{24})(?:\/archive)?$/i);
   return match ? findCachedRecord(match[1], match[2]) : undefined;
 }
 

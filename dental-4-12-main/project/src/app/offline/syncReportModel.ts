@@ -119,7 +119,9 @@ export function buildReport(entries: HistoryEntry[], others: { studentId: string
 
   const byStudent = new Map<string, { name: string; sub?: string; writes: WriteEntry[] }>();
   for (const w of writes) {
-    const id = w.studentId ?? `unknown:${w.resource}:${w.recordId ?? w.id}`;
+    // Changes whose student could not be worked out stay together as ONE entry, not one
+    // "student" per record (a cleared mouth is thirty of them).
+    const id = w.studentId ?? 'unknown';
     let s = byStudent.get(id);
     if (!s) byStudent.set(id, (s = { name: w.studentName ?? 'Unknown student', sub: w.studentSub, writes: [] }));
     if (w.studentName && s.name === 'Unknown student') s.name = w.studentName;

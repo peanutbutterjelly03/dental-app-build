@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fieldChanges, opOf } from './syncHistory';
+import { fieldChanges, opOf, resolveStudent } from './syncHistory';
 
 describe('fieldChanges', () => {
   it('lists changed fields with the original value, hiding ids and the envelope', () => {
@@ -33,5 +33,25 @@ describe('opOf', () => {
     expect(opOf({ method: 'POST', endpoint: '/treatments' })).toBe('create');
     expect(opOf({ method: 'PUT', endpoint: '/students/aaaaaaaaaaaaaaaaaaaaaaaa' })).toBe('update');
     expect(opOf({ method: 'PATCH', endpoint: '/students/aaaaaaaaaaaaaaaaaaaaaaaa/archive' })).toBe('archive');
+  });
+});
+
+describe('resolveStudent', () => {
+  const TOOTH = 'aaaaaaaaaaaaaaaaaaaaaaaa';
+  const created = new Map<string, Record<string, unknown>>([
+    [`tooth-records|${TOOTH}`, { chart_id: 'c1', tooth_number: 22 }],
+    ['dental-charts|c1', { iptr_id: 'i1' }],
+    ['student-iptrs|i1', { student_id: 's1' }],
+    ['students|s1', { last_name: 'Acacio', first_name: 'Khalil', grade_level: 'Kinder', section: 'Apple Green' }],
+  ]);
+
+  it('finds the student of an archive that has no body and no snapshot, through the record itself', () => {
+    const write = { method: 'PATCH', endpoint: `/tooth-records/${TOOTH}/archive`, body: undefined } as never;
+    return expect(resolveStudent(write, undefined, created)).resolves.toEqual({ studentId: 's1', studentName: 'Acacio, Khalil', studentSub: 'Kinder, Apple Green' });
+  });
+
+  it('gives up cleanly when nothing is known', async () => {
+    const write = { method: 'PATCH', endpoint: `/tooth-records/${TOOTH}/archive`, body: undefined } as never;
+    expect(await resolveStudent(write, undefined, new Map())).toEqual({});
   });
 });

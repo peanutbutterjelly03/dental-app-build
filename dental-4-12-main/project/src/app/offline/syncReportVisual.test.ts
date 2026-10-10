@@ -77,6 +77,13 @@ describe('buildDateGroups', () => {
   });
 });
 
+describe('cleared teeth', () => {
+  it('an archived tooth keeps its number and the condition it had', () => {
+    const [d] = days([write({ op: 'archive', label: 'Tooth record archived', subject: 'Tooth record #22', fields: [{ field: 'tooth_number', before: 22, after: undefined }, { field: 'condition', before: 'D', after: undefined }] })]);
+    expect(d.teeth).toEqual([{ tooth: 22, before: 'D', cond: '', removed: true, edits: 1 }]);
+  });
+});
+
 describe('noise', () => {
   it('a newly created dental chart adds no line of its own', () => {
     const [d] = days([write({ resource: 'dental-charts', op: 'create', label: 'Dental chart added', subject: 'Dental chart', fields: [{ field: 'date_charted', before: undefined, after: '2026-10-10' }] }), tooth(11)]);

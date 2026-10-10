@@ -62,3 +62,14 @@ describe('buildReport', () => {
     expect(list.filter((s) => s.studentId === 's1')).toHaveLength(1);
   });
 });
+
+describe('changes whose student is not known', () => {
+  it('stay together as ONE entry, not one student per record', () => {
+    const archived = (recordId: string) => write({ studentId: undefined, studentName: undefined, op: 'archive', resource: 'tooth-records', recordId, label: 'Tooth record archived', subject: 'Tooth record', fields: [] });
+    const list = buildReport([archived('a1'), archived('a2'), archived('a3')]);
+    expect(list).toHaveLength(1);
+    expect(list[0].name).toBe('Unknown student');
+    expect(list[0].rows).toHaveLength(3);
+  });
+});
+

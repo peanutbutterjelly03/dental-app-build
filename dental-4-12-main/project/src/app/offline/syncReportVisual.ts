@@ -86,14 +86,14 @@ export function buildDays(rows: ReportRow[], now: number = Date.now()): DayView[
     for (const r of list) {
       if (r.status !== 'synced') { problems.push(r); continue; }
       const edits = Math.max(0, r.versions.length - 1);
-      const detail = Object.fromEntries((r.detail ?? []).map((f) => [f.field, f.after]));
+      const detail = Object.fromEntries((r.detail ?? []).map((f) => [f.field, r.op === 'archive' ? f.before : f.after]));
 
       if (r.resource === 'tooth-records') {
         const n = toothNumberOf(r, detail);
         if (n === null) { texts.push({ label: r.field, from: r.before, to: r.current.value }); continue; }
         const prev = teeth.get(n);
         const edits = (prev?.edits ?? 0) + 1;
-        if (r.op === 'archive') teeth.set(n, { tooth: n, before: prev?.before ?? prev?.cond ?? '', cond: prev?.cond ?? '', removed: true, edits });
+        if (r.op === 'archive') teeth.set(n, { tooth: n, before: prev?.before ?? String(detail.condition ?? prev?.cond ?? ''), cond: prev?.cond ?? '', removed: true, edits });
         else if (r.op === 'create') teeth.set(n, { tooth: n, before: prev?.before ?? '', cond: String(detail.condition ?? ''), removed: false, edits });
         else {
           const cond = r.fieldName === 'condition' ? String(r.current.raw ?? '') : (prev?.cond || 'T');
