@@ -1218,8 +1218,11 @@ export const Reports = () => {
                 const totM = sumAll('M');
                 const totF = sumAll('F');
                 const totAll = sumAll('all');
-                const hdr = 'border-l border-white/20 px-1.5 py-2 text-center text-[11px] font-extrabold tracking-wide text-white';
-                const sub = 'border-l border-white/10 px-1.5 py-1.5 text-center text-[10px] font-bold text-white/90';
+                const hdr = 'px-1.5 py-2 text-center text-[11px] font-extrabold tracking-wide text-white';
+                const sub = 'px-1.5 py-1.5 text-center text-[10px] font-bold text-white/90';
+                // Alternate grade groups in two near-identical shades instead of drawing lines.
+                const hShade = (i: number) => (i % 2 ? 'bg-[#233a7a]' : 'bg-[#1b2d63]');
+                const bShade = (i: number) => (i % 2 ? 'bg-[#f5f8fe]' : '');
                 return (
                   <div className="overflow-hidden rounded-2xl border border-[#A9BDE6] bg-card">
                     <div className="bg-gradient-to-br from-[#273c7b] to-[#1b2d63] px-5 py-3.5 text-white">
@@ -1240,12 +1243,12 @@ export const Reports = () => {
                         <thead>
                           <tr className="bg-[#1b2d63]">
                             <th rowSpan={2} className="min-w-[220px] px-4 py-2 text-left text-[11px] font-extrabold tracking-wide text-white">PROCEDURE</th>
-                            {gradeCols.map((g) => <th key={g} colSpan={2} className={`${hdr} border-b border-b-white/25`}>{g.toUpperCase()}</th>)}
-                            <th colSpan={3} className={`${hdr} border-b border-b-white/25 bg-[#2c4690]`}>TOTAL</th>
+                            {gradeCols.map((g, i) => <th key={g} colSpan={2} className={`${hdr} ${hShade(i)}`}>{g.toUpperCase()}</th>)}
+                            <th colSpan={3} className={`${hdr} bg-[#2c4690]`}>TOTAL</th>
                           </tr>
                           <tr className="bg-[#1b2d63]">
-                            {gradeCols.map((g) => (
-                              <Fragment key={g}><th className={sub}>MALE</th><th className={sub}>FEMALE</th></Fragment>
+                            {gradeCols.map((g, i) => (
+                              <Fragment key={g}><th className={`${sub} ${hShade(i)}`}>MALE</th><th className={`${sub} ${hShade(i)}`}>FEMALE</th></Fragment>
                             ))}
                             <th className={`${sub} bg-[#2c4690]`}>MALE</th>
                             <th className={`${sub} bg-[#2c4690]`}>FEMALE</th>
@@ -1259,10 +1262,10 @@ export const Reports = () => {
                             return (
                               <tr key={p} className="border-b border-[#dfe5f0] hover:bg-[#f8faff]">
                                 <td className="px-4 py-2 font-medium text-foreground">{labelForCode.get(p) ?? p}</td>
-                                {gradeCols.map((g) => (
+                                {gradeCols.map((g, i) => (
                                   <Fragment key={g}>
-                                    <td className="px-1.5 py-2 text-center tabular-nums text-blue-700">{getCount(realTreatmentMatrix, p, g, 'M')}</td>
-                                    <td className="px-1.5 py-2 text-center tabular-nums text-pink-700">{getCount(realTreatmentMatrix, p, g, 'F')}</td>
+                                    <td className={`px-1.5 py-2 text-center tabular-nums text-blue-700 ${bShade(i)}`}>{getCount(realTreatmentMatrix, p, g, 'M')}</td>
+                                    <td className={`px-1.5 py-2 text-center tabular-nums text-pink-700 ${bShade(i)}`}>{getCount(realTreatmentMatrix, p, g, 'F')}</td>
                                   </Fragment>
                                 ))}
                                 <td className="bg-[#eef3fd] px-1.5 py-2 text-center font-bold tabular-nums text-blue-700">{m}</td>
@@ -1273,10 +1276,10 @@ export const Reports = () => {
                           })}
                           <tr className="border-t-2 border-[#dfe5f0] font-extrabold">
                             <td className="px-4 py-2.5">TOTAL</td>
-                            {gradeCols.map((g) => (
+                            {gradeCols.map((g, i) => (
                               <Fragment key={g}>
-                                <td className="px-1.5 py-2.5 text-center tabular-nums text-blue-700">{TREATMENT_ROWS.reduce((n, p) => n + getCount(realTreatmentMatrix, p, g, 'M'), 0)}</td>
-                                <td className="px-1.5 py-2.5 text-center tabular-nums text-pink-700">{TREATMENT_ROWS.reduce((n, p) => n + getCount(realTreatmentMatrix, p, g, 'F'), 0)}</td>
+                                <td className={`px-1.5 py-2.5 text-center tabular-nums text-blue-700 ${bShade(i)}`}>{TREATMENT_ROWS.reduce((n, p) => n + getCount(realTreatmentMatrix, p, g, 'M'), 0)}</td>
+                                <td className={`px-1.5 py-2.5 text-center tabular-nums text-pink-700 ${bShade(i)}`}>{TREATMENT_ROWS.reduce((n, p) => n + getCount(realTreatmentMatrix, p, g, 'F'), 0)}</td>
                               </Fragment>
                             ))}
                             <td className="bg-[#eef3fd] px-1.5 py-2.5 text-center tabular-nums text-blue-700">{totM}</td>
@@ -1286,9 +1289,6 @@ export const Reports = () => {
                         </tbody>
                       </table>
                     </div>
-                    <p className="border-t border-[#dfe5f0] px-4 py-2 text-[11px] text-muted-foreground">
-                      Counted from tooth-level treatment records; each is dated by its chart's charting date (tooth records carry no individual date).
-                    </p>
                   </div>
                 );
               })()}
