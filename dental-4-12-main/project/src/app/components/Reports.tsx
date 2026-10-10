@@ -1,6 +1,8 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Clock, FileBarChart, FileSpreadsheet, FileText, AlertTriangle, AlertCircle, CheckCircle, Users, Calendar, CalendarDays, CalendarRange, GraduationCap, UserRound, VenusAndMars, SlidersHorizontal, Stethoscope, Activity, LayoutDashboard, X } from 'lucide-react';
 import { PeriodDatesBoxes, type PeriodDatesValue } from './PeriodDatesBoxes';
+import { GradeSexTable, gridData } from './GradeSexTable';
+import { useReportLayout } from '../hooks/useReportLayout';
 import { ExportMenu, PeriodTiles, PeriodSwitch, fieldInputClass, PanelShell, PanelRow, BOX_W, UnderlineTabs, GroupBox, Underlined, FiltersButton, FilterChip, type TileOption } from './ReportControls';
 import { RangePicker } from './RangePicker';
 import { buildXlsx, buildSheetsXlsx } from '../utils/exportXlsx';
@@ -591,6 +593,9 @@ export const Reports = () => {
     () => new Map(treatmentCodes.map((t) => [t.code, t.label])),
     [],
   );
+  // Saved layout of the two Internal Reports tables (hidden columns, added rows and columns).
+  const treatmentLayout = useReportLayout('procedure_counts');
+  const conditionLayout = useReportLayout('condition_counts');
   // ⚠ KEYED BY TREATMENT CODE now, not by label: labels carry the clinic's
   // local terms ("Bunot", "Pasta") and belong to the UI, so the server never
   // sends them. The rows below map code -> label at render time.
@@ -660,23 +665,26 @@ export const Reports = () => {
     try {
       const scope = `${internalSection === 'conditions' ? 'All time' : periodLabel}${internalFilterNote ? ` · ${internalFilterNote}` : ''}`;
       let blob: Blob;
-      if (internalSection === 'treatment') {
-        type TRow = { label: string; m: number; f: number; t: number };
-        const rows: TRow[] = TREATMENT_ROWS.map((p) => ({ label: labelForCode.get(p) ?? p, m: cnt(realTreatmentMatrix, p, 'M'), f: cnt(realTreatmentMatrix, p, 'F'), t: cnt(realTreatmentMatrix, p, 'M') + cnt(realTreatmentMatrix, p, 'F') }));
-        rows.push({ label: 'Total', m: rows.reduce((a, r) => a + r.m, 0), f: rows.reduce((a, r) => a + r.f, 0), t: rows.reduce((a, r) => a + r.t, 0) });
-        blob = await buildXlsx(rows, [
-          { label: `Procedure · ${scope}`, value: (r: TRow) => r.label },
-          { label: 'Male', value: (r: TRow) => r.m },
-          { label: 'Female', value: (r: TRow) => r.f },
-          { label: 'Total', value: (r: TRow) => r.t },
-        ], 'Treatment Summary');
-      } else if (internalSection === 'conditions') {
-        type CRow = { cond: string };
-        blob = await buildXlsx(CONDITIONS.map((cond): CRow => ({ cond })), [
-          { label: `Condition · ${scope}`, value: (r: CRow) => r.cond },
-          ...displayGrades.map((g) => ({ label: g, value: (r: CRow) => getCount(conditionMatrix, r.cond, g, intGenderFilter) })),
-          { label: 'Total', value: (r: CRow) => cnt(conditionMatrix, r.cond, intGenderFilter) },
-        ], 'Condition Summary');
+      if (internalSection === 'treatment' || internalSection === 'conditions') {
+        // The file holds exactly the grid on screen: hidden columns left out,
+        // added rows and columns and renamed labels included.
+        const isTreatment = internalSection === 'treatment';
+        const g = isTreatment
+          ? gridData({
+              api: treatmentLayout, rowHeader: 'PROCEDURE', showTotalRow: true, grades: activeGrades ?? ALL_GRADES_INT,
+              baseRows: TREATMENT_ROWS.map((p) => ({ key: p, label: labelForCode.get(p) ?? p })),
+              count: (p, gr, sx) => (gr === 'all' ? cnt(realTreatmentMatrix, p, sx) : getCount(realTreatmentMatrix, p, gr, sx)),
+            })
+          : gridData({
+              api: conditionLayout, rowHeader: 'CONDITION', showTotalRow: false, grades: activeGrades ?? ALL_GRADES_INT,
+              baseRows: CONDITIONS.map((c) => ({ key: c, label: c })),
+              count: (c, gr, sx) => (gr === 'all' ? cnt(conditionMatrix, c, sx) : getCount(conditionMatrix, c, gr, sx)),
+            });
+        type GRow = typeof g.body[number];
+        blob = await buildXlsx(g.body, [
+          { label: `${g.rowHeader} · ${scope}`, value: (r: GRow) => r.label },
+          ...g.cols.map((c, i) => ({ label: `${c.group ?? ''} · ${c.label}`, value: (r: GRow) => r.cells[i] })),
+        ], isTreatment ? 'Treatment Summary' : 'Condition Summary');
       } else {
         const consent = schoolNames.map((school) => {
           const inSchool = realStudents.filter((st) => st.school === school);
@@ -1212,95 +1220,21 @@ export const Reports = () => {
           {internalSection === 'treatment' && (
             <div className="space-y-4">
 
-              {/* Procedure counts by grade: Male and Female under each grade, then the totals. */}
+              {/* Procedure counts: Male, Female and their total under each grade, then the totals. Right-click a cell for options. */}
               {(() => {
-                const gradeCols = activeGrades ?? ALL_GRADES_INT;
                 const sumAll = (sex: 'M' | 'F' | 'all') => TREATMENT_ROWS.reduce((n, p) => n + cnt(realTreatmentMatrix, p, sex), 0);
-                const totM = sumAll('M');
-                const totF = sumAll('F');
-                const totAll = sumAll('all');
-                const hdr = 'px-1.5 py-2 text-center text-[11px] font-extrabold tracking-wide text-white';
-                const sub = 'px-1.5 py-1.5 text-center text-[10px] font-bold text-white/90';
-                // Alternate grade groups in two near-identical shades instead of drawing lines.
-                const hShade = (i: number) => (i % 2 ? 'bg-[#233a7a]' : 'bg-[#1b2d63]');
-                const bShade = (i: number) => (i % 2 ? 'bg-[#f5f8fe]' : '');
                 return (
-                  <div className="overflow-hidden rounded-2xl border border-[#A9BDE6] bg-card">
-                    <div className="bg-gradient-to-br from-[#273c7b] to-[#1b2d63] px-5 py-3.5 text-white">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#aebbe0]">Internal Reports</div>
-                          <div className="text-lg font-extrabold">Procedure Counts</div>
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          <span className="rounded-full bg-white/15 px-3 py-0.5 text-xs font-bold">Male {totM}</span>
-                          <span className="rounded-full bg-white/15 px-3 py-0.5 text-xs font-bold">Female {totF}</span>
-                          <span className="rounded-full bg-white px-3 py-0.5 text-xs font-bold text-[#1b2d63]">Total {totAll}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="no-scrollbar overflow-x-auto">
-                      <table className="w-full min-w-[900px] text-[13px]" style={{ borderCollapse: 'collapse' }}>
-                        <thead>
-                          <tr className="bg-[#1b2d63]">
-                            <th rowSpan={2} className="min-w-[220px] px-4 py-2 text-left text-[11px] font-extrabold tracking-wide text-white">PROCEDURE</th>
-                            {gradeCols.map((g, i) => <th key={g} colSpan={3} className={`${hdr} ${hShade(i)}`}>{g.toUpperCase()}</th>)}
-                            <th colSpan={3} className={`${hdr} bg-[#2c4690]`}>TOTAL</th>
-                          </tr>
-                          <tr className="bg-[#1b2d63]">
-                            {gradeCols.map((g, i) => (
-                              <Fragment key={g}><th className={`${sub} ${hShade(i)}`}>MALE</th><th className={`${sub} ${hShade(i)}`}>FEMALE</th><th className={`${sub} ${hShade(i)}`}>TOTAL</th></Fragment>
-                            ))}
-                            <th className={`${sub} bg-[#2c4690]`}>MALE</th>
-                            <th className={`${sub} bg-[#2c4690]`}>FEMALE</th>
-                            <th className={`${sub} bg-[#2c4690]`}>TOTAL</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {TREATMENT_ROWS.map((p) => {
-                            const m = cnt(realTreatmentMatrix, p, 'M');
-                            const f = cnt(realTreatmentMatrix, p, 'F');
-                            return (
-                              <tr key={p} className="border-b border-[#dfe5f0] hover:bg-[#f8faff]">
-                                <td className="px-4 py-2 font-medium text-foreground">{labelForCode.get(p) ?? p}</td>
-                                {gradeCols.map((g, i) => {
-                                  const gm = getCount(realTreatmentMatrix, p, g, 'M');
-                                  const gf = getCount(realTreatmentMatrix, p, g, 'F');
-                                  return (
-                                    <Fragment key={g}>
-                                      <td className={`px-1.5 py-2 text-center tabular-nums text-blue-700 ${bShade(i)}`}>{gm}</td>
-                                      <td className={`px-1.5 py-2 text-center tabular-nums text-pink-700 ${bShade(i)}`}>{gf}</td>
-                                      <td className={`px-1.5 py-2 text-center font-bold tabular-nums text-foreground ${bShade(i)}`}>{gm + gf}</td>
-                                    </Fragment>
-                                  );
-                                })}
-                                <td className="bg-[#eef3fd] px-1.5 py-2 text-center font-bold tabular-nums text-blue-700">{m}</td>
-                                <td className="bg-[#eef3fd] px-1.5 py-2 text-center font-bold tabular-nums text-pink-700">{f}</td>
-                                <td className="bg-[#eef3fd] px-1.5 py-2 text-center font-bold tabular-nums text-foreground">{m + f}</td>
-                              </tr>
-                            );
-                          })}
-                          <tr className="border-t-2 border-[#dfe5f0] font-extrabold">
-                            <td className="px-4 py-2.5">TOTAL</td>
-                            {gradeCols.map((g, i) => {
-                              const gm = TREATMENT_ROWS.reduce((n, p) => n + getCount(realTreatmentMatrix, p, g, 'M'), 0);
-                              const gf = TREATMENT_ROWS.reduce((n, p) => n + getCount(realTreatmentMatrix, p, g, 'F'), 0);
-                              return (
-                                <Fragment key={g}>
-                                  <td className={`px-1.5 py-2.5 text-center tabular-nums text-blue-700 ${bShade(i)}`}>{gm}</td>
-                                  <td className={`px-1.5 py-2.5 text-center tabular-nums text-pink-700 ${bShade(i)}`}>{gf}</td>
-                                  <td className={`px-1.5 py-2.5 text-center tabular-nums ${bShade(i)}`}>{gm + gf}</td>
-                                </Fragment>
-                              );
-                            })}
-                            <td className="bg-[#eef3fd] px-1.5 py-2.5 text-center tabular-nums text-blue-700">{totM}</td>
-                            <td className="bg-[#eef3fd] px-1.5 py-2.5 text-center tabular-nums text-pink-700">{totF}</td>
-                            <td className="bg-[#eef3fd] px-1.5 py-2.5 text-center tabular-nums">{totAll}</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
+                  <GradeSexTable
+                    api={treatmentLayout} eyebrow="Internal Reports" title="Procedure Counts" rowHeader="PROCEDURE"
+                    baseRows={TREATMENT_ROWS.map((p) => ({ key: p, label: labelForCode.get(p) ?? p }))}
+                    grades={activeGrades ?? ALL_GRADES_INT} showTotalRow
+                    count={(p, g, sx) => (g === 'all' ? cnt(realTreatmentMatrix, p, sx) : getCount(realTreatmentMatrix, p, g, sx))}
+                    chips={<>
+                      <span className="rounded-full bg-white/15 px-3 py-0.5 text-xs font-bold">Male {sumAll('M')}</span>
+                      <span className="rounded-full bg-white/15 px-3 py-0.5 text-xs font-bold">Female {sumAll('F')}</span>
+                      <span className="rounded-full bg-white px-3 py-0.5 text-xs font-bold text-[#1b2d63]">Total {sumAll('all')}</span>
+                    </>}
+                  />
                 );
               })()}
             </div>
@@ -1311,79 +1245,19 @@ export const Reports = () => {
             <div className="space-y-4">
               {/* Condition counts: Male, Female and their total under each grade, same design as the Procedure Counts. */}
               {(() => {
-                const gradeCols = activeGrades ?? ALL_GRADES_INT;
-                const hdr = 'px-1.5 py-2 text-center text-[11px] font-extrabold tracking-wide text-white whitespace-nowrap';
-                const sub = 'px-1.5 py-1.5 text-center text-[10px] font-bold text-white/90';
-                const hShade = (i: number) => (i % 2 ? 'bg-[#233a7a]' : 'bg-[#1b2d63]');
-                const bShade = (i: number) => (i % 2 ? 'bg-[#f5f8fe]' : '');
                 const sumAll = (sex: 'M' | 'F' | 'all') => CONDITIONS.reduce((n, c) => n + cnt(conditionMatrix, c, sex), 0);
-                const totM = sumAll('M');
-                const totF = sumAll('F');
-                const totAll = sumAll('all');
                 return (
-                  <div className="overflow-hidden rounded-2xl border border-[#A9BDE6] bg-card">
-                    <div className="bg-gradient-to-br from-[#273c7b] to-[#1b2d63] px-5 py-3.5 text-white">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#aebbe0]">Internal Reports</div>
-                          <div className="text-lg font-extrabold">Condition Counts</div>
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          <span className="rounded-full bg-white/15 px-3 py-0.5 text-xs font-bold">Male {totM}</span>
-                          <span className="rounded-full bg-white/15 px-3 py-0.5 text-xs font-bold">Female {totF}</span>
-                          <span className="rounded-full bg-white px-3 py-0.5 text-xs font-bold text-[#1b2d63]">Total {totAll}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="no-scrollbar overflow-x-auto">
-                      <table className="w-full min-w-[900px] text-[13px]" style={{ borderCollapse: 'collapse' }}>
-                        <thead>
-                          <tr className="bg-[#1b2d63]">
-                            <th rowSpan={2} className="min-w-[200px] px-4 py-2 text-left text-[11px] font-extrabold tracking-wide text-white">CONDITION</th>
-                            {gradeCols.map((g, i) => <th key={g} colSpan={3} className={`${hdr} ${hShade(i)}`}>{g.toUpperCase()}</th>)}
-                            <th colSpan={3} className={`${hdr} bg-[#2c4690]`}>TOTAL</th>
-                          </tr>
-                          <tr className="bg-[#1b2d63]">
-                            {gradeCols.map((g, i) => (
-                              <Fragment key={g}>
-                                <th className={`${sub} ${hShade(i)}`}>MALE</th>
-                                <th className={`${sub} ${hShade(i)}`}>FEMALE</th>
-                                <th className={`${sub} ${hShade(i)}`}>TOTAL</th>
-                              </Fragment>
-                            ))}
-                            <th className={`${sub} bg-[#2c4690]`}>MALE</th>
-                            <th className={`${sub} bg-[#2c4690]`}>FEMALE</th>
-                            <th className={`${sub} bg-[#2c4690]`}>TOTAL</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {CONDITIONS.map((cond) => {
-                            const m = cnt(conditionMatrix, cond, 'M');
-                            const f = cnt(conditionMatrix, cond, 'F');
-                            return (
-                              <tr key={cond} className="border-b border-[#dfe5f0] hover:bg-[#f8faff]">
-                                <td className="px-4 py-2.5 font-medium text-foreground">{cond}</td>
-                                {gradeCols.map((g, i) => {
-                                  const gm = getCount(conditionMatrix, cond, g, 'M');
-                                  const gf = getCount(conditionMatrix, cond, g, 'F');
-                                  return (
-                                    <Fragment key={g}>
-                                      <td className={`px-1.5 py-2.5 text-center tabular-nums text-blue-700 ${bShade(i)}`}>{gm}</td>
-                                      <td className={`px-1.5 py-2.5 text-center tabular-nums text-pink-700 ${bShade(i)}`}>{gf}</td>
-                                      <td className={`px-1.5 py-2.5 text-center font-bold tabular-nums text-foreground ${bShade(i)}`}>{gm + gf}</td>
-                                    </Fragment>
-                                  );
-                                })}
-                                <td className="bg-[#eef3fd] px-1.5 py-2.5 text-center font-bold tabular-nums text-blue-700">{m}</td>
-                                <td className="bg-[#eef3fd] px-1.5 py-2.5 text-center font-bold tabular-nums text-pink-700">{f}</td>
-                                <td className="bg-[#eef3fd] px-1.5 py-2.5 text-center font-bold tabular-nums text-foreground">{m + f}</td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
+                  <GradeSexTable
+                    api={conditionLayout} eyebrow="Internal Reports" title="Condition Counts" rowHeader="CONDITION"
+                    baseRows={CONDITIONS.map((c) => ({ key: c, label: c }))}
+                    grades={activeGrades ?? ALL_GRADES_INT} showTotalRow={false}
+                    count={(c, g, sx) => (g === 'all' ? cnt(conditionMatrix, c, sx) : getCount(conditionMatrix, c, g, sx))}
+                    chips={<>
+                      <span className="rounded-full bg-white/15 px-3 py-0.5 text-xs font-bold">Male {sumAll('M')}</span>
+                      <span className="rounded-full bg-white/15 px-3 py-0.5 text-xs font-bold">Female {sumAll('F')}</span>
+                      <span className="rounded-full bg-white px-3 py-0.5 text-xs font-bold text-[#1b2d63]">Total {sumAll('all')}</span>
+                    </>}
+                  />
                 );
               })()}
             </div>

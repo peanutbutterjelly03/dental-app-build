@@ -83,6 +83,9 @@ const RULES: Record<string, ScopeRule> = {
   School: { via: "none" },
   User: { via: "none" },
   AuditTrail: { via: "none" },
+  // A report table's layout (hidden columns, added rows). Not patient data and
+  // not school-specific: one layout per report, shared by everyone.
+  ReportLayout: { via: "none" },
 };
 
 /** Per-request memo, so a request touching several levels resolves each once. */

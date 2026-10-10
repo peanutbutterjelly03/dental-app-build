@@ -9,6 +9,9 @@ import { PreviewModal } from './PreviewModal';
 import { PanelShell, PanelRow, ExportMenu, FiltersButton, FilterChip } from './ReportControls';
 import { PeriodDatesBoxes } from './PeriodDatesBoxes';
 import { downloadBlob } from '../utils/exportCsv';
+import { useReportLayout } from '../hooks/useReportLayout';
+import { cellText, layoutColumns, layoutRows, type LCol } from '../../../shared/reportLayout';
+import { ReportLayoutMenu, HiddenColumnsNote } from './ReportLayoutMenu';
 
 // ─── Per-school summary sheet ────────────────────────────────────────────────
 // Transcribed from the scan the user supplied 2026-09-03, headed "SOUTH DAANG
@@ -116,6 +119,7 @@ export function SchoolSummaryReport({ schoolName, schoolYear }: Props) {
     if (sectionF !== 'all' && sections.length > 0 && !sections.includes(sectionF)) setSectionF('all');
   }, [sections, sectionF]);
   const printableRef = useRef<HTMLDivElement>(null);
+  const layoutApi = useReportLayout('school_summary');
   const { preview, building, previewPdf, closePreview, confirmDownload } = usePreviewModal();
   const [xlsxBusy, setXlsxBusy] = useState(false);
 
@@ -127,6 +131,25 @@ export function SchoolSummaryReport({ schoolName, schoolYear }: Props) {
     })),
     [tally],
   );
+
+  // The table as the saved layout draws it: hidden columns left out, added rows
+  // and columns in, labels renamed. Computed cells stay locked; only the cells
+  // of an added row or column hold typed text.
+  const baseCols: LCol[] = [
+    { key: 'label', label: schoolName ?? 'All schools', locked: true },
+    { key: 'male_p', label: 'MALE', group: 'M' }, { key: 'male_t', label: 'TOTAL', group: 'M' },
+    { key: 'female_p', label: 'FEMALE', group: 'F' }, { key: 'female_t', label: 'TOTAL', group: 'F' },
+  ];
+  const lCols = layoutColumns(baseCols, layoutApi.layout);
+  const leafCols = lCols.filter((c) => !c.locked);
+  const lRows = layoutRows(rows.map((r, i) => ({ key: String(i), label: r.label })), layoutApi.layout);
+  const baseRow = (key: string) => rows[Number(key)];
+  const valueOf = (rowKey: string, rowAdded: boolean, c: LCol): string => {
+    if (rowAdded || c.added) return cellText(layoutApi.layout, rowKey, c.key);
+    const r = baseRow(rowKey);
+    if (!r) return '';
+    return show(c.key === 'male_p' ? r.male.persons : c.key === 'male_t' ? r.male.teeth : c.key === 'female_p' ? r.female.persons : r.female.teeth);
+  };
 
   const exportBaseName = [
     'School-Summary',
@@ -148,14 +171,14 @@ export function SchoolSummaryReport({ schoolName, schoolYear }: Props) {
       // Writes exactly what the screen shows, "—" included. Turning a "—" into
       // 0 in a workbook converts "no source" into "none found" the moment the
       // file leaves the app (Sprint 85's rule).
+      // The file holds exactly the table on screen, layout included.
+      type XRow = { label: string; code: string; key: string; added: boolean };
+      const xrows: XRow[] = lRows.map((r) => ({ label: r.label, code: r.added ? '' : baseRow(r.key)?.code ?? '', key: r.key, added: !!r.added }));
       const blob = await buildXlsx(
-        rows,
+        xrows,
         [
-          { label: schoolName ?? 'All schools', value: (r) => (r.label && r.code ? `${r.label} ${r.code}` : r.label || r.code) },
-          { label: 'MALE', value: (r) => show(r.male.persons) },
-          { label: 'TOTAL', value: (r) => show(r.male.teeth) },
-          { label: 'FEMALE', value: (r) => show(r.female.persons) },
-          { label: 'TOTAL', value: (r) => show(r.female.teeth) },
+          { label: lCols[0].label, value: (r: XRow) => (r.label && r.code ? `${r.label} ${r.code}` : r.label || r.code) },
+          ...leafCols.map((c) => ({ label: c.label, value: (r: XRow) => valueOf(r.key, r.added, c) })),
         ],
         'School Summary',
       );
@@ -229,8 +252,8 @@ export function SchoolSummaryReport({ schoolName, schoolYear }: Props) {
 
   const hCell = 'px-2 py-2.5 text-center text-[11px] font-extrabold tracking-wide text-white';
   // Male pair and Female pair alternate in two near-identical shades instead of drawing lines.
-  const hShade = (c: number) => (c >= 3 ? 'bg-[#233a7a]' : 'bg-[#1b2d63]');
-  const bShade = (c: number) => (c >= 3 ? 'bg-[#f5f8fe]' : '');
+  const hShade = (c: LCol) => (c.group === 'F' ? 'bg-[#233a7a]' : 'bg-[#1b2d63]');
+  const bShade = (c: LCol) => (c.group === 'F' ? 'bg-[#f5f8fe]' : '');
   const TD = 'px-2 py-2.5 text-center tabular-nums';
   return (
     <div className="space-y-8">
@@ -244,7 +267,10 @@ export function SchoolSummaryReport({ schoolName, schoolYear }: Props) {
               region on purpose. Wide content scrolls inside this container, never the page (CLAUDE.md,
               three device classes). */}
           <div className="bg-gradient-to-br from-[#273c7b] to-[#1b2d63] px-5 py-4 text-white">
-            <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#aebbe0]">School Summary Sheet</div>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#aebbe0]">School Summary Sheet</div>
+              <HiddenColumnsNote api={layoutApi} />
+            </div>
             <h2 className="mt-0.5 text-[19px] font-extrabold">{schoolName ?? 'All schools'}</h2>
             <div className="mt-2.5 flex flex-wrap gap-2">
               {[
@@ -256,31 +282,36 @@ export function SchoolSummaryReport({ schoolName, schoolYear }: Props) {
               ))}
             </div>
           </div>
-          <table className="w-full min-w-[800px] text-[13px]" style={{ borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
-            <colgroup><col style={{ width: '27rem' }} /><col /><col /><col /><col /></colgroup>
-            <thead>
-              <tr className="[&>th]:sticky [&>th]:top-0 [&>th]:z-20">
-                <th className={`${hCell} ${hShade(0)}`} />
-                {['MALE', 'TOTAL', 'FEMALE', 'TOTAL'].map((l, i) => <th key={i} className={`${hCell} ${hShade(i + 1)}`}>{l}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, i) => (
-                <tr key={`${row.label}-${row.code}-${i}`} className="border-b border-[#dfe5f0]">
-                  <td className="border-b border-[#dfe5f0] px-4 py-2.5 font-medium text-foreground">
-                    <div className="flex items-baseline justify-between gap-4">
-                      <span>{row.label}</span>
-                      <span className="pr-[20%]">{row.code}</span>
-                    </div>
-                  </td>
-                  <td className={`${TD} border-b border-[#dfe5f0] ${bShade(1)}`}>{show(row.male.persons)}</td>
-                  <td className={`${TD} border-b border-[#dfe5f0] ${bShade(2)}`}>{show(row.male.teeth)}</td>
-                  <td className={`${TD} border-b border-[#dfe5f0] ${bShade(3)}`}>{show(row.female.persons)}</td>
-                  <td className={`${TD} border-b border-[#dfe5f0] ${bShade(4)}`}>{show(row.female.teeth)}</td>
+          <ReportLayoutMenu api={layoutApi} columns={lCols} rows={lRows}>
+            <table className="w-full text-[13px]" style={{ borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed', minWidth: `${Math.max(520, 432 + leafCols.length * 90)}px` }}>
+              <colgroup><col style={{ width: '27rem' }} />{leafCols.map((c) => <col key={c.key} />)}</colgroup>
+              <thead>
+                <tr className="[&>th]:sticky [&>th]:top-0 [&>th]:z-20">
+                  <th data-ck="label" className={`${hCell} bg-[#1b2d63]`} />
+                  {leafCols.map((c) => <th key={c.key} data-ck={c.key} className={`${hCell} ${hShade(c)}`}>{c.label}</th>)}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {lRows.map((lr) => {
+                  const row = baseRow(lr.key);
+                  return (
+                    <tr key={lr.key} data-rk={lr.key} className="border-b border-[#dfe5f0]">
+                      <td data-ck="label" data-rk={lr.key} className="border-b border-[#dfe5f0] px-4 py-2.5 font-medium text-foreground">
+                        <div className="flex items-baseline justify-between gap-4">
+                          <span>{lr.label}</span>
+                          <span className="pr-[20%]">{lr.added ? '' : row?.code}</span>
+                        </div>
+                      </td>
+                      {leafCols.map((c) => (
+                        <td key={c.key} data-ck={c.key} data-rk={lr.key} className={`${TD} border-b border-[#dfe5f0] ${bShade(c)}`}>{valueOf(lr.key, !!lr.added, c)}</td>
+                      ))}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </ReportLayoutMenu>
+          {layoutApi.error && <p className="print-hide px-4 py-2 text-xs text-destructive">{layoutApi.error}</p>}
           {unsexedCount > 0 && (
             <p className="print-hide px-4 py-2.5 text-[11px] leading-relaxed text-yellow-700">
               {unsexedCount} student{unsexedCount === 1 ? '' : 's'} in this scope {unsexedCount === 1 ? 'has' : 'have'}{' '}

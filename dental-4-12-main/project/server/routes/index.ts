@@ -16,8 +16,9 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { scopeFilter, userSchools } from "../utils/schoolScope.js";
 import { requireAuth, requireRole, isTestingMode } from "../middleware/auth.js";
 import { enforceOneStaffPerSchool } from "../middleware/oneStaffPerSchool.js";
-import { ADMIN_ONLY, CLINICAL_WRITE_ROLES, CLINICAL_READ_ROLES, CLINICAL_READ_ROLES_AND_BHO, NAME_BLIND_ROLES } from "../middleware/roleGroups.js";
+import { ALL_ROLES, ADMIN_ONLY, CLINICAL_WRITE_ROLES, CLINICAL_READ_ROLES, CLINICAL_READ_ROLES_AND_BHO, NAME_BLIND_ROLES } from "../middleware/roleGroups.js";
 import { aggregateDohReport } from "../../shared/dohAggregate.js";
+import { layoutProblems } from "../../shared/reportLayout.js";
 import { buildRiskCandidates, filterRiskCandidates, reviewSummary } from "../../shared/riskCandidates.js";
 import { latestRisk } from "../../shared/latestRisk.js";
 import { computeDMFT, summarizeDmft } from "../../shared/dmft.js";
@@ -48,6 +49,7 @@ import {
   DentistRotation,
   DayNote,
   Referral,
+  ReportLayout,
 } from "../models/index.js";
 
 const router = Router();
@@ -1663,6 +1665,19 @@ router.use("/day-notes", createCrudRouter(DayNote, {
   writeRoles: CLINICAL_WRITE_ROLES,
   archiveRoles: CLINICAL_WRITE_ROLES,
   dateField: "date",
+}));
+
+// Right-click report tables: one layout document per report table (see
+// models/ReportLayout.ts). Everyone who can open reports may READ it, so the
+// hidden columns and added rows show for them too; only the clinic and the
+// System Admin may CHANGE it. `layoutProblems` bounds every write (sizes, known
+// report) because a layout is a document, not a data store.
+router.use("/report-layouts", createCrudRouter(ReportLayout, {
+  readRoles: ALL_ROLES,
+  writeRoles: CLINICAL_WRITE_ROLES,
+  filterableText: ["report_key"],
+  uniqueBy: ["report_key"],
+  validateBody: (body) => layoutProblems(body as never),
 }));
 
 // Sprint 127 — referrals. `dateField` bounds the reports' sweep the way

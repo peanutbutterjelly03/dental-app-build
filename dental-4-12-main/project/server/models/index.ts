@@ -20,3 +20,4 @@ export { default as Referral } from "./Referral.js";
 export { default as SchoolYearRollover } from "./SchoolYearRollover.js";
 export { default as SyncConflict } from "./SyncConflict.js";
 export { default as SyncOperation } from "./SyncOperation.js";
+export { default as ReportLayout } from "./ReportLayout.js";
