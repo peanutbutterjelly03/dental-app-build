@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Clock, FileBarChart, FileSpreadsheet, FileText, AlertTriangle, AlertCircle, CheckCircle, Users, Calendar, CalendarDays, CalendarRange, GraduationCap, UserRound, VenusAndMars, SlidersHorizontal, Stethoscope, Activity, LayoutDashboard, X } from 'lucide-react';
 import { PeriodDatesBoxes, type PeriodDatesValue } from './PeriodDatesBoxes';
-import { ExportMenu, PeriodTiles, PeriodSwitch, fieldInputClass, PanelShell, PanelRow, ActionGroup, BOX_W, UnderlineTabs, GroupBox, Underlined, FiltersButton, FilterChip, type TileOption } from './ReportControls';
+import { ExportMenu, PeriodTiles, PeriodSwitch, fieldInputClass, PanelShell, PanelRow, BOX_W, UnderlineTabs, GroupBox, Underlined, FiltersButton, FilterChip, type TileOption } from './ReportControls';
 import { RangePicker } from './RangePicker';
 import { buildXlsx, buildSheetsXlsx } from '../utils/exportXlsx';
 import { downloadBlob } from '../utils/exportCsv';
@@ -883,7 +883,7 @@ export const Reports = () => {
                 <ExportMenu joined busy={building} onPrint={() => window.print()} onPdf={handleDownloadPdf} onExcel={handleDownloadExcel}
                   excelDisabledReason={dohLoading ? 'Loading' : undefined} pdfDisabledReason={dohLoading ? 'Loading' : undefined} />
                 </div>
-              </ActionGroup>
+              </div>
             </PanelRow>
             <p className="sr-only" aria-live="polite">Showing {dohPeriodLabel}, {reportSchool ? getSchoolShortName(reportSchool) : 'all schools'}</p>
           </PanelShell>
