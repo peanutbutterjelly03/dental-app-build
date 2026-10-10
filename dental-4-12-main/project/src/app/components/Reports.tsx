@@ -183,9 +183,9 @@ const GRADE_BAND_TILES: TileOption<'elem' | 'hs'>[] = [
   { v: 'hs', label: 'Grade 7–10', hint: 'High school', icon: GraduationCap },
 ];
 const SECTION_TILES: TileOption<'treatment' | 'conditions' | 'admin'>[] = [
-  { v: 'treatment', label: 'Treatment Summary', hint: 'Procedures done', icon: Stethoscope },
   { v: 'conditions', label: 'Condition Summary', hint: 'Oral conditions found', icon: Activity },
-  { v: 'admin', label: 'Overview', hint: 'Risk, consent, referrals', icon: LayoutDashboard },
+  { v: 'treatment', label: 'Treatment Summary', hint: 'Procedures done', icon: Stethoscope },
+  { v: 'admin', label: 'Others', hint: 'Risk, consent, referrals', icon: LayoutDashboard },
 ];
 type PeriodKind = 'range' | 'monthly' | 'quarterly' | 'biannual' | 'annual';
 const ALL_GRADES_INT = ['Kinder','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10'];
@@ -596,7 +596,7 @@ export const Reports = () => {
   // sends them. The rows below map code -> label at render time.
   const realTreatmentMatrix = panels.treatmentMatrix;
   const periodTreatmentCount = panels.periodTreatmentCount;
-  const realTreatmentCount = panels.allTimeTreatmentCount; // all-time, for the admin Overview tab
+  const realTreatmentCount = panels.allTimeTreatmentCount; // all-time, for the admin Others tab
   const [expandedReferral, setExpandedReferral] = useState<number|null>(null);
 
   const AGE_TO_GRADES: Record<string,string[]> = {
@@ -628,7 +628,7 @@ export const Reports = () => {
   // were made with, since a file is forwarded without the screen it came from.
   const internalRef = useRef<HTMLDivElement>(null);
   const [internalXlsxBusy, setInternalXlsxBusy] = useState(false);
-  const internalName = internalSection === 'treatment' ? 'Treatment Summary' : internalSection === 'conditions' ? 'Condition Summary' : 'Overview';
+  const internalName = internalSection === 'treatment' ? 'Treatment Summary' : internalSection === 'conditions' ? 'Condition Summary' : 'Others';
   const internalFilterNote = [
     intAgeFilter !== 'all' ? `Age ${intAgeFilter}` : '',
     intGradeFilter !== 'all' ? intGradeFilter : '',
