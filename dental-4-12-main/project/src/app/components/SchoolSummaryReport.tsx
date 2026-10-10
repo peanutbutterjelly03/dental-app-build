@@ -6,9 +6,7 @@ import { buildDohReportPdf } from '../utils/exportPdf';
 import { buildXlsx } from '../utils/exportXlsx';
 import { usePreviewModal } from '../hooks/usePreviewModal';
 import { PreviewModal } from './PreviewModal';
-import type { ReactNode } from 'react';
-import { GraduationCap } from 'lucide-react';
-import { PanelShell, PanelRow, GroupBox, ExportMenu, FiltersButton, FilterChip } from './ReportControls';
+import { PanelShell, PanelRow, ExportMenu, FiltersButton, FilterChip } from './ReportControls';
 import { PeriodDatesBoxes } from './PeriodDatesBoxes';
 import { downloadBlob } from '../utils/exportCsv';
 
@@ -100,11 +98,9 @@ const show = (value: number | null) => (value === null ? NO_SOURCE_MARK : String
 interface Props {
   schoolName: string | null;
   schoolYear: string | null;
-  /** The shared school-year select, rendered by Reports (same state as the DOH tab). */
-  yearPicker?: ReactNode;
 }
 
-export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null }: Props) {
+export function SchoolSummaryReport({ schoolName, schoolYear }: Props) {
   // → A short summary sheet, not a wide grid.
   usePrintOrientation('portrait');
   // Grade and Section really narrow the sheet (server-side). Age and Sex are not wired yet.
@@ -188,7 +184,6 @@ export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null 
     <PanelShell>
       <PanelRow>
         <PeriodDatesBoxes />
-        <GroupBox title="School year" icon={GraduationCap} className="w-full lg:w-auto lg:px-6">{yearPicker}</GroupBox>
         <div className="flex self-start lg:ml-auto">
           <FiltersButton count={activeFilters}>
             {filterDefs.map((f) => (

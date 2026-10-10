@@ -1540,7 +1540,7 @@ export const Reports = () => {
       {activeReportTab === 'fhsis' && <FhsisReport schoolName={reportSchool} />}
       {/* Per-school summary sheet — shares the DOH tab's school-year picker,
           like the Program Report (Sprint 57b). */}
-      {activeReportTab === 'summary' && <SchoolSummaryReport schoolYear={dohSchoolYear} schoolName={reportSchool} yearPicker={yearSelect} />}
+      {activeReportTab === 'summary' && <SchoolSummaryReport schoolYear={dohSchoolYear} schoolName={reportSchool} />}
       {/* No school/year props: the consent form is blank by design. */}
       {activeReportTab === 'consent' && canSeeNamedClientLists && <ConsentForm />}
 
