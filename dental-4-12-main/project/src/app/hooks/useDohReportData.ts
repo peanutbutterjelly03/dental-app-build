@@ -39,7 +39,7 @@ interface DohReportResponse {
   unplaced: number;
 }
 
-export function useDohReportData(schoolYear: string | null = null, schoolName: string | null = null) {
+export function useDohReportData(schoolYear: string | null = null, schoolName: string | null = null, dateFrom: string | null = null, dateTo: string | null = null) {
   const [counts, setCounts] = useState<Map<string, number>>(new Map());
   const [years, setYears] = useState<string[]>([]);
   const [unplaced, setUnplaced] = useState(0);
@@ -62,6 +62,8 @@ export function useDohReportData(schoolYear: string | null = null, schoolName: s
       const params = new URLSearchParams();
       if (schoolYear) params.set('school_year', schoolYear);
       if (schoolName) params.set('school', schoolName);
+      if (dateFrom) params.set('date_from', dateFrom);
+      if (dateTo) params.set('date_to', dateTo);
       const qs = params.toString();
       const data = await apiClient.get<DohReportResponse>(`/stats/doh-report${qs ? `?${qs}` : ''}`);
       if (isStale()) return;
@@ -77,7 +79,7 @@ export function useDohReportData(schoolYear: string | null = null, schoolName: s
     } finally {
       if (!isStale()) endLoad();
     }
-  }, [beginLoad, endLoad, schoolYear, schoolName]);
+  }, [beginLoad, endLoad, schoolYear, schoolName, dateFrom, dateTo]);
 
   useEffect(() => {
     void load();

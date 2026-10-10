@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Clock, FileBarChart, FileSpreadsheet, FileText, AlertTriangle, AlertCircle, CheckCircle, Users, Calendar, CalendarDays, CalendarRange, GraduationCap, UserRound, VenusAndMars, SlidersHorizontal, Stethoscope, Activity, LayoutDashboard, X } from 'lucide-react';
+import { PeriodDatesBoxes, type PeriodDatesValue } from './PeriodDatesBoxes';
 import { ExportMenu, PeriodTiles, PeriodSwitch, fieldInputClass, PanelShell, PanelRow, ActionGroup, GreyButton, BOX_W, UnderlineTabs, GroupBox, Underlined, FiltersButton, FilterChip, type TileOption } from './ReportControls';
 import { RangePicker } from './RangePicker';
 import { buildXlsx, buildSheetsXlsx } from '../utils/exportXlsx';
@@ -305,7 +306,20 @@ export const Reports = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canSeeAllSchools, reportSchool, schoolNames]);
   const [dohSchoolYear, setDohSchoolYear] = useState<string | null>(() => schoolYearLabel());
-  const { getRealCount, years: dohYears, unplacedCount, loading: dohLoading, lastUpdated: dohLastUpdated } = useDohReportData(dohSchoolYear, reportSchool);
+  // The DOH tab's scope is a date period (Time period + Dates boxes), applied
+  // server-side to each record's first recorded visit. It replaces the school
+  // year here; the other report tabs still read `dohSchoolYear`.
+  const [dohPeriod, setDohPeriod] = useState<PeriodDatesValue>(() => {
+    const n = new Date();
+    return { kind: 'month', start: toLocalDateString(new Date(n.getFullYear(), n.getMonth(), 1)), end: toLocalDateString(new Date(n.getFullYear(), n.getMonth() + 1, 0)) };
+  });
+  const { getRealCount, years: dohYears, unplacedCount, loading: dohLoading, lastUpdated: dohLastUpdated } = useDohReportData(null, reportSchool, dohPeriod.start, dohPeriod.end);
+  const dohPeriodLabel = (() => {
+    const a = new Date(`${dohPeriod.start}T00:00:00`), b = new Date(`${dohPeriod.end}T00:00:00`);
+    if (dohPeriod.kind === 'range') return `${formatDate(dohPeriod.start)} to ${formatDate(dohPeriod.end)}`;
+    return a.getMonth() === b.getMonth() ? `${MONTHS[a.getMonth()]} ${a.getFullYear()}` : `${MONTHS[a.getMonth()]} to ${MONTHS[b.getMonth()]} ${a.getFullYear()}`;
+  })();
+  const dohPeriodSlug = `${dohPeriod.start}_to_${dohPeriod.end}`;
 
   // Sprint 128 — the calendar's school year is not necessarily a year the
   // database HAS. Opening Reports in September 2026 defaulted every DOH report
@@ -447,7 +461,7 @@ export const Reports = () => {
     setDownloadError(null);
     const el = dohReportRef.current;
     const schoolPart = reportSchool ? getSchoolShortName(reportSchool).replace(/\s+/g, '_') : 'AllSchools';
-    const filename = `DOH_Report_${schoolPart}_${bandSlug}_${dohSchoolYear ?? 'AllYears'}.pdf`;
+    const filename = `DOH_Report_${schoolPart}_${bandSlug}_${dohPeriodSlug}.pdf`;
     previewPdf('DOH Consolidated Report', filename, async () => {
       try {
         return await buildDohReportPdf(el);
@@ -461,7 +475,7 @@ export const Reports = () => {
   const handleDownloadExcel = () => {
     setDownloadError(null);
     const schoolPart = reportSchool ? getSchoolShortName(reportSchool).replace(/\s+/g, '_') : 'AllSchools';
-    const filename = `DOH_Consolidated_${schoolPart}_${bandSlug}_${dohSchoolYear ?? 'AllYears'}.xlsx`;
+    const filename = `DOH_Consolidated_${schoolPart}_${bandSlug}_${dohPeriodSlug}.xlsx`;
     previewExcel('DOH Consolidated Report', filename, async () => {
       try {
         return await buildDohReportXlsx({
@@ -473,7 +487,7 @@ export const Reports = () => {
           school: reportSchool ? getSchoolShortName(reportSchool) : 'All Schools',
           // The spreadsheet has to say it is shortened: unlike the printout,
           // a file gets forwarded without the screen it came from.
-          monthYear: `${dohSchoolYear ? `School year ${dohSchoolYear}` : 'All years to date'} · ${bandLabel}${dohHiddenCount ? ` · SHORTENED — ${hiddenDohRows.size} row(s), ${hiddenGrades.size} grade(s) hidden` : ''}`,
+          monthYear: `${dohPeriodLabel} · ${bandLabel}${dohHiddenCount ? ` · SHORTENED — ${hiddenDohRows.size} row(s), ${hiddenGrades.size} grade(s) hidden` : ''}`,
         });
       } catch (err) {
         setDownloadError(err instanceof Error ? err.message : 'Failed to generate Excel');
@@ -841,7 +855,7 @@ export const Reports = () => {
         <div className="space-y-3">
           <PanelShell>
             <PanelRow>
-              <GroupBox title="School year" icon={GraduationCap} className="w-full lg:w-auto lg:px-6">{yearSelect}</GroupBox>
+              <PeriodDatesBoxes initialKind="month" onChange={setDohPeriod} />
               {hasSecondary && (
                 <GroupBox title="Grades" className={BOX_W}>
                   <PeriodTiles<GradeBand> full icons name="Grade band" value={gradeBand} onChange={setGradeBand} options={GRADE_BAND_TILES} />
@@ -859,20 +873,14 @@ export const Reports = () => {
             {/* Sprint 110. Appears only after a real self-refresh — see
                 LiveUpdatedStamp for why it must never show a page-load time. */}
             <div className="mt-3 text-right empty:hidden"><LiveUpdatedStamp at={dohLastUpdated} /></div>
-            <p className="sr-only" aria-live="polite">Showing {dohSchoolYear ? `school year ${dohSchoolYear}` : 'all years to date'}, {reportSchool ? getSchoolShortName(reportSchool) : 'all schools'}</p>
+            <p className="sr-only" aria-live="polite">Showing {dohPeriodLabel}, {reportSchool ? getSchoolShortName(reportSchool) : 'all schools'}</p>
           </PanelShell>
 
           {/* How the two year-varying figures in this table are derived. Both
               used to be computed against TODAY, which silently rewrote past
               reports every time a student was promoted or had a birthday. */}
           <p className="text-xs text-muted-foreground pb-3">
-            {dohSchoolYear && !dohLoading && dohYears.length > 0 && !dohYears.includes(dohSchoolYear) && (
-              <> <span className="font-medium text-amber-700">No records exist for {dohSchoolYear}</span>, so every figure below is zero.
-              Records exist for {dohYears.join(', ')}. </>
-            )}
-            {dohSchoolYear
-              ? <>Covering school year <span className="font-medium text-foreground">{dohSchoolYear}</span>. Grade is the grade recorded for that year, and age is the student&apos;s age at that year&apos;s first recorded visit (or the start of the school year where no visit is recorded) — not their grade or age today.</>
-              : <>Covering <span className="font-medium text-foreground">all years to date</span>, so a student with several school years is counted once per year. Pick a school year above to report on one.</>}
+            Covering <span className="font-medium text-foreground">{dohPeriodLabel}</span>. A student is counted when their first recorded visit falls in this period; a record with no recorded visit has no date to place it and is left out. Grade is the grade recorded for that student&apos;s school year, and age is their age at that first visit — not their grade or age today.
             {unplacedCount > 0 && (
               <> <span className="font-medium text-foreground">{unplacedCount} record{unplacedCount === 1 ? '' : 's'}</span> in this range predate grade being stored per school year, so {unplacedCount === 1 ? 'it appears' : 'they appear'} in the totals but in no grade column.</>
             )}
@@ -958,7 +966,7 @@ export const Reports = () => {
                       className="text-center py-1 px-3 bg-gray-50 border-b border-border text-[10px] text-muted-foreground">
                       <div className="sticky left-0" style={{ width: '100cqw' }}>
                         SCHOOL: {reportSchool ? getSchoolShortName(reportSchool) : 'All Schools'} &nbsp;·&nbsp;
-                        SCHOOL YEAR: {dohSchoolYear ?? 'ALL YEARS TO DATE'} &nbsp;·&nbsp;
+                        PERIOD: {dohPeriodLabel.toUpperCase()} &nbsp;·&nbsp;
                         GRADES: {bandLabel}
                       </div>
                     </th>

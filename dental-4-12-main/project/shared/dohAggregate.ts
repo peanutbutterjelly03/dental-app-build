@@ -115,6 +115,11 @@ export interface DohAggregateInput {
   schoolYear: string | null;
   /** School NAME as the dropdown carries it, or null for all schools. */
   schoolName: string | null;
+  /** Inclusive "YYYY-MM-DD" bounds on the record's FIRST recorded visit date
+   *  (its examination date). Both null/absent = no date filter. A record with
+   *  no recorded visit has no date to place it, so a date filter leaves it out. */
+  dateFrom?: string | null;
+  dateTo?: string | null;
 }
 
 export interface DohAggregateResult {
@@ -296,7 +301,7 @@ export function aggregateDohReport(input: DohAggregateInput): DohAggregateResult
   const {
     schools, students, iptrs, medicals, dietaries, orals,
     preventives, risks, charts, toothRecords, referrals,
-    schoolYear, schoolName,
+    schoolYear, schoolName, dateFrom = null, dateTo = null,
   } = input;
 
   // Scope to one school. Matched on school_id rather than the display name:
@@ -305,8 +310,6 @@ export function aggregateDohReport(input: DohAggregateInput): DohAggregateResult
   const scopedStudents = schoolId ? students.filter((s) => s.school_id === schoolId) : students;
 
   const years = [...new Set(iptrs.map((i) => i.school_year))].sort().reverse();
-  const scoped = schoolYear ? iptrs.filter((i) => i.school_year === schoolYear) : iptrs;
-
   // Earliest recorded visit per IPTR — the closest thing to an examination
   // date the data model holds.
   const firstVisitByIptr = new Map<string, Date>();
@@ -317,6 +320,16 @@ export function aggregateDohReport(input: DohAggregateInput): DohAggregateResult
     const seen = firstVisitByIptr.get(p.iptr_id);
     if (!seen || d < seen) firstVisitByIptr.set(p.iptr_id, d);
   }
+
+  const byYear = schoolYear ? iptrs.filter((i) => i.school_year === schoolYear) : iptrs;
+  const scoped = dateFrom || dateTo
+    ? byYear.filter((i) => {
+        const first = firstVisitByIptr.get(i._id);
+        if (!first) return false;
+        const day = first.toISOString().slice(0, 10);
+        return (!dateFrom || day >= dateFrom) && (!dateTo || day <= dateTo);
+      })
+    : byYear;
 
   // Per-IPTR visit facts. `firstFacility` is the flag on the EARLIEST visit,
   // which is the one "visited for the 1st time" asks about.

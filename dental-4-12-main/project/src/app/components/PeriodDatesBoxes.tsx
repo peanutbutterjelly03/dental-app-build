@@ -21,9 +21,9 @@ export interface PeriodDatesValue {
   end: string;
 }
 
-export function PeriodDatesBoxes({ onChange }: { onChange?: (v: PeriodDatesValue) => void }) {
+export function PeriodDatesBoxes({ onChange, initialKind = 'range' }: { onChange?: (v: PeriodDatesValue) => void; initialKind?: PeriodKindName }) {
   const now = new Date();
-  const [kind, setKind] = useState<PeriodKindName>('range');
+  const [kind, setKind] = useState<PeriodKindName>(initialKind);
   const [pick, setPick] = useState(now.getMonth() + 1); // month 1-12, quarter 1-4, half 1-2
   const [year, setYear] = useState(now.getFullYear());
   const [rangeStart, setRangeStart] = useState(() => toLocalDateString(new Date(now.getFullYear(), now.getMonth(), 1)));

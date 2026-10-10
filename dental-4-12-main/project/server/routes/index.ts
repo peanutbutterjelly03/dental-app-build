@@ -965,6 +965,9 @@ router.get("/stats/risk-history", requireAuth, requireRole(...CLINICAL_READ_ROLE
   res.json(history);
 }));
 
+/** A "YYYY-MM-DD" query value, or null. Anything else is ignored, not trusted. */
+const isoDay = (v: unknown): string | null => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+
 router.get("/stats/doh-report", requireAuth, asyncHandler(async (req, res) => {
   const scope = await scopeFilter("Student", req);
   const studentFilter = scope ? { isArchived: false, ...scope } : { isArchived: false };
@@ -1052,6 +1055,8 @@ router.get("/stats/doh-report", requireAuth, asyncHandler(async (req, res) => {
     referrals: (referrals as any[]).map((r) => ({ iptr_id: str(r.iptr_id), referral_type: str(r.referral_type) })),
     schoolYear: typeof req.query.school_year === "string" && req.query.school_year ? req.query.school_year : null,
     schoolName: typeof req.query.school === "string" && req.query.school ? req.query.school : null,
+    dateFrom: isoDay(req.query.date_from),
+    dateTo: isoDay(req.query.date_to),
   });
 
   res.json(out);
