@@ -860,7 +860,7 @@ export const Reports = () => {
                   <PeriodTiles<GradeBand> full icons name="Grade band" value={gradeBand} onChange={setGradeBand} options={GRADE_BAND_TILES} />
                 </GroupBox>
               )}
-              <ActionGroup>
+              <div className="flex self-start lg:ml-auto">
                 {/* Print / PDF (preview first) / Excel — same menu as the other report tabs. */}
                 <div className="flex">
                 <FiltersButton count={dohHiddenCount}>
