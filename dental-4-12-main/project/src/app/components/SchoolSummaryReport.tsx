@@ -1,8 +1,7 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePrintOrientation } from '../hooks/usePrintOrientation';
 import { useSchoolSummary, type BySex, type SchoolSummaryTally } from '../hooks/useSchoolSummary';
 import { SkeletonTable } from './Skeleton';
-import { FORM_SECTION_BAND } from '../utils/dohFormStyle';
 import { buildDohReportPdf } from '../utils/exportPdf';
 import { buildXlsx } from '../utils/exportXlsx';
 import { usePreviewModal } from '../hooks/usePreviewModal';
@@ -111,6 +110,9 @@ export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null 
   usePrintOrientation('portrait');
   const { tally, unsexedCount, loading, error } = useSchoolSummary(schoolName, schoolYear);
   const printableRef = useRef<HTMLDivElement>(null);
+  // Height of the pinned title row, so the column header row sticks right under it.
+  const titleRowRef = useRef<HTMLTableRowElement>(null);
+  const [titleH, setTitleH] = useState(34);
   const { preview, building, previewPdf, closePreview, confirmDownload } = usePreviewModal();
   const [xlsxBusy, setXlsxBusy] = useState(false);
 
@@ -213,6 +215,17 @@ export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null 
     </PanelShell>
   );
 
+  useEffect(() => {
+    const el = titleRowRef.current;
+    if (!el) return;
+    const measure = () => setTitleH(el.offsetHeight);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [loading, error]);
+
   if (loading) return <div className="space-y-3">{panel}<SkeletonTable rows={13} /></div>;
   if (error) {
     return (
@@ -225,48 +238,55 @@ export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null 
     );
   }
 
+  const TH = 'border-r border-b border-gray-300 px-2 py-1.5';
+  const TD = 'border-r border-b border-gray-300 px-2 py-1';
   return (
-    <div className="space-y-3">
+    <div className="space-y-8">
       {panel}
-      <div className="bg-card rounded-xl border border-border p-4">
-        <h2 className="text-sm font-bold text-foreground">School Summary Sheet</h2>
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <span className="text-xs text-muted-foreground">
-            {schoolName ?? 'All schools'} · Barangay Tanyag, Taguig City
-          </span>
-        </div>
+      <div className="rounded-2xl border border-[#dfe5f0] bg-card px-5 py-4 shadow-[0_14px_30px_-22px_rgba(36,59,122,0.5)]">
+        <h2 className="text-base font-extrabold text-foreground">School Summary Sheet</h2>
+        <dl className="mt-2 flex flex-wrap gap-y-2 [&>div]:border-l [&>div]:border-[#dfe5f0] [&>div]:px-4 [&>div:first-child]:border-l-0 [&>div:first-child]:pl-0 [&_dt]:text-[9px] [&_dt]:font-extrabold [&_dt]:uppercase [&_dt]:tracking-[0.08em] [&_dt]:text-muted-foreground [&_dd]:text-[12px] [&_dd]:font-bold">
+          <div><dt>School</dt><dd>{schoolName ?? 'All schools'}</dd></div>
+          <div><dt>School year</dt><dd>{schoolYear ?? 'All years to date'}</dd></div>
+          <div><dt>Barangay</dt><dd>Tanyag, Taguig City</dd></div>
+        </dl>
       </div>
 
-      <div ref={printableRef} className="form-print bg-card rounded-xl border border-border p-4">
-        {/* Wide content scrolls inside its own container — the table must never
-            push the page sideways at 390px (CLAUDE.md, three device classes). */}
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[520px] border-collapse text-xs">
+      <div className="form-print relative -mb-4 overflow-hidden rounded-t-xl border border-[#A9BDE6] bg-card md:-mb-8">
+      <div
+        ref={printableRef}
+        className="no-scrollbar max-h-[max(320px,calc(100vh_-_94px))] overflow-auto rounded-t-xl print:max-h-none [&_tr>:last-child]:border-r-0"
+        style={{ ['--ss-r1' as string]: `${titleH}px` }}
+      >
+        {/* Wide content scrolls inside its own container, so the table never
+            pushes the page sideways at 390px (CLAUDE.md, three device classes). */}
+        <div>
+          <table className="w-full min-w-[520px] text-xs" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
             <thead>
-              <tr>
+              <tr ref={titleRowRef} className="[&>th]:sticky [&>th]:top-0 [&>th]:z-20">
                 {/* The paper sheet's single top band carries the school name. */}
-                <th colSpan={6} className={`${FORM_SECTION_BAND} border border-gray-500 px-2 py-1.5 text-center text-sm font-bold uppercase`}>
+                <th colSpan={6} className="border-b border-gray-300 bg-[#CFDDF6] px-2 py-2 text-center text-[12px] font-bold uppercase tracking-wide text-[#273A78]">
                   {schoolName ?? 'All schools'}
                 </th>
               </tr>
-              <tr className="bg-gray-100">
-                <th className="border border-gray-500 px-2 py-1 text-left font-semibold" />
-                <th className="border border-gray-500 px-2 py-1" />
-                <th className="border border-gray-500 px-2 py-1 font-semibold">MALE</th>
-                <th className="border border-gray-500 px-2 py-1 font-semibold">TOTAL</th>
-                <th className="border border-gray-500 px-2 py-1 font-semibold">FEMALE</th>
-                <th className="border border-gray-500 px-2 py-1 font-semibold">TOTAL</th>
+              <tr className="[&>th]:sticky [&>th]:top-[var(--ss-r1)] [&>th]:z-20 [&>th]:bg-gray-200">
+                <th className={`${TH} text-left font-semibold`} />
+                <th className={TH} />
+                <th className={`${TH} font-semibold`}>MALE</th>
+                <th className={`${TH} font-semibold`}>TOTAL</th>
+                <th className={`${TH} font-semibold`}>FEMALE</th>
+                <th className={`${TH} font-semibold`}>TOTAL</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row, i) => (
                 <tr key={`${row.label}-${row.code}-${i}`}>
-                  <td className="border border-gray-500 px-2 py-1 font-medium text-foreground">{row.label}</td>
-                  <td className="border border-gray-500 px-2 py-1 text-center font-medium">{row.code}</td>
-                  <td className="border border-gray-500 px-2 py-1 text-center tabular-nums">{show(row.male.persons)}</td>
-                  <td className="border border-gray-500 px-2 py-1 text-center tabular-nums">{show(row.male.teeth)}</td>
-                  <td className="border border-gray-500 px-2 py-1 text-center tabular-nums">{show(row.female.persons)}</td>
-                  <td className="border border-gray-500 px-2 py-1 text-center tabular-nums">{show(row.female.teeth)}</td>
+                  <td className={`${TD} font-medium text-foreground`}>{row.label}</td>
+                  <td className={`${TD} text-center font-medium`}>{row.code}</td>
+                  <td className={`${TD} text-center tabular-nums`}>{show(row.male.persons)}</td>
+                  <td className={`${TD} text-center tabular-nums`}>{show(row.male.teeth)}</td>
+                  <td className={`${TD} text-center tabular-nums`}>{show(row.female.persons)}</td>
+                  <td className={`${TD} text-center tabular-nums`}>{show(row.female.teeth)}</td>
                 </tr>
               ))}
             </tbody>
@@ -282,7 +302,7 @@ export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null 
             inside the printable root because they belong beside the table
             on screen, so print has to drop them explicitly. The sheet filed
             with the City Health Office must look like the official form. */}
-        <div className="print-hide mt-3 space-y-1 text-[11px] leading-relaxed text-muted-foreground">
+        <div className="print-hide space-y-1 px-3 py-2.5 text-[11px] leading-relaxed text-muted-foreground">
           <p>
             <span className="font-semibold">MALE / FEMALE</span> count students; each{' '}
             <span className="font-semibold">TOTAL</span> counts teeth.{' '}
@@ -311,6 +331,7 @@ export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null 
             </p>
           )}
         </div>
+      </div>
       </div>
       <PreviewModal
         open={preview.open}
