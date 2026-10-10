@@ -1,4 +1,4 @@
-import { Fragment, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { usePrintOrientation } from '../hooks/usePrintOrientation';
 import { Calendar, CalendarDays, CalendarRange, Clock } from 'lucide-react';
 import { RangePicker } from './RangePicker';
@@ -102,7 +102,23 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
   const [rangeEnd, setRangeEnd] = useState(() => toLocalDateString(now));
   const { key: month, short: periodShort, printed: periodPrinted } = describePeriod(kind, pick, year, rangeStart, rangeEnd);
   const { counts, loading, error } = useFhsisData(month, schoolName);
+  useEffect(() => {
+    const els = [rowTitleRef.current, rowH1Ref.current, rowH2Ref.current];
+    if (els.some((e) => !e)) return;
+    const [a, b, c] = els as HTMLTableRowElement[];
+    const measure = () => setRowH({ r0: a.offsetHeight, r1: b.offsetHeight, r2: c.offsetHeight });
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    els.forEach((e) => ro.observe(e as Element));
+    return () => ro.disconnect();
+  }, [loading, error]);
   const printableRef = useRef<HTMLDivElement>(null);
+  // Heights of the pinned rows (title, two header rows), so each sticks right under the one above.
+  const rowTitleRef = useRef<HTMLTableRowElement>(null);
+  const rowH1Ref = useRef<HTMLTableRowElement>(null);
+  const rowH2Ref = useRef<HTMLTableRowElement>(null);
+  const [rowH, setRowH] = useState({ r0: 34, r1: 30, r2: 26 });
   const { preview, building, previewPdf, closePreview, confirmDownload } = usePreviewModal();
   const [xlsxBusy, setXlsxBusy] = useState(false);
 
@@ -316,15 +332,20 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
           are captured WITH the table. html2canvas clips to the ref'd element's
           own rendered box, so a banner placed outside it shows on screen and is
           silently missing from the PDF. */}
-      <div ref={printableRef} className="form-print no-scrollbar overflow-x-auto rounded-t-xl border border-[#A9BDE6] bg-card [&_tr>:last-child]:border-r-0">
+      <div className="form-print relative -mb-4 overflow-hidden rounded-t-xl border border-[#A9BDE6] bg-card md:-mb-8">
+      <div
+        ref={printableRef}
+        className="no-scrollbar max-h-[max(320px,calc(100vh_-_94px))] overflow-auto rounded-t-xl print:max-h-none [&_tr>:last-child]:border-r-0"
+        style={{ ['--fh-r1' as string]: `${rowH.r0}px`, ['--fh-r2' as string]: `${rowH.r0 + rowH.r1}px`, ['--fh-r3' as string]: `${rowH.r0 + rowH.r1 + rowH.r2}px` }}
+      >
         <table className="w-full min-w-[1100px] text-xs" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
           <thead>
-            <tr>
+            <tr ref={rowTitleRef} className="[&>th]:sticky [&>th]:top-0 [&>th]:z-20">
               <th colSpan={12} className="border-b border-gray-300 bg-[#CFDDF6] px-3 py-2 text-center text-[12px] font-bold uppercase tracking-wide text-[#273A78]">
                 Oral Health Care Services
               </th>
             </tr>
-            <tr>
+            <tr ref={rowH1Ref} className="[&>th]:sticky [&>th]:top-[var(--fh-r1)] [&>th]:z-20">
               {[0, 1].map((i) => (
                 <Fragment key={i}>
                   <th key={`ind${i}`} rowSpan={2} className={hdInd}>INDICATORS</th>
@@ -334,7 +355,7 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
                 </Fragment>
               ))}
             </tr>
-            <tr>
+            <tr ref={rowH2Ref} className="[&>th]:sticky [&>th]:top-[var(--fh-r2)] [&>th]:z-20">
               {[0, 1].map((i) => (
                 <Fragment key={i}>
                   <th key={`m${i}`} className={hd}>Male</th>
@@ -344,7 +365,7 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
             </tr>
           </thead>
           <tbody>
-            <tr className={FORM_SECTION_BAND}>
+            <tr className={`${FORM_SECTION_BAND} [&>td]:sticky [&>td]:top-[var(--fh-r3)] [&>td]:z-20`}>
               <td colSpan={12} className={`border-b border-gray-300 px-3 py-1.5 font-bold uppercase tracking-wide ${FORM_SECTION_BAND}`}>
                 FIRST VISIT TO AN ORAL HEALTH CARE PROFESSIONAL
               </td>
@@ -377,6 +398,7 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
             ))}
           </tbody>
         </table>
+      </div>
       </div>
       <PreviewModal
         open={preview.open}
