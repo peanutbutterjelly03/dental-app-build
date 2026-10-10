@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Clock, FileBarChart, FileSpreadsheet, FileText, AlertTriangle, AlertCircle, CheckCircle, Users, Calendar, CalendarDays, CalendarRange, GraduationCap, UserRound, VenusAndMars, SlidersHorizontal, Stethoscope, Activity, LayoutDashboard, X } from 'lucide-react';
 import { PeriodDatesBoxes, type PeriodDatesValue } from './PeriodDatesBoxes';
-import { ExportMenu, PeriodTiles, PeriodSwitch, fieldInputClass, PanelShell, PanelRow, ActionGroup, GreyButton, BOX_W, UnderlineTabs, GroupBox, Underlined, FiltersButton, FilterChip, type TileOption } from './ReportControls';
+import { ExportMenu, PeriodTiles, PeriodSwitch, fieldInputClass, PanelShell, PanelRow, ActionGroup, BOX_W, UnderlineTabs, GroupBox, Underlined, FiltersButton, FilterChip, type TileOption } from './ReportControls';
 import { RangePicker } from './RangePicker';
 import { buildXlsx, buildSheetsXlsx } from '../utils/exportXlsx';
 import { downloadBlob } from '../utils/exportCsv';
@@ -862,12 +862,28 @@ export const Reports = () => {
                 </GroupBox>
               )}
               <ActionGroup>
-                <GreyButton icon={SlidersHorizontal} expanded={showDohPicker} onClick={() => setShowDohPicker((v) => !v)}>
-                  {showDohPicker ? 'Done' : `Rows and grades: ${dohHiddenCount ? `${dohHiddenCount} hidden` : 'all shown'}`}
-                </GreyButton>
                 {/* Print / PDF (preview first) / Excel — same menu as the other report tabs. */}
-                <ExportMenu busy={building} onPrint={() => window.print()} onPdf={handleDownloadPdf} onExcel={handleDownloadExcel}
+                <div className="flex">
+                <FiltersButton count={dohHiddenCount}>
+                  <p className="text-[12px] text-muted-foreground">
+                    {dohHiddenCount ? `${hiddenDohRows.size} row(s) and ${hiddenGrades.size} grade(s) hidden. Hiding also changes the PDF and Excel.` : 'All rows and grades are shown.'}
+                  </p>
+                  <button type="button" onClick={() => setShowDohPicker((v) => !v)}
+                    className="flex h-9 items-center gap-2 rounded-[10px] border border-[#e3e7ef] bg-[#f1f3f8] px-3 text-[12.5px] font-bold text-[#46536d] hover:bg-[#e9ecf3]">
+                    <SlidersHorizontal className="h-4 w-4 text-[#7a859b]" aria-hidden="true" />
+                    {showDohPicker ? 'Close rows and grades' : 'Choose rows and grades'}
+                  </button>
+                  {dohHiddenCount > 0 && (
+                    <button type="button" className="h-9 rounded-[10px] text-[12.5px] font-bold text-primary hover:underline"
+                      onClick={() => {
+                        setHiddenDohRows(new Set()); persistSet('doh-hidden-rows', new Set());
+                        setHiddenGrades(new Set()); persistSet('doh-hidden-grades', new Set());
+                      }}>Show everything</button>
+                  )}
+                </FiltersButton>
+                <ExportMenu joined busy={building} onPrint={() => window.print()} onPdf={handleDownloadPdf} onExcel={handleDownloadExcel}
                   excelDisabledReason={dohLoading ? 'Loading' : undefined} pdfDisabledReason={dohLoading ? 'Loading' : undefined} />
+                </div>
               </ActionGroup>
             </PanelRow>
             {/* Sprint 110. Appears only after a real self-refresh — see
