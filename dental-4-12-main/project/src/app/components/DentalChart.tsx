@@ -2005,12 +2005,21 @@ export const DentalChart = () => {
                     <span>School year</span>
                     {years.length > 3 && <span className="text-[10.5px] font-semibold normal-case tracking-normal">{yearTop + 1}-{Math.min(yearTop + 3, years.length)} of {years.length}</span>}
                   </div>
-                  <div className={`flex items-stretch gap-1.5 ${wide ? '' : 'md:flex-col'}`}>
-                    <button type="button" disabled={!canUp} onClick={() => setYearTop((t) => Math.max(0, t - 1))} aria-label="Previous school years" title="Previous school years"
-                      className={`grid w-7 flex-shrink-0 place-items-center rounded-lg border border-border bg-white text-primary transition-opacity disabled:opacity-35 ${wide ? '' : 'md:h-6 md:w-full'}`}>
-                      <ChevronUp className={`h-3.5 w-3.5 -rotate-90 ${wide ? '' : 'md:rotate-0'}`} />
-                    </button>
-                    <div className={`flex min-w-0 flex-1 gap-1.5 overflow-hidden ${wide ? '' : `md:flex-col ${listH}`}`}>
+                  <div className="flex items-stretch gap-1.5">
+                    {years.length > 3 && wide && (
+                      <button type="button" disabled={!canUp} onClick={() => setYearTop((t) => Math.max(0, t - 1))} aria-label="Previous school years" title="Previous school years"
+                        className="grid w-7 flex-shrink-0 place-items-center rounded-lg border border-border bg-white text-primary transition-opacity disabled:opacity-35">
+                        <ChevronUp className="h-3.5 w-3.5 -rotate-90" />
+                      </button>
+                    )}
+                    {years.length > 3 && !wide && (
+                      <button type="button" disabled={!canUp} onClick={() => setYearTop((t) => Math.max(0, t - 1))} aria-label="Previous school years" title="Previous school years"
+                        className="grid w-6 flex-shrink-0 place-items-center rounded-lg border border-border bg-white text-primary transition-opacity disabled:opacity-35 md:hidden">
+                        <ChevronUp className="h-3.5 w-3.5 -rotate-90" />
+                      </button>
+                    )}
+                    <div className={`flex min-w-0 flex-1 gap-1.5 overflow-hidden ${wide ? '' : `md:flex-col ${listH}`}`}
+                      onWheel={(e) => { if (years.length > 3) setYearTop((t) => Math.min(Math.max(0, years.length - 3), Math.max(0, t + (e.deltaY > 0 ? 1 : -1)))); }}>
                       {years.slice(yearTop, yearTop + 3).map((y, k) => {
                         const idx = yearTop + k;
                         const isActive = selectedYear === idx;
@@ -2038,10 +2047,31 @@ export const DentalChart = () => {
                         );
                       })}
                     </div>
-                    <button type="button" disabled={!canDown} onClick={() => setYearTop((t) => Math.min(Math.max(0, years.length - 3), t + 1))} aria-label="More school years" title="More school years"
-                      className={`grid w-7 flex-shrink-0 place-items-center rounded-lg border border-border bg-white text-primary transition-opacity disabled:opacity-35 ${wide ? '' : 'md:h-6 md:w-full'}`}>
-                      <ChevronDown className={`h-3.5 w-3.5 -rotate-90 ${wide ? '' : 'md:rotate-0'}`} />
-                    </button>
+                    {years.length > 3 && wide && (
+                      <button type="button" disabled={!canDown} onClick={() => setYearTop((t) => Math.min(Math.max(0, years.length - 3), t + 1))} aria-label="More school years" title="More school years"
+                        className="grid w-7 flex-shrink-0 place-items-center rounded-lg border border-border bg-white text-primary transition-opacity disabled:opacity-35">
+                        <ChevronDown className="h-3.5 w-3.5 -rotate-90" />
+                      </button>
+                    )}
+                    {years.length > 3 && !wide && (
+                      <button type="button" disabled={!canDown} onClick={() => setYearTop((t) => Math.min(Math.max(0, years.length - 3), t + 1))} aria-label="More school years" title="More school years"
+                        className="grid w-6 flex-shrink-0 place-items-center rounded-lg border border-border bg-white text-primary transition-opacity disabled:opacity-35 md:hidden">
+                        <ChevronDown className="h-3.5 w-3.5 -rotate-90" />
+                      </button>
+                    )}
+                    {/* Laptop and tablet: a slim scroll bar level with the list (arrow, track with a thumb, arrow), so it costs 14px, not two rows. */}
+                    {years.length > 3 && !wide && (
+                      <div className={`hidden w-3.5 flex-shrink-0 flex-col items-center md:flex ${listH}`}>
+                        <button type="button" disabled={!canUp} onClick={() => setYearTop((t) => Math.max(0, t - 1))} aria-label="Previous school years" title="Previous school years"
+                          className="grid h-4 w-full place-items-center text-primary disabled:opacity-30"><ChevronUp className="h-3 w-3" /></button>
+                        <div className="relative my-0.5 w-1.5 flex-1 rounded-full bg-[#DDE5F5]">
+                          <div className="absolute inset-x-0 rounded-full bg-primary/60 transition-[top]"
+                            style={{ top: `${(yearTop / years.length) * 100}%`, height: `${(3 / years.length) * 100}%` }} />
+                        </div>
+                        <button type="button" disabled={!canDown} onClick={() => setYearTop((t) => Math.min(Math.max(0, years.length - 3), t + 1))} aria-label="More school years" title="More school years"
+                          className="grid h-4 w-full place-items-center text-primary disabled:opacity-30"><ChevronDown className="h-3 w-3" /></button>
+                      </div>
+                    )}
                   </div>
                   {/* Her ⋮ menu (Sprint 172): Delete acts on the SELECTED year. Her "Edit <year>'s date" item is NOT copied: it writes `date_opened`, which our STUDENT_IPTR does not have, and a menu item that saves nowhere is a placeholder. */}
                   {canEdit && yearMenuOpen && (
