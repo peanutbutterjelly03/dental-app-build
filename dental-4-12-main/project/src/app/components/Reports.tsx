@@ -1025,8 +1025,8 @@ export const Reports = () => {
                         321 of 346 px at 390 px wide, user-reported 2026-10-04).
                         sm and up are unchanged. The PDF export renders at the
                         table's full width, so it always gets the sm+ layout. */}
-                    <th data-doh="indicator" rowSpan={3} className="sticky left-0 bg-gray-50 !z-30 text-left px-2 py-1 border-r border-border text-[10px] font-semibold text-muted-foreground min-w-[240px] max-sm:w-36 max-sm:min-w-36">
-                      Indicator
+                    <th data-doh="indicator" rowSpan={3} className="sticky left-0 bg-gray-50 !z-30 text-left align-bottom px-2 py-2 border-r border-border text-[11px] font-semibold text-foreground min-w-[240px] max-sm:w-36 max-sm:min-w-36">
+                      INDICATORS
                     </th>
                     {visibleGrades.map(g => {
                       const bracketCount = GRADE_BRACKETS[g].ages.length;
