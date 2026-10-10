@@ -30,9 +30,8 @@ import { downloadBlob } from '../utils/exportCsv';
 // form. Correcting spelling here would make the printout stop matching the
 // paper it is filed beside.
 
-/** What a cell with no source says — the same mark the other DOH forms use, so
- *  a reader learns it once. Never a 0: 0 claims a negative finding. */
-const NO_SOURCE_MARK = '—';
+/** A cell with no source is left blank (user, 2026-10-10), never a 0: 0 claims a negative finding. */
+const NO_SOURCE_MARK = '';
 
 type CellSource =
   /** Count of students, then count of teeth, from the tooth-condition code. */
