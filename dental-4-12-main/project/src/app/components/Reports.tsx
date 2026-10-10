@@ -1296,42 +1296,77 @@ export const Reports = () => {
           {/* ── CONDITION SUMMARY ── */}
           {internalSection === 'conditions' && (
             <div className="space-y-4">
-              {/* Condition counts by grade, in the same navy-strip design as the Procedure Counts. */}
+              {/* Condition counts: Male, Female and their total under each grade, same design as the Procedure Counts. */}
               {(() => {
+                const gradeCols = activeGrades ?? ALL_GRADES_INT;
                 const hdr = 'px-1.5 py-2 text-center text-[11px] font-extrabold tracking-wide text-white whitespace-nowrap';
+                const sub = 'px-1.5 py-1.5 text-center text-[10px] font-bold text-white/90';
                 const hShade = (i: number) => (i % 2 ? 'bg-[#233a7a]' : 'bg-[#1b2d63]');
                 const bShade = (i: number) => (i % 2 ? 'bg-[#f5f8fe]' : '');
-                const totalAll = CONDITIONS.reduce((n, c) => n + cnt(conditionMatrix, c, intGenderFilter), 0);
+                const sumAll = (sex: 'M' | 'F' | 'all') => CONDITIONS.reduce((n, c) => n + cnt(conditionMatrix, c, sex), 0);
+                const totM = sumAll('M');
+                const totF = sumAll('F');
+                const totAll = sumAll('all');
                 return (
                   <div className="overflow-hidden rounded-2xl border border-[#A9BDE6] bg-card">
                     <div className="bg-gradient-to-br from-[#273c7b] to-[#1b2d63] px-5 py-3.5 text-white">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                           <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#aebbe0]">Internal Reports</div>
-                          <div className="text-lg font-extrabold">Condition Counts by Grade</div>
+                          <div className="text-lg font-extrabold">Condition Counts</div>
                         </div>
-                        <span className="rounded-full bg-white px-3 py-0.5 text-xs font-bold text-[#1b2d63]">Total {totalAll}</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          <span className="rounded-full bg-white/15 px-3 py-0.5 text-xs font-bold">Male {totM}</span>
+                          <span className="rounded-full bg-white/15 px-3 py-0.5 text-xs font-bold">Female {totF}</span>
+                          <span className="rounded-full bg-white px-3 py-0.5 text-xs font-bold text-[#1b2d63]">Total {totAll}</span>
+                        </div>
                       </div>
                     </div>
                     <div className="no-scrollbar overflow-x-auto">
-                      <table className="w-full min-w-[720px] text-[13px]" style={{ borderCollapse: 'collapse' }}>
+                      <table className="w-full min-w-[900px] text-[13px]" style={{ borderCollapse: 'collapse' }}>
                         <thead>
                           <tr className="bg-[#1b2d63]">
-                            <th className="min-w-[200px] px-4 py-2.5 text-left text-[11px] font-extrabold tracking-wide text-white">CONDITION</th>
-                            {displayGrades.map((g, i) => <th key={g} className={`${hdr} ${hShade(i)}`}>{g.toUpperCase()}</th>)}
-                            <th className={`${hdr} bg-[#2c4690]`}>TOTAL</th>
+                            <th rowSpan={2} className="min-w-[200px] px-4 py-2 text-left text-[11px] font-extrabold tracking-wide text-white">CONDITION</th>
+                            {gradeCols.map((g, i) => <th key={g} colSpan={3} className={`${hdr} ${hShade(i)}`}>{g.toUpperCase()}</th>)}
+                            <th colSpan={3} className={`${hdr} bg-[#2c4690]`}>TOTAL</th>
+                          </tr>
+                          <tr className="bg-[#1b2d63]">
+                            {gradeCols.map((g, i) => (
+                              <Fragment key={g}>
+                                <th className={`${sub} ${hShade(i)}`}>MALE</th>
+                                <th className={`${sub} ${hShade(i)}`}>FEMALE</th>
+                                <th className={`${sub} ${hShade(i)}`}>TOTAL</th>
+                              </Fragment>
+                            ))}
+                            <th className={`${sub} bg-[#2c4690]`}>MALE</th>
+                            <th className={`${sub} bg-[#2c4690]`}>FEMALE</th>
+                            <th className={`${sub} bg-[#2c4690]`}>TOTAL</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {CONDITIONS.map((cond) => (
-                            <tr key={cond} className="border-b border-[#dfe5f0] hover:bg-[#f8faff]">
-                              <td className="px-4 py-2.5 font-medium text-foreground">{cond}</td>
-                              {displayGrades.map((g, i) => (
-                                <td key={g} className={`px-1.5 py-2.5 text-center tabular-nums text-foreground ${bShade(i)}`}>{getCount(conditionMatrix, cond, g, intGenderFilter)}</td>
-                              ))}
-                              <td className="bg-[#eef3fd] px-1.5 py-2.5 text-center font-bold tabular-nums text-foreground">{cnt(conditionMatrix, cond, intGenderFilter)}</td>
-                            </tr>
-                          ))}
+                          {CONDITIONS.map((cond) => {
+                            const m = cnt(conditionMatrix, cond, 'M');
+                            const f = cnt(conditionMatrix, cond, 'F');
+                            return (
+                              <tr key={cond} className="border-b border-[#dfe5f0] hover:bg-[#f8faff]">
+                                <td className="px-4 py-2.5 font-medium text-foreground">{cond}</td>
+                                {gradeCols.map((g, i) => {
+                                  const gm = getCount(conditionMatrix, cond, g, 'M');
+                                  const gf = getCount(conditionMatrix, cond, g, 'F');
+                                  return (
+                                    <Fragment key={g}>
+                                      <td className={`px-1.5 py-2.5 text-center tabular-nums text-blue-700 ${bShade(i)}`}>{gm}</td>
+                                      <td className={`px-1.5 py-2.5 text-center tabular-nums text-pink-700 ${bShade(i)}`}>{gf}</td>
+                                      <td className={`px-1.5 py-2.5 text-center font-bold tabular-nums text-foreground ${bShade(i)}`}>{gm + gf}</td>
+                                    </Fragment>
+                                  );
+                                })}
+                                <td className="bg-[#eef3fd] px-1.5 py-2.5 text-center font-bold tabular-nums text-blue-700">{m}</td>
+                                <td className="bg-[#eef3fd] px-1.5 py-2.5 text-center font-bold tabular-nums text-pink-700">{f}</td>
+                                <td className="bg-[#eef3fd] px-1.5 py-2.5 text-center font-bold tabular-nums text-foreground">{m + f}</td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
