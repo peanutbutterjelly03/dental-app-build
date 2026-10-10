@@ -312,7 +312,7 @@ export const Reports = () => {
     const n = new Date();
     return { kind: 'month', start: toLocalDateString(new Date(n.getFullYear(), n.getMonth(), 1)), end: toLocalDateString(new Date(n.getFullYear(), n.getMonth() + 1, 0)) };
   });
-  const { getRealCount, years: dohYears, unplacedCount, loading: dohLoading } = useDohReportData(null, reportSchool, dohPeriod.start, dohPeriod.end);
+  const { getRealCount, getRealTotal, years: dohYears, unplacedCount, loading: dohLoading } = useDohReportData(null, reportSchool, dohPeriod.start, dohPeriod.end);
   const dohPeriodLabel = (() => {
     const a = new Date(`${dohPeriod.start}T00:00:00`), b = new Date(`${dohPeriod.end}T00:00:00`);
     if (dohPeriod.kind === 'range') return `${formatDate(dohPeriod.start)} to ${formatDate(dohPeriod.end)}`;
@@ -391,6 +391,13 @@ export const Reports = () => {
       if (ages.includes(bracket)) return s + V(g, bracket, sex, field);
       return s;
     }, 0);
+  // Headline totals for the card above the table: every age bracket and both
+  // sexes across the grades of the band in view.
+  const bandTotal = (field: string) =>
+    SUMMARY_BRACKETS.reduce((n, b) => n + sumSummaryBracket(field, 'M', b) + sumSummaryBracket(field, 'F', b), 0);
+  // A field with no source in the system (getRealTotal returns null) prints a
+  // dash, never a zero.
+  const hasSource = (field: string) => getRealTotal('5-9 yrs', 'M', field) !== null;
   const [activeReportTab, setActiveReportTab] = useState<'doh'|'internal'|'tcl'|'ohprf'|'fhsis'|'summary'|'consent'>('doh');
   // ⚠ NAMED LINE LISTS ARE NOT FOR THE SCHOOL ADMINISTRATOR.
   //   The Target Client List and the Consent Form print one row per identified
@@ -887,6 +894,49 @@ export const Reports = () => {
             </PanelRow>
             <p className="sr-only" aria-live="polite">Showing {dohPeriodLabel}, {reportSchool ? getSchoolShortName(reportSchool) : 'all schools'}</p>
           </PanelShell>
+
+          {(() => {
+            const attended = bandTotal('attended');
+            const examined = bandTotal('examined');
+            const caries = bandTotal('DMF_total') + bandTotal('dmf_df');
+            const pct = examined > 0 ? caries / examined : 0;
+            const r = 36, c = 2 * Math.PI * r;
+            const tile = (label: string, value: string, hint?: string) => (
+              <div className="min-w-[8.5rem] flex-1 rounded-xl bg-[#eef1f7] px-3.5 py-2.5">
+                <div className="text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted-foreground">{label}</div>
+                <div className="text-[26px] font-extrabold leading-tight text-primary tabular-nums">{value}</div>
+                {hint && <div className="text-[11px] text-muted-foreground">{hint}</div>}
+              </div>
+            );
+            return (
+              <div className="rounded-2xl border border-[#dfe5f0] bg-card px-5 py-4 shadow-[0_14px_30px_-22px_rgba(36,59,122,0.5)]">
+                <h2 className="text-base font-extrabold text-foreground">Dental Section: Consolidated Oral Health Status and Service Report</h2>
+                <p className="mt-0.5 text-[12.5px] text-muted-foreground">
+                  {dohPeriodLabel} · {reportSchool ? getSchoolShortName(reportSchool) : 'All schools'} · {bandLabel}
+                </p>
+                <div className="mt-4 flex flex-wrap items-center gap-x-7 gap-y-4">
+                  <div className="flex items-center gap-3.5">
+                    <svg width="84" height="84" viewBox="0 0 84 84" role="img" aria-label={`With caries experience: ${Math.round(pct * 100)}%`}>
+                      <circle cx="42" cy="42" r={r} fill="none" stroke="#eef1f7" strokeWidth="8" />
+                      <circle cx="42" cy="42" r={r} fill="none" stroke="#243b7a" strokeWidth="8" strokeLinecap="round"
+                        strokeDasharray={c} strokeDashoffset={c * (1 - pct)} transform="rotate(-90 42 42)" />
+                      <text x="42" y="47" textAnchor="middle" fontSize="15" fontWeight="800" fill="#14213d">{Math.round(pct * 100)}%</text>
+                    </svg>
+                    <div>
+                      <div className="text-[13px] font-extrabold text-foreground">With caries experience</div>
+                      <div className="text-[11.5px] text-muted-foreground">DMF or dmf above 0: {caries} of {examined} examined</div>
+                    </div>
+                  </div>
+                  <div className="flex min-w-[18rem] flex-1 flex-wrap gap-2.5">
+                    {tile('Attended', String(attended))}
+                    {tile('Orally examined', String(examined))}
+                    {tile('Orally fit upon oral examination', hasSource('ofc_exam') ? String(bandTotal('ofc_exam')) : '—')}
+                    {tile('Orally fit upon complete oral rehabilitation', hasSource('ofc_rehab') ? String(bandTotal('ofc_rehab')) : '—', hasSource('ofc_rehab') ? undefined : 'No source in the system')}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {showDohPicker && (
             <div className="bg-card rounded-xl border border-border p-4 space-y-3 text-xs">
