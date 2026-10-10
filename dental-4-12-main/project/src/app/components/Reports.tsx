@@ -905,7 +905,7 @@ export const Reports = () => {
               <div className="min-w-[8.5rem] flex-1 rounded-xl bg-[#eef1f7] px-3.5 py-2.5">
                 <div className="text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted-foreground">{label}</div>
                 <div className="text-[26px] font-extrabold leading-tight text-primary tabular-nums">{value}</div>
-                {hint && <div className="text-[11px] text-muted-foreground">{hint}</div>}
+                {hint && <div className="mt-1 text-[11px] leading-snug text-muted-foreground">{hint}</div>}
               </div>
             );
             return (
@@ -924,14 +924,15 @@ export const Reports = () => {
                     </svg>
                     <div>
                       <div className="text-[13px] font-extrabold text-foreground">With caries experience</div>
-                      <div className="text-[11.5px] text-muted-foreground">DMF or dmf above 0: {caries} of {examined} examined</div>
+                      <div className="text-[11.5px] text-muted-foreground">{caries} of {examined} examined.</div>
+                      <div className="mt-1 max-w-[15rem] text-[11px] leading-snug text-muted-foreground">Students whose DMF (permanent teeth) or dmf (primary teeth) score is above 0.</div>
                     </div>
                   </div>
                   <div className="flex min-w-[18rem] flex-1 flex-wrap gap-2.5">
-                    {tile('Attended', String(attended))}
-                    {tile('Orally examined', String(examined))}
-                    {tile('Orally fit upon oral examination', hasSource('ofc_exam') ? String(bandTotal('ofc_exam')) : '—')}
-                    {tile('Orally fit upon complete oral rehabilitation', hasSource('ofc_rehab') ? String(bandTotal('ofc_rehab')) : '—', hasSource('ofc_rehab') ? undefined : 'No source in the system')}
+                    {tile('Attended', String(attended), 'Students with an oral examination recorded in this period.')}
+                    {tile('Orally examined', String(examined), 'Students whose mouth was examined and the findings recorded.')}
+                    {tile('Orally fit upon oral examination', hasSource('ofc_exam') ? String(bandTotal('ofc_exam')) : '—', 'Examined students whose dentist-validated risk is Low.')}
+                    {tile('Orally fit upon complete oral rehabilitation', hasSource('ofc_rehab') ? String(bandTotal('ofc_rehab')) : '—', hasSource('ofc_rehab') ? 'Students made orally fit after complete oral rehabilitation.' : 'Students made orally fit after complete oral rehabilitation. The system does not record this yet.')}
                   </div>
                 </div>
               </div>
