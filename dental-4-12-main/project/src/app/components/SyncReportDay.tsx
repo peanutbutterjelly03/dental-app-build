@@ -1,13 +1,10 @@
 import { useState } from 'react';
 import { retryQueue } from '../offline/queueProcessor';
-import type { ReportRow, Version } from '../offline/syncReportModel';
+import type { ReportRow, ReportStudent, Version } from '../offline/syncReportModel';
 import type { DayView, FlagSource, ToothChange } from '../offline/syncReportVisual';
 
-// One student's changes on ONE day, drawn (user pick 4, 2026-10-11): charted teeth as
-// tooth numbers grouped under their condition, yes/no findings as switches flipping on,
-// measurements as before and after bars. The full field-by-field table is one click
-// away ("Details"), and it is where a field edited more than once offline can have an
-// earlier version kept. Anything that did NOT sync is always shown in full.
+// The sync history's building blocks: StudentDay (one student on one date, Original and After
+// sync side by side) and Row (the full field table behind its Details button).
 
 const time = (t?: number) => (t ? new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '');
 
@@ -35,12 +32,12 @@ function Switch({ on }: { on: boolean }) {
   );
 }
 
-/** Teeth, grouped by what was charted on them (user pick 1 of 5, 2026-10-11): the numbers
- *  under their condition, not one card per tooth and not a mouth map. */
-function TeethByCondition({ teeth }: { teeth: ToothChange[] }) {
+/** Tooth numbers grouped under a condition (user pick 1 of 5, 2026-10-11). */
+function TeethGroups({ teeth, side }: { teeth: ToothChange[]; side: 'before' | 'after' }) {
   const groups = new Map<string, number[]>();
   for (const t of teeth) {
-    const key = t.removed ? '_cleared' : (t.cond || '_none').toUpperCase();
+    const raw = side === 'before' ? t.before : t.removed ? '_cleared' : t.cond;
+    const key = raw === '' ? '_none' : raw === '_cleared' ? '_cleared' : raw.toUpperCase();
     groups.set(key, [...(groups.get(key) ?? []), t.tooth]);
   }
   const order = ['D', 'F', 'M', 'X', 'T'];
@@ -49,37 +46,44 @@ function TeethByCondition({ teeth }: { teeth: ToothChange[] }) {
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
   });
   return (
-    <div className="min-w-0">
-      <div className="mb-1.5 text-xs text-muted-foreground">Teeth charted <b className="text-foreground">{teeth.length}</b></div>
-      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-4 gap-y-1.5">
-        {keys.map((k) => {
-          const c = k === '_cleared' ? { bg: '#fff', fg: '#64748B', word: 'Cleared' } : k === '_none' ? { bg: '#FDE68A', fg: '#78350F', word: 'Charted' } : condOf(k);
-          const nums = [...(groups.get(k) ?? [])].sort((a, b) => a - b);
-          return (
-            <div key={k} className="contents">
-              <span className="flex items-center gap-2 pt-0.5 text-[12.5px] font-bold">
-                <span className="h-2.5 w-2.5 flex-shrink-0 rounded-[3px]" style={{ background: c.bg, border: `1px solid ${c.fg}` }} />{c.word}
-              </span>
-              <span className="flex flex-wrap gap-1">
-                {nums.map((n) => (
-                  <span key={n} title={`Tooth ${n}: ${c.word}`} style={{ background: c.bg, color: c.fg, borderColor: c.fg }}
-                    className={`grid h-[26px] min-w-[28px] place-items-center rounded-[7px] border px-1.5 text-xs font-extrabold ${k === '_cleared' ? 'border-dashed line-through' : ''}`}>{n}</span>
-                ))}
-              </span>
-            </div>
-          );
-        })}
-      </div>
+    <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-1.5">
+      {keys.map((k) => {
+        const none = k === '_none';
+        const cleared = k === '_cleared';
+        const c = none ? { bg: '#fff', fg: '#64748B', word: 'No record' } : cleared ? { bg: '#fff', fg: '#64748B', word: 'Cleared' } : condOf(k);
+        const nums = [...(groups.get(k) ?? [])].sort((a, b) => a - b);
+        return (
+          <div key={k} className="contents">
+            <span className="flex items-center gap-1.5 pt-0.5 text-[12.5px] font-bold">
+              <span className="h-2.5 w-2.5 flex-shrink-0 rounded-[3px]" style={{ background: c.bg, border: `1px ${none || cleared ? 'dashed' : 'solid'} ${c.fg}` }} />{c.word}
+            </span>
+            <span className="flex flex-wrap gap-1">
+              {nums.map((n) => (
+                <span key={n} title={`Tooth ${n}: ${c.word}`} style={{ background: c.bg, color: c.fg, borderColor: c.fg }}
+                  className={`grid h-[26px] min-w-[28px] place-items-center rounded-[7px] border px-1.5 text-xs font-extrabold ${none || cleared ? 'border-dashed' : ''}`}>{n}</span>
+              ))}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-export function DayCard({
-  day, busy, canRestore, confirming, onAskRestore, onCancelRestore, onRestore, onPick, onReview,
+const SECTION = 'mb-1 text-[11px] font-bold text-muted-foreground';
+
+/** One student's changes on ONE date, as two panels (user pick 2 of 3, 2026-10-11):
+ *  Original on the left, After sync on the right, so the eye compares by position.
+ *  The full field-by-field table is one click away ("Details"); it is also where a field
+ *  edited more than once offline can have an earlier version kept. Anything that did NOT
+ *  sync is always shown in full, never reduced to a picture. */
+export function StudentDay({
+  student, day, busy, canRestore, confirming, onAskRestore, onCancelRestore, onRestore, onPick, onReview,
 }: {
+  student: ReportStudent;
   day: DayView;
   busy: boolean;
-  /** How many changes "Restore this day" would put back. */
+  /** How many of this student's changes that day "Restore" would put back. */
   canRestore: number;
   confirming: boolean;
   onAskRestore: () => void;
@@ -90,29 +94,51 @@ export function DayCard({
 }) {
   const [details, setDetails] = useState(false);
   const n = day.rows.length;
-  const picture = day.teeth.length + day.flags.length + day.measures.length > 0;
-  const bySource = (['med', 'diet', 'oral', 'svc'] as const)
+  const hasPicture = day.teeth.length + day.flags.length + day.measures.length + day.texts.length > 0;
+  const flagGroups = (['med', 'diet', 'oral', 'svc'] as const)
     .map((s) => ({ s, items: day.flags.filter((f) => f.source === s) }))
     .filter((g) => g.items.length > 0);
+  const initials = student.name.replace(',', '').split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+
+  const flagList = (side: 'before' | 'after') => flagGroups.map(({ s, items }) => (
+    <div key={s} className="mb-1.5">
+      <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/80">{SOURCE[s].name}</div>
+      {items.map((f) => {
+        const on = side === 'before' ? f.from : f.to;
+        return (
+          <div key={f.label} className="flex items-center gap-2 py-0.5 text-[12.5px]">
+            <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ background: SOURCE[s].dot }} />
+            <span className={`min-w-0 flex-1 truncate ${side === 'after' ? 'rounded bg-yellow-100 px-1' : ''}`} title={f.label}>{f.label}{side === 'after' && f.edits > 1 ? <span className="ml-1 text-[10px] text-muted-foreground">edited {f.edits}x</span> : null}</span>
+            <Switch on={on} />
+            <b className={`w-7 ${side === 'after' ? 'text-blue-800' : 'text-slate-500'}`}>{on ? 'Yes' : 'No'}</b>
+          </div>
+        );
+      })}
+    </div>
+  ));
+
   return (
-    <div className="border-t border-border px-4 py-3">
-      <div className="mb-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <b className="text-sm text-foreground">{day.label}</b>
-        <span className="text-xs text-muted-foreground">{time(day.from)}{day.to - day.from > 60_000 ? ` to ${time(day.to)}` : ''} · {n} change{n === 1 ? '' : 's'}</span>
+    <div className="rounded-xl border border-border bg-card px-3.5 py-3">
+      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-muted text-xs font-bold text-primary" aria-hidden="true">{initials}</span>
+        <div className="min-w-0">
+          <div className="font-bold text-foreground">{student.name}</div>
+          <div className="text-xs text-muted-foreground">{[student.sub, `${n} change${n === 1 ? '' : 's'}`].filter(Boolean).join(' · ')}</div>
+        </div>
         <span className="flex-1" />
         <button type="button" aria-expanded={details} onClick={() => setDetails((v) => !v)} className="rounded-lg border border-border bg-card px-2.5 py-1 text-xs font-semibold hover:bg-muted">
           {details ? 'Hide details' : 'Details'}
         </button>
         {canRestore > 0 && (
           <button type="button" disabled={busy} onClick={onAskRestore} className="rounded-lg border border-border bg-card px-2.5 py-1 text-xs font-semibold hover:bg-muted disabled:opacity-50">
-            Restore this day
+            Restore
           </button>
         )}
       </div>
 
       {confirming && (
         <div className="mb-2 flex flex-wrap items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          <span className="min-w-[12rem] flex-1"><b>Restore {canRestore} change{canRestore === 1 ? '' : 's'} from {day.label} to their original values?</b> Each one is sent as a new edit and recorded in the audit trail.</span>
+          <span className="min-w-[12rem] flex-1"><b>Restore {canRestore} change{canRestore === 1 ? '' : 's'} for {student.name} on {day.label} to their original values?</b> Each one is sent as a new edit and recorded in the audit trail.</span>
           <button type="button" disabled={busy} onClick={onRestore} className="rounded-lg bg-primary px-3 py-1 font-semibold text-primary-foreground disabled:opacity-50">Restore</button>
           <button type="button" onClick={onCancelRestore} className="rounded-lg border border-border bg-card px-3 py-1 font-semibold">Cancel</button>
         </div>
@@ -124,60 +150,56 @@ export function DayCard({
         </div>
       )}
 
-      {picture && (
-        <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
-          {day.teeth.length > 0 && <div className="min-w-0 flex-[1.4_1_16rem]"><TeethByCondition teeth={day.teeth} /></div>}
-          {day.flags.length > 0 && (
-            <div className="min-w-[13rem] flex-1">
-              <div className="mb-1 text-xs text-muted-foreground">Findings and services</div>
-              {bySource.map(({ s, items }) => (
-                <div key={s} className="mb-1.5">
-                  <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/80">{SOURCE[s].name}</div>
-                  {items.map((f) => (
-                    <div key={f.label} className="flex items-center gap-2 py-0.5 text-[12.5px]">
-                      <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ background: SOURCE[s].dot }} />
-                      <span className="min-w-0 flex-1 truncate" title={f.label}>{f.label}{f.edits > 1 ? <span className="ml-1 text-[10px] text-muted-foreground">edited {f.edits}x</span> : null}</span>
-                      <Switch on={f.from} /><span className="text-muted-foreground" aria-hidden="true">→</span><Switch on={f.to} />
-                      <span className="sr-only">{f.from ? 'was on' : 'was off'}, {f.to ? 'now on' : 'now off'}</span>
+      {hasPicture && (
+        <div className="flex flex-wrap items-stretch gap-2.5">
+          <div className="min-w-[14rem] flex-1 rounded-xl bg-[#F1F3F7] px-3 py-2.5">
+            <div className="mb-2 text-[11px] font-extrabold uppercase tracking-wider text-slate-600">Original</div>
+            {day.teeth.length > 0 && <div className="mb-2"><div className={SECTION}>Teeth charted</div><TeethGroups teeth={day.teeth} side="before" /></div>}
+            {day.flags.length > 0 && <div className="mb-2"><div className={SECTION}>Findings and services</div>{flagList('before')}</div>}
+            {day.measures.length > 0 && (
+              <div className="mb-2"><div className={SECTION}>Measurements</div>
+                {day.measures.map((m) => <div key={m.label} className="flex justify-between gap-2 py-0.5 text-[12.5px]"><span>{m.label}</span><b className="text-slate-600">{m.from ?? 'none'} <span className="font-normal">{m.unit}</span></b></div>)}
+              </div>
+            )}
+            {day.texts.length > 0 && (
+              <div><div className={SECTION}>Other</div>
+                {day.texts.map((t, i) => <div key={`${t.label}-${i}`} className="flex justify-between gap-2 py-0.5 text-[12.5px]"><span>{t.label}</span><b className="text-right text-slate-600">{t.from || 'none'}</b></div>)}
+              </div>
+            )}
+          </div>
+          <div className="grid place-items-center text-lg text-muted-foreground max-sm:hidden" aria-hidden="true">→</div>
+          <div className="min-w-[14rem] flex-1 rounded-xl bg-[#EAF2FF] px-3 py-2.5">
+            <div className="mb-2 text-[11px] font-extrabold uppercase tracking-wider text-blue-800">After sync</div>
+            {day.teeth.length > 0 && <div className="mb-2"><div className={SECTION}>Teeth charted <b className="text-foreground">{day.teeth.length}</b></div><TeethGroups teeth={day.teeth} side="after" /></div>}
+            {day.flags.length > 0 && <div className="mb-2"><div className={SECTION}>Findings and services</div>{flagList('after')}</div>}
+            {day.measures.length > 0 && (
+              <div className="mb-2"><div className={SECTION}>Measurements</div>
+                {day.measures.map((m) => {
+                  const max = Math.max(m.from ?? 0, m.to ?? 0) * 1.1 || 1;
+                  return (
+                    <div key={m.label} className="py-0.5 text-[12.5px]">
+                      <div className="flex justify-between gap-2"><span>{m.label}</span><b className="rounded bg-yellow-100 px-1 text-blue-800">{m.to ?? 'none'} <span className="font-normal">{m.unit}</span></b></div>
+                      <div className="relative mt-1 h-1.5 rounded-full bg-slate-200" aria-hidden="true">
+                        <div className="absolute inset-y-0 left-0 rounded-full bg-slate-400" style={{ width: `${((m.from ?? 0) / max) * 100}%` }} />
+                        <div className="absolute inset-y-0 left-0 rounded-full bg-teal-600/75" style={{ width: `${((m.to ?? 0) / max) * 100}%` }} />
+                      </div>
                     </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          )}
-          {day.measures.length > 0 && (
-            <div className="min-w-[13rem] flex-1">
-              <div className="mb-1 text-xs text-muted-foreground">Measurements</div>
-              {day.measures.map((m) => {
-                const max = Math.max(m.from ?? 0, m.to ?? 0) * 1.1 || 1;
-                return (
-                  <div key={m.label} className="py-1 text-[12.5px]">
-                    <div className="flex justify-between gap-2">
-                      <span>{m.label}</span>
-                      <b>{m.from ?? 'none'} <span className="font-normal text-muted-foreground">→</span> {m.to ?? 'none'} <span className="font-normal text-muted-foreground">{m.unit}</span></b>
-                    </div>
-                    <div className="relative mt-1 h-1.5 rounded-full bg-slate-200" aria-hidden="true">
-                      <div className="absolute inset-y-0 left-0 rounded-full bg-slate-400" style={{ width: `${((m.from ?? 0) / max) * 100}%` }} />
-                      <div className="absolute inset-y-0 left-0 rounded-full bg-teal-600/75" style={{ width: `${((m.to ?? 0) / max) * 100}%` }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            )}
+            {day.texts.length > 0 && (
+              <div><div className={SECTION}>Other</div>
+                {day.texts.map((t, i) => <div key={`${t.label}-${i}`} className="flex justify-between gap-2 py-0.5 text-[12.5px]"><span>{t.label}</span><b className="rounded bg-yellow-100 px-1 text-right text-blue-800">{t.to}</b></div>)}
+              </div>
+            )}
+          </div>
         </div>
       )}
-
-      {day.texts.length > 0 && (
-        <ul className={`${picture ? 'mt-3 ' : ''}flex flex-col gap-0.5 text-[12.5px] text-muted-foreground`}>
-          {day.texts.map((t, i) => (
-            <li key={`${t.label}-${i}`}><b className="text-foreground">{t.label}</b>{t.from ? <> {t.from} <span aria-hidden="true">→</span> </> : ' '}<span className="text-foreground">{t.to}</span></li>
-          ))}
-        </ul>
-      )}
+      <div className="mt-1.5 text-xs text-muted-foreground">Saved offline {time(day.from)}{day.to - day.from > 60_000 ? ` to ${time(day.to)}` : ''}</div>
 
       {details && (
-        <div role="table" aria-label={`All changes on ${day.label}`} className="mt-3 rounded-lg border border-border">
+        <div role="table" aria-label={`All changes for ${student.name} on ${day.label}`} className="mt-3 rounded-lg border border-border">
           <div role="row" className="hidden md:grid grid-cols-[minmax(9rem,1.2fr)_minmax(7rem,1fr)_minmax(8rem,1.1fr)_5.5rem_8rem] gap-3 px-4 py-1.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
             <span>Field</span><span>Original</span><span>After sync</span><span>Saved offline</span><span />
           </div>

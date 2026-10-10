@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildReport, type WriteEntry } from './syncReportModel';
-import { buildDays, dayLabel, localDayKey } from './syncReportVisual';
+import { buildDays, buildDateGroups, dayLabel, localDayKey } from './syncReportVisual';
 
 let id = 0;
 const NOW = new Date(2026, 9, 10, 22, 0).getTime();
@@ -25,7 +25,7 @@ describe('buildDays', () => {
 
   it('reads the tooth and its condition from a created record', () => {
     const [d] = days([tooth(36)]);
-    expect(d.teeth).toEqual([{ tooth: 36, cond: 'D', removed: false, edits: 1 }]);
+    expect(d.teeth).toEqual([{ tooth: 36, before: '', cond: 'D', removed: false, edits: 1 }]);
   });
 
   it('a created medical history shows only the boxes that were ticked', () => {
@@ -61,6 +61,19 @@ describe('buildDays', () => {
   it('unknown kinds fall back to one short line', () => {
     const [d] = days([write({ resource: 'treatments', op: 'create', label: 'Treatment added', subject: 'Treatment', fields: [{ field: 'diagnosis', before: undefined, after: 'Caries' }] })]);
     expect(d.texts).toEqual([{ label: 'Treatment added', from: '', to: 'Diagnosis Caries' }]);
+  });
+});
+
+describe('buildDateGroups', () => {
+  it('groups by date first, newest first, attention students first inside a date', () => {
+    const a = write({ studentId: 's1', studentName: 'ZAMORA, Rico', op: 'create', fields: [{ field: 'tooth_number', before: undefined, after: 11 }, { field: 'condition', before: undefined, after: 'D' }] });
+    const b = write({ studentId: 's2', studentName: 'ACIO, Khalil', queuedAt: at(10, 20), op: 'create', fields: [{ field: 'tooth_number', before: undefined, after: 12 }, { field: 'condition', before: undefined, after: 'D' }] });
+    const held = write({ studentId: 's3', studentName: 'LOPEZ, Carla', queuedAt: at(10, 19), status: 'conflict', reason: 'x', resource: 'oral-health-conditions', recordId: 'o', fields: [{ field: 'calculus', before: false, after: true }] });
+    const old = write({ studentId: 's2', studentName: 'ACIO, Khalil', queuedAt: at(8, 9), op: 'create', fields: [{ field: 'tooth_number', before: undefined, after: 13 }, { field: 'condition', before: undefined, after: 'F' }] });
+    const groups = buildDateGroups(buildReport([a, b, held, old]), NOW);
+    expect(groups.map((g) => g.key)).toEqual(['2026-10-10', '2026-10-08']);
+    expect(groups[0].items.map((i) => i.student.name)).toEqual(['LOPEZ, Carla', 'ACIO, Khalil', 'ZAMORA, Rico']);
+    expect(groups[1].items.map((i) => i.student.name)).toEqual(['ACIO, Khalil']);
   });
 });
 

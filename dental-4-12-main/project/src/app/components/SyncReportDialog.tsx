@@ -6,8 +6,8 @@ import { requestConflictReview, isConflictReviewOpen } from '../offline/queueEve
 import { loadReport, type LoadedReport, type ReportScope } from '../offline/syncHistory';
 import { pickVersion } from '../offline/restore';
 import type { ReportRow, ReportStudent, StudentStatus, Version } from '../offline/syncReportModel';
-import { buildDays } from '../offline/syncReportVisual';
-import { DayCard } from './SyncReportDay';
+import { buildDateGroups } from '../offline/syncReportVisual';
+import { StudentDay } from './SyncReportDay';
 import { useOfflineQueue } from '../hooks/useOfflineQueue';
 
 // The sync report. Changes made offline sync by themselves when the connection
@@ -42,8 +42,7 @@ export const SyncReportDialog = () => {
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
   const [module, setModule] = useState('all');
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [confirm, setConfirm] = useState<{ kind: 'student'; id: string } | { kind: 'selected' } | { kind: 'day'; id: string } | null>(null);
+  const [confirm, setConfirm] = useState<{ kind: 'item'; id: string } | { kind: 'date'; id: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -69,7 +68,6 @@ export const SyncReportDialog = () => {
     setFilter('all');
     setQuery('');
     setModule('all');
-    setSelected(new Set());
     setConfirm(null);
     setMessage(null);
     if (scope) void reload();
@@ -97,6 +95,8 @@ export const SyncReportDialog = () => {
     return true;
   });
 
+  const dateGroups = useMemo(() => buildDateGroups(visible), [visible]);
+
   if (!scope) return null;
   const close = () => setScope(null);
 
@@ -116,19 +116,6 @@ export const SyncReportDialog = () => {
   };
 
   const pick = (row: ReportRow, version: Version) => run(async () => { await pickVersion(row, version); return 1; });
-  const restoreStudents = (list: ReportStudent[]) =>
-    run(async () => {
-      let n = 0;
-      for (const s of list) {
-        for (const r of s.rows) {
-          if (r.canPick && r.current.key !== 'orig') { await pickVersion(r, r.versions[0]); n++; }
-        }
-      }
-      setSelected(new Set());
-      return n;
-    });
-
-  const restorable = (s: ReportStudent) => s.rows.filter((r) => r.canPick && r.current.key !== 'orig').length;
   const restoreRows = (rows: ReportRow[]) =>
     run(async () => {
       let n = 0;
@@ -137,7 +124,6 @@ export const SyncReportDialog = () => {
       }
       return n;
     });
-  const selectedStudents = students.filter((s) => selected.has(s.studentId));
   const needsConnection = !isOnline;
 
   return (
@@ -181,49 +167,47 @@ export const SyncReportDialog = () => {
       <div className="px-5 py-4 flex flex-col gap-3">
         {data === null && <p className="py-8 text-center text-sm text-muted-foreground">Loading the report.</p>}
         {data !== null && visible.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">{students.length === 0 ? 'Nothing was synced from this device yet.' : 'No students match these filters.'}</p>}
-        {visible.map((s) => (
-          <section key={s.studentId} className={`rounded-xl border bg-card overflow-hidden ${s.status === 'attention' ? 'border-red-400' : 'border-border'}`}>
-            <div className="flex flex-wrap items-center gap-3 bg-muted/60 border-b border-border px-4 py-2.5">
-              {s.status !== 'none' && s.rows.some((r) => r.canPick) ? (
-                <input type="checkbox" className="h-4 w-4" aria-label={`Select ${s.name}`} checked={selected.has(s.studentId)} onChange={(e) => setSelected((prev) => { const next = new Set(prev); if (e.target.checked) next.add(s.studentId); else next.delete(s.studentId); return next; })} />
-              ) : <span className="w-4" />}
-              <span className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-card text-xs font-bold text-primary" aria-hidden="true">{initials(s.name)}</span>
-              <div className="min-w-0">
-                <div className="font-bold text-foreground">{s.name}</div>
-                <div className="text-xs text-muted-foreground">{[s.sub, s.rows.length ? `${s.rows.length} change${s.rows.length === 1 ? '' : 's'}` : ''].filter(Boolean).join(' · ')}</div>
+        {dateGroups.map((g) => {
+          const dateRows = g.items.flatMap((i) => i.day.rows);
+          const restorableCount = dateRows.filter((r) => r.canPick && r.current.key !== 'orig').length;
+          const changes = dateRows.length;
+          return (
+            <section key={g.key}>
+              <div className="mb-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b-2 border-border pb-1.5">
+                <h3 className="text-base font-bold text-foreground">{g.label}</h3>
+                <span className="text-xs text-muted-foreground">{g.long} · {g.items.length} student{g.items.length === 1 ? '' : 's'} · {changes} change{changes === 1 ? '' : 's'}</span>
+                <span className="flex-1" />
+                {restorableCount > 0 && (
+                  <button type="button" disabled={busy || needsConnection} onClick={() => setConfirm({ kind: 'date', id: g.key })} className="rounded-lg border border-border bg-card px-3 py-1 text-sm font-semibold hover:bg-muted disabled:opacity-50">
+                    Restore this day
+                  </button>
+                )}
               </div>
-              <span className="flex-1" />
-              <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${PILL[s.status].cls}`}>{PILL[s.status].label}</span>
-              {restorable(s) > 0 && (
-                <button type="button" disabled={busy || needsConnection} onClick={() => setConfirm({ kind: 'student', id: s.studentId })} className="rounded-lg border border-border bg-card px-3 py-1 text-sm font-semibold hover:bg-muted disabled:opacity-50">
-                  Restore all to original
-                </button>
+              {confirm?.kind === 'date' && confirm.id === g.key && (
+                <div className="mb-2 flex flex-wrap items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                  <span className="min-w-[12rem] flex-1"><b>Restore {restorableCount} change{restorableCount === 1 ? '' : 's'} from {g.label} to their original values?</b> Each one is sent as a new edit and recorded in the audit trail.</span>
+                  <button type="button" disabled={busy} onClick={() => void restoreRows(dateRows)} className="rounded-lg bg-primary px-3 py-1 font-semibold text-primary-foreground disabled:opacity-50">Restore</button>
+                  <button type="button" onClick={() => setConfirm(null)} className="rounded-lg border border-border bg-card px-3 py-1 font-semibold">Cancel</button>
+                </div>
               )}
-            </div>
-
-            {confirm?.kind === 'student' && confirm.id === s.studentId && (
-              <div className="m-3 flex flex-wrap items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                <span className="flex-1 min-w-[12rem]"><b>Restore {restorable(s)} change{restorable(s) === 1 ? '' : 's'} for {s.name} to their original values?</b> Each one is sent as a new edit and recorded in the audit trail.</span>
-                <button type="button" disabled={busy} onClick={() => restoreStudents([s])} className="rounded-lg bg-primary px-3 py-1 font-semibold text-primary-foreground disabled:opacity-50">Restore</button>
-                <button type="button" onClick={() => setConfirm(null)} className="rounded-lg border border-border bg-card px-3 py-1 font-semibold">Cancel</button>
+              <div className="flex flex-col gap-2.5">
+                {g.items.map(({ student, day }) => {
+                  const itemKey = `${student.studentId}|${day.key}`;
+                  return (
+                    <StudentDay key={itemKey} student={student} day={day} busy={busy || needsConnection}
+                      canRestore={day.rows.filter((r) => r.canPick && r.current.key !== 'orig').length}
+                      confirming={confirm?.kind === 'item' && confirm.id === itemKey}
+                      onAskRestore={() => setConfirm({ kind: 'item', id: itemKey })}
+                      onCancelRestore={() => setConfirm(null)}
+                      onRestore={() => void restoreRows(day.rows)}
+                      onPick={pick}
+                      onReview={() => { close(); requestConflictReview(); }} />
+                  );
+                })}
               </div>
-            )}
-
-            {buildDays(s.rows).map((d) => {
-              const dayKey = `${s.studentId}|${d.key}`;
-              return (
-                <DayCard key={d.key} day={d} busy={busy || needsConnection}
-                  canRestore={d.rows.filter((r) => r.canPick && r.current.key !== 'orig').length}
-                  confirming={confirm?.kind === 'day' && confirm.id === dayKey}
-                  onAskRestore={() => setConfirm({ kind: 'day', id: dayKey })}
-                  onCancelRestore={() => setConfirm(null)}
-                  onRestore={() => void restoreRows(d.rows)}
-                  onPick={pick}
-                  onReview={() => { close(); requestConflictReview(); }} />
-              );
-            })}
-          </section>
-        ))}
+            </section>
+          );
+        })}
       </div>
 
       <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-2 border-t border-border bg-card px-5 py-3">
@@ -232,19 +216,6 @@ export const SyncReportDialog = () => {
           <span className={`rounded-md bg-muted px-2 py-1 ${counts.attention ? 'text-red-700' : ''}`}>{counts.attention} need attention</span>
           <span className="rounded-md bg-muted px-2 py-1">{counts.restored} restored</span>
         </div>
-        {selectedStudents.length > 0 && (confirm?.kind === 'selected' ? (
-          <>
-            <span className="text-sm font-semibold">Restore {selectedStudents.length} student{selectedStudents.length === 1 ? '' : 's'} to original?</span>
-            <button type="button" disabled={busy || needsConnection} onClick={() => restoreStudents(selectedStudents)} className="rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">Restore</button>
-            <button type="button" onClick={() => setConfirm(null)} className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-semibold">Cancel</button>
-          </>
-        ) : (
-          <>
-            <span className="text-sm text-muted-foreground">{selectedStudents.length} selected</span>
-            <button type="button" disabled={busy || needsConnection} onClick={() => setConfirm({ kind: 'selected' })} className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-semibold text-red-700 disabled:opacity-50">Restore selected</button>
-            <button type="button" onClick={() => setSelected(new Set())} className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-semibold">Clear</button>
-          </>
-        ))}
         {counts.attention > 0 && (
           <button type="button" onClick={() => { close(); requestConflictReview(); }} className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-semibold">Review changes that need a decision</button>
         )}

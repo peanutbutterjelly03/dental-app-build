@@ -4,11 +4,12 @@
 // and a short list of anything else. The full table of fields is still one click away
 // (the dialog keeps its rows), so nothing is lost by drawing it.
 import { humanizeField } from './describeWrite';
-import type { ReportRow } from './syncReportModel';
+import type { ReportRow, ReportStudent } from './syncReportModel';
 
 export type FlagSource = 'med' | 'diet' | 'oral' | 'svc';
 
-export interface ToothChange { tooth: number; cond: string; removed: boolean; edits: number }
+/** `before` is the condition the tooth had when the sync started ('' = no record), `cond` what it became. */
+export interface ToothChange { tooth: number; before: string; cond: string; removed: boolean; edits: number }
 export interface FlagChange { label: string; from: boolean; to: boolean; source: FlagSource; edits: number }
 export interface MeasureChange { label: string; unit: string; from: number | null; to: number | null; edits: number }
 export interface TextChange { label: string; from: string; to: string }
@@ -91,9 +92,14 @@ export function buildDays(rows: ReportRow[], now: number = Date.now()): DayView[
         const n = toothNumberOf(r, detail);
         if (n === null) { texts.push({ label: r.field, from: r.before, to: r.current.value }); continue; }
         const prev = teeth.get(n);
-        if (r.op === 'archive') teeth.set(n, { tooth: n, cond: prev?.cond ?? '', removed: true, edits: (prev?.edits ?? 0) + 1 });
-        else if (r.op === 'create') teeth.set(n, { tooth: n, cond: String(detail.condition ?? ''), removed: false, edits: (prev?.edits ?? 0) + 1 });
-        else teeth.set(n, { tooth: n, cond: r.fieldName === 'condition' ? String(r.current.raw ?? '') : (prev?.cond || 'T'), removed: false, edits: (prev?.edits ?? 0) + 1 });
+        const edits = (prev?.edits ?? 0) + 1;
+        if (r.op === 'archive') teeth.set(n, { tooth: n, before: prev?.before ?? prev?.cond ?? '', cond: prev?.cond ?? '', removed: true, edits });
+        else if (r.op === 'create') teeth.set(n, { tooth: n, before: prev?.before ?? '', cond: String(detail.condition ?? ''), removed: false, edits });
+        else {
+          const cond = r.fieldName === 'condition' ? String(r.current.raw ?? '') : (prev?.cond || 'T');
+          const before = prev ? prev.before : r.fieldName === 'condition' ? String(r.versions[0].raw ?? '') : cond;
+          teeth.set(n, { tooth: n, before, cond, removed: false, edits });
+        }
         continue;
       }
 
@@ -151,4 +157,34 @@ export function buildDays(rows: ReportRow[], now: number = Date.now()): DayView[
   }
   // Newest day first.
   return days.sort((a, b) => (a.key < b.key ? 1 : -1));
+}
+
+export interface DateGroup {
+  key: string;
+  label: string;
+  /** "Friday, Oct 10" */
+  long: string;
+  items: { student: ReportStudent; day: DayView }[];
+}
+
+/** The 7-day history is organised by DATE first: each date holds the students who had
+ *  changes that day, each with that day's changes. Newest date first; within a date,
+ *  students needing attention come first, then alphabetically. */
+export function buildDateGroups(students: ReportStudent[], now: number = Date.now()): DateGroup[] {
+  const groups = new Map<string, DateGroup>();
+  for (const student of students) {
+    for (const day of buildDays(student.rows, now)) {
+      let g = groups.get(day.key);
+      if (!g) {
+        const [y, m, d] = day.key.split('-').map(Number);
+        g = { key: day.key, label: day.label, long: new Date(y, m - 1, d).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' }), items: [] };
+        groups.set(day.key, g);
+      }
+      g.items.push({ student, day });
+    }
+  }
+  const attention = (i: { day: DayView }) => (i.day.problems.length > 0 ? 0 : 1);
+  return [...groups.values()]
+    .map((g) => ({ ...g, items: g.items.sort((a, b) => attention(a) - attention(b) || a.student.name.localeCompare(b.student.name)) }))
+    .sort((a, b) => (a.key < b.key ? 1 : -1));
 }
