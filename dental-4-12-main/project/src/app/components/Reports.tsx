@@ -1008,7 +1008,7 @@ export const Reports = () => {
                 <thead>
                   <tr ref={dohRow0Ref} className="[&>th]:sticky [&>th]:top-0 [&>th]:z-20">
                     <th colSpan={1 + cols.length*2 + sumCols.length*2 + 2}
-                      className="text-center py-2 px-3 bg-[#CFDDF6] border-b border-gray-300 text-[11px] font-bold text-[#273A78] uppercase tracking-wide">
+                      className="text-center py-2 px-3 bg-[#CFDDF6] border-b border-gray-300 text-[12px] font-bold text-[#273A78] uppercase tracking-wide">
                       {/* Pinned to the visible width (100cqw = this scroller) so the title stays centred on screen
                           instead of in the middle of a table several screens wide; in the PDF capture the scroller
                           is the full table, so it centres over the whole table there. */}
