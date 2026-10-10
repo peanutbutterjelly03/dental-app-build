@@ -1977,8 +1977,8 @@ export const DentalChart = () => {
         {(() => {
           const showYears = showStickyYearBar && years.length > 0;
           if (!basicInfoExpanded && !showYears) return null;
-          const rowH = activeTab === 'chart' ? 'md:h-16' : 'md:h-[52px]';
-          const listH = activeTab === 'chart' ? 'md:h-[204px]' : 'md:h-[168px]';
+          const rowH = activeTab === 'chart' ? 'md:h-[74px]' : 'md:h-[56px]';
+          const listH = activeTab === 'chart' ? 'md:h-[234px]' : 'md:h-[180px]';
           const canUp = yearTop > 0;
           const canDown = yearTop + 3 < years.length;
           // Info is collapsed and there is no Chart toolbar: the list gets the whole row.
