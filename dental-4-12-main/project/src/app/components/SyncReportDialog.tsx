@@ -5,8 +5,9 @@ import { subscribeSyncReport, subscribeReportRequest } from '../offline/syncRepo
 import { requestConflictReview, isConflictReviewOpen } from '../offline/queueEvents';
 import { loadReport, type LoadedReport, type ReportScope } from '../offline/syncHistory';
 import { pickVersion } from '../offline/restore';
-import { retryQueue } from '../offline/queueProcessor';
 import type { ReportRow, ReportStudent, StudentStatus, Version } from '../offline/syncReportModel';
+import { buildDays } from '../offline/syncReportVisual';
+import { DayCard } from './SyncReportDay';
 import { useOfflineQueue } from '../hooks/useOfflineQueue';
 
 // The sync report. Changes made offline sync by themselves when the connection
@@ -18,7 +19,7 @@ import { useOfflineQueue } from '../hooks/useOfflineQueue';
 // versions are sent as ordinary new edits, so the server audits them.
 // History is held on this device for 7 days (offline/syncHistory.ts).
 
-type Filter = 'all' | 'synced' | 'none' | 'attention' | 'restored';
+type Filter = 'all' | 'synced' | 'attention' | 'restored';
 
 const time = (t?: number) => (t ? new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '');
 const dateTime = (t?: number) => (t ? new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '');
@@ -42,7 +43,7 @@ export const SyncReportDialog = () => {
   const [query, setQuery] = useState('');
   const [module, setModule] = useState('all');
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [confirm, setConfirm] = useState<{ kind: 'student'; id: string } | { kind: 'selected' } | null>(null);
+  const [confirm, setConfirm] = useState<{ kind: 'student'; id: string } | { kind: 'selected' } | { kind: 'day'; id: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -74,12 +75,12 @@ export const SyncReportDialog = () => {
     if (scope) void reload();
   }, [scope, reload]);
 
-  const students = data?.students ?? [];
+  // Only students who had changes are listed (user, 2026-10-11).
+  const students = useMemo(() => (data?.students ?? []).filter((s) => s.status !== 'none'), [data]);
   const counts = useMemo(() => {
-    const c = { all: students.length, synced: 0, none: 0, attention: 0, restored: 0 };
+    const c = { all: students.length, synced: 0, attention: 0, restored: 0 };
     for (const s of students) {
-      if (s.status === 'none') c.none++;
-      else if (s.status === 'attention') c.attention++;
+      if (s.status === 'attention') c.attention++;
       else if (s.status === 'restored') c.restored++;
       else c.synced++;
     }
@@ -89,7 +90,6 @@ export const SyncReportDialog = () => {
 
   const visible = students.filter((s) => {
     if (filter === 'synced' && !(s.status === 'synced' || s.status === 'partial')) return false;
-    if (filter === 'none' && s.status !== 'none') return false;
     if (filter === 'attention' && s.status !== 'attention') return false;
     if (filter === 'restored' && !(s.status === 'restored' || s.status === 'partial')) return false;
     if (query && !`${s.name} ${s.sub ?? ''}`.toLowerCase().includes(query.toLowerCase())) return false;
@@ -129,6 +129,14 @@ export const SyncReportDialog = () => {
     });
 
   const restorable = (s: ReportStudent) => s.rows.filter((r) => r.canPick && r.current.key !== 'orig').length;
+  const restoreRows = (rows: ReportRow[]) =>
+    run(async () => {
+      let n = 0;
+      for (const r of rows) {
+        if (r.canPick && r.current.key !== 'orig') { await pickVersion(r, r.versions[0]); n++; }
+      }
+      return n;
+    });
   const selectedStudents = students.filter((s) => selected.has(s.studentId));
   const needsConnection = !isOnline;
 
@@ -150,7 +158,7 @@ export const SyncReportDialog = () => {
       </div>
 
       <div className="sticky top-0 z-10 bg-card border-y border-border px-5 py-3 flex flex-wrap items-center gap-2">
-        {([['all', 'All', counts.all], ['synced', 'Synced', counts.synced], ['none', 'No changes', counts.none], ['attention', 'Needs attention', counts.attention], ['restored', 'Restored', counts.restored]] as const).map(([key, label, n]) => (
+        {([['all', 'With changes', counts.all], ['synced', 'Synced', counts.synced], ['attention', 'Needs attention', counts.attention], ['restored', 'Restored', counts.restored]] as const).map(([key, label, n]) => (
           <button key={key} type="button" aria-pressed={filter === key} onClick={() => setFilter(key)}
             className={`rounded-full border px-3 py-1 text-sm font-semibold ${filter === key ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-card hover:bg-muted'}`}>
             {label} <span className={key === 'attention' && filter !== key && n > 0 ? 'text-red-700' : ''}>{n}</span>
@@ -201,16 +209,19 @@ export const SyncReportDialog = () => {
               </div>
             )}
 
-            {s.status === 'none' ? (
-              <p className="px-4 py-3 text-sm text-muted-foreground">Nothing was changed for this student while offline. No sync needed.</p>
-            ) : (
-              <div role="table" aria-label={`Changes for ${s.name}`}>
-                <div role="row" className="hidden md:grid grid-cols-[minmax(9rem,1.2fr)_minmax(7rem,1fr)_minmax(8rem,1.1fr)_5.5rem_8rem] gap-3 px-4 py-1.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-                  <span>Field</span><span>Original</span><span>After sync</span><span>Saved offline</span><span />
-                </div>
-                {s.rows.map((r) => <Row key={r.key} row={r} busy={busy || needsConnection} onPick={pick} onReview={() => { close(); requestConflictReview(); }} />)}
-              </div>
-            )}
+            {buildDays(s.rows).map((d) => {
+              const dayKey = `${s.studentId}|${d.key}`;
+              return (
+                <DayCard key={d.key} day={d} busy={busy || needsConnection}
+                  canRestore={d.rows.filter((r) => r.canPick && r.current.key !== 'orig').length}
+                  confirming={confirm?.kind === 'day' && confirm.id === dayKey}
+                  onAskRestore={() => setConfirm({ kind: 'day', id: dayKey })}
+                  onCancelRestore={() => setConfirm(null)}
+                  onRestore={() => void restoreRows(d.rows)}
+                  onPick={pick}
+                  onReview={() => { close(); requestConflictReview(); }} />
+              );
+            })}
           </section>
         ))}
       </div>
@@ -218,7 +229,6 @@ export const SyncReportDialog = () => {
       <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-2 border-t border-border bg-card px-5 py-3">
         <div className="flex flex-1 flex-wrap gap-2 min-w-[12rem] text-xs font-semibold text-muted-foreground">
           <span className="rounded-md bg-muted px-2 py-1">{counts.synced} synced</span>
-          <span className="rounded-md bg-muted px-2 py-1">{counts.none} no changes</span>
           <span className={`rounded-md bg-muted px-2 py-1 ${counts.attention ? 'text-red-700' : ''}`}>{counts.attention} need attention</span>
           <span className="rounded-md bg-muted px-2 py-1">{counts.restored} restored</span>
         </div>
@@ -241,59 +251,5 @@ export const SyncReportDialog = () => {
         <button type="button" onClick={close} className="rounded-lg bg-primary px-4 py-1.5 text-sm font-semibold text-primary-foreground hover:opacity-90">Close</button>
       </div>
     </Modal>
-  );
-};
-
-const Row = ({ row, busy, onPick, onReview }: { row: ReportRow; busy: boolean; onPick: (row: ReportRow, version: Version) => void; onReview: () => void }) => {
-  const failed = row.status !== 'synced';
-  const edited = row.versions.length > 2;
-  const original = row.versions[0];
-  const latest = row.versions[row.versions.length - 1];
-  return (
-    <div role="row" className="grid grid-cols-2 md:grid-cols-[minmax(9rem,1.2fr)_minmax(7rem,1fr)_minmax(8rem,1.1fr)_5.5rem_8rem] gap-x-3 gap-y-1 border-t border-dashed border-border px-4 py-2 items-start">
-      <div role="cell" className="col-span-2 md:col-span-1 font-medium text-foreground">
-        {row.field}<span className="block text-xs font-normal text-muted-foreground">{row.subject}</span>
-      </div>
-      <div role="cell" className="rounded-md bg-muted px-2 py-1 text-sm text-muted-foreground break-words">{row.before}</div>
-      <div role="cell" className={`rounded-md px-2 py-1 text-sm font-bold break-words ${failed ? 'bg-red-50 text-red-800' : row.current.key === 'orig' ? 'bg-violet-100 text-violet-800' : 'bg-blue-50 text-blue-800'}`}>
-        {failed ? `${row.current.value} (not applied)` : row.current.value}
-      </div>
-      <div role="cell" className="text-xs text-muted-foreground pt-1">{time(row.savedAt)}</div>
-      <div role="cell" className="flex justify-end">
-        {row.canPick && !edited && (
-          row.current.key === 'orig'
-            ? <button type="button" disabled={busy} onClick={() => onPick(row, latest)} className="rounded-lg border border-border bg-card px-2.5 py-1 text-xs font-semibold hover:bg-muted disabled:opacity-50">Undo restore</button>
-            : <button type="button" disabled={busy} onClick={() => onPick(row, original)} className="rounded-lg border border-border bg-card px-2.5 py-1 text-xs font-semibold hover:bg-muted disabled:opacity-50" title="Sends the original value as a new, audited edit">Restore</button>
-        )}
-      </div>
-
-      {failed && (
-        <div className="col-span-2 md:col-span-5 flex flex-wrap items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          <span className="flex-1 min-w-[12rem]"><b>{row.status === 'conflict' ? 'Held for your review. ' : 'Not synced. '}</b>{row.reason}</span>
-          {row.status === 'conflict'
-            ? <button type="button" onClick={onReview} className="rounded-lg border border-border bg-card px-3 py-1 font-semibold">Review changes</button>
-            : <button type="button" onClick={() => void retryQueue()} className="rounded-lg border border-border bg-card px-3 py-1 font-semibold">Retry</button>}
-        </div>
-      )}
-
-      {edited && !failed && (
-        <div className="col-span-2 md:col-span-5 rounded-lg border border-border bg-muted/50 px-3 py-2">
-          <p className="text-xs text-muted-foreground"><b className="text-foreground">Edited {row.versions.length - 1} times offline.</b> The latest value was synced automatically. Pick another version to keep it instead.</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {row.versions.map((v) => {
-              const on = v.key === row.current.key;
-              return (
-                <button key={v.key} type="button" aria-pressed={on} disabled={busy || on} onClick={() => onPick(row, v)}
-                  className={`flex min-w-[9rem] max-w-[16rem] flex-1 basis-36 flex-col gap-0.5 rounded-lg border px-3 py-2 text-left disabled:cursor-default ${on ? 'border-2 border-green-600 bg-green-50' : 'border-border bg-card hover:border-primary'}`}>
-                  <span className="text-xs font-semibold text-muted-foreground">{v.label}{v.at ? ` · ${time(v.at)}` : ''}</span>
-                  <span className="break-words text-sm font-extrabold text-foreground">{v.value}</span>
-                  <span className={`text-xs font-bold ${on ? 'text-green-700' : 'text-primary'}`}>{on ? 'Kept' : v.label === 'Latest' ? 'Synced automatically' : 'Keep this'}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
   );
 };

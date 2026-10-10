@@ -82,6 +82,9 @@ export interface ReportRow {
   versions: Version[];
   /** Time shown in the "saved offline" column. */
   savedAt: number;
+  /** For a created or archived record: the fields the write carried (the report draws them,
+   *  since the one summary line cannot say which teeth or which boxes). */
+  detail?: HistoryFieldChange[];
   /** True when a version other than the latest is in force. */
   picked: boolean;
   /** Can a version be chosen (an update that synced). */
@@ -198,7 +201,7 @@ export function buildReport(entries: HistoryEntry[], others: { studentId: string
           rows.push({
             key: String(w.id), field: w.label, subject: w.subject, module: w.module, op: w.op, status: w.status, reason: w.reason,
             resource: w.resource, recordId: w.recordId, before: w.op === 'create' ? '(none)' : '(active)', current: v, versions: [v],
-            savedAt: w.queuedAt, picked: false, canPick: false,
+            savedAt: w.queuedAt, picked: false, canPick: false, detail: w.fields,
           });
         }
       }
