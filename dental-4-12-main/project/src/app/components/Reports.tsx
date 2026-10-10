@@ -925,14 +925,14 @@ export const Reports = () => {
                     <div>
                       <div className="text-[13px] font-extrabold text-foreground">With caries experience</div>
                       <div className="text-[11.5px] text-muted-foreground">{caries} of {examined} examined.</div>
-                      <div className="mt-1 max-w-[15rem] text-[11px] leading-snug text-muted-foreground">Students whose DMF (permanent teeth) or dmf (primary teeth) score is above 0.</div>
+                      <div className="mt-1 text-[11px] leading-snug text-muted-foreground">DMF or dmf score above 0.</div>
                     </div>
                   </div>
                   <div className="flex min-w-[18rem] flex-1 flex-wrap gap-2.5">
-                    {tile('Attended', String(attended), 'Students with an oral examination recorded in this period.')}
-                    {tile('Orally examined', String(examined), 'Students whose mouth was examined and the findings recorded.')}
-                    {tile('Orally fit upon oral examination', hasSource('ofc_exam') ? String(bandTotal('ofc_exam')) : '—', 'Examined students whose dentist-validated risk is Low.')}
-                    {tile('Orally fit upon complete oral rehabilitation', hasSource('ofc_rehab') ? String(bandTotal('ofc_rehab')) : '—', hasSource('ofc_rehab') ? 'Students made orally fit after complete oral rehabilitation.' : 'Students made orally fit after complete oral rehabilitation. The system does not record this yet.')}
+                    {tile('Attended', String(attended), 'Students seen this period.')}
+                    {tile('Orally examined', String(examined), 'Students with recorded mouth findings.')}
+                    {tile('Orally fit upon oral examination', hasSource('ofc_exam') ? String(bandTotal('ofc_exam')) : '—', 'Examined students with Low risk.')}
+                    {tile('Orally fit upon complete oral rehabilitation', hasSource('ofc_rehab') ? String(bandTotal('ofc_rehab')) : '—', hasSource('ofc_rehab') ? 'Fit after complete rehabilitation.' : 'Not recorded by the system yet.')}
                   </div>
                 </div>
               </div>
