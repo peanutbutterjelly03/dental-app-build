@@ -116,7 +116,7 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
     previewPdf('FHSIS Section D', `${baseName}.pdf`, () => buildDohReportPdf(el));
   };
 
-  // The Excel export writes the SAME cells the screen shows, "—" included, so
+  // The Excel export writes the SAME cells the screen shows, blanks included, so
   // the downloaded workbook makes the identical claims as the report. Writing
   // 0 where the screen says "—" would quietly turn "not recorded" into
   // "examined none" the moment it left the app.
@@ -128,7 +128,7 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
       const blob = await (async () => {
       type Row = { indicator: string; male: string; female: string; total: string; remarks: string };
       const rows: Row[] = [];
-      const dash = { male: '—', female: '—', total: '—', remarks: 'not recorded' };
+      const dash = { male: '', female: '', total: '', remarks: '' };
       for (const measure of MEASURES) {
         rows.push({ indicator: measure.heading, male: '', female: '', total: '', remarks: '' });
         FHSIS_BANDS.forEach((band, idx) => {
@@ -231,9 +231,7 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
   const TD = 'border-r border-b border-gray-300 px-2 py-1.5';
   const cell = (v: number) => <td className={`${TD} text-center tabular-nums`}>{v}</td>;
   const blank = (title: string) => (
-    <td className={`${TD} text-center text-muted-foreground`} title={title}>
-      —
-    </td>
+    <td className={TD} title={title} />
   );
   const NO_FACILITY_FIELD = 'Not recorded — no visit counted here has its facility-based flag set. The flag is optional when recording an RPC visit, and visits recorded before it existed have no value.';
   const NO_PREGNANCY = 'Not recorded by this system — no pregnancy field exists in the schema.';
@@ -290,7 +288,7 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
         {anyFlagged ? cell(sub.female) : blank(NO_FACILITY_FIELD)}
         {anyFlagged ? cell(sub.male + sub.female) : blank(NO_FACILITY_FIELD)}
         <td className={`${TD} text-[11px]`} colSpan={2}>
-          {!anyFlagged ? 'not recorded' : unrecorded > 0 ? `${unrecorded} visit${unrecorded === 1 ? '' : 's'} not classified` : ''}
+          {!anyFlagged ? '' : unrecorded > 0 ? `${unrecorded} visit${unrecorded === 1 ? '' : 's'} not classified` : ''}
         </td>
       </>
     );
@@ -302,7 +300,7 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
       <>
         <td className={`${TD} ${suffix ? 'pl-6 text-muted-foreground' : ''}`}>6{suffix}. Pregnant Women who {verb}{kindText} within a year</td>
         {blank(NO_PREGNANCY)}{blank(NO_PREGNANCY)}{blank(NO_PREGNANCY)}{blank(NO_PREGNANCY)}
-        <td className={`${TD} text-[11px]`}>not recorded</td>
+        <td className={TD} />
       </>
     );
   };
