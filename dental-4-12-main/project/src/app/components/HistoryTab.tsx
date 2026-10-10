@@ -107,6 +107,60 @@ function MedChip({ label, checked, onToggle, disabled, details, med, setText }: 
   );
 }
 
+/** A section of the History tab: bordered card with a navy uppercase title bar, like the Dental Chart panels (user pick 2, 2026-10-11; replaces the single white card with the teal strip). */
+function SectionCard({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-[#CBD5E1] bg-card shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
+      <div className="flex items-center justify-between gap-3 bg-primary px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-white">
+        <span>{title}</span>
+        {hint && <span className="text-[11px] font-normal normal-case tracking-normal text-white/80">{hint}</span>}
+      </div>
+      <div className="p-4">{children}</div>
+    </div>
+  );
+}
+
+// BMI-for-Age bands, in order along the dial. The needle points at the middle of the child's band: the cut-offs depend on age and sex, so the dial says which band, never a made-up exact position.
+const GAUGE_BANDS = [
+  { status: 'Severely Wasted', color: '#FCA5A5' },
+  { status: 'Wasted', color: '#FCD34D' },
+  { status: 'Normal', color: '#86EFAC' },
+  { status: 'Overweight', color: '#FCD34D' },
+  { status: 'Obese', color: '#FCA5A5' },
+] as const;
+const gaugePoint = (deg: number) => `${(100 + 80 * Math.cos((deg * Math.PI) / 180)).toFixed(1)} ${(100 - 80 * Math.sin((deg * Math.PI) / 180)).toFixed(1)}`;
+
+function NutritionGauge({ bmi, status, fallback }: { bmi: number | string | null; status: string | null; fallback: string }) {
+  const idx = GAUGE_BANDS.findIndex((b) => b.status === status);
+  const needle = idx < 0 ? null : 90 - (180 - 36 * (idx + 0.5));
+  const statusClass =
+    status === 'Normal' ? 'text-success'
+    : status === 'Overweight' || status === 'Obese' ? 'text-warning'
+    : status === 'Wasted' || status === 'Severely Wasted' ? 'text-destructive'
+    : 'text-muted-foreground';
+  return (
+    <div className="text-center" title={`${BMI_NOTE} DOH/DepEd BMI-for-Age classification, 6-19 years old, blank outside that range.`}>
+      <svg viewBox="0 0 200 112" className="mx-auto w-full max-w-[200px]" role="img" aria-label={status ? `Nutritional status: ${status}` : fallback}>
+        {GAUGE_BANDS.map((b, i) => (
+          <path key={b.status} d={`M${gaugePoint(180 - 36 * i - 1.5)} A80 80 0 0 1 ${gaugePoint(180 - 36 * (i + 1) + 1.5)}`}
+            fill="none" stroke={b.color} strokeOpacity={needle === null ? 0.35 : status === b.status ? 1 : 0.55} strokeWidth="14" />
+        ))}
+        {needle !== null && (
+          <g style={{ transformOrigin: '100px 100px', transform: `rotate(${needle}deg)` }}>
+            <line x1="100" y1="100" x2="100" y2="34" stroke="#0F172A" strokeWidth="3" strokeLinecap="round" />
+            <circle cx="100" cy="100" r="6" fill="#0F172A" />
+          </g>
+        )}
+      </svg>
+      <div className="-mt-1 text-sm">
+        <span className="text-lg font-bold text-foreground">{bmi ?? '—'}</span>{' '}
+        <span className={`font-bold ${statusClass}`}>{status ?? fallback}</span>
+      </div>
+      <div className="text-[11px] text-muted-foreground">BMI and nutritional status, automatic</div>
+    </div>
+  );
+}
+
 export function HistoryTab({
   editing,
   measure,
@@ -158,7 +212,7 @@ export function HistoryTab({
   const heightInput = `min-w-0 flex-1 text-base border border-border rounded px-2 py-2.5 ${noSpin} focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed`;
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="space-y-4">
       {/* Physical Measurements — first on the tab, hers (Sprint 173).
           These were three grey read-only rows on the patient card, typed
           somewhere else entirely (the Edit Student Info panel). Two
@@ -168,9 +222,9 @@ export function HistoryTab({
           stripped it on the reasoning that the tab body is already a card
           — true, but its siblings are all nested cards inside it, so this
           was the one section sitting bare. */}
-      <div className="bg-card rounded-xl border border-border p-3">
-        <div className="text-lg font-bold text-foreground mb-2">Physical Measurements</div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-2">
+      <SectionCard title="Physical Measurements">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-center">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-2">
           <div>
             <label className="block text-sm text-muted-foreground mb-0.5">Height</label>
             <div className="flex gap-1">
@@ -224,49 +278,23 @@ export function HistoryTab({
               onChange={(e) => setMeasure((p) => ({ ...p, blood_pressure: e.target.value }))}
               placeholder="e.g. 110/70" className="w-full text-base border border-border rounded px-2 py-2.5 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
           </div>
-          {(() => {
-            const bmiValue = computeBmi(Number(measure.height_cm) || null, Number(measure.weight_kg) || null);
-            const status = classifyNutritionalStatus(bmiValue, patientAgeMonths, sex);
-            const statusColor =
-              status === 'Normal' ? 'bg-success-surface text-success'
-              : status === 'Overweight' || status === 'Obese' ? 'bg-warning-surface text-warning'
-              : status === 'Wasted' || status === 'Severely Wasted' ? 'bg-danger-surface text-destructive'
-              : 'bg-muted text-muted-foreground';
-            // ⚠ Say WHY it is blank. "Nothing measured yet" and "no
-            // reference exists for this age" look identical as a dash,
-            // and only one of them is the user's to fix.
-            const statusFallback = bmiValue == null
-              ? 'Automatic'
-              : (patientAgeMonths ?? 0) < 72
-              ? 'No reference below age 6'
-              : 'No reference above age 19';
-            return (
-              <>
-                <div>
-                  <label className="block text-sm text-muted-foreground mb-0.5">BMI</label>
-                  <div className="w-full text-base border border-border rounded px-2 py-2.5 bg-muted text-muted-foreground" title={BMI_NOTE}>
-                    {bmiValue ?? 'Automatic'}
-                  </div>
-                </div>
-                <div className="col-span-2 sm:col-span-1">
-                  <label className="block text-sm text-muted-foreground mb-0.5">Nutritional Status</label>
-                  <div className={`w-full text-base border border-border rounded px-2 py-2.5 ${statusColor}`}
-                    title="DOH/DepEd BMI-for-Age classification, 6-19 years old — blank outside that range.">
-                    {status ?? statusFallback}
-                  </div>
-                </div>
-              </>
-            );
-          })()}
         </div>
-      </div>
+        {(() => {
+          const bmiValue = computeBmi(Number(measure.height_cm) || null, Number(measure.weight_kg) || null);
+          const status = classifyNutritionalStatus(bmiValue, patientAgeMonths, sex);
+          // ⚠ Say WHY it is blank. "Nothing measured yet" and "no reference exists for this age" look identical as a dash, and only one of them is the user's to fix.
+          const statusFallback = bmiValue == null
+            ? 'Automatic'
+            : (patientAgeMonths ?? 0) < 72
+            ? 'No reference below age 6'
+            : 'No reference above age 19';
+          return <NutritionGauge bmi={bmiValue} status={status} fallback={statusFallback} />;
+        })()}
+        </div>
+      </SectionCard>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <div className="bg-card rounded-xl border border-border p-4">
-          {/* Her heading: sentence case at text-lg with the instruction
-              under it, not a small uppercase label. */}
-          <div className="text-lg font-bold text-foreground">Medical History</div>
-          <p className="text-sm text-muted-foreground mb-3">Select all applicable conditions.</p>
+        <SectionCard title="Medical History" hint="Select all applicable conditions.">
           {/* ⚠ Sprint 165 — chips, not label-left/checkbox-right rows.
               Removing the record page's width cap stretched those rows to
               the full content width and left every checkbox a hand-span
@@ -306,10 +334,8 @@ export function HistoryTab({
               onChange={(e) => setMed((p) => ({ ...p, others: e.target.value }))}
               className="w-full text-sm border border-border rounded px-2 py-2.5 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed" />
           </div>
-        </div>
-        <div className="bg-card rounded-xl border border-border p-4">
-          <div className="text-lg font-bold text-foreground">Dietary Habits and Social History</div>
-          <p className="text-sm text-muted-foreground mb-3">Select all applicable conditions.</p>
+        </SectionCard>
+        <SectionCard title="Dietary Habits and Social History" hint="Select all applicable conditions.">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {([
               ['Sugar Sweetened Beverages/Food', 'sugarSweetened'], ['Alcohol Drinker', 'alcoholDrinker'],
@@ -324,7 +350,7 @@ export function HistoryTab({
               </label>
             ))}
           </div>
-        </div>
+        </SectionCard>
       </div>
 
     </div>
