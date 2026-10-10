@@ -931,8 +931,8 @@ export const Reports = () => {
                   <div className="flex min-w-[18rem] flex-1 flex-wrap gap-2.5">
                     {tile('Attended', String(attended), 'Students seen this period.')}
                     {tile('Orally examined', String(examined), 'Students with recorded mouth findings.')}
-                    {tile('OFC Upon Oral Examination', hasSource('ofc_exam') ? String(bandTotal('ofc_exam')) : '—', 'Examined students with Low risk.')}
-                    {tile('OFC Upon Complete Oral Rehabilitation', hasSource('ofc_rehab') ? String(bandTotal('ofc_rehab')) : '—', hasSource('ofc_rehab') ? 'Fit after complete rehabilitation.' : 'Not recorded by the system yet.')}
+                    {tile('No. Given Fluoride Therapy', hasSource('fv_1st') ? String(bandTotal('fv_1st')) : '—', 'Given at least one varnish.')}
+                    {tile('Orally Fit Child', hasSource('ofc_exam') ? String(bandTotal('ofc_exam')) : '—', 'Examined students with Low risk.')}
                   </div>
                 </div>
               </div>
