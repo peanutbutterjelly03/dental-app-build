@@ -6,8 +6,6 @@ import { RangePicker } from './RangePicker';
 import { buildXlsx, buildSheetsXlsx } from '../utils/exportXlsx';
 import { downloadBlob } from '../utils/exportCsv';
 import { toLocalDateString } from '../utils/localDate';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { ChartTooltip } from './ChartTooltip';
 import { useAuth } from '../context/AuthContext';
 import { getSchoolShortName, getSchoolAcronym } from '../utils/schoolColors';
 import { CHART } from '../utils/chartColors';
@@ -1298,74 +1296,48 @@ export const Reports = () => {
           {/* ── CONDITION SUMMARY ── */}
           {internalSection === 'conditions' && (
             <div className="space-y-4">
-
-              {/* Summary cards */}
+              {/* Condition counts by grade, in the same navy-strip design as the Procedure Counts. */}
               {(() => {
-                const orallyFit = cnt(conditionMatrix,'Orally Fit',intGenderFilter);
-                const cariesP   = cnt(conditionMatrix,'Caries (Primary)',intGenderFilter);
-                const cariesPerm= cnt(conditionMatrix,'Caries (Permanent)',intGenderFilter);
-                const gingivitis= cnt(conditionMatrix,'Gingivitis',intGenderFilter);
+                const hdr = 'px-1.5 py-2 text-center text-[11px] font-extrabold tracking-wide text-white whitespace-nowrap';
+                const hShade = (i: number) => (i % 2 ? 'bg-[#233a7a]' : 'bg-[#1b2d63]');
+                const bShade = (i: number) => (i % 2 ? 'bg-[#f5f8fe]' : '');
+                const totalAll = CONDITIONS.reduce((n, c) => n + cnt(conditionMatrix, c, intGenderFilter), 0);
                 return (
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    {[
-                      { label:'Orally Fit',          value: orallyFit,          color:'text-green-700 bg-green-50 border-green-200' },
-                      { label:'Caries (Primary)',     value: cariesP,            color:'text-red-700 bg-red-50 border-red-200' },
-                      { label:'Caries (Permanent)',   value: cariesPerm,         color:'text-orange-700 bg-orange-50 border-orange-200' },
-                      { label:'Gingivitis',           value: gingivitis,         color:'text-yellow-700 bg-yellow-50 border-yellow-200' },
-                    ].map((c,i) => (
-                      <div key={i} className={`rounded-xl border p-4 ${c.color}`}>
-                        <div className="text-2xl font-bold mt-1">{c.value}</div>
-                        <div className="text-xs mt-0.5 opacity-70">{c.label}</div>
+                  <div className="overflow-hidden rounded-2xl border border-[#A9BDE6] bg-card">
+                    <div className="bg-gradient-to-br from-[#273c7b] to-[#1b2d63] px-5 py-3.5 text-white">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#aebbe0]">Internal Reports</div>
+                          <div className="text-lg font-extrabold">Condition Counts by Grade</div>
+                        </div>
+                        <span className="rounded-full bg-white px-3 py-0.5 text-xs font-bold text-[#1b2d63]">Total {totalAll}</span>
                       </div>
-                    ))}
+                    </div>
+                    <div className="no-scrollbar overflow-x-auto">
+                      <table className="w-full min-w-[720px] text-[13px]" style={{ borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr className="bg-[#1b2d63]">
+                            <th className="min-w-[200px] px-4 py-2.5 text-left text-[11px] font-extrabold tracking-wide text-white">CONDITION</th>
+                            {displayGrades.map((g, i) => <th key={g} className={`${hdr} ${hShade(i)}`}>{g.toUpperCase()}</th>)}
+                            <th className={`${hdr} bg-[#2c4690]`}>TOTAL</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {CONDITIONS.map((cond) => (
+                            <tr key={cond} className="border-b border-[#dfe5f0] hover:bg-[#f8faff]">
+                              <td className="px-4 py-2.5 font-medium text-foreground">{cond}</td>
+                              {displayGrades.map((g, i) => (
+                                <td key={g} className={`px-1.5 py-2.5 text-center tabular-nums text-foreground ${bShade(i)}`}>{getCount(conditionMatrix, cond, g, intGenderFilter)}</td>
+                              ))}
+                              <td className="bg-[#eef3fd] px-1.5 py-2.5 text-center font-bold tabular-nums text-foreground">{cnt(conditionMatrix, cond, intGenderFilter)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 );
               })()}
-
-              {/* Chart */}
-              <div className="bg-card rounded-xl border border-border p-4">
-                <h3 className="text-sm font-bold text-foreground mb-3">Condition Distribution</h3>
-                <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={CONDITIONS.map(c => ({ name: c, count: cnt(conditionMatrix, c, intGenderFilter) }))}
-                    margin={{top:4,right:8,bottom:36,left:0}}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
-                    <XAxis dataKey="name" tick={{fontSize:10}} angle={-20} textAnchor="end" interval={0} />
-                    <YAxis tick={{fontSize:11}} />
-                    <Tooltip content={<ChartTooltip />} />
-                    {/* cyan, not teal — see the note on CHART.cyan; the choice is deliberate */}
-                    <Bar dataKey="count" name="Count" fill={CHART.cyan} radius={[4,4,0,0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Table — by grade */}
-              <div className="bg-card rounded-xl border border-border overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-foreground">Condition Counts by Grade</h3>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead className="bg-gray-50 border-b border-border">
-                      <tr>
-                        <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground uppercase tracking-wide text-[10px] sticky left-0 bg-gray-50">Condition</th>
-                        {displayGrades.map(g => <th key={g} className="text-center px-3 py-2.5 font-semibold text-muted-foreground uppercase tracking-wide text-[10px] whitespace-nowrap">{g}</th>)}
-                        <th className="text-center px-4 py-2.5 font-semibold text-foreground uppercase tracking-wide text-[10px]">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {CONDITIONS.map(cond => (
-                        <tr key={cond} className="hover:bg-gray-50">
-                          <td className="px-4 py-2.5 font-medium text-foreground sticky left-0 bg-card">{cond}</td>
-                          {displayGrades.map(g => (
-                            <td key={g} className="px-3 py-2.5 text-center text-foreground">{getCount(conditionMatrix, cond, g, intGenderFilter)}</td>
-                          ))}
-                          <td className="px-4 py-2.5 text-center font-bold text-foreground">{cnt(conditionMatrix, cond, intGenderFilter)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
             </div>
           )}
 
