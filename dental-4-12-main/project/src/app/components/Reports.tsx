@@ -8,7 +8,6 @@ import { downloadBlob } from '../utils/exportCsv';
 import { toLocalDateString } from '../utils/localDate';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ChartTooltip } from './ChartTooltip';
-import { LiveUpdatedStamp } from './LiveUpdatedStamp';
 import { useAuth } from '../context/AuthContext';
 import { getSchoolShortName, getSchoolAcronym } from '../utils/schoolColors';
 import { CHART } from '../utils/chartColors';
@@ -313,7 +312,7 @@ export const Reports = () => {
     const n = new Date();
     return { kind: 'month', start: toLocalDateString(new Date(n.getFullYear(), n.getMonth(), 1)), end: toLocalDateString(new Date(n.getFullYear(), n.getMonth() + 1, 0)) };
   });
-  const { getRealCount, years: dohYears, unplacedCount, loading: dohLoading, lastUpdated: dohLastUpdated } = useDohReportData(null, reportSchool, dohPeriod.start, dohPeriod.end);
+  const { getRealCount, years: dohYears, unplacedCount, loading: dohLoading } = useDohReportData(null, reportSchool, dohPeriod.start, dohPeriod.end);
   const dohPeriodLabel = (() => {
     const a = new Date(`${dohPeriod.start}T00:00:00`), b = new Date(`${dohPeriod.end}T00:00:00`);
     if (dohPeriod.kind === 'range') return `${formatDate(dohPeriod.start)} to ${formatDate(dohPeriod.end)}`;
@@ -886,9 +885,6 @@ export const Reports = () => {
                 </div>
               </ActionGroup>
             </PanelRow>
-            {/* Sprint 110. Appears only after a real self-refresh — see
-                LiveUpdatedStamp for why it must never show a page-load time. */}
-            <div className="mt-3 text-right empty:hidden"><LiveUpdatedStamp at={dohLastUpdated} /></div>
             <p className="sr-only" aria-live="polite">Showing {dohPeriodLabel}, {reportSchool ? getSchoolShortName(reportSchool) : 'all schools'}</p>
           </PanelShell>
 
