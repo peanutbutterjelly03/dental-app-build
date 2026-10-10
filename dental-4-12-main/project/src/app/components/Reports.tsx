@@ -858,7 +858,7 @@ export const Reports = () => {
 
       {/* ── DOH CONSOLIDATED ── */}
       {activeReportTab === 'doh' && (
-        <div className="space-y-3">
+        <div className="space-y-8">
           <PanelShell>
             <PanelRow>
               <PeriodDatesBoxes initialKind="month" onChange={setDohPeriod} />
