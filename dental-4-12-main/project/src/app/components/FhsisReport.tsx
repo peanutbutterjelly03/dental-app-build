@@ -100,7 +100,7 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
   const [rangeStart, setRangeStart] = useState(() => toLocalDateString(new Date(now.getFullYear(), now.getMonth(), 1)));
   const [rangeEnd, setRangeEnd] = useState(() => toLocalDateString(now));
   const { key: month, short: periodShort, printed: periodPrinted } = describePeriod(kind, pick, year, rangeStart, rangeEnd);
-  const { counts, monthsWithData, loading, error } = useFhsisData(month, schoolName);
+  const { counts, loading, error } = useFhsisData(month, schoolName);
   const printableRef = useRef<HTMLDivElement>(null);
   const { preview, building, previewPdf, closePreview, confirmDownload } = usePreviewModal();
   const [xlsxBusy, setXlsxBusy] = useState(false);
@@ -179,7 +179,6 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
     }
   };
 
-  const monthHasVisits = (m: number) => monthsWithData.includes(`${year}-${pad(m)}`);
   const panel = (
     <PanelShell>
       <PanelRow>
@@ -197,7 +196,7 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
               <Underlined label={kind === 'month' ? 'Month' : kind === 'quarter' ? 'Quarter' : 'Half'} icon={Calendar} chevron>
                 <select aria-label="Period" value={pick} onChange={(e) => setPick(Number(e.target.value))} className={`${fieldInputClass} !pr-5`}>
                   {kind === 'month' && MONTH_NAMES.map((m, i) => (
-                    <option key={m} value={i + 1}>{m}{monthHasVisits(i + 1) ? '  ● has visits' : ''}</option>))}
+                    <option key={m} value={i + 1}>{m}</option>))}
                   {kind === 'quarter' && [1, 2, 3, 4].map((q) => (
                     <option key={q} value={q}>{ORDINALS[q - 1]} Quarter ({MONTH_NAMES[(q - 1) * 3].slice(0, 3)} to {MONTH_NAMES[q * 3 - 1].slice(0, 3)})</option>))}
                   {kind === 'half' && [1, 2].map((h) => (
