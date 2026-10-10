@@ -415,19 +415,22 @@ export const Reports = () => {
   const dohReportRef = useRef<HTMLDivElement>(null);
   // Heights of the DOH table's first two header rows, so rows 2 and 3 can pin directly under the one above
   // while the body scrolls (user, 2026-10-06). Measured, since the rows' heights depend on wrapping.
+  const dohRow0Ref = useRef<HTMLTableRowElement>(null);
   const dohRow1Ref = useRef<HTMLTableRowElement>(null);
   const dohRow2Ref = useRef<HTMLTableRowElement>(null);
-  const [dohRowH, setDohRowH] = useState({ r1: 24, r2: 24 });
+  const [dohRowH, setDohRowH] = useState({ r0: 28, r1: 24, r2: 24 });
   // Step buttons, hidden scroll bars and grab-and-drag for the wide DOH table (the OCR grid's pattern, user 2026-10-06).
   const { edge: dohEdge, step: stepDoh } = useGridScroll(dohReportRef, '[data-doh="indicator"]', [activeReportTab]);
   useEffect(() => {
+    const r0 = dohRow0Ref.current;
     const r1 = dohRow1Ref.current;
     const r2 = dohRow2Ref.current;
-    if (!r1 || !r2) return;
-    const measure = () => setDohRowH({ r1: r1.offsetHeight, r2: r2.offsetHeight });
+    if (!r0 || !r1 || !r2) return;
+    const measure = () => setDohRowH({ r0: r0.offsetHeight, r1: r1.offsetHeight, r2: r2.offsetHeight });
     measure();
     if (typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(measure);
+    ro.observe(r0);
     ro.observe(r1);
     ro.observe(r2);
     return () => ro.disconnect();
@@ -1000,10 +1003,10 @@ export const Reports = () => {
                   {hiddenGrades.size} grade(s) hidden.
                 </p>
               )}
-              <table style={{borderCollapse:'separate', borderSpacing:0, fontSize:'10px', whiteSpace:'nowrap', ['--doh-r2' as string]: `${dohRowH.r1}px`, ['--doh-r3' as string]: `${dohRowH.r1 + dohRowH.r2}px`}}>
+              <table style={{borderCollapse:'separate', borderSpacing:0, fontSize:'10px', whiteSpace:'nowrap', ['--doh-r1' as string]: `${dohRowH.r0}px`, ['--doh-r2' as string]: `${dohRowH.r0 + dohRowH.r1}px`, ['--doh-r3' as string]: `${dohRowH.r0 + dohRowH.r1 + dohRowH.r2}px`}}>
                 {/* ── TITLE ── */}
                 <thead>
-                  <tr>
+                  <tr ref={dohRow0Ref} className="[&>th]:sticky [&>th]:top-0 [&>th]:z-10">
                     <th colSpan={1 + cols.length*2 + sumCols.length*2 + 2}
                       className="text-center py-2 px-3 bg-[#CFDDF6] border-b border-border text-[11px] font-bold text-[#273A78] uppercase tracking-wide">
                       {/* Pinned to the visible width (100cqw = this scroller) so the title stays centred on screen
@@ -1016,7 +1019,7 @@ export const Reports = () => {
                   </tr>
 
                   {/* ── ROW 1: GRADE HEADERS ── */}
-                  <tr ref={dohRow1Ref} className="bg-gray-50 border-b border-border [&>th]:sticky [&>th]:top-0 [&>th]:z-10">
+                  <tr ref={dohRow1Ref} className="bg-gray-50 border-b border-border [&>th]:sticky [&>th]:top-[var(--doh-r1)] [&>th]:z-10">
                     {/* Phones (< sm): the frozen label column is a fixed 9rem and
                         wraps, so data columns show beside it (it used to take
                         321 of 346 px at 390 px wide, user-reported 2026-10-04).
