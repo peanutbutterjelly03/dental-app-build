@@ -302,28 +302,7 @@ export function SchoolSummaryReport({ schoolName, schoolYear, yearPicker = null 
             inside the printable root because they belong beside the table
             on screen, so print has to drop them explicitly. The sheet filed
             with the City Health Office must look like the official form. */}
-        <div className="print-hide space-y-1 px-3 py-2.5 text-[11px] leading-relaxed text-muted-foreground">
-          <p>
-            <span className="font-semibold">MALE / FEMALE</span> count students; each{' '}
-            <span className="font-semibold">TOTAL</span> counts teeth.{' '}
-            <span className="font-semibold">{NO_SOURCE_MARK}</span> means this system has no source for that
-            cell — it is not a zero.
-          </p>
-          <p>
-            <span className="font-semibold">Very Good (VG)</span> is left blank: oral hygiene is recorded as free
-            text, with no "Very Good" option to count.
-          </p>
-          <p>
-            Gingivitis, Debris and Calculus are recorded once per patient, not per tooth, so they have no TOTAL.
-          </p>
-          <p>
-            <span className="font-semibold">No Flouride</span> counts students with no Fluoride Varnish recorded
-            for this school year — including those with no record for the year at all.
-          </p>
-          <p>
-            Rows follow the printed sheet exactly, spelling included, and primary teeth carry no (m) — a missing
-            baby tooth is usually natural.
-          </p>
+        <div className="print-hide space-y-1 px-3 py-2.5 text-[11px] empty:hidden leading-relaxed text-muted-foreground">
           {unsexedCount > 0 && (
             <p className="text-yellow-700">
               {unsexedCount} student{unsexedCount === 1 ? '' : 's'} in this scope {unsexedCount === 1 ? 'has' : 'have'}{' '}
