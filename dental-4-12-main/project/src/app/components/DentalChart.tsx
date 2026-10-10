@@ -138,13 +138,6 @@ const PdfPageIcon = ({ paper, fold, letters, className = 'h-5 w-5' }: { paper: s
 // state, not record state, so it belongs neither in the URL nor in the DB.
 let chartingModeMemo = false;
 
-// Whether the patient card is expanded, also across the remount (Sprint 166).
-// ⚠ Same reason as `chartingModeMemo` above: routes.tsx keys this component by
-// `:id`, so Next student remounts it and a useState would spring the card back
-// open on every child. Collapsing it is a decision about how you want to WORK,
-// not a fact about one student, so it should outlive the student.
-let basicInfoExpandedMemo = true;
-
 // ─── Main component ───────────────────────────────────────────────────────────
 export const DentalChart = () => {
   const { id } = useParams();
@@ -545,16 +538,8 @@ export const DentalChart = () => {
 
   const [draftChartDate, setDraftChartDate] = useState('');
   const [othersOralOpen, setOthersOralOpen] = useState(false);
-  // Her card collapses (Sprint 164). Identity is checked once on arrival and
-  // then only gets in the way of the tab below it.
-  const [basicInfoExpanded, setBasicInfoExpandedState] = useState(basicInfoExpandedMemo);
-  const setBasicInfoExpanded = (next: boolean | ((v: boolean) => boolean)) => {
-    setBasicInfoExpandedState((prev) => {
-      const value = typeof next === 'function' ? next(prev) : next;
-      basicInfoExpandedMemo = value;
-      return value;
-    });
-  };
+  // Basic info is always shown (user, 2026-10-11): the Basic info toggle was removed.
+  const basicInfoExpanded = true;
   // Consent is confirmed against the FORM, not against a bare "are you sure"
   // (Sprint 169, hers). `revert` distinguishes the two directions.
   const [confirmConsent, setConfirmConsent] = useState<{ schoolYear: string; revert: boolean } | null>(null);
@@ -1928,17 +1913,6 @@ export const DentalChart = () => {
                   <Pencil className="h-3 w-3" /> Edit
                 </button>
               )}
-              {/* ⚠ The button CARRIES ITS LABEL WHEN COLLAPSED: the state persists across students (Sprint 166), so a bare chevron hid the birthday, address, PhilHealth and guardian with nothing saying they could come back. */}
-              <button
-                onClick={() => setBasicInfoExpanded((v) => !v)}
-                title={basicInfoExpanded ? 'Hide basic information' : 'Show basic information'}
-                aria-label={basicInfoExpanded ? 'Hide basic information' : 'Show basic information'}
-                aria-expanded={basicInfoExpanded}
-                className="flex items-center gap-1.5 rounded-lg border border-white/30 bg-white/10 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-white/20"
-              >
-                {basicInfoExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                {!basicInfoExpanded && 'Basic info'}
-              </button>
             </div>
           </div>
           {/* Tabs: they scroll inside this strip and never wrap. The active tab turns white and joins the card body below. */}
