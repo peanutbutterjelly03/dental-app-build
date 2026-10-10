@@ -8,6 +8,7 @@ import type { ApiStudent, ApiPreventiveCareRecord } from '../api/types';
 import type { IptrYearData } from '../hooks/useDentalChartData';
 import type { StudentNavEntry } from '../hooks/useStudentNav';
 import type { SectionBRow } from '../../../shared/iptrSectionB';
+import { AutosaveStatus, type AutosaveState } from './AutosaveStatus';
 import { oralConditionChips, serviceChips, type OralDraft, type ServiceField } from './iptrDrafts';
 import {
   upperPermanent,
@@ -93,8 +94,7 @@ export interface ChartTabActions {
   setChartingMode: (on: boolean) => void;
   goToStudent: (target: StepTarget | null) => void;
   setEditMode: Dispatch<SetStateAction<boolean>>;
-  cancelEdit: () => Promise<void>;
-  handleSave: () => Promise<void>;
+  finishEdit: () => Promise<void>;
   setExplicitVisit: Dispatch<SetStateAction<1 | 2 | null>>;
   setConfirmClear: Dispatch<SetStateAction<'condition' | 'treatment' | null>>;
   /** What pressing a tooth MEANS — owned by the host, which owns the draft. */
@@ -147,7 +147,8 @@ export function DentalChartTab({
   canEditHistory,
   editMode,
   saving,
-  saved,
+  saveStatus,
+  onRetrySave,
   chartError,
   dateOrderError,
   editingChart,
@@ -186,7 +187,8 @@ export function DentalChartTab({
   canEditHistory: boolean;
   editMode: boolean;
   saving: boolean;
-  saved: boolean;
+  saveStatus: AutosaveState;
+  onRetrySave: () => void;
   chartError: string | null;
   dateOrderError: string | null;
   editingChart: boolean;
@@ -215,7 +217,7 @@ export function DentalChartTab({
 }) {
   const { markType, changeMarkType, selectedTeeth, codesOpen, closeCodes, applyCode, clearSelection, toggleToothFromKeyboard, canUndo, undoMark, rareOpen, setRareOpen } = marking;
   const {
-    setChartingMode, goToStudent, setEditMode, cancelEdit, handleSave, setExplicitVisit, setConfirmClear,
+    setChartingMode, goToStudent, setEditMode, finishEdit, setExplicitVisit, setConfirmClear,
     handleToothPointerDown, syncChartDateFromConditions, syncVisitDateFromServices,
   } = actions;
   const {
@@ -368,12 +370,10 @@ export function DentalChartTab({
           <div className="ml-auto flex flex-wrap items-center gap-2">
             {canEdit && (editMode ? (
               <>
-                <button onClick={cancelEdit} className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted">
-                  Cancel
-                </button>
-                <button onClick={handleSave} disabled={saving}
-                  className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-medium text-white disabled:opacity-60 ${saved ? 'bg-green-600' : 'bg-destructive hover:opacity-90'}`}>
-                  <Save className="w-3.5 h-3.5" /> {saving ? 'Saving…' : saved ? 'Saved' : 'Save Chart'}
+                <AutosaveStatus status={saveStatus} onRetry={onRetrySave} />
+                <button onClick={finishEdit}
+                  className="rounded-lg bg-destructive px-3.5 py-1.5 text-xs font-medium text-white hover:opacity-90">
+                  Done
                 </button>
               </>
             ) : (
@@ -593,7 +593,7 @@ export function DentalChartTab({
                 doesn't linger once the visit is real. */}
             {!activeVisitRecord && (
               <p className="mt-2 text-[12px] italic text-muted-foreground">
-                Recording a service or charting a treatment creates this school year's Visit {activeVisit} when you save.
+                Recording a service or charting a treatment creates this school year's Visit {activeVisit}.
               </p>
             )}
           </div>

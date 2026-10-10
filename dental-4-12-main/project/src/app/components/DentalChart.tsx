@@ -10,7 +10,9 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from './Toast';
 import { useStudentNav } from '../hooks/useStudentNav';
 import { validateStudentValues } from '../../../shared/studentValidation';
-import { useDentalChartData } from '../hooks/useDentalChartData';
+import { useDentalChartData, type IptrYearData } from '../hooks/useDentalChartData';
+import { AutosaveStatus } from './AutosaveStatus';
+import { createSaveScheduler, sameJson, hasTextChange, type SaveScheduler } from '../utils/chartAutosave';
 import { apiClient, ApiError, isQueuedResponse, QUEUED_SAVE_MESSAGE } from '../api/client';
 import { subscribeSyncReport } from '../offline/syncReport';
 import { toLocalDateString, formatDate } from '../utils/localDate';
@@ -34,7 +36,7 @@ import { TreatmentHistoryTab } from './TreatmentHistoryTab';
 import { ReferralsTab } from './ReferralsTab';
 import { HistoryTab } from './HistoryTab';
 import { DentalChartTab } from './DentalChartTab';
-import { emptyMed, medDraftFrom, emptyDiet, emptyOral, oralConditionChips, serviceChips, type MedicalHistoryDraft, type DietDraft, type OralDraft, type ServiceField } from './iptrDrafts';
+import { emptyMed, emptyDiet, emptyOral, draftsFromYear, oralConditionChips, serviceChips, type MedicalHistoryDraft, type DietDraft, type OralDraft, type ServiceField } from './iptrDrafts';
 import type { ReferralType, ApiAppointment } from '../api/types';
 import {
   sectionBRows,
@@ -137,6 +139,16 @@ const PdfPageIcon = ({ paper, fold, letters, className = 'h-5 w-5' }: { paper: s
 // student, which is the one thing the mode exists to avoid. It is session
 // state, not record state, so it belongs neither in the URL nor in the DB.
 let chartingModeMemo = false;
+
+/** The year with the charting the dentist picked swapped in (the hook defaults to the latest charting). */
+const applySelectedChart = (raw: IptrYearData, selectedChartId: string | null): IptrYearData =>
+  selectedChartId
+    ? {
+        ...raw,
+        dentalChart: raw.charts.find((c) => c._id === selectedChartId) ?? raw.dentalChart,
+        toothRecords: raw.toothRecordsByChart[selectedChartId] ?? raw.toothRecords,
+      }
+    : raw;
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export const DentalChart = () => {
@@ -302,7 +314,33 @@ export const DentalChart = () => {
   const [lastMarkUndo, setLastMarkUndo] = useState<Record<number, ChartEntry> | null>(null);
   const [confirmClear, setConfirmClear] = useState<'condition' | 'treatment' | null>(null);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  // Autosave state (see performSave). `heldBackRef` mirrors "some entry is not
+  // saved yet" for code that runs after an await and would read a stale value.
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'queued' | 'error'>('idle');
+  const heldBackRef = useRef(false);
+  const schedulerRef = useRef<SaveScheduler | null>(null);
+  const runSaveRef = useRef<(force: boolean) => Promise<void>>(async () => {});
+  // The year data the last save re-read, so the NEXT save in the same burst
+  // starts from the records it just created instead of creating them again.
+  const adoptedRef = useRef<IptrYearData | null>(null);
+  // Set when this screen's own save caused a reload: the draft-sync effects skip
+  // that one reload so typing made during the save is not overwritten.
+  const skipDraftSync = useRef<IptrYearData | null>(null);
+  const skipServicesSync = useRef<IptrYearData | null>(null);
+  // Which school year the drafts were filled from. A save never writes drafts
+  // of one year onto another year's record.
+  const draftsForIptrRef = useRef<string | null>(null);
+  const emptySinceRef = useRef<number | null>(null);
+  // What the last save sent for each section. A section equal to it is not sent
+  // again even if the server stored it slightly differently (trimmed, rounded),
+  // or every later change would re-send it.
+  const lastWroteRef = useRef<{ iptr: string | null; med?: string; diet?: string; oral?: string; measure?: string }>({ iptr: null });
+  // A save created records but the quiet re-read failed (offline and not cached):
+  // the next save must re-read first, or it would create them a second time.
+  const reloadPendingRef = useRef(false);
+  if (!schedulerRef.current) {
+    schedulerRef.current = createSaveScheduler((force) => runSaveRef.current(force), () => { adoptedRef.current = null; });
+  }
   // View-by-default (like the Patient Info card): clinical fields are a read
   // view until the dentist explicitly enters edit mode — a stray click can no
   // longer flip a medical flag. A brand-new/empty year auto-enters edit mode.
@@ -423,13 +461,7 @@ export const DentalChart = () => {
   // It typechecked, it built, and the page LOOKED right — the loop is invisible
   // until you count renders or try to edit.
   const currentYearData = useMemo(
-    () => (currentYearDataRaw && selectedChartId
-      ? {
-          ...currentYearDataRaw,
-          dentalChart: currentYearDataRaw.charts.find((c) => c._id === selectedChartId) ?? currentYearDataRaw.dentalChart,
-          toothRecords: currentYearDataRaw.toothRecordsByChart[selectedChartId] ?? currentYearDataRaw.toothRecords,
-        }
-      : currentYearDataRaw),
+    () => (currentYearDataRaw ? applySelectedChart(currentYearDataRaw, selectedChartId) : currentYearDataRaw),
     [currentYearDataRaw, selectedChartId],
   );
   // Visit 1 / Visit 2 on Treatments Given (2026-09-25, reworked same day):
@@ -552,7 +584,15 @@ export const DentalChart = () => {
   const [rareConditionsOpen, setRareConditionsOpen] = useState(false);
 
   useEffect(() => {
+    // The reload THIS screen's autosave caused: the form already shows what was
+    // saved (and anything typed since), so leave it alone. Consumed once.
+    if (skipDraftSync.current) {
+      const hit = skipDraftSync.current === currentYearDataRaw;
+      skipDraftSync.current = null;
+      if (hit) return;
+    }
     if (!currentYearData) {
+      draftsForIptrRef.current = null;
       setDraftChart({});
       setDraftMed(emptyMed());
       setDraftDiet(emptyDiet());
@@ -569,29 +609,20 @@ export const DentalChart = () => {
     }
     setDraftChart(chart);
 
-    const mh = currentYearData.medicalHistory;
-    setDraftMed(mh ? medDraftFrom(mh) : emptyMed());
-
-    const dh = currentYearData.dietaryHabits;
-    setDraftDiet(dh ? {
-      sugarSweetened: dh.sugar_beverages, alcoholDrinker: dh.alcohol_drinker, tobaccoUser: dh.tobacco_user,
-      betelNut: dh.betel_nut_chewer, bodyPiercing: dh.body_piercing, nailBiting: dh.nail_biting, thumbsucking: dh.thumb_sucking,
-    } : emptyDiet());
+    // The same converter autosave compares against, so "loaded" and "unchanged" agree.
+    const loaded = draftsFromYear(currentYearData);
+    // A re-read of the SAME school year (queued changes finishing their sync, a
+    // consent change) must not lock a form that is being edited.
+    const sameYear = draftsForIptrRef.current === currentYearData.iptr._id;
+    draftsForIptrRef.current = currentYearData.iptr._id;
+    setDraftMed(loaded.med);
+    setDraftDiet(loaded.diet);
 
     const examined = examinedDate(currentYearData.oralCondition, currentYearData.dentalChart, currentYearData.toothRecords);
     setDraftChartDate(examined ? new Date(examined).toISOString().slice(0, 10) : '');
-    setDraftMeasure({
-      height_cm: currentYearData.iptr.height_cm != null ? String(currentYearData.iptr.height_cm) : '',
-      weight_kg: currentYearData.iptr.weight_kg != null ? String(currentYearData.iptr.weight_kg) : '',
-      temperature_c: currentYearData.iptr.temperature_c != null ? String(currentYearData.iptr.temperature_c) : '',
-      blood_pressure: currentYearData.iptr.blood_pressure ?? '',
-    });
+    setDraftMeasure(loaded.measure);
     const oc = currentYearData.oralCondition;
-    setDraftOral(oc ? {
-      gingivitis: oc.gingivitis, periodontal: oc.periodontal_disease, debris: oc.debris, calculus: oc.calculus,
-      abnormalGrowth: oc.abnormal_growth, cleftLipPalate: oc.cleft_lip_palate,
-      oralHygiene: oc.oral_hygiene, others: oc.others,
-    } : emptyOral());
+    setDraftOral(loaded.oral);
     // "Others" is ticked (box open) whenever there is already text to show,
     // not just when the dentist just clicked it this session -- otherwise a
     // record with real "others" text loaded with the box hidden and the chip
@@ -601,6 +632,7 @@ export const DentalChart = () => {
 
     // Empty year (nothing recorded yet) exists to be filled — drop clinical
     // staff straight into edit mode; anything with data opens as a read view.
+    if (sameYear) return;
     setEditMode(
       (user?.role === 'dentist' || user?.role === 'dental_aide') &&
       !currentYearData.medicalHistory && !currentYearData.oralCondition &&
@@ -621,6 +653,11 @@ export const DentalChart = () => {
   // BOTH visits' slots, so switching tabs afterward just changes which slot
   // is on screen -- it never touches either slot's contents.
   useEffect(() => {
+    if (skipServicesSync.current) {
+      const hit = skipServicesSync.current === currentYearDataRaw;
+      skipServicesSync.current = null;
+      if (hit) return;
+    }
     const forVisit = (visit: typeof visit1, hasData: boolean) => ({
       date: visit && hasData ? new Date(visit.visit_date).toISOString().slice(0, 10) : '',
       services: {
@@ -643,10 +680,6 @@ export const DentalChart = () => {
   const editingChart = canEdit && editMode;
   const editingHistory = canEditHistory && editMode;
 
-  const cancelEdit = async () => {
-    setEditMode(false);
-    await reload(); // refetch → draft-sync effect resets all drafts
-  };
 
   // ── Charting mode (Sprint 153) ──────────────────────────────────────────
   // Adopted from the collaborator's `majorUpdates` branch: a full-screen
@@ -678,24 +711,46 @@ export const DentalChart = () => {
   // landing on a bare `/dental-chart/:id` dropped the context, so the very
   // next Prev/Next silently fell back to the default alphabetical nav list.
   const navQuery = iptrContext !== 'default' ? `?context=${iptrContext}` : '';
-  // Only warn when there's actually something to lose (user, 2026-09-27) --
-  // being in edit mode with nothing typed or ticked yet is not "unsaved
-  // work", so Prev/Next/Back should just navigate silently in that case.
-  // Checks every field the Medical History and Dental Chart tabs write:
-  // per-tooth conditions/treatments, whole-mouth services, medical history
-  // flags/text, dietary/social habits, and oral conditions.
-  const hasUnsavedChartContent =
-    Object.values(draftChart).some((e) => e.condition || e.treatment) ||
-    Object.values(draftServicesByVisit[1]).some((v) => v === true) ||
-    Object.values(draftServicesByVisit[2]).some((v) => v === true) ||
-    Object.values(draftMed).some((v) => v === true || (typeof v === 'string' && v.trim() !== '')) ||
-    Object.values(draftDiet).some((v) => v === true) ||
-    Object.values(draftOral).some((v) => v === true || (typeof v === 'string' && v.trim() !== ''));
-  const goToStudent = (target: { id: string; name: string } | null) => {
+  // Changes are saved as they are made, so stepping to another student only
+  // sends what is still waiting. The confirm below appears only when an entry
+  // is HELD BACK (unfinished) and would be lost.
+  const goToStudent = async (target: { id: string; name: string } | null) => {
     if (!target) return;
-    if (editMode && hasUnsavedChartContent) { setPendingNav(target); return; }
+    if (editMode) {
+      await schedulerRef.current?.flush();
+      if (heldBackRef.current) { setPendingNav(target); return; }
+    }
     navigate(`/dental-chart/${target.id}${navQuery}`);
   };
+
+  // Save on every change. The first run after a load finds nothing different
+  // from what is saved, so it writes nothing. Typing waits for a short pause
+  // (one keystroke is not one write); a tick, a tooth or a selection goes at once.
+  const prevTypedRef = useRef<{ med: object; oral: object; measure: object; chartDate: string; dates: object } | null>(null);
+  useEffect(() => {
+    const prev = prevTypedRef.current;
+    prevTypedRef.current = { med: draftMed, oral: draftOral, measure: draftMeasure, chartDate: draftChartDate, dates: draftVisitDateByVisit };
+    if (!editMode || !currentYearDataRaw) return;
+    const typing = !!prev && (
+      hasTextChange(prev.med, draftMed) || hasTextChange(prev.oral, draftOral) || hasTextChange(prev.measure, draftMeasure)
+      || prev.chartDate !== draftChartDate || hasTextChange(prev.dates, draftVisitDateByVisit)
+    );
+    schedulerRef.current?.request(typing ? 600 : 0);
+  }, [draftChart, draftMed, draftDiet, draftOral, draftMeasure, draftChartDate, draftServicesByVisit, draftVisitDateByVisit, editMode]);
+  // Back online: retry anything that could not be saved while the connection was down.
+  useEffect(() => {
+    const retry = () => schedulerRef.current?.request(0);
+    window.addEventListener('online', retry);
+    return () => window.removeEventListener('online', retry);
+  }, []);
+  // Leaving the page (Back, a link, closing the record) sends what is waiting.
+  useEffect(() => () => { void schedulerRef.current?.flush(); }, []);
+  // "Saved" is a moment, not a state to leave on screen.
+  useEffect(() => {
+    if (saveStatus !== 'saved') return;
+    const t = setTimeout(() => setSaveStatus((s) => (s === 'saved' ? 'idle' : s)), 2500);
+    return () => clearTimeout(t);
+  }, [saveStatus]);
 
   const currentChart = draftChart;
 
@@ -968,7 +1023,7 @@ export const DentalChart = () => {
     setSelectedTeeth(new Set());
     setCodesOpen(false);
     setRareConditionsOpen(false);
-    toast.success(`${removed ? `Removed ${label} from` : `Marked ${label} on`} ${targets.length} tooth${targets.length === 1 ? '' : 's'}. Not saved until Save Chart.`);
+    toast.success(`${removed ? `Removed ${label} from` : `Marked ${label} on`} ${targets.length} tooth${targets.length === 1 ? '' : 's'}.`);
   };
 
   // Trash button in the codes popover: wipe what is marked on the selected
@@ -989,7 +1044,7 @@ export const DentalChart = () => {
     setSelectedTeeth(new Set());
     setCodesOpen(false);
     setRareConditionsOpen(false);
-    toast.success(`Cleared ${targets.length} tooth${targets.length === 1 ? '' : 's'}. Not saved until Save Chart.`);
+    toast.success(`Cleared ${targets.length} tooth${targets.length === 1 ? '' : 's'}.`);
   };
 
   const undoMark = () => {
@@ -1141,235 +1196,273 @@ export const DentalChart = () => {
   }, [canEdit]);
 
   // Persists the current year's chart + medical/diet/oral history for real.
-  const handleSave = async () => {
-    if (!currentYearData || !id) return;
-    setSaving(true);
+  // ── AUTOSAVE (user, 2026-10-11) ───────────────────────────────────────────
+  // Every change on the Medical History and Dental Chart tabs is saved as it is
+  // made (offline too: `apiClient` queues the writes on this device and sends
+  // them when the connection is back). There is no Save or Cancel button; the
+  // Edit lock stays so a stray tap cannot change a record.
+  //
+  // Three rules keep it safe, and each exists because the first version of this
+  // idea would have broken without it:
+  //  1. ONE save at a time (`createSaveScheduler`). A second save started
+  //     before the first one's new records are known would create them twice.
+  //  2. Only what CHANGED is written. The old Save re-sent every section every
+  //     time; run on every tick that would mean a dozen requests and a dozen
+  //     audit rows for one tick.
+  //  3. The re-read after a save must not overwrite what was typed while it
+  //     was in flight, so the draft-sync effects skip the reload this save
+  //     itself caused (`skipDraftSync` / `skipServicesSync`).
+  // Entries that are not finished (a treatment with no condition, a visit date
+  // before the exam) are held back, not blocked: everything else still saves.
+  const performSave = async (force: boolean): Promise<void> => {
+    const base = adoptedRef.current;
+    const year = base ? applySelectedChart(base, selectedChartId) : currentYearData;
+    if (!year || !id) return;
+    // Never save drafts that belong to another school year than the record on
+    // screen: the year switch re-fills the drafts one render after the data.
+    if (draftsForIptrRef.current !== year.iptr._id) return;
+    if (lastWroteRef.current.iptr !== year.iptr._id) lastWroteRef.current = { iptr: year.iptr._id };
+    if (reloadPendingRef.current) {
+      const again = await reload({ silent: true });
+      const againYear = again?.[selectedYear];
+      if (!againYear) { setSaveStatus('error'); return; }
+      adoptedRef.current = againYear;
+      skipDraftSync.current = againYear;
+      skipServicesSync.current = againYear;
+      reloadPendingRef.current = false;
+      schedulerRef.current?.request(0);
+      return;
+    }
+    const savedDrafts = draftsFromYear(year);
+    const visitRecord = (n: 1 | 2) => year.preventivesByVisitNumber?.[n];
     setSaveError(null);
-    setChartError(null);
-    try {
-      // Teeth are dentist-only (aides save History & Oral); the chart record
-      // is only created when there are real tooth changes to persist — an
-      // aide saving history must not require (or fabricate) a dentist chart.
-      const existingByTooth = new Map(currentYearData.toothRecords.map((tr) => [tr.tooth_number, tr]));
-      // ToothRecord.condition is required (non-empty) on the backend. A tooth
-      // emptied completely (no condition, no treatment) is RETIRED: its saved
-      // record is archived, never deleted (CLAUDE.md soft-delete rule). This
-      // used to silently skip cleared teeth, so removing every code and saving
-      // "succeeded" while the old codes came straight back on reload.
-      // A tooth left with a treatment but no condition cannot be stored, so it
-      // stops the save with a message instead of being dropped quietly.
-      if (canEdit) {
-        const orphaned = Object.entries(draftChart)
-          .filter(([, entry]) => entry.condition === '' && entry.treatment !== '')
-          .map(([toothStr]) => toothStr);
-        if (orphaned.length) {
-          const message = `Tooth ${orphaned.join(', ')} has a treatment but no condition. Add a condition or remove the treatment, then save.`;
-          setChartError(message);
-          toast.error(message);
-          return;
-        }
-        // A visit cannot have happened before the oral exam that found what
-        // it's treating, and Visit 2 cannot happen before Visit 1 (user,
-        // 2026-09-28: "it should be impossible to mark a date for treatment
-        // past the oral condition ... same with visit 2, it cannot be past
-        // treatment visit 1"). The date inputs' own `min` already greys this
-        // out in the calendar picker, but a typed value bypasses that.
-        // `computeDateOrderError` is the SAME function the live banner below
-        // reads on every render, so Save can never block on a message the
-        // banner didn't already show (or vice versa) -- no setChartError
-        // here, since that banner is already on screen; the toast is just
-        // Save's own "that's why nothing happened" confirmation.
-        const dateOrderMessage = computeDateOrderError();
-        if (dateOrderMessage) {
-          toast.error(dateOrderMessage);
-          return;
-        }
-      }
-      const clearedRecords = canEdit
-        ? Object.entries(draftChart)
-            .filter(([, entry]) => entry.condition === '' && entry.treatment === '')
-            .map(([toothStr]) => existingByTooth.get(Number(toothStr)))
-            .filter((tr): tr is NonNullable<typeof tr> => !!tr)
-        : [];
-      const pendingTeeth = canEdit
-        ? Object.entries(draftChart)
-            .filter(([, entry]) => entry.condition !== '')
-            .filter(([toothStr, entry]) => {
-              const existing = existingByTooth.get(Number(toothStr));
-              return !existing || existing.condition !== entry.condition || (existing.treatment_code ?? '') !== entry.treatment;
-            })
-        : [];
 
-      // A service ticked with zero tooth changes (2026-09-25) must still get a
-      // chart to attach its new RPC visit to -- not only pendingTeeth.length,
-      // or a Treatments-Given-only save on a student's first-ever charting this
-      // year would have nowhere to write the visit. Checked across BOTH
-      // visits' drafts (2026-09-28 fix) -- Save now persists whichever visit
-      // was actually edited, not just whichever tab happens to be open.
-      const hasAnyServiceForVisit = (n: 1 | 2) => Object.values(draftServicesByVisit[n]).some((v) => v === true);
-      const hasAnyService = hasAnyServiceForVisit(1) || hasAnyServiceForVisit(2);
-      // A treatment charted on a tooth also opens its visit (user,
-      // 2026-09-24): the treatment is tagged with this visit's number, so the
-      // visit it belongs to must exist even when no service is ticked.
-      const chartsTreatment = pendingTeeth.some(([, entry]) => entry.treatment !== '');
-      let chartId = currentYearData.dentalChart?._id;
-      // A Date examined alone also opens the chart, since that is where the
-      // date lives (and what the school-year stamp reads).
-      if (!chartId && (pendingTeeth.length > 0 || hasAnyService || (!!draftChartDate && !!currentDentist))) {
+    // ── Held back, not blocked ──────────────────────────────────────────────
+    // A tooth left with a treatment but no condition cannot be stored. It is
+    // neither "pending" nor "cleared" below, so it is simply not written, and
+    // the banner says why.
+    const orphaned = canEdit
+      ? Object.entries(draftChart).filter(([, e]) => e.condition === '' && e.treatment !== '').map(([t]) => t)
+      : [];
+    setChartError(orphaned.length
+      ? `Tooth ${orphaned.join(', ')} has a treatment but no condition, so it is not saved yet. Add a condition or remove the treatment.`
+      : null);
+    // `computeDateOrderError` is the SAME function the live banner reads, so a
+    // held-back date always has its message on screen.
+    const dateOrderMessage = canEdit ? computeDateOrderError() : null;
+    heldBackRef.current = orphaned.length > 0 || !!dateOrderMessage;
+
+    const existingByTooth = new Map(year.toothRecords.map((tr) => [tr.tooth_number, tr]));
+    const clearedRecords = canEdit
+      ? Object.entries(draftChart)
+          .filter(([, entry]) => entry.condition === '' && entry.treatment === '')
+          .map(([toothStr]) => existingByTooth.get(Number(toothStr)))
+          .filter((tr): tr is NonNullable<typeof tr> => !!tr)
+      : [];
+    const pendingTeeth = canEdit
+      ? Object.entries(draftChart)
+          .filter(([, entry]) => entry.condition !== '')
+          .filter(([toothStr, entry]) => {
+            const existing = existingByTooth.get(Number(toothStr));
+            return !existing || existing.condition !== entry.condition || (existing.treatment_code ?? '') !== entry.treatment;
+          })
+      : [];
+
+    // What each visit's saved record says, in the same shape as its draft.
+    const savedServices = (n: 1 | 2) => {
+      const v = visitRecord(n);
+      return {
+        oral_screening: v?.oral_screening ?? null, oral_prophylaxis: v?.oral_prophylaxis ?? null,
+        fluoride_varnish: v?.fluoride_varnish ?? null, oral_hygiene_instruction: v?.oral_hygiene_instruction ?? null,
+        consultation: v?.consultation ?? null,
+      };
+    };
+    const savedVisitDate = (n: 1 | 2) => {
+      const v = visitRecord(n);
+      if (!v) return '';
+      const hasData = [v.oral_screening, v.oral_prophylaxis, v.fluoride_varnish, v.oral_hygiene_instruction, v.consultation].some((x) => x === true)
+        || year.toothRecords.some((tr) => (n === 2 ? tr.visit_number === 2 : (tr.visit_number ?? 1) !== 2));
+      return hasData ? new Date(v.visit_date).toISOString().slice(0, 10) : '';
+    };
+    const hasAnyServiceForVisit = (n: 1 | 2) => Object.values(draftServicesByVisit[n]).some((v) => v === true);
+    const savedChartDateIso = (() => {
+      const examined = examinedDate(year.oralCondition, year.dentalChart, year.toothRecords);
+      return examined ? new Date(examined).toISOString().slice(0, 10) : '';
+    })();
+
+    // The server stores an empty oral hygiene as 'Not assessed' and numbers as numbers,
+    // so compare in those terms, and never re-send what the last save already sent.
+    const numOf = (v: string) => (v.trim() === '' ? null : Number(v));
+    const normOral = (o: typeof draftOral) => ({ ...o, oralHygiene: o.oralHygiene || 'Not assessed' });
+    const normMeasure = (m: typeof draftMeasure) => ({
+      h: numOf(m.height_cm), w: numOf(m.weight_kg), t: numOf(m.temperature_c), bp: m.blood_pressure.trim(),
+    });
+    const wrote = lastWroteRef.current;
+    const medDirty = !sameJson(draftMed, savedDrafts.med) && JSON.stringify(draftMed) !== wrote.med;
+    const dietDirty = !sameJson(draftDiet, savedDrafts.diet) && JSON.stringify(draftDiet) !== wrote.diet;
+    const oralDirty = !sameJson(normOral(draftOral), normOral(savedDrafts.oral)) && JSON.stringify(normOral(draftOral)) !== wrote.oral;
+    const measureDirty = !sameJson(normMeasure(draftMeasure), normMeasure(savedDrafts.measure)) && JSON.stringify(normMeasure(draftMeasure)) !== wrote.measure;
+    const servicesDirty = (n: 1 | 2) => !sameJson(draftServicesByVisit[n], savedServices(n));
+    const visitDateDirty = (n: 1 | 2) => !!draftVisitDateByVisit[n] && draftVisitDateByVisit[n] !== savedVisitDate(n);
+    const chartDateDirty = !!draftChartDate && !!year.dentalChart && draftChartDate !== new Date(year.dentalChart.date_charted).toISOString().slice(0, 10);
+    // A date that breaks the order rule waits (held back); the rest saves.
+    const visitsMayWrite = !dateOrderMessage;
+
+    const remainingVisitTeeth = (n: 1 | 2) => pendingTeeth.some(([, entry]) => (entry.visitNumber ?? activeVisit) === n)
+      || Array.from(existingByTooth.values()).some((tr) => tr.visit_number === n && !clearedRecords.includes(tr));
+    const chartsTreatmentForVisit = (n: 1 | 2) => pendingTeeth.some(([, entry]) => entry.treatment !== '' && (entry.visitNumber ?? activeVisit) === n);
+    const visit2NowEmpty = !hasAnyServiceForVisit(2) && !remainingVisitTeeth(2);
+    if (!(visitRecord(2) && visit2NowEmpty)) emptySinceRef.current = null;
+
+    const buildVisitWrite = (n: 1 | 2): Promise<unknown> | null => {
+      const services = draftServicesByVisit[n];
+      const visitDate = draftVisitDateByVisit[n];
+      const record = visitRecord(n);
+      const hasAnyServiceN = hasAnyServiceForVisit(n);
+      const nowEmptyN = !hasAnyServiceN && !remainingVisitTeeth(n);
+      if (record) {
+        if (n === 2 && nowEmptyN) {
+          // A visit emptied completely is RETIRED (archived, never deleted). With
+          // every tick saved at once, "empty" is often just the moment between
+          // unticking one service and ticking another, so it must stay empty for a
+          // moment before the record is archived (immediately when finishing).
+          if (!force) {
+            if (emptySinceRef.current === null) emptySinceRef.current = Date.now();
+            if (Date.now() - emptySinceRef.current < 1000) { schedulerRef.current?.request(1100); return null; }
+          }
+          emptySinceRef.current = null;
+          return apiClient.patch(`/preventive-care-records/${record._id}/archive`);
+        }
+        if (!servicesDirty(n) && !visitDateDirty(n)) return null;
+        return apiClient.put(`/preventive-care-records/${record._id}`, {
+          ...services,
+          ...(visitDate ? { visit_date: visitDate } : {}),
+        });
+      }
+      if (hasAnyServiceN || chartsTreatmentForVisit(n)) {
+        return apiClient.post('/preventive-care-records', {
+          iptr_id: year.iptr._id,
+          visit_date: visitDate || draftChartDate || toLocalDateString(new Date()),
+          visit_number: n,
+          ...services,
+        });
+      }
+      return null;
+    };
+
+    const needsChart = canEdit && !year.dentalChart?._id && (
+      pendingTeeth.length > 0 || hasAnyServiceForVisit(1) || hasAnyServiceForVisit(2) || (!!draftChartDate && !!currentDentist && draftChartDate !== savedChartDateIso)
+    );
+    const anyWrite = needsChart || medDirty || dietDirty || oralDirty || measureDirty
+      || pendingTeeth.length > 0 || clearedRecords.length > 0
+      || (visitsMayWrite && (servicesDirty(1) || servicesDirty(2) || visitDateDirty(1) || visitDateDirty(2) || chartDateDirty))
+      || (!!visitRecord(2) && visit2NowEmpty);
+    if (!anyWrite) return;
+
+    setSaving(true);
+    setSaveStatus('saving');
+    try {
+      let chartId = year.dentalChart?._id;
+      if (!chartId && needsChart) {
         if (!currentDentist) throw new Error('No dentist record linked to your account.');
         const created = await apiClient.post<{ _id: string }>('/dental-charts', {
-          iptr_id: currentYearData.iptr._id,
+          iptr_id: year.iptr._id,
           dentist_id: currentDentist._id,
           date_charted: draftChartDate || toLocalDateString(new Date()),
         });
         chartId = created._id;
       }
 
-      // visit_number tags which visit this tooth's CURRENT treatment belongs
-      // to (2026-09-25) -- Visit 1 and Visit 2 share this one chart, so this
-      // is what lets the odontogram and Treatment Summary show "(V1)"/"(V2)"
-      // instead of the two visits' teeth work being indistinguishable. Reads
-      // each tooth's OWN tag (set when it was painted -- see applyToothPaint
-      // below), not the tab active at save time (2026-09-28 fix): a tooth
-      // painted under Visit 2 then left behind by switching to Visit 1 must
-      // still save as Visit 2's, not get silently relabeled Visit 1's.
-      const toothWrites = pendingTeeth.map(([toothStr, entry]) => {
+      // visit_number tags which visit this tooth's CURRENT treatment belongs to:
+      // each tooth's OWN tag (set when it was painted), not the tab open now.
+      const writes: Promise<unknown>[] = pendingTeeth.map(([toothStr, entry]) => {
         const toothNumber = Number(toothStr);
         const existing = existingByTooth.get(toothNumber);
         const body = { chart_id: chartId, tooth_number: toothNumber, condition: entry.condition, treatment_code: entry.treatment, visit_number: entry.visitNumber ?? activeVisit };
         return existing ? apiClient.put(`/tooth-records/${existing._id}`, body) : apiClient.post('/tooth-records', body);
       });
-      toothWrites.push(...clearedRecords.map((tr) => apiClient.patch(`/tooth-records/${tr._id}/archive`)));
+      writes.push(...clearedRecords.map((tr) => apiClient.patch(`/tooth-records/${tr._id}/archive`)));
 
-      // The draft already uses MEDICAL_HISTORY's field names (2026-09-24), so
-      // it is sent as-is. `previous_surgical` used to be hard-coded false here.
-      const medBody = { iptr_id: currentYearData.iptr._id, ...draftMed };
-      const medWrite = currentYearData.medicalHistory
-        ? apiClient.put(`/medical-histories/${currentYearData.medicalHistory._id}`, medBody)
-        : apiClient.post('/medical-histories', medBody);
-
-      const dietBody = {
-        iptr_id: currentYearData.iptr._id, sugar_beverages: draftDiet.sugarSweetened, alcohol_drinker: draftDiet.alcoholDrinker,
-        tobacco_user: draftDiet.tobaccoUser, betel_nut_chewer: draftDiet.betelNut, body_piercing: draftDiet.bodyPiercing,
-        nail_biting: draftDiet.nailBiting, thumb_sucking: draftDiet.thumbsucking,
-      };
-      const dietWrite = currentYearData.dietaryHabits
-        ? apiClient.put(`/dietary-social-habits/${currentYearData.dietaryHabits._id}`, dietBody)
-        : apiClient.post('/dietary-social-habits', dietBody);
-
-      const oralBody = {
-        iptr_id: currentYearData.iptr._id, oral_hygiene: draftOral.oralHygiene || 'Not assessed', gingivitis: draftOral.gingivitis,
-        periodontal_disease: draftOral.periodontal, debris: draftOral.debris, calculus: draftOral.calculus,
-        abnormal_growth: draftOral.abnormalGrowth, cleft_lip_palate: draftOral.cleftLipPalate, others: draftOral.others,
-      };
-      const oralWrite = currentYearData.oralCondition
-        ? apiClient.put(`/oral-health-conditions/${currentYearData.oralCondition._id}`, oralBody)
-        : apiClient.post('/oral-health-conditions', oralBody);
-
-      // ── The active visit's services and date (Sprint 154; unlocked and
-      //    reworked 2026-09-25) ────────────────────────────────────────────
-      // Ticking a service here no longer requires an RPC visit to already
-      // exist — it IS what creates one now, per the user's explicit
-      // direction that RPC should be derived from the chart and never the
-      // other way around. Visit 1 and Visit 2 are found directly by
-      // visit_number on THIS iptr (preventivesByVisitNumber), independent of
-      // chart linkage, since both visits now share one chart instead of each
-      // getting their own.
-      const extraWrites: Promise<unknown>[] = [];
-      // Measurements belong to the YEAR's record. Blank clears back to null
-      // rather than storing 0, which would read as "measured at zero" and feed
-      // a nonsense BMI.
-      const num = (v: string) => (v.trim() === '' ? null : Number(v));
-      extraWrites.push(apiClient.put(`/student-iptrs/${currentYearData.iptr._id}`, {
-        height_cm: num(draftMeasure.height_cm),
-        weight_kg: num(draftMeasure.weight_kg),
-        temperature_c: num(draftMeasure.temperature_c),
-        blood_pressure: draftMeasure.blood_pressure.trim(),
-      }));
-      // A visit emptied completely (every service unticked, no tooth work
-      // left tagged to it) is RETIRED like a cleared tooth above -- archived,
-      // not left behind as a phantom "visit exists but has nothing in it"
-      // record. Visit 1 is exempt (it stays visible even empty -- see the
-      // tab above), so only Visit 2 can disappear this way (user,
-      // 2026-09-28: "i remove all the treatment and conditions in the visit
-      // 2 ... there is not visit 2 anymore"). Everything downstream
-      // (pipeline status, RPC due dates) reads LIVE preventive-care-records,
-      // so this one archive is what makes "no Visit 2" propagate everywhere
-      // else automatically, without a second update pass.
-      //
-      // Built for BOTH visits, not just the active tab (2026-09-28 fix): the
-      // per-visit draft slots above mean either visit's checkboxes may have
-      // been edited this session, so Save must persist whichever one(s)
-      // actually changed, not only whichever tab happened to be open when
-      // the button was clicked.
-      const remainingVisitTeeth = (n: 1 | 2) => pendingTeeth.some(([, entry]) => (entry.visitNumber ?? activeVisit) === n)
-        || Array.from(existingByTooth.values()).some((tr) => tr.visit_number === n && !clearedRecords.includes(tr));
-      const chartsTreatmentForVisit = (n: 1 | 2) => pendingTeeth.some(([, entry]) => entry.treatment !== '' && (entry.visitNumber ?? activeVisit) === n);
-      const buildVisitWrite = (n: 1 | 2) => {
-        const services = draftServicesByVisit[n];
-        const visitDate = draftVisitDateByVisit[n];
-        const record = n === 1 ? visit1 : visit2;
-        const hasAnyServiceN = hasAnyServiceForVisit(n);
-        const nowEmptyN = !hasAnyServiceN && !remainingVisitTeeth(n);
-        if (record) {
-          if (n === 2 && nowEmptyN) return apiClient.patch(`/preventive-care-records/${record._id}/archive`);
-          return apiClient.put(`/preventive-care-records/${record._id}`, {
-            ...services,
-            ...(visitDate ? { visit_date: visitDate } : {}),
-          });
+      // The draft uses MEDICAL_HISTORY's own field names, so it goes as it is.
+      if (medDirty) {
+        const medBody = { iptr_id: year.iptr._id, ...draftMed };
+        writes.push(year.medicalHistory
+          ? apiClient.put(`/medical-histories/${year.medicalHistory._id}`, medBody)
+          : apiClient.post('/medical-histories', medBody));
+      }
+      if (dietDirty) {
+        const dietBody = {
+          iptr_id: year.iptr._id, sugar_beverages: draftDiet.sugarSweetened, alcohol_drinker: draftDiet.alcoholDrinker,
+          tobacco_user: draftDiet.tobaccoUser, betel_nut_chewer: draftDiet.betelNut, body_piercing: draftDiet.bodyPiercing,
+          nail_biting: draftDiet.nailBiting, thumb_sucking: draftDiet.thumbsucking,
+        };
+        writes.push(year.dietaryHabits
+          ? apiClient.put(`/dietary-social-habits/${year.dietaryHabits._id}`, dietBody)
+          : apiClient.post('/dietary-social-habits', dietBody));
+      }
+      if (oralDirty) {
+        const oralBody = {
+          iptr_id: year.iptr._id, oral_hygiene: draftOral.oralHygiene || 'Not assessed', gingivitis: draftOral.gingivitis,
+          periodontal_disease: draftOral.periodontal, debris: draftOral.debris, calculus: draftOral.calculus,
+          abnormal_growth: draftOral.abnormalGrowth, cleft_lip_palate: draftOral.cleftLipPalate, others: draftOral.others,
+        };
+        writes.push(year.oralCondition
+          ? apiClient.put(`/oral-health-conditions/${year.oralCondition._id}`, oralBody)
+          : apiClient.post('/oral-health-conditions', oralBody));
+      }
+      // Measurements belong to the YEAR's record. Blank clears back to null, never 0
+      // (0 would read as "measured at zero" and feed a nonsense BMI).
+      if (measureDirty) {
+        const num = (v: string) => (v.trim() === '' ? null : Number(v));
+        writes.push(apiClient.put(`/student-iptrs/${year.iptr._id}`, {
+          height_cm: num(draftMeasure.height_cm),
+          weight_kg: num(draftMeasure.weight_kg),
+          temperature_c: num(draftMeasure.temperature_c),
+          blood_pressure: draftMeasure.blood_pressure.trim(),
+        }));
+      }
+      if (visitsMayWrite) {
+        const v1 = buildVisitWrite(1);
+        const v2 = buildVisitWrite(2);
+        if (v1) writes.push(v1);
+        if (v2) writes.push(v2);
+        if (chartId && chartDateDirty) {
+          writes.push(apiClient.put(`/dental-charts/${chartId}`, { date_charted: draftChartDate }));
         }
-        if (hasAnyServiceN || chartsTreatmentForVisit(n)) {
-          return apiClient.post('/preventive-care-records', {
-            iptr_id: currentYearData.iptr._id,
-            visit_date: visitDate || draftChartDate || toLocalDateString(new Date()),
-            visit_number: n,
-            ...services,
-          });
-        }
-        return null;
-      };
-      const visit1Write = buildVisitWrite(1);
-      const visit2Write = buildVisitWrite(2);
-      if (visit1Write) extraWrites.push(visit1Write);
-      if (visit2Write) extraWrites.push(visit2Write);
-      const savedChartId = currentYearData.dentalChart?._id;
-      if (savedChartId && draftChartDate
-          && draftChartDate !== new Date(currentYearData.dentalChart!.date_charted).toISOString().slice(0, 10)) {
-        extraWrites.push(apiClient.put(`/dental-charts/${savedChartId}`, { date_charted: draftChartDate }));
       }
 
-      const writeResults = await Promise.all([...toothWrites, medWrite, dietWrite, oralWrite, ...extraWrites]);
-      // Any write queued on this device (no connection). The reload below still
-      // runs: reads of the chart come back as the last server copy PLUS what is
-      // waiting in the queue (offline/overlay.ts), so the saved teeth show up and
-      // the chart can be saved again without writing them twice.
+      const writeResults = await Promise.all(writes);
+      // Any write queued on this device (no connection): the re-read below
+      // answers with the last server copy PLUS what is waiting in the queue
+      // (offline/overlay.ts), so the new records show and the next change
+      // updates them instead of creating them again.
       const savedOffline = writeResults.some(isQueuedResponse);
-      // Student Records' Status column and the Charting Queue's own status
-      // both read /stats/student-rows -- without this, either would keep
-      // showing this student's PRE-save pipeline stage until something else
-      // happened to invalidate the cache (user, 2026-09-28: "status should
-      // be real time... without refreshing the page").
       invalidateCached('/stats/student-rows');
       invalidateCached('/stats/student-nav');
-      await reload();
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-      // The "Saved!" button label is an in-place echo for whoever is still
-      // looking at the button — but it sits at the top of a long scrolling
-      // form, so someone who edited teeth further down never sees it. The
-      // toast is what actually confirms the save. One message, not four:
-      // the writes above are a single user action, not four separate ones.
-      toast.success(savedOffline ? QUEUED_SAVE_MESSAGE : 'Chart saved.');
-      // A charted student no longer belongs in the Dental Charts queue --
-      // user, 2026-09-26: "when dental chart is marked or updated, the
-      // queue should be gone" for that student. Harmless if they were never
-      // queued (removeQueuedStudentId no-ops).
+      // Re-read quietly, then carry on from those records and keep the form as
+      // typed (see rule 3 above).
+      if (medDirty) lastWroteRef.current.med = JSON.stringify(draftMed);
+      if (dietDirty) lastWroteRef.current.diet = JSON.stringify(draftDiet);
+      if (oralDirty) lastWroteRef.current.oral = JSON.stringify(normOral(draftOral));
+      if (measureDirty) lastWroteRef.current.measure = JSON.stringify(normMeasure(draftMeasure));
+      const fresh = await reload({
+        silent: true,
+        beforeCommit: (yd) => {
+          const fy = yd[selectedYear];
+          if (!fy) return;
+          skipDraftSync.current = fy;
+          skipServicesSync.current = fy;
+          adoptedRef.current = fy;
+        },
+      });
+      // No fresh read (offline and not cached): remember, so the next save re-reads
+      // before it decides whether a record already exists.
+      if (!fresh?.[selectedYear]) reloadPendingRef.current = true;
+      setSaveStatus(savedOffline ? 'queued' : 'saved');
+      // A charted student no longer belongs in the Dental Charts queue (user,
+      // 2026-09-26), and anything charted or ticked queues them for Treatment
+      // (user, 2026-09-28), checked against the draft, not just this save.
       removeQueuedStudentId(id);
-      // Auto-queue for Treatment (user, 2026-09-28): any save that leaves
-      // behind a charted tooth condition/treatment or a ticked oral health
-      // condition queues this student for the Treatment submodule -- checked
-      // against the SAVED state, not just this save's delta, so a chart
-      // that already had decay marked queues again on every later save too.
       const hasChartOrOralConditionData =
         Object.values(draftChart).some((e) => e.condition || e.treatment) ||
         Object.values(draftOral).some((v) => v === true || (typeof v === 'string' && v.trim() !== ''));
@@ -1377,10 +1470,19 @@ export const DentalChart = () => {
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'Failed to save';
       setSaveError(message);
-      toast.error(message);
+      setSaveStatus('error');
+      toast.error(`Not saved: ${message}`);
     } finally {
       setSaving(false);
     }
+  };
+  runSaveRef.current = performSave;
+
+  /** Finish editing: send anything still waiting, then lock the form again. */
+  const finishEdit = async () => {
+    await schedulerRef.current?.flush();
+    if (heldBackRef.current) toast.info('Some entries are not saved yet. Finish them in edit mode.');
+    setEditMode(false);
   };
 
   useEffect(() => {
@@ -1941,12 +2043,9 @@ export const DentalChart = () => {
                     </button>
                   ) : (
                     <>
-                      <button onClick={cancelEdit} disabled={saving} className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-60">
-                        Cancel
-                      </button>
-                      <button onClick={handleSave} disabled={saving} className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-60 ${saved ? 'bg-green-600 text-white' : 'bg-destructive text-white hover:opacity-90'}`}>
-                        <Save className="w-3.5 h-3.5" />
-                        {saving ? 'Saving…' : saved ? 'Saved!' : 'Save'}
+                      <AutosaveStatus status={saveStatus} onRetry={() => schedulerRef.current?.request(0)} />
+                      <button onClick={finishEdit} className="rounded-lg bg-destructive px-3.5 py-1.5 text-xs font-medium text-white transition-colors hover:opacity-90">
+                        Done
                       </button>
                     </>
                   )}
@@ -2171,7 +2270,8 @@ export const DentalChart = () => {
             canEditHistory={canEditHistory}
             editMode={editMode}
             saving={saving}
-            saved={saved}
+            saveStatus={saveStatus}
+            onRetrySave={() => schedulerRef.current?.request(0)}
             chartError={chartError}
             dateOrderError={dateOrderError}
             editingChart={editingChart}
@@ -2200,7 +2300,7 @@ export const DentalChart = () => {
               rareOpen: rareConditionsOpen, setRareOpen: setRareConditionsOpen,
             }}
             actions={{
-              setChartingMode, goToStudent, setEditMode, cancelEdit, handleSave, setExplicitVisit, setConfirmClear,
+              setChartingMode, goToStudent, setEditMode, finishEdit, setExplicitVisit, setConfirmClear,
               handleToothPointerDown, syncChartDateFromConditions, syncVisitDateFromServices,
             }}
             drafts={{
@@ -2614,8 +2714,8 @@ export const DentalChart = () => {
 
       <ConfirmDialog
         open={pendingNav !== null}
-        title="Leave this chart unsaved?"
-        message={`Nothing on this chart has been saved yet. Going to ${pendingNav?.name ?? 'the next student'} discards it. Cancel, then use Save Chart if you want to keep it.`}
+        title="Leave with unsaved entries?"
+        message={`Some entries on this chart are not finished, so they are not saved (see the message on the chart). Going to ${pendingNav?.name ?? 'the next student'} discards them. Cancel to finish them first.`}
         confirmLabel="Discard and continue"
         onConfirm={() => { const t = pendingNav; setPendingNav(null); setEditMode(false); if (t) navigate(`/dental-chart/${t.id}${navQuery}`); }}
         onCancel={() => setPendingNav(null)}
@@ -2623,7 +2723,7 @@ export const DentalChart = () => {
       <ConfirmDialog
         open={confirmClear !== null}
         title={confirmClear === 'treatment' ? `Clear all ${chartedTreatmentCount} treatments?` : `Clear all ${chartedConditionCount} conditions?`}
-        message={`This removes every ${confirmClear === 'treatment' ? 'treatment code' : 'condition code'} on this chart, leaving the ${confirmClear === 'treatment' ? 'conditions' : 'treatments'} untouched. Nothing is saved until you click Save Chart — Cancel Edit still discards it.`}
+        message={`This removes every ${confirmClear === 'treatment' ? 'treatment code' : 'condition code'} on this chart, leaving the ${confirmClear === 'treatment' ? 'conditions' : 'treatments'} untouched. Changes are saved automatically, so use Undo right after if this was a mistake.`}
         confirmLabel={confirmClear === 'treatment' ? 'Clear treatments' : 'Clear conditions'}
         onConfirm={() => confirmClear && clearAll(confirmClear)}
         onCancel={() => setConfirmClear(null)}

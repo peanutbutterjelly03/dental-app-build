@@ -106,14 +106,20 @@ export function useDentalChartData(studentId: string | undefined) {
   // Guarding only the last commit would still allow exactly that.
   const runIdRef = useRef(0);
 
-  const reload = useCallback(async () => {
+  /** `silent` is for AUTOSAVE: re-read without raising the loading skeleton (it
+   *  would blank the form the person is typing in) and without turning a failed
+   *  read into the page-level error (the save itself already succeeded). Resolves
+   *  with the year data it committed (`beforeCommit` sees it first), so the saver can carry on from the fresh
+   *  records before React has re-rendered. */
+  const reload = useCallback(async (opts?: { silent?: boolean; beforeCommit?: (years: IptrYearData[]) => void }): Promise<IptrYearData[] | undefined> => {
+    const silent = opts?.silent === true;
     const runId = ++runIdRef.current;
     const isStale = () => runId !== runIdRef.current;
     if (!studentId) {
       endLoad();
-      return;
+      return undefined;
     }
-    beginLoad();
+    if (!silent) beginLoad();
     try {
       // Every list below is fetched FILTERED to this student (Sprint 48).
       // It used to pull whole collections and filter them here — every IPTR,
@@ -131,7 +137,7 @@ export function useDentalChartData(studentId: string | undefined) {
       // COMMIT POINT 1 of 2 — identity. A newer run has started, so this one
       // must not put its student's name on screen, and must not fall through to
       // the second round either.
-      if (isStale()) return;
+      if (isStale()) return undefined;
       setStudent(studentDoc);
       setSchoolName(schools.find((s) => s._id === studentDoc.school_id)?.school_name ?? 'Unknown School');
       setDentists(dentistList);
@@ -212,19 +218,24 @@ export function useDentalChartData(studentId: string | undefined) {
       });
 
       // COMMIT POINT 2 of 2 — the chart years.
-      if (isStale()) return;
+      if (isStale()) return undefined;
+      // Lets the autosaver note which data is about to be committed BEFORE React can
+      // render it, so its draft-sync effects can tell their own reload from any other.
+      opts?.beforeCommit?.(yearData);
       setYears(yearData);
       setError(null);
+      return yearData;
     } catch (err) {
       // A superseded run's failure is not this screen's failure: showing "Failed
       // to load" for a student the user already navigated away from would be a
       // second way to mislead.
-      if (!isStale()) setError(err instanceof Error ? err.message : 'Failed to load dental chart data');
+      if (!isStale() && !silent) setError(err instanceof Error ? err.message : 'Failed to load dental chart data');
+      return undefined;
     } finally {
       // ⚠ Only the newest run may clear the spinner. Without this an abandoned
       // run finishing first would report the screen ready while the run whose
       // data is actually wanted is still in flight.
-      if (!isStale()) endLoad();
+      if (!isStale() && !silent) endLoad();
     }
   }, [studentId]);
 

@@ -16,6 +16,8 @@
 // default would be mutated by the first form that edits it and then handed to
 // the next student.
 
+import type { IptrYearData } from '../hooks/useDentalChartData';
+
 /** MEDICAL_HISTORY's yes/no questions, by their API field name. Ticked =
  *  true ("Oo" on Form 1), unticked = false ("Hindi"). */
 export const MED_FLAGS = [
@@ -106,3 +108,34 @@ export const emptyOral = (): OralDraft => ({
   gingivitis: false, periodontal: false, debris: false, calculus: false,
   abnormalGrowth: false, cleftLipPalate: false, oralHygiene: '', others: '',
 });
+
+/** The drafts a saved school-year record corresponds to. ONE function builds
+ *  them for both jobs: filling the form when a year loads, and deciding what
+ *  changed since (autosave writes only the sections whose draft differs from
+ *  this). Two copies of the conversion would let "unchanged" and "loaded"
+ *  disagree, and every load would then look like an edit. */
+export function draftsFromYear(y: IptrYearData | undefined): {
+  med: MedicalHistoryDraft; diet: DietDraft; oral: OralDraft; measure: MeasureDraft;
+} {
+  const mh = y?.medicalHistory;
+  const dh = y?.dietaryHabits;
+  const oc = y?.oralCondition;
+  return {
+    med: mh ? medDraftFrom(mh) : emptyMed(),
+    diet: dh ? {
+      sugarSweetened: dh.sugar_beverages, alcoholDrinker: dh.alcohol_drinker, tobaccoUser: dh.tobacco_user,
+      betelNut: dh.betel_nut_chewer, bodyPiercing: dh.body_piercing, nailBiting: dh.nail_biting, thumbsucking: dh.thumb_sucking,
+    } : emptyDiet(),
+    oral: oc ? {
+      gingivitis: oc.gingivitis, periodontal: oc.periodontal_disease, debris: oc.debris, calculus: oc.calculus,
+      abnormalGrowth: oc.abnormal_growth, cleftLipPalate: oc.cleft_lip_palate,
+      oralHygiene: oc.oral_hygiene, others: oc.others,
+    } : emptyOral(),
+    measure: {
+      height_cm: y?.iptr.height_cm != null ? String(y.iptr.height_cm) : '',
+      weight_kg: y?.iptr.weight_kg != null ? String(y.iptr.weight_kg) : '',
+      temperature_c: y?.iptr.temperature_c != null ? String(y.iptr.temperature_c) : '',
+      blood_pressure: y?.iptr.blood_pressure ?? '',
+    },
+  };
+}
