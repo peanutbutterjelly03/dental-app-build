@@ -11,8 +11,8 @@ import { buildXlsx } from '../utils/exportXlsx';
 import { usePreviewModal } from '../hooks/usePreviewModal';
 import { PreviewModal } from './PreviewModal';
 import { SkeletonTable } from './Skeleton';
-// Section bands: the app's light blue, matching the other report tabs (was the form's amber).
-const FORM_SECTION_BAND = 'bg-[#CFDDF6] text-[#273A78]';
+// Section band: same look as the DOH Consolidated section rows (light blue fill, bold uppercase navy text).
+const FORM_SECTION_BAND = 'bg-blue-50 text-blue-900';
 
 // ─── FHSIS · SECTION D. ORAL HEALTH CARE SERVICES ────────────────────────────
 // Transcribed from the "FHSIS" sheet of the workbook the user supplied
@@ -347,7 +347,7 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
           </thead>
           <tbody>
             <tr className={FORM_SECTION_BAND}>
-              <td colSpan={12} className={`border-b border-gray-300 px-2 py-1.5 font-semibold ${FORM_SECTION_BAND}`}>
+              <td colSpan={12} className={`border-b border-gray-300 px-3 py-1.5 font-bold uppercase tracking-wide ${FORM_SECTION_BAND}`}>
                 FIRST VISIT TO AN ORAL HEALTH CARE PROFESSIONAL
               </td>
             </tr>
