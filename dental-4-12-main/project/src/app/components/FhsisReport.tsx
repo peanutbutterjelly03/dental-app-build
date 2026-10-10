@@ -306,8 +306,8 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
       </>
     );
   };
-  const hd = 'border-r border-b border-gray-300 bg-gray-100 px-2 py-1.5 text-center font-semibold';
-  const hdInd = 'border-r border-b border-gray-300 bg-gray-100 px-2 py-2 text-left align-bottom text-[11px] font-semibold';
+  const hd = 'border-r border-b border-gray-300 bg-gray-200 px-2 py-1.5 text-center font-semibold';
+  const hdInd = 'border-r border-b border-gray-300 bg-gray-200 px-2 py-2 text-left align-bottom text-[11px] font-semibold';
 
   return (
     <div className="space-y-8">
