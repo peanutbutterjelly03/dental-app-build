@@ -914,9 +914,11 @@ export const Reports = () => {
             return (
               <div className="rounded-2xl border border-[#dfe5f0] bg-card px-5 py-4 shadow-[0_14px_30px_-22px_rgba(36,59,122,0.5)]">
                 <h2 className="text-base font-extrabold text-foreground">Dental Section: Consolidated Oral Health Status and Service Report</h2>
-                <p className="mt-0.5 text-[12.5px] text-muted-foreground">
-                  {dohPeriodLabel} · {reportSchool ? getSchoolShortName(reportSchool) : 'All schools'} · {bandLabel}
-                </p>
+                <dl className="mt-2 flex flex-wrap gap-y-2 [&>div]:border-l [&>div]:border-[#dfe5f0] [&>div]:px-4 [&>div:first-child]:border-l-0 [&>div:first-child]:pl-0 [&_dt]:text-[9px] [&_dt]:font-extrabold [&_dt]:uppercase [&_dt]:tracking-[0.08em] [&_dt]:text-muted-foreground [&_dd]:text-[12px] [&_dd]:font-bold">
+                  <div><dt>Period</dt><dd>{dohPeriodLabel}</dd></div>
+                  <div><dt>School</dt><dd>{reportSchool ? getSchoolShortName(reportSchool) : 'All schools'}</dd></div>
+                  <div><dt>Grades</dt><dd>{bandLabel}</dd></div>
+                </dl>
                 <div className="mt-4 flex flex-wrap items-center gap-x-7 gap-y-4">
                   <div className="flex items-center gap-3.5">
                     <svg width="84" height="84" viewBox="0 0 84 84" role="img" aria-label={`With caries experience: ${Math.round(pct * 100)}%`}>

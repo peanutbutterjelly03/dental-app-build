@@ -605,9 +605,11 @@ export const OralHealthProgramReport = ({ schoolName = null }: { schoolName?: st
         return (
           <div className="rounded-2xl border border-[#dfe5f0] bg-card px-5 py-4 shadow-[0_14px_30px_-22px_rgba(36,59,122,0.5)]">
             <h2 className="text-base font-extrabold text-foreground">Oral Health Program Reporting Form</h2>
-            <p className="mt-0.5 text-[12.5px] text-muted-foreground">
-              {period.start} to {period.end} · {schoolName ?? 'All schools'} · Barangay Tanyag, Taguig City
-            </p>
+            <dl className="mt-2 flex flex-wrap gap-y-2 [&>div]:border-l [&>div]:border-[#dfe5f0] [&>div]:px-4 [&>div:first-child]:border-l-0 [&>div:first-child]:pl-0 [&_dt]:text-[9px] [&_dt]:font-extrabold [&_dt]:uppercase [&_dt]:tracking-[0.08em] [&_dt]:text-muted-foreground [&_dd]:text-[12px] [&_dd]:font-bold">
+              <div><dt>Period</dt><dd>{period.start} to {period.end}</dd></div>
+              <div><dt>School</dt><dd>{schoolName ?? 'All schools'}</dd></div>
+              <div><dt>Barangay</dt><dd>Tanyag, Taguig City</dd></div>
+            </dl>
             <div className="mt-4 flex flex-wrap items-end gap-x-8 gap-y-4">
               <div>
                 <div className="text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted-foreground">Examined</div>
