@@ -378,6 +378,27 @@ const TCL_UNVERIFIED = SERVICE_COLUMNS.filter((c) => c.unverified).length;
 /** 8.5 x 13in long bond, landscape, 6mm margins: the sheet and margin the print rules use. */
 const LONG_BOND_LANDSCAPE = { widthMm: 330.2, heightMm: 215.9, marginMm: 6 };
 
+/** Progress ring: how many of the listed clients finished a visit. */
+function VisitRing({ label, done, of }: { label: string; done: number; of: number }) {
+  const pct = of > 0 ? done / of : 0;
+  const r = 22;
+  const c = 2 * Math.PI * r;
+  return (
+    <div className="flex items-center gap-3">
+      <svg width="56" height="56" viewBox="0 0 56 56" role="img" aria-label={`${label}: ${Math.round(pct * 100)}%`}>
+        <circle cx="28" cy="28" r={r} fill="none" stroke="#eef1f7" strokeWidth="6" />
+        <circle cx="28" cy="28" r={r} fill="none" stroke="#243b7a" strokeWidth="6" strokeLinecap="round"
+          strokeDasharray={c} strokeDashoffset={c * (1 - pct)} transform="rotate(-90 28 28)" />
+        <text x="28" y="32" textAnchor="middle" fontSize="12" fontWeight="800" fill="#14213d">{Math.round(pct * 100)}%</text>
+      </svg>
+      <div>
+        <div className="text-[13px] font-extrabold text-foreground">{label}</div>
+        <div className="text-[11.5px] text-muted-foreground">Done by {done} of {of}</div>
+      </div>
+    </div>
+  );
+}
+
 export const TargetClientList = () => {
   // → The filed sample is a wide landscape sheet: 30 columns on page 1, 31 on page 2.
   usePrintOrientation('landscape');
@@ -542,6 +563,8 @@ export const TargetClientList = () => {
     try { window.localStorage.setItem('tcl-hidden-cols', '[]'); } catch { /* private mode */ }
   };
 
+  const visit1Done = visible.filter((r) => r.visit1Done).length;
+  const visit2Done = visible.filter((r) => r.visit2Done).length;
   // ── Official output ───────────────────────────────────────────────────────
   // ⚠ THIS TABLE IS A NAMED LIST OF MINORS and it is exported anyway. That is a
   // deliberate, narrow exception to Sprint 52's rule ("official aggregate
@@ -984,28 +1007,24 @@ export const TargetClientList = () => {
         </PanelRow>
         <p className="sr-only" aria-live="polite">Showing {periodLabel}, {visible.length} client{visible.length !== 1 ? 's' : ''}</p>
       </PanelShell>
-      <div className="overflow-hidden rounded-2xl border border-[#dfe5f0] bg-card shadow-[0_14px_30px_-22px_rgba(36,59,122,0.5)]">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-          <h2 className="text-base font-extrabold text-foreground">Target Client List for Oral Health Care and Services</h2>
+      <div className="rounded-2xl border border-[#dfe5f0] bg-card shadow-[0_14px_30px_-22px_rgba(36,59,122,0.5)]">
+        <div className="flex flex-wrap items-start justify-between gap-3 px-5 pb-4 pt-4">
+          <div>
+            <h2 className="text-base font-extrabold text-foreground">Target Client List for Oral Health Care and Services</h2>
+            <p className="mt-0.5 text-[12.5px] text-muted-foreground">
+              {periodLabel} · {selectedSchool ? getSchoolShortName(selectedSchool) : 'All schools'} · {visible.length} consulted
+            </p>
+          </div>
           <button
             onClick={() => setShowPicker((v) => !v)}
             aria-expanded={showPicker}
             className="flex h-9 items-center gap-1.5 rounded-[10px] border border-[#e3e7ef] bg-[#f1f3f8] px-3.5 text-[12.5px] font-bold text-[#46536d] hover:bg-[#e9ecf3]"
           >{showPicker ? 'Done' : `Columns${hiddenCount ? ` (${hiddenCount} hidden)` : ''}`}</button>
         </div>
-        <dl className="flex flex-wrap border-t border-[#dfe5f0] bg-[#fafbfe] [&>div]:border-r [&>div]:border-[#dfe5f0] [&>div]:px-5 [&>div]:py-2.5 [&_dt]:text-[10px] [&_dt]:font-extrabold [&_dt]:uppercase [&_dt]:tracking-[0.08em] [&_dt]:text-muted-foreground [&_dd]:text-[17px] [&_dd]:font-bold [&_dd]:text-primary">
-          <div><dt>Period</dt><dd>{periodLabel}</dd></div>
-          <div><dt>School</dt><dd>{selectedSchool ? getSchoolShortName(selectedSchool) : 'All schools'}</dd></div>
-          <div><dt>Consulted</dt><dd>{visible.length}</dd></div>
-          <div><dt>Male · Female</dt><dd>{visible.filter((r) => r.sex === 'M').length} · {visible.filter((r) => r.sex === 'F').length}</dd></div>
-          <div className="!border-r-0 min-w-[14rem] flex-1">
-            <dt>Form note</dt>
-            <dd className="!text-xs !font-normal !text-muted-foreground"
-              title={`Every column of the paper form is shown, including those the system cannot fill — a blank cell on a DOH form is meaningful. Columns marked ${NO_SOURCE} have no source: preventive care records store the visit date only, not the individual services performed at it.`}>
-              Every form column is shown; a blank cell is meaningful. Columns marked <span className="font-semibold">{NO_SOURCE}</span> have no source in the system.
-            </dd>
-          </div>
-        </dl>
+        <div className="flex flex-wrap gap-x-10 gap-y-4 px-5 pb-5">
+          <VisitRing label="1st visit" done={visit1Done} of={visible.length} />
+          <VisitRing label="2nd visit" done={visit2Done} of={visible.length} />
+        </div>
         {(visible.length === 0 && latestConsult) || rawError || hiddenCount > 0 || TCL_UNVERIFIED > 0 ? (
           <div className="space-y-1 border-t border-[#dfe5f0] px-5 py-2.5 text-xs text-muted-foreground">
             {visible.length === 0 && latestConsult && (
