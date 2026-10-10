@@ -1964,7 +1964,7 @@ export const DentalChart = () => {
           </div>
         </div>
         {(saveError || basicInfoExpanded || (showStickyYearBar && years.length > 0)) && (
-          <div className="space-y-4 px-5 py-4">
+          <div className="flex flex-col gap-4 px-5 py-4">
             {saveError && <p className="text-sm text-destructive">{saveError}</p>}
             {basicInfoExpanded && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3 text-sm">
@@ -1998,8 +1998,9 @@ export const DentalChart = () => {
             </div>
             )}
             {showStickyYearBar && years.length > 0 && (
-              <div className="overflow-x-auto">
-              <div className="flex min-w-max items-center gap-0">
+              <div className="order-first -mx-5 -mt-4 overflow-x-auto border-b border-border bg-[#F5F8FF] px-5 py-2.5">
+              <div className="flex min-w-max items-center gap-2">
+              <span className="mr-1 text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted-foreground">School year</span>
               {years.map((y, idx) => {
                 // BUG-12: the year's DMFT comes from the latest charting that
                 // HAS records, not from whichever charting is newest. An empty
@@ -2020,24 +2021,18 @@ export const DentalChart = () => {
                 // viewed, distinct from the blue selected-tab styling above.
                 const isCurrentYear = y.iptr.school_year === schoolYearLabel();
                 return (
-                  <div key={y.iptr._id} className={`relative mr-2 flex flex-shrink-0 items-stretch rounded-xl border ${isActive ? 'border-primary bg-primary-surface text-primary' : 'border-border text-muted-foreground hover:text-foreground hover:bg-gray-50'}`}>
-                    <button type="button" onClick={() => { setSelectedYear(idx); setSelectedChartId(null); setExplicitVisit(null); }} className={`py-2 pl-4 text-left text-sm font-medium transition-all ${canEdit ? 'pr-9' : 'pr-4'}`}>
-                      {isCurrentYear ? (
-                        <span className="inline-block rounded-full bg-emerald-600 px-2 py-0.5 text-white">{y.iptr.school_year}</span>
-                      ) : (
-                        <div>{y.iptr.school_year}</div>
-                      )}
-                      {activeTab === 'chart' && (
-                        <div style={{ fontSize: '12px', marginTop: '2px' }} className={isActive ? 'text-primary' : 'text-muted-foreground'} >{yrDmftLabel}</div>
-                      )}
-                      <div style={{ fontSize: '12px', marginTop: '2px' }} className={isActive ? 'text-primary' : 'text-muted-foreground'}>
-                        {formatDateStamp(examinedDate(y.oralCondition, y.dentalChart, y.toothRecords))}
-                      </div>
+                  <div key={y.iptr._id} className={`relative flex flex-shrink-0 items-center rounded-full border ${isActive ? 'border-primary bg-primary text-white shadow-sm' : 'border-border bg-card text-muted-foreground hover:text-foreground'}`}>
+                    <button type="button" onClick={() => { setSelectedYear(idx); setSelectedChartId(null); setExplicitVisit(null); }} className={`flex items-center gap-2 py-1.5 pl-3.5 text-left text-[13px] font-bold transition-all ${canEdit ? 'pr-8' : 'pr-3.5'}`}>
+                      {isCurrentYear && <span className={`h-2 w-2 rounded-full ${isActive ? 'bg-emerald-300' : 'bg-emerald-600'}`} title="Current school year" />}
+                      <span>{y.iptr.school_year}</span>
+                      <span className={`text-[11px] font-medium ${isActive ? 'text-white/80' : 'text-muted-foreground'}`}>
+                        {activeTab === 'chart' ? `${yrDmftLabel} · ` : ''}{formatDateStamp(examinedDate(y.oralCondition, y.dentalChart, y.toothRecords))}
+                      </span>
                     </button>
                     {canEdit && (
                       <button type="button" onClick={(e) => openYearMenu(e, idx)}
                         title="Record options" aria-label={`Options for ${y.iptr.school_year}`} aria-expanded={yearMenuOpen && yearMenuIdx === idx}
-                        className="absolute right-1.5 top-2 grid h-6 w-6 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-card hover:text-foreground">
+                        className={`absolute right-1 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full transition-colors ${isActive ? 'text-white/80 hover:bg-white/15 hover:text-white' : 'text-muted-foreground hover:bg-gray-100 hover:text-foreground'}`}>
                         <MoreVertical className="h-3.5 w-3.5" />
                       </button>
                     )}
@@ -2128,53 +2123,35 @@ export const DentalChart = () => {
         // Navy "Consent" title bar like the Dental Chart panels, applied in
         // full (user pick "D", 2026-09-25 — no separate coloured icon block;
         // the shield moves into a status pill next to the text).
-        <div className="overflow-hidden rounded-xl border border-slate-300 bg-card shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
-        <div className="bg-primary px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-white">Consent</div>
-        <div className="flex items-center gap-3 px-4 py-3 min-w-0">
-          <span className={`inline-flex flex-shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${consentComplete ? 'border-[#86EFAC] bg-[#F0FDF4] text-[#15803D]' : 'border-[#FCD34D] bg-[#FFFBEB] text-[#B45309]'}`}>
-            {consentComplete ? <ShieldCheck className="h-3.5 w-3.5" /> : <ShieldAlert className="h-3.5 w-3.5" />}
-            {consentComplete ? 'Obtained' : 'Pending'}
+        <div className={`flex items-center gap-3 overflow-hidden rounded-xl border bg-card py-3 pl-4 pr-3 shadow-[0_8px_24px_rgba(15,23,42,0.08)] sm:gap-4 ${consentComplete ? 'border-[#86EFAC]' : 'border-[#FCD34D]'}`}>
+          <span className={`grid h-10 w-10 flex-shrink-0 place-items-center rounded-full ${consentComplete ? 'bg-[#DCFCE7] text-[#15803D]' : 'bg-[#FEF3C7] text-[#B45309]'}`}>
+            {consentComplete ? <ShieldCheck className="h-5 w-5" /> : <ShieldAlert className="h-5 w-5" />}
           </span>
-          <div className="flex-1 flex items-center justify-between gap-3 min-w-0">
-            <div className="min-w-0 flex flex-col justify-center gap-0.5">
-              <div className="text-[13.5px] font-bold leading-tight text-foreground">
-                {consentComplete
-                  ? `Physical copy of consent obtained for ${yearIptr.school_year}`
-                  : `Consent pending for ${yearIptr.school_year}`}
-              </div>
-              <div className="flex items-center gap-2 leading-tight">
-                {/* Same plain "Grade 6-Rose" text as the patient card header,
-                    all in the grade's colour-coding colour, no pill (user, 2026-09-24). */}
-                {yearGrade ? (
-                  <span className="whitespace-nowrap text-xs font-normal" style={{ color: getGradeColor(yearGrade).solid }}>
-                    {yearGrade}{yearSection ? `-${yearSection}` : ''}
-                  </span>
-                ) : (
-                  <span className="text-[10.5px] text-muted-foreground">Grade/section not recorded for this year</span>
-                )}
-              </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted-foreground">Guardian consent</div>
+            <div className="truncate text-[14px] font-bold leading-tight text-foreground">
+              {consentComplete ? `Physical copy obtained for ${yearIptr.school_year}` : `Not yet obtained for ${yearIptr.school_year}`}
             </div>
-            {/* ⚠ SHOWN IN BOTH STATES, unlike hers. Her banner hides this once
-                consent is complete, which works on her branch because she treats
-                the tick as final. Ours can be reverted — and the Consent TAB that
-                offered that is gone as of this sprint, so if the box vanished
-                when ticked, a mis-tick would be unfixable outside the database.
-                Both directions open the confirmation. */}
-            <button
-              type="button"
-              onClick={() => { if (canEdit) setConfirmConsent({ schoolYear: yearIptr.school_year, revert: consentComplete }); }}
-              disabled={!canEdit}
-              className={`flex items-center gap-2 pl-1.5 pr-2 py-1 rounded-full flex-shrink-0 disabled:opacity-60 disabled:cursor-not-allowed ${canEdit ? 'cursor-pointer' : 'cursor-default'} ${consentComplete ? 'bg-[#F0FDF4]' : 'bg-[#F1F5F9]'}`}
-            >
-              <span className={`w-8 h-[18px] rounded-full relative inline-block ${consentComplete ? 'bg-[#15803D]' : 'bg-[#E2E8F0]'}`}>
-                <span className={`absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.15)] ${consentComplete ? 'right-0.5' : 'left-0.5'}`} />
-              </span>
-              <span className={`text-[11px] font-semibold ${consentComplete ? 'text-[#15803D]' : 'text-[#475569]'}`}>
-                {consentComplete ? 'Obtained' : 'Mark obtained'}
-              </span>
-            </button>
+            {yearGrade ? (
+              <div className="whitespace-nowrap text-xs" style={{ color: getGradeColor(yearGrade).solid }}>
+                {yearGrade}{yearSection ? `-${yearSection}` : ''}
+              </div>
+            ) : (
+              <div className="text-[10.5px] text-muted-foreground">Grade/section not recorded for this year</div>
+            )}
           </div>
-        </div>
+          {/* Shown in both states: a mis-tick must stay revertible. Both directions open the confirmation. */}
+          <button
+            type="button"
+            onClick={() => { if (canEdit) setConfirmConsent({ schoolYear: yearIptr.school_year, revert: consentComplete }); }}
+            disabled={!canEdit}
+            className={`flex flex-shrink-0 items-center gap-2 rounded-full py-1.5 pl-2 pr-3 text-[12px] font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${canEdit ? 'cursor-pointer' : 'cursor-default'} ${consentComplete ? 'bg-[#F0FDF4] text-[#15803D]' : 'bg-[#F1F5F9] text-[#475569] hover:bg-[#E8EDF4]'}`}
+          >
+            <span className={`relative inline-block h-[18px] w-8 rounded-full ${consentComplete ? 'bg-[#15803D]' : 'bg-[#CBD5E1]'}`}>
+              <span className={`absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.15)] ${consentComplete ? 'right-0.5' : 'left-0.5'}`} />
+            </span>
+            {consentComplete ? 'Obtained' : 'Mark obtained'}
+          </button>
         </div>
       )}
 
