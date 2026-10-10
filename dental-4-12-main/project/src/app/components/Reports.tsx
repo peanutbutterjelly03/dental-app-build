@@ -1005,22 +1005,12 @@ export const Reports = () => {
                 <thead>
                   <tr>
                     <th colSpan={1 + cols.length*2 + sumCols.length*2 + 2}
-                      className="text-center py-2 px-3 bg-[#E3ECFB] border-b border-border text-[11px] font-bold text-[#273A78] uppercase tracking-wide">
+                      className="text-center py-2 px-3 bg-[#CFDDF6] border-b border-border text-[11px] font-bold text-[#273A78] uppercase tracking-wide">
                       {/* Pinned to the visible width (100cqw = this scroller) so the title stays centred on screen
                           instead of in the middle of a table several screens wide; in the PDF capture the scroller
                           is the full table, so it centres over the whole table there. */}
                       <div className="sticky left-0" style={{ width: '100cqw' }}>
-                        DENTAL SECTION — CONSOLIDATED ORAL HEALTH STATUS AND SERVICE REPORT
-                      </div>
-                    </th>
-                  </tr>
-                  <tr>
-                    <th colSpan={1 + cols.length*2 + sumCols.length*2 + 2}
-                      className="text-center py-1 px-3 bg-gray-50 border-b border-border text-[10px] text-muted-foreground">
-                      <div className="sticky left-0" style={{ width: '100cqw' }}>
-                        SCHOOL: {reportSchool ? getSchoolShortName(reportSchool) : 'All Schools'} &nbsp;·&nbsp;
-                        PERIOD: {dohPeriodLabel.toUpperCase()} &nbsp;·&nbsp;
-                        GRADES: {bandLabel}
+                        DENTAL SECTION: CONSOLIDATED ORAL HEALTH STATUS AND SERVICE REPORT
                       </div>
                     </th>
                   </tr>
