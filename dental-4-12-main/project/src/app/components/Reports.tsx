@@ -1159,7 +1159,6 @@ export const Reports = () => {
                     onPrint={() => window.print()} onPdf={handleInternalPdf} onExcel={() => { void handleInternalExcel(); }} />
                 </div>
               } />
-            {internalSection !== 'conditions' && (
             <div className="flex flex-wrap items-center gap-x-4 gap-y-5 pt-6">
                   <>
                     <GroupBox title="Time period" icon={Clock} className="w-full lg:w-[400px]">
@@ -1192,6 +1191,10 @@ export const Reports = () => {
                     </GroupBox>
                   </>
             </div>
+            {internalSection === 'conditions' && (
+              <p className="mt-4 text-[11.5px] text-muted-foreground">
+                Time period and Dates are not connected to the condition counts yet. The counts below are not filtered by date.
+              </p>
             )}
             {internalSection !== 'admin' && activeStudentFilters > 0 && (
               <div className="mt-4 flex flex-wrap items-center gap-2">
