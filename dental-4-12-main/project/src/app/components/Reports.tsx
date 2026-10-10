@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Clock, FileBarChart, FileSpreadsheet, FileText, AlertTriangle, AlertCircle, CheckCircle, Users, Calendar, CalendarDays, CalendarRange, GraduationCap, UserRound, VenusAndMars, SlidersHorizontal, Stethoscope, Activity, LayoutDashboard, X } from 'lucide-react';
-import { ExportMenu, PeriodTiles, PeriodSwitch, fieldInputClass, ActionButton, PanelShell, PanelRow, ActionGroup, GreyButton, BOX_W, UnderlineTabs, GroupBox, Underlined, FiltersButton, FilterChip, type TileOption } from './ReportControls';
+import { ExportMenu, PeriodTiles, PeriodSwitch, fieldInputClass, PanelShell, PanelRow, ActionGroup, GreyButton, BOX_W, UnderlineTabs, GroupBox, Underlined, FiltersButton, FilterChip, type TileOption } from './ReportControls';
 import { RangePicker } from './RangePicker';
 import { buildXlsx, buildSheetsXlsx } from '../utils/exportXlsx';
 import { downloadBlob } from '../utils/exportCsv';
@@ -851,9 +851,9 @@ export const Reports = () => {
                 <GreyButton icon={SlidersHorizontal} expanded={showDohPicker} onClick={() => setShowDohPicker((v) => !v)}>
                   {showDohPicker ? 'Done' : `Rows and grades: ${dohHiddenCount ? `${dohHiddenCount} hidden` : 'all shown'}`}
                 </GreyButton>
-                <ActionButton kind="excel" caption="For the City Health Office" onClick={handleDownloadExcel} busy={building && preview.kind === 'excel'} />
-                <ActionButton kind="pdf" caption="To email or keep" onClick={handleDownloadPdf} busy={building && preview.kind === 'pdf'} />
-                <ActionButton kind="print" caption="Send to the printer" onClick={() => window.print()} />
+                {/* Print / PDF (preview first) / Excel — same menu as the other report tabs. */}
+                <ExportMenu busy={building} onPrint={() => window.print()} onPdf={handleDownloadPdf} onExcel={handleDownloadExcel}
+                  excelDisabledReason={dohLoading ? 'Loading' : undefined} pdfDisabledReason={dohLoading ? 'Loading' : undefined} />
               </ActionGroup>
             </PanelRow>
             {/* Sprint 110. Appears only after a real self-refresh — see
