@@ -101,6 +101,12 @@ export const rareConditionCodes = [
 ];
 export const conditionCodes = [...commonConditionCodes, ...rareConditionCodes];
 
+// The PALETTE's own split (user, 2026-10-11): RF/rf (Root Fragment) sits on the main row
+// next to X/x. This changes only which buttons show where; `conditionCodes` above, and the
+// order everything else reads it in, is untouched.
+export const paletteConditionCodes = [...commonConditionCodes, ...rareConditionCodes.filter((c) => c.code === 'RF')];
+export const paletteMoreConditionCodes = rareConditionCodes.filter((c) => c.code !== 'RF');
+
 // Treatment code vocabulary moved to shared/treatmentCodes.ts (user,
 // 2026-09-27) so the server can import the exact same list for
 // /stats/treatment-categories, rather than a second hardcoded copy drifting

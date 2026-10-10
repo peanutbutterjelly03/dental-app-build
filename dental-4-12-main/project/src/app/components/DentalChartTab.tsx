@@ -17,8 +17,8 @@ import {
   lowerTemporary,
   temporaryTeeth,
   conditionColors,
-  commonConditionCodes,
-  rareConditionCodes,
+  paletteConditionCodes,
+  paletteMoreConditionCodes,
   conditionCodes,
   treatmentCodes,
   perToothTreatmentCodes,
@@ -669,9 +669,11 @@ export function DentalChartTab({
           {editingChart && codesOpen && selectedTeeth.size > 0 && (
             <div ref={popRef} role="dialog" aria-label="Codes for the selected teeth"
               style={narrow ? undefined : { left: popPos?.left ?? 0, top: popPos?.top ?? 0, visibility: popPos ? 'visible' : 'hidden' }}
-              className={`z-50 rounded-xl border border-border bg-card p-3 shadow-[0_12px_32px_rgba(15,23,42,0.22)] ${narrow
-                ? 'fixed inset-x-3 bottom-3 max-h-[60vh] overflow-y-auto'
-                : 'absolute w-max max-w-[min(360px,calc(100vw-2rem))]'}`}>
+              // Half see-through on a laptop or tablet (user pick 4, 2026-10-11) so the teeth
+              // behind stay readable; a phone's bottom sheet stays solid.
+              className={`z-50 rounded-xl border border-border p-3 shadow-[0_12px_32px_rgba(15,23,42,0.22)] ${narrow
+                ? 'fixed inset-x-3 bottom-3 max-h-[60vh] overflow-y-auto bg-card'
+                : 'absolute w-max max-w-[min(440px,calc(100vw-2rem))] bg-white/50'}`}>
               <div className="mb-2 flex items-center gap-2 text-[13px]">
                 <b className="text-foreground">{selectedTeeth.size} {selectedTeeth.size === 1 ? 'tooth' : 'teeth'} selected</b>
                 <span className="text-muted-foreground">{markType === 'condition' ? 'Tooth Condition Codes' : 'Tooth Treatment Codes'}</span>
@@ -679,23 +681,24 @@ export function DentalChartTab({
               </div>
               {markType === 'condition' ? (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  {commonConditionCodes.map((c) => (
+                  {paletteConditionCodes.map((c) => (
+                    // Each button carries the colour the tooth will turn (the chart's own colours).
                     <button key={c.code} type="button" title={c.label} onClick={() => applyCode('condition', c.code)}
-                      className={`${paletteBtn} ${allHave('condition', c.code) ? 'bg-teal-600 text-white ring-2 ring-teal-300 border-teal-600' : 'bg-card border-border text-foreground hover:border-teal-400'}`}>
+                      className={`${paletteBtn} text-foreground ${conditionColors[c.perm] ?? 'bg-card border-border'} ${allHave('condition', c.code) ? 'ring-2 ring-teal-600 ring-offset-1 font-extrabold' : 'hover:brightness-95'}`}>
                       {c.perm === '✓' ? <span className="text-2xl leading-none">✓</span> : conditionCodeText(c)}
                     </button>
                   ))}
                   <button type="button" onClick={() => setRareOpen((v) => !v)} className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 hover:underline">
                     {rareOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                    More ({rareConditionCodes.length})
+                    More ({paletteMoreConditionCodes.length})
                   </button>
                   <button type="button" onClick={clearSelection} title="Clear marks on selected teeth" aria-label="Clear marks on selected teeth"
-                    className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border text-red-600 hover:bg-red-50 hover:border-red-300"><Trash2 className="h-4 w-4" /></button>
+                    className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-white/80 text-red-600 hover:bg-red-50 hover:border-red-300"><Trash2 className="h-4 w-4" /></button>
                   {rareOpen && (
                     <div className="mt-1 flex basis-full flex-wrap gap-1.5">
-                      {rareConditionCodes.map((c) => (
+                      {paletteMoreConditionCodes.map((c) => (
                         <button key={c.code} type="button" title={c.label} onClick={() => applyCode('condition', c.code)}
-                          className={`${paletteBtn} ${allHave('condition', c.code) ? 'bg-teal-600 text-white ring-2 ring-teal-300 border-teal-600' : 'bg-card border-border text-foreground hover:border-teal-400'}`}>
+                          className={`${paletteBtn} text-foreground ${conditionColors[c.perm] ?? 'bg-card border-border'} ${allHave('condition', c.code) ? 'ring-2 ring-teal-600 ring-offset-1 font-extrabold' : 'hover:brightness-95'}`}>
                           {conditionCodeText(c)}
                         </button>
                       ))}
