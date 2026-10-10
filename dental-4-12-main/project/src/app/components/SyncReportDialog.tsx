@@ -4,8 +4,8 @@ import { Modal } from './Modal';
 import { subscribeSyncReport, subscribeReportRequest } from '../offline/syncReport';
 import { requestConflictReview, isConflictReviewOpen } from '../offline/queueEvents';
 import { loadReport, type LoadedReport, type ReportScope } from '../offline/syncHistory';
-import { pickVersion } from '../offline/restore';
-import type { ReportRow, ReportStudent, StudentStatus, Version } from '../offline/syncReportModel';
+import { pickVersion, restoreRow } from '../offline/restore';
+import { isRestorable, type ReportRow, type StudentStatus, type Version } from '../offline/syncReportModel';
 import { buildDateGroups } from '../offline/syncReportVisual';
 import { StudentDay } from './SyncReportDay';
 import { useOfflineQueue } from '../hooks/useOfflineQueue';
@@ -116,11 +116,12 @@ export const SyncReportDialog = () => {
   };
 
   const pick = (row: ReportRow, version: Version) => run(async () => { await pickVersion(row, version); return 1; });
+  const restoreOne = (row: ReportRow) => run(async () => { await restoreRow(row); return 1; });
   const restoreRows = (rows: ReportRow[]) =>
     run(async () => {
       let n = 0;
       for (const r of rows) {
-        if (r.canPick && r.current.key !== 'orig') { await pickVersion(r, r.versions[0]); n++; }
+        if (isRestorable(r)) { await restoreRow(r); n++; }
       }
       return n;
     });
@@ -169,7 +170,7 @@ export const SyncReportDialog = () => {
         {data !== null && visible.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">{students.length === 0 ? 'Nothing was synced from this device yet.' : 'No students match these filters.'}</p>}
         {dateGroups.map((g) => {
           const dateRows = g.items.flatMap((i) => i.day.rows);
-          const restorableCount = dateRows.filter((r) => r.canPick && r.current.key !== 'orig').length;
+          const restorableCount = dateRows.filter(isRestorable).length;
           const changes = dateRows.length;
           return (
             <section key={g.key}>
@@ -179,7 +180,7 @@ export const SyncReportDialog = () => {
                 <span className="flex-1" />
                 {restorableCount > 0 && (
                   <button type="button" disabled={busy || needsConnection} onClick={() => setConfirm({ kind: 'date', id: g.key })} className="rounded-lg border border-border bg-card px-3 py-1 text-sm font-semibold hover:bg-muted disabled:opacity-50">
-                    Restore this day
+                    Restore original for this day
                   </button>
                 )}
               </div>
@@ -195,12 +196,13 @@ export const SyncReportDialog = () => {
                   const itemKey = `${student.studentId}|${day.key}`;
                   return (
                     <StudentDay key={itemKey} student={student} day={day} busy={busy || needsConnection}
-                      canRestore={day.rows.filter((r) => r.canPick && r.current.key !== 'orig').length}
+                      canRestore={day.rows.filter(isRestorable).length}
                       confirming={confirm?.kind === 'item' && confirm.id === itemKey}
                       onAskRestore={() => setConfirm({ kind: 'item', id: itemKey })}
                       onCancelRestore={() => setConfirm(null)}
                       onRestore={() => void restoreRows(day.rows)}
                       onPick={pick}
+                      onRestoreRow={(r) => void restoreOne(r)}
                       onReview={() => { close(); requestConflictReview(); }} />
                   );
                 })}

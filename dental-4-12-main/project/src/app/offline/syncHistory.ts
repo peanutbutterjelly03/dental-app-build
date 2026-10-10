@@ -8,7 +8,7 @@ import { addHistoryRows, getHistoryForOwner, purgeHistoryBefore, type QueuedWrit
 import { loadUserCache } from './authCache';
 import { findCachedRecord } from './readCache';
 import { describeWrite } from './describeWrite';
-import { buildReport, type EntryStatus, type HistoryEntry, type HistoryFieldChange, type ReportStudent, type WriteEntry } from './syncReportModel';
+import { buildReport, RECORD_FIELD, type EntryStatus, type HistoryEntry, type HistoryFieldChange, type ReportStudent, type WriteEntry } from './syncReportModel';
 import { getQueuedStudentIds } from '../utils/queueStorage';
 import { getTreatmentQueueStudentIds } from '../utils/treatmentQueueStorage';
 
@@ -120,7 +120,7 @@ export async function resolveStudent(
  *  so the report can say which tooth was cleared instead of just "archived". */
 function archivedFields(write: QueuedWrite): { field: string; before: unknown; after: unknown }[] {
   const snap = write.originalSnapshot ?? {};
-  return ['tooth_number', 'condition', 'treatment_code']
+  return ['tooth_number', 'condition', 'treatment_code', 'chart_id', 'visit_number']
     .filter((k) => snap[k] !== undefined && snap[k] !== null && snap[k] !== '')
     .map((k) => ({ field: k, before: snap[k], after: undefined }));
 }
@@ -204,7 +204,7 @@ export async function loadReport(scope: ReportScope): Promise<LoadedReport> {
   const inScope = scope.kind === 'run' ? all.filter((e) => (e.kind === 'restore' ? true : scope.runIds.includes(e.runId))) : all;
   // A pick belongs to a field of the rows in scope; keep only those that match one.
   const writes = inScope.filter((e): e is WriteEntry => e.kind === 'write');
-  const wanted = new Set(writes.flatMap((w) => w.fields.map((f) => `${w.resource}|${w.recordId}|${f.field}`)));
+  const wanted = new Set(writes.flatMap((w) => [`${w.resource}|${w.recordId}|${RECORD_FIELD}`, ...w.fields.map((f) => `${w.resource}|${w.recordId}|${f.field}`)]));
   const picks = inScope.filter((e) => e.kind === 'restore' && wanted.has(`${e.resource}|${e.recordId}|${e.field}`));
 
   let others: { studentId: string; name: string; sub?: string }[] = [];

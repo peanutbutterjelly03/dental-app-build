@@ -6,6 +6,9 @@
 // automatically and a person may pick another to keep.
 import { formatValue, humanizeField } from './describeWrite';
 
+/** The `field` a restore entry carries when it put a whole added or cleared record back. */
+export const RECORD_FIELD = '*';
+
 export type EntryStatus = 'synced' | 'conflict' | 'failed' | 'auth';
 
 export interface HistoryFieldChange {
@@ -89,7 +92,17 @@ export interface ReportRow {
   picked: boolean;
   /** Can a version be chosen (an update that synced). */
   canPick: boolean;
+  /** How this change can be put back to what it was: an edit sends the original value again
+   *  ('pick'), an added record is archived ('undo-create'), a cleared tooth is added again
+   *  ('recreate'). Absent when it cannot be put back from here. */
+  restore?: 'pick' | 'undo-create' | 'recreate';
+  /** An added or cleared record that has already been put back. */
+  restored?: boolean;
 }
+
+/** Whether "restore the original" would still change something for this row. */
+export const isRestorable = (r: ReportRow): boolean =>
+  r.restore === 'pick' ? r.canPick && r.current.key !== 'orig' : !!r.restore && !r.restored;
 
 export type StudentStatus = 'none' | 'synced' | 'attention' | 'restored' | 'partial';
 
@@ -104,8 +117,8 @@ export interface ReportStudent {
 function studentStatus(rows: ReportRow[]): StudentStatus {
   if (rows.length === 0) return 'none';
   if (rows.some((r) => r.status !== 'synced')) return 'attention';
-  const pickable = rows.filter((r) => r.canPick);
-  const back = pickable.filter((r) => r.current.key === 'orig').length;
+  const pickable = rows.filter((r) => r.restore);
+  const back = pickable.filter((r) => r.restored || (r.restore === 'pick' && r.current.key === 'orig')).length;
   if (pickable.length > 0 && back === pickable.length && pickable.length === rows.length) return 'restored';
   if (back > 0) return 'partial';
   return 'synced';
@@ -180,6 +193,7 @@ export function buildReport(entries: HistoryEntry[], others: { studentId: string
             picked: current.key !== versions[versions.length - 1].key,
             // Restoring needs the original value; a record never cached has none.
             canPick: first.f.before !== undefined,
+            restore: first.f.before !== undefined ? 'pick' : undefined,
           });
         }
       } else {
@@ -200,10 +214,17 @@ export function buildReport(entries: HistoryEntry[], others: { studentId: string
           const more = w.fields.length - shown.length;
           const summary = w.op === 'archive' ? 'Archived' : shown.join(', ') + (more > 0 ? ` +${more} more` : '');
           const v: Version = { key: String(w.id), label: 'Latest', value: summary || w.label, raw: undefined, at: w.queuedAt };
+          const had = (f: string) => w.fields.some((x) => x.field === f && x.before !== undefined);
+          const restore: ReportRow['restore'] =
+            w.status !== 'synced' || !w.recordId ? undefined
+            : w.op === 'create' ? 'undo-create'
+            : w.resource === 'tooth-records' && had('tooth_number') && had('chart_id') ? 'recreate'
+            : undefined;
+          const restored = !!restore && restores.some((r) => r.resource === w.resource && r.recordId === w.recordId && r.field === RECORD_FIELD);
           rows.push({
             key: String(w.id), field: w.label, subject: w.subject, module: w.module, op: w.op, status: w.status, reason: w.reason,
             resource: w.resource, recordId: w.recordId, before: w.op === 'create' ? '(none)' : '(active)', current: v, versions: [v],
-            savedAt: w.queuedAt, picked: false, canPick: false, detail: w.fields,
+            savedAt: w.queuedAt, picked: false, canPick: false, detail: w.fields, restore, restored,
           });
         }
       }

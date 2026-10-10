@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildReport, type HistoryEntry, type WriteEntry } from './syncReportModel';
+import { buildReport, isRestorable, RECORD_FIELD, type HistoryEntry, type WriteEntry } from './syncReportModel';
 
 let id = 0;
 const write = (over: Partial<WriteEntry>): WriteEntry => ({
@@ -70,6 +70,34 @@ describe('changes whose student is not known', () => {
     expect(list).toHaveLength(1);
     expect(list[0].name).toBe('Unknown student');
     expect(list[0].rows).toHaveLength(3);
+  });
+});
+
+describe('restoring added and cleared records', () => {
+  const tooth = (extra: Partial<WriteEntry>) => write({ resource: 'tooth-records', recordId: 't1', label: 'Tooth record added', subject: 'Tooth record #22', ...extra });
+
+  it('an added record can be undone (archived), and is no longer offered once it has been', () => {
+    const added = tooth({ op: 'create', fields: [{ field: 'tooth_number', before: undefined, after: 22 }] });
+    const [s] = buildReport([added]);
+    expect(s.rows[0].restore).toBe('undo-create');
+    expect(isRestorable(s.rows[0])).toBe(true);
+    const undone: HistoryEntry = { kind: 'restore', id: ++id, runId: 'r1', at: 9000, resource: 'tooth-records', recordId: 't1', field: RECORD_FIELD, picked: 'undone', value: null };
+    const [after] = buildReport([added, undone]);
+    expect(after.rows[0].restored).toBe(true);
+    expect(isRestorable(after.rows[0])).toBe(false);
+    expect(after.status).toBe('restored');
+  });
+
+  it('a cleared tooth can be added again when its chart and number are known', () => {
+    const cleared = tooth({ op: 'archive', label: 'Tooth record archived', fields: [{ field: 'tooth_number', before: 22, after: undefined }, { field: 'chart_id', before: 'c1', after: undefined }, { field: 'condition', before: 'D', after: undefined }] });
+    expect(buildReport([cleared])[0].rows[0].restore).toBe('recreate');
+    const noChart = tooth({ op: 'archive', label: 'Tooth record archived', fields: [{ field: 'tooth_number', before: 22, after: undefined }] });
+    expect(buildReport([noChart])[0].rows[0].restore).toBeUndefined();
+  });
+
+  it('a change that did not sync is never offered for restore', () => {
+    const held = tooth({ op: 'create', status: 'failed', reason: 'x', fields: [] });
+    expect(buildReport([held])[0].rows[0].restore).toBeUndefined();
   });
 });
 

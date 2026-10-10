@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { retryQueue } from '../offline/queueProcessor';
-import type { ReportRow, ReportStudent, Version } from '../offline/syncReportModel';
+import { isRestorable, type ReportRow, type ReportStudent, type Version } from '../offline/syncReportModel';
 import type { DayView, FlagSource, ToothChange } from '../offline/syncReportVisual';
 
 // The sync history's building blocks: StudentDay (one student on one date, Original and After
@@ -78,7 +78,7 @@ const SECTION = 'mb-1 text-[11px] font-bold text-muted-foreground';
  *  edited more than once offline can have an earlier version kept. Anything that did NOT
  *  sync is always shown in full, never reduced to a picture. */
 export function StudentDay({
-  student, day, busy, canRestore, confirming, onAskRestore, onCancelRestore, onRestore, onPick, onReview,
+  student, day, busy, canRestore, confirming, onAskRestore, onCancelRestore, onRestore, onPick, onRestoreRow, onReview,
 }: {
   student: ReportStudent;
   day: DayView;
@@ -90,9 +90,15 @@ export function StudentDay({
   onCancelRestore: () => void;
   onRestore: () => void;
   onPick: (row: ReportRow, version: Version) => void;
+  /** Put one added or cleared record back (an edit goes through `onPick`). */
+  onRestoreRow: (row: ReportRow) => void;
   onReview: () => void;
 }) {
   const [details, setDetails] = useState(false);
+  // Fields edited more than once while offline: the latest was synced, any other version can be kept.
+  const editedRows = day.rows.filter((r) => r.status === 'synced' && r.versions.length > 2);
+  const restorableRows = day.rows.filter((r) => r.restore);
+  const allBack = restorableRows.length > 0 && restorableRows.every((r) => !isRestorable(r));
   const n = day.rows.length;
   const hasPicture = day.teeth.length + day.flags.length + day.measures.length + day.texts.length > 0;
   const flagGroups = (['med', 'diet', 'oral', 'svc'] as const)
@@ -129,9 +135,10 @@ export function StudentDay({
         <button type="button" aria-expanded={details} onClick={() => setDetails((v) => !v)} className="rounded-lg border border-border bg-card px-2.5 py-1 text-xs font-semibold hover:bg-muted">
           {details ? 'Hide details' : 'Details'}
         </button>
+        {allBack && <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-bold text-violet-800">Restored to original</span>}
         {canRestore > 0 && (
-          <button type="button" disabled={busy} onClick={onAskRestore} className="rounded-lg border border-border bg-card px-2.5 py-1 text-xs font-semibold hover:bg-muted disabled:opacity-50">
-            Restore
+          <button type="button" disabled={busy} onClick={onAskRestore} className="rounded-lg border border-border bg-card px-2.5 py-1 text-xs font-semibold hover:bg-muted disabled:opacity-50" title="Puts what this sync changed back to how it was before. Each one is sent as a new, audited change.">
+            Restore original
           </button>
         )}
       </div>
@@ -146,7 +153,7 @@ export function StudentDay({
 
       {day.problems.length > 0 && (
         <div className="mb-2 flex flex-col gap-1">
-          {day.problems.map((r) => <Row key={r.key} row={r} busy={busy} onPick={onPick} onReview={onReview} />)}
+          {day.problems.map((r) => <Row key={r.key} row={r} busy={busy} onPick={onPick} onRestoreRow={onRestoreRow} onReview={onReview} />)}
         </div>
       )}
 
@@ -196,6 +203,16 @@ export function StudentDay({
           </div>
         </div>
       )}
+      {editedRows.length > 0 && (
+        <div className="mt-2.5 flex flex-col gap-2">
+          {editedRows.map((r) => (
+            <div key={r.key} className="rounded-lg border border-border bg-muted/50 px-3 py-2">
+              <p className="text-xs text-muted-foreground"><b className="text-foreground">{r.field} was edited {r.versions.length - 1} times offline.</b> The latest value was synced automatically. Pick another version to keep it instead.</p>
+              <Versions row={r} busy={busy} onPick={onPick} />
+            </div>
+          ))}
+        </div>
+      )}
       <div className="mt-1.5 text-xs text-muted-foreground">Saved offline {time(day.from)}{day.to - day.from > 60_000 ? ` to ${time(day.to)}` : ''}</div>
 
       {details && (
@@ -203,14 +220,14 @@ export function StudentDay({
           <div role="row" className="hidden md:grid grid-cols-[minmax(9rem,1.2fr)_minmax(7rem,1fr)_minmax(8rem,1.1fr)_5.5rem_8rem] gap-3 px-4 py-1.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
             <span>Field</span><span>Original</span><span>After sync</span><span>Saved offline</span><span />
           </div>
-          {day.rows.map((r) => <Row key={r.key} row={r} busy={busy} onPick={onPick} onReview={onReview} />)}
+          {day.rows.map((r) => <Row key={r.key} row={r} busy={busy} onPick={onPick} onRestoreRow={onRestoreRow} onReview={onReview} />)}
         </div>
       )}
     </div>
   );
 }
 
-export const Row = ({ row, busy, onPick, onReview }: { row: ReportRow; busy: boolean; onPick: (row: ReportRow, version: Version) => void; onReview: () => void }) => {
+export const Row = ({ row, busy, onPick, onRestoreRow, onReview }: { row: ReportRow; busy: boolean; onPick: (row: ReportRow, version: Version) => void; onRestoreRow: (row: ReportRow) => void; onReview: () => void }) => {
   const failed = row.status !== 'synced';
   const edited = row.versions.length > 2;
   const original = row.versions[0];
@@ -226,6 +243,11 @@ export const Row = ({ row, busy, onPick, onReview }: { row: ReportRow; busy: boo
       </div>
       <div role="cell" className="text-xs text-muted-foreground pt-1">{time(row.savedAt)}</div>
       <div role="cell" className="flex justify-end">
+        {(row.restore === 'undo-create' || row.restore === 'recreate') && (
+          row.restored
+            ? <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-bold text-violet-800">Restored</span>
+            : <button type="button" disabled={busy} onClick={() => onRestoreRow(row)} className="rounded-lg border border-border bg-card px-2.5 py-1 text-xs font-semibold hover:bg-muted disabled:opacity-50" title={row.restore === 'undo-create' ? 'Archives this added record (nothing is deleted)' : 'Adds the cleared record back'}>Restore original</button>
+        )}
         {row.canPick && !edited && (
           row.current.key === 'orig'
             ? <button type="button" disabled={busy} onClick={() => onPick(row, latest)} className="rounded-lg border border-border bg-card px-2.5 py-1 text-xs font-semibold hover:bg-muted disabled:opacity-50">Undo restore</button>
@@ -245,21 +267,26 @@ export const Row = ({ row, busy, onPick, onReview }: { row: ReportRow; busy: boo
       {edited && !failed && (
         <div className="col-span-2 md:col-span-5 rounded-lg border border-border bg-muted/50 px-3 py-2">
           <p className="text-xs text-muted-foreground"><b className="text-foreground">Edited {row.versions.length - 1} times offline.</b> The latest value was synced automatically. Pick another version to keep it instead.</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {row.versions.map((v) => {
-              const on = v.key === row.current.key;
-              return (
-                <button key={v.key} type="button" aria-pressed={on} disabled={busy || on} onClick={() => onPick(row, v)}
-                  className={`flex min-w-[9rem] max-w-[16rem] flex-1 basis-36 flex-col gap-0.5 rounded-lg border px-3 py-2 text-left disabled:cursor-default ${on ? 'border-2 border-green-600 bg-green-50' : 'border-border bg-card hover:border-primary'}`}>
-                  <span className="text-xs font-semibold text-muted-foreground">{v.label}{v.at ? ` · ${time(v.at)}` : ''}</span>
-                  <span className="break-words text-sm font-extrabold text-foreground">{v.value}</span>
-                  <span className={`text-xs font-bold ${on ? 'text-green-700' : 'text-primary'}`}>{on ? 'Kept' : v.label === 'Latest' ? 'Synced automatically' : 'Keep this'}</span>
-                </button>
-              );
-            })}
-          </div>
+          <Versions row={row} busy={busy} onPick={onPick} />
         </div>
       )}
     </div>
   );
 };
+
+/** The versions of one field edited more than once offline, each a card to keep. */
+const Versions = ({ row, busy, onPick }: { row: ReportRow; busy: boolean; onPick: (row: ReportRow, version: Version) => void }) => (
+  <div className="mt-2 flex flex-wrap gap-2">
+    {row.versions.map((v) => {
+      const on = v.key === row.current.key;
+      return (
+        <button key={v.key} type="button" aria-pressed={on} disabled={busy || on} onClick={() => onPick(row, v)}
+          className={`flex min-w-[9rem] max-w-[16rem] flex-1 basis-36 flex-col gap-0.5 rounded-lg border px-3 py-2 text-left disabled:cursor-default ${on ? 'border-2 border-green-600 bg-green-50' : 'border-border bg-card hover:border-primary'}`}>
+          <span className="text-xs font-semibold text-muted-foreground">{v.label}{v.at ? ` · ${time(v.at)}` : ''}</span>
+          <span className="break-words text-sm font-extrabold text-foreground">{v.value}</span>
+          <span className={`text-xs font-bold ${on ? 'text-green-700' : 'text-primary'}`}>{on ? 'Kept' : v.label === 'Latest' ? 'Synced automatically' : 'Keep this'}</span>
+        </button>
+      );
+    })}
+  </div>
+);
