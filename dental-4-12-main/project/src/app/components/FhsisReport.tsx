@@ -322,10 +322,6 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
         <table className="w-full min-w-[1100px] text-xs" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
           <thead>
             <tr>
-              <th colSpan={6} className="border-r border-b border-gray-300 px-3 py-2 text-left font-bold">School: {schoolName || 'All schools'}</th>
-              <th colSpan={6} className="border-b border-gray-300 px-3 py-2 text-right font-bold">Month: {periodPrinted}</th>
-            </tr>
-            <tr>
               <th colSpan={12} className="border-b border-gray-300 bg-[#CFDDF6] px-3 py-2 text-center text-[11px] font-bold uppercase tracking-wide text-[#273A78]">
                 Section D. Oral Health Care Services
               </th>
@@ -383,13 +379,6 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
             ))}
           </tbody>
         </table>
-
-        <p className="px-3 py-2.5 text-xs text-muted-foreground">
-          Counts come from recorded preventive-care visits for the selected period. Cells marked “—” are left blank
-          rather than estimated: pregnancy status has no field in this system at all, and a facility-based sub-row is
-          blank when none of the visits counted in it were classified. Where some were, the sub-rows show real figures
-          and Remarks states how many visits are unclassified, so the two sub-rows may add up to less than the total.
-        </p>
       </div>
       <PreviewModal
         open={preview.open}
