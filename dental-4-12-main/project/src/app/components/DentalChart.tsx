@@ -82,6 +82,18 @@ const POPUP_PRIMARY = 'px-5 py-2.5 rounded-xl bg-primary text-sm font-bold text-
 
 const formatDateStamp = (dateString?: string | null) => formatDate(dateString, 'No date stamp');
 
+// The consent dialog shows the form's wording in normal capitalization. The printed
+// form (ConsentForm.tsx) keeps its ALL CAPS exactly as the paper has it; only this
+// on-screen reading copy is re-cased.
+const SMALL_WORDS = new Set(['o', 'at', 'ng', 'sa', 'na', 'ang', 'ay', 'to', 'and', 'of', 'para']);
+const consentTitleCase = (t: string) =>
+  t.toLowerCase().split(' ').map((w, i) => {
+    const m = w.match(/^(\(?)(.*)$/)!;
+    return i > 0 && SMALL_WORDS.has(m[2]) ? w : m[1] + m[2].charAt(0).toUpperCase() + m[2].slice(1);
+  }).join(' ');
+const consentSentenceCase = (t: string) =>
+  t.toLowerCase().replace(/(^|\. )([a-z])/g, (_m, p, c) => p + c.toUpperCase()).replace(/\b(kinder|grade)\b/g, (w) => w[0].toUpperCase() + w.slice(1));
+
 // A school year's date stamp IS its Oral Conditions "Date examined" (user,
 // 2026-09-25): DENTAL_CHART.date_charted, shown only while an oral condition
 // is recorded, so the chip and the field can never disagree. Replaces the
@@ -2582,17 +2594,17 @@ export const DentalChart = () => {
           </div>
           <div className="space-y-4 px-7 py-6">
             {!confirmConsent.revert && (
-              <div className="max-h-72 space-y-3 overflow-y-auto rounded-2xl border border-[#E6EAF5] bg-[#FBFCFF] p-6 text-[13px] leading-7 text-foreground">
-                <p className="text-sm font-bold">Parents/Guardian Consent Form</p>
+              <div className="max-h-72 space-y-3 overflow-y-auto rounded-2xl border border-[#E6EAF5] bg-[#FBFCFF] p-5 text-xs leading-6 text-foreground">
+                <p className="text-[13px] font-bold">Parents/Guardian Consent Form</p>
                 <p className="text-muted-foreground">
                   Ang dentista po ng ating school clinic ay magsasagawa ng serbisyong dental sa mga mag-aaral na may
                   layuning makapagbigay ng preventive at curative treatment. Ang mga serbisyo dental ay ang mga sumusunod:
                 </p>
                 <ul className="space-y-2">
                   {CONSENT_SERVICES.map((sv) => (
-                    <li key={sv.label} className="leading-6">
-                      <span className="font-semibold">{sv.label}</span>
-                      {sv.note && <span className="block text-muted-foreground">{sv.note}</span>}
+                    <li key={sv.label} className="text-[11.5px] leading-5">
+                      <span className="font-semibold">{consentTitleCase(sv.label)}</span>
+                      {sv.note && <span className="block text-muted-foreground">{consentSentenceCase(sv.note)}</span>}
                     </li>
                   ))}
                 </ul>
@@ -2604,14 +2616,12 @@ export const DentalChart = () => {
             <div className="flex items-start gap-3 rounded-2xl border border-[#E6EAF5] bg-[#F7F8FF] px-4 py-3">
               <Lock className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#243B7A]" />
               {/* ⚠ Worded to be TRUE: this tick CAN be reverted (the model hook clears `consent_given_at` on the way back), so it never says "cannot be undone". */}
-              <div className="min-w-0">
-                <p className="text-[12.5px] font-bold text-[#1E2A5E]">{confirmConsent.revert ? 'Consent date' : 'What this records'}</p>
-                <p className="text-xs text-[#1E2A5E]/80">
-                  {confirmConsent.revert
-                    ? 'The recorded consent date for this school year will be cleared.'
-                    : `This records consent for ${confirmConsent.schoolYear} only, and stamps the date. It can be reverted here, which clears that date.`}
-                </p>
-              </div>
+              <p className="min-w-0 text-xs text-[#1E2A5E]/80">
+                <span className="font-bold text-[#1E2A5E]">{confirmConsent.revert ? 'Consent date' : 'What this records'}</span>{' '}
+                {confirmConsent.revert
+                  ? 'The recorded consent date for this school year will be cleared.'
+                  : `This records consent for ${confirmConsent.schoolYear} only, and stamps the date. It can be reverted here, which clears that date.`}
+              </p>
             </div>
           </div>
           <div className="flex justify-end gap-3 border-t border-[#E6EAF5] px-7 py-5">
