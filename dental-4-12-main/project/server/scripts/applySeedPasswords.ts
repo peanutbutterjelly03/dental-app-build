@@ -3,6 +3,7 @@ import "../dnsFix.js"; // this machine's Node 24 + Atlas SRV workaround
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import { connectDB } from "../config/db.js";
+import { announceTarget } from "./announceTarget.js";
 import User from "../models/User.js";
 
 // Apply the SEED_*_PASSWORD values from .env to accounts that ALREADY EXIST.
@@ -36,6 +37,7 @@ const ACCOUNTS: { email: string; envVar: string }[] = [
 
 async function run() {
   await connectDB();
+  announceTarget("applySeedPasswords");
 
   let updated = 0;
   let missingAccount = 0;

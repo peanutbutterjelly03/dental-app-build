@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Brain, CheckCircle2, ChevronRight, ListOrdered, Loader2, Minus,
   Search, ShieldCheck, TrendingDown, TrendingUp,
 } from 'lucide-react';
 import { apiClient, ApiError } from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import { useRiskClassification, type RiskCandidate } from '../hooks/useRiskClassification';
+import { useRiskClassification, type RiskCandidate, type RiskHistoryEntry } from '../hooks/useRiskClassification';
+import { calculateAge, getAgeGroup, AGE_GROUPS } from '../utils/age';
 import { SkeletonStatGrid, SkeletonTable } from './Skeleton';
 import { Notice } from './Notice';
 import { useToast } from './Toast';
@@ -60,12 +61,6 @@ const FEATURE_LABELS: Record<string, string> = {
 export const AIAnalytics = () => {
   const { user, selectedSchool } = useAuth();
   const toast = useToast();
-  const { candidates: allCandidates, loading, error, reload } = useRiskClassification();
-  // scope to the selected school context, same as every other tab
-  const candidates = useMemo(
-    () => (selectedSchool ? allCandidates.filter((c) => c.school === selectedSchool) : allCandidates),
-    [allCandidates, selectedSchool]
-  );
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null);
@@ -88,6 +83,11 @@ export const AIAnalytics = () => {
   const [gradeFilter, setGradeFilter] = useState('all');
   const [sectionFilter, setSectionFilter] = useState('all');
   const [riskFilter, setRiskFilter] = useState('all');
+  // Sprint 106 (backlog #34): every other student list offers gender and age
+  // group; this screen had three filters where the others have five. Not an
+  // intentional difference — just where the screen stopped.
+  const [genderFilter, setGenderFilter] = useState('all');
+  const [ageGroupFilter, setAgeGroupFilter] = useState('all');
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [bulkResults, setBulkResults] = useState<Record<string, PredictionResult>>({});
   const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
@@ -126,60 +126,98 @@ export const AIAnalytics = () => {
   // Priority order for the queue: validated High first, then Medium, then
   // students with no assessment yet (ranked by DMF — highest clinical
   // uncertainty x severity), then Low. Ties break on DMF score descending.
+  // ── Sprint 145: the list is FILTERED, SORTED AND PAGED ON THE SERVER ─────
+  //
+  // ⚠ Every filter had to move together. Paging the query while any one of
+  // them stayed in the browser would have filtered only the current page —
+  // a control that appears to work and does not (CLAUDE.md).
+  //
+  // ⚠ The school context moved too: scoping by school here while paging there
+  // would have shown "page 1 of the whole roll, minus other schools", with a
+  // page count that lies.
+  const PAGE_SIZE = 50;
+  const [page, setPage] = useState(0);
+  const {
+    candidates,
+    total,
+    counts: overview,
+    gradeOptions,
+    sectionOptions,
+    loading,
+    error,
+    reload,
+  } = useRiskClassification({
+    q: searchTerm,
+    school: selectedSchool ?? undefined,
+    grade: gradeFilter,
+    section: sectionFilter,
+    risk: riskFilter,
+    gender: genderFilter,
+    ageGroup: ageGroupFilter,
+    sort: sortMode === 'name' ? 'name' : 'priority',
+    limit: PAGE_SIZE,
+    offset: page * PAGE_SIZE,
+  });
+
+  // Back to page 1 whenever the filters change — otherwise a narrowed filter
+  // can leave the user on a page that no longer exists, looking at nothing.
+  useEffect(() => {
+    setPage(0);
+  }, [searchTerm, selectedSchool, gradeFilter, sectionFilter, riskFilter, genderFilter, ageGroupFilter, sortMode]);
+
+  // ⚠ EVERY ROW EVER LOADED, kept so a pupil ticked on page 1 can still be
+  // assessed from page 3. `checkedIds` is a Set of ids that survives paging, so
+  // "Assess Selected" still means "the pupils you ticked" — but their
+  // `features` only exist on rows we have actually seen.
+  const rowCacheRef = useRef<Map<string, RiskCandidate>>(new Map());
+  useEffect(() => {
+    for (const c of candidates) rowCacheRef.current.set(c.id, c);
+  }, [candidates]);
+
   const priorityRank = (c: RiskCandidate) => {
     const latest = c.history[c.history.length - 1];
     if (!latest) return 2.5; // unassessed sits between Medium (2) and Low (3)
     return { High: 1, Medium: 2, Low: 3 }[latest.riskLevel];
   };
 
-  const gradeOptions = useMemo(
-    () => [...new Set(candidates.map((c) => c.grade))].sort(),
-    [candidates]
-  );
-  const sectionOptions = useMemo(
-    () =>
-      [...new Set(
-        candidates.filter((c) => gradeFilter === 'all' || c.grade === gradeFilter).map((c) => c.section)
-      )].sort(),
-    [candidates, gradeFilter]
-  );
 
-  const filtered = useMemo(() => {
-    const list = candidates.filter((c) => {
-      if (!c.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
-      if (gradeFilter !== 'all' && c.grade !== gradeFilter) return false;
-      if (sectionFilter !== 'all' && c.section !== sectionFilter) return false;
-      if (riskFilter !== 'all') {
-        const latest = c.history[c.history.length - 1];
-        if (riskFilter === 'Unassessed' ? !!latest : latest?.riskLevel !== riskFilter) return false;
+
+  // Already filtered, sorted and paged by the server (Sprint 145).
+  const filtered = candidates;
+
+  // `overview` now comes from the hook, computed over the whole filtered
+  // population rather than the visible page.
+
+  // May not be on the current page — fall back to the cache, so opening a
+  // pupil then paging away does not blank the panel.
+  const selectedRow: RiskCandidate | null =
+    candidates.find((c) => c.id === selectedId) ?? (selectedId ? rowCacheRef.current.get(selectedId) ?? null : null);
+
+  // ⚠ Sprint 144 — the LIST carries only the last two assessments per pupil
+  // (that is all the badge and the trend read), because `history` is the one
+  // row field that grows with TIME as well as roll size. The full history is
+  // fetched here, once per selection, so the panel below still shows every
+  // past assessment.
+  const [fullHistory, setFullHistory] = useState<RiskHistoryEntry[] | null>(null);
+  useEffect(() => {
+    if (!selectedId) { setFullHistory(null); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await apiClient.get<RiskHistoryEntry[]>(`/stats/risk-history?student_id=${selectedId}`);
+        if (!cancelled) setFullHistory(rows);
+      } catch {
+        // Fall back to the two entries already on the row rather than showing
+        // an empty history, which would read as "never assessed".
+        if (!cancelled) setFullHistory(null);
       }
-      return true;
-    });
-    if (sortMode === 'name') return list.sort((a, b) => a.name.localeCompare(b.name));
-    return list.sort(
-      (a, b) => priorityRank(a) - priorityRank(b) || b.features.dmf_score - a.features.dmf_score
-    );
-  }, [candidates, searchTerm, sortMode, gradeFilter, sectionFilter, riskFilter]);
+    })();
+    return () => { cancelled = true; };
+  }, [selectedId]);
 
-  // Risk overview tiles — latest assessment per student + trend counts
-  const overview = useMemo(() => {
-    const counts = { High: 0, Medium: 0, Low: 0, unassessed: 0, worsening: 0, improving: 0 };
-    const order = { Low: 0, Medium: 1, High: 2 };
-    for (const c of candidates) {
-      const latest = c.history[c.history.length - 1];
-      if (!latest) { counts.unassessed++; continue; }
-      counts[latest.riskLevel]++;
-      if (c.history.length >= 2) {
-        const delta = order[latest.riskLevel] - order[c.history[c.history.length - 2].riskLevel];
-        if (delta > 0) counts.worsening++;
-        else if (delta < 0) counts.improving++;
-      }
-    }
-    return counts;
-  }, [candidates]);
-
-  const selected: RiskCandidate | null =
-    candidates.find((c) => c.id === selectedId) ?? null;
+  const selected: RiskCandidate | null = selectedRow
+    ? { ...selectedRow, history: fullHistory ?? selectedRow.history }
+    : null;
 
   const selectStudent = (id: string) => {
     setSelectedId(id);
@@ -206,7 +244,9 @@ export const AIAnalytics = () => {
   };
 
   const runBulkAssessment = async () => {
-    const ids = filtered.filter((c) => checkedIds.has(c.id)).map((c) => c.id);
+    // ⚠ ALL ticked pupils, not just the ticked ones on this page. `checkedIds`
+    // survives paging, so anything else would silently assess a subset.
+    const ids = [...checkedIds];
     if (ids.length === 0) return;
     setBulkProgress({ done: 0, total: ids.length });
     setBulkFailed(null);
@@ -216,7 +256,7 @@ export const AIAnalytics = () => {
     // sequential on purpose: the free-tier ML service handles one request at a
     // time gracefully, and progress stays honest
     for (const [i, id] of ids.entries()) {
-      const candidate = candidates.find((c) => c.id === id);
+      const candidate = candidates.find((c) => c.id === id) ?? rowCacheRef.current.get(id);
       if (!candidate) continue;
       try {
         results[id] = await apiClient.post<PredictionResult>('/predictions/assess', {
@@ -424,6 +464,25 @@ export const AIAnalytics = () => {
                   <option>Low</option>
                   <option>Unassessed</option>
                 </select>
+                <select
+                  value={genderFilter}
+                  onChange={(e) => setGenderFilter(e.target.value)}
+                  className="text-xs border border-gray-300 rounded-lg px-2 py-1.5 text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  aria-label="Filter by gender"
+                >
+                  <option value="all">All Genders</option>
+                  <option>Male</option>
+                  <option>Female</option>
+                </select>
+                <select
+                  value={ageGroupFilter}
+                  onChange={(e) => setAgeGroupFilter(e.target.value)}
+                  className="text-xs border border-gray-300 rounded-lg px-2 py-1.5 text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  aria-label="Filter by age group"
+                >
+                  <option value="all">All Age Groups</option>
+                  {AGE_GROUPS.map((g) => <option key={g} value={g}>{g}</option>)}
+                </select>
               </div>
               <div className="flex items-center justify-between gap-2">
                 <button
@@ -487,7 +546,12 @@ export const AIAnalytics = () => {
                       <div className="min-w-0">
                         <div className="text-sm font-medium text-foreground truncate">{c.name}</div>
                         <div className="text-xs text-muted-foreground truncate">
-                          {c.school} · Grade {c.grade}-{c.section}
+                          {/* ⚠ NO "Grade " prefix. `c.grade` already reads
+                              "Grade 8" — the label printed "Grade Grade
+                              8-Mabini" on every row. Grade and section are
+                              joined with a space, as they are on every other
+                              screen; the hyphen made one field of two. */}
+                          {c.school} · {c.grade}{c.section ? ` ${c.section}` : ''}
                         </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0 ml-2">
@@ -515,6 +579,35 @@ export const AIAnalytics = () => {
                 );
               })}
             </div>
+            {/* Sprint 145 — the list is paged SERVER-side, so this says how many
+                pupils match the filters, not how many are on screen. Hidden on
+                a single page: a pager that never moves is noise. */}
+            {total > PAGE_SIZE && (
+              <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-t border-border text-xs">
+                <span className="text-muted-foreground">
+                  {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} of {total}
+                  {checkedIds.size > 0 && (
+                    <span className="ml-2 text-primary">· {checkedIds.size} selected across all pages</span>
+                  )}
+                </span>
+                <span className="flex items-center gap-1">
+                  <button
+                    onClick={() => setPage((p) => Math.max(0, p - 1))}
+                    disabled={page === 0}
+                    className="px-2 py-1 border border-border rounded-md disabled:opacity-40 hover:bg-gray-50"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => setPage((p) => ((p + 1) * PAGE_SIZE < total ? p + 1 : p))}
+                    disabled={(page + 1) * PAGE_SIZE >= total}
+                    className="px-2 py-1 border border-border rounded-md disabled:opacity-40 hover:bg-gray-50"
+                  >
+                    Next
+                  </button>
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Assessment panel */}

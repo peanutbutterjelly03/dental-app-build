@@ -1,5 +1,6 @@
 import { enqueueWrite } from '../offline/db';
 import { notifyQueueChange } from '../offline/queueEvents';
+import { loadUserCache } from '../offline/authCache';
 
 export class ApiError extends Error {
   status: number;
@@ -135,7 +136,12 @@ async function registerBackgroundSync(): Promise<void> {
 
 async function queueWrite<T>(path: string, method: 'POST' | 'PUT' | 'PATCH', body: unknown): Promise<T> {
   const baselineSnapshot = method === 'POST' ? undefined : await captureBaselineSnapshot(path);
-  const queued = await enqueueWrite({ endpoint: path, method, body, baselineSnapshot });
+  // SEC-27: stamp the owner at enqueue, so this write can only ever sync under
+  // the account that made it. `authCache` is the right source — it is written
+  // at login and cleared at logout, and it is readable synchronously here,
+  // where there is no React context to ask.
+  const userId = loadUserCache()?.id;
+  const queued = await enqueueWrite({ endpoint: path, method, body, baselineSnapshot, userId });
   notifyQueueChange();
   registerBackgroundSync();
   // Synthetic optimistic response so calling code (which expects the

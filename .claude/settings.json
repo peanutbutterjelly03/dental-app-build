@@ -16,7 +16,24 @@
       "PowerShell(Get-Process *)",
       "PowerShell(Get-CimInstance *)",
       "PowerShell(Select-String *)",
-      "PowerShell(Test-Path *)"
+      "PowerShell(Test-Path *)",
+      "Bash(npx tsc --noEmit *)",
+      "Bash(npx tsc -p tsconfig.json --noEmit *)",
+      "Bash(npx tsc -p tsconfig.server.json --noEmit *)",
+      "Bash(npm run build)",
+      "Bash(npm run build *)",
+      "Bash(git fetch)",
+      "Bash(git fetch *)",
+      "Bash(git rev-list *)",
+      "Bash(git check-ignore *)",
+      "PowerShell(npx tsc --noEmit *)",
+      "PowerShell(npx tsc -p tsconfig.server.json --noEmit *)",
+      "PowerShell(npm run build)",
+      "PowerShell(npm run build *)",
+      "mcp__claude-in-chrome__find",
+      "mcp__claude-in-chrome__tabs_context_mcp",
+      "mcp__claude-in-chrome__read_page",
+      "mcp__claude-in-chrome__get_page_text"
     ]
   },
   "hooks": {

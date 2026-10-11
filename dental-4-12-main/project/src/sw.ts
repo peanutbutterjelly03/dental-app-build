@@ -42,6 +42,21 @@ registerRoute(
 // Background Sync API — this is what lets queued writes sync even if the
 // tab was closed while offline, not just while it's open (see
 // registerBackgroundSync() in api/client.ts for where the tag gets registered).
+//
+// ⚠ SINCE SPRINT 159a THIS HOLDS EVERY ROW RATHER THAN SENDING IT, AND THAT IS
+// DELIBERATE — do not "fix" it by giving the worker a storage shim.
+//
+// SEC-27 made a queued write syncable only by the account that created it.
+// Deciding that needs two facts: who owns the row (on the row) and who is
+// currently signed in. A service worker can learn the first and **cannot learn
+// the second** — the session is an httpOnly cookie, which the worker may send
+// via `credentials: 'include'` but can never read, and localStorage is not
+// available here at all, so `loadUserCache()` returns null by design.
+//
+// A worker that cannot tell whose session it is about to write under must not
+// write. So the rows wait, and the page drains them on next open, as itself.
+// The cost is that a queue left by a closed tab syncs a little later; the thing
+// bought is that it can no longer sync as the wrong person.
 self.addEventListener('sync', (event) => {
   const syncEvent = event as ExtendableEvent & { tag: string };
   if (syncEvent.tag === 'floral-queue-sync') {

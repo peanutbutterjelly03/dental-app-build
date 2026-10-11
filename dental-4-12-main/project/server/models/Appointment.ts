@@ -11,6 +11,12 @@ const appointmentSchema = new mongoose.Schema({
   appointment_type: { type: String, maxlength: 50, required: true },
   requires_followup: { type: Boolean, default: false },
   parental_supervision_required: { type: Boolean, default: false },
+  // ERD deviation (Sprint 109). A remark about THIS pupil's slot — "bring
+  // guardian", "reschedule, absent". Distinct from a DAY_NOTE, which is about
+  // the date itself: the user confirmed the two are different things, so a
+  // holiday does not live here and a patient remark does not live there.
+  // Optional with an empty default, so no migration is needed.
+  notes: { type: String, maxlength: 500, default: "" },
   ...softDeleteFields,
 });
 

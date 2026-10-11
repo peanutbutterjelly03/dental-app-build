@@ -3,6 +3,7 @@
 import "../dnsFix.js";
 import "dotenv/config";
 import { connectDB } from "../config/db.js";
+import { announceTarget } from "./announceTarget.js";
 import {
   StudentIptr,
   DentalChart,
@@ -54,6 +55,7 @@ async function childCounts(iptrId: any) {
 
 async function main() {
   await connectDB();
+  announceTarget("removeDuplicateIptr");
   console.log(`db: ${mongoose.connection.name}`);
   console.log(CONFIRM ? "MODE: DELETING\n" : "MODE: dry run (pass --confirm to delete)\n");
 

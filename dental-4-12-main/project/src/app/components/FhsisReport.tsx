@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { usePrintOrientation } from '../hooks/usePrintOrientation';
 import { Download, FileSpreadsheet } from 'lucide-react';
 import { useFhsisData, FHSIS_BANDS, type FhsisBandKey, type Measure } from '../hooks/useFhsisData';
 import { exportDohReportToPdf } from '../utils/exportPdf';
@@ -69,6 +70,8 @@ const thisMonth = () => {
 };
 
 export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
+  // → A wide age-bracket × sex grid, like the other DOH tables.
+  usePrintOrientation('landscape');
   const [month, setMonth] = useState(thisMonth);
   const { counts, monthsWithData, loading, error } = useFhsisData(month, schoolName);
   const printableRef = useRef<HTMLDivElement>(null);
@@ -207,7 +210,7 @@ export const FhsisReport = ({ schoolName }: { schoolName: string }) => {
           element's own rendered box, so a banner placed outside it shows on
           screen and is silently missing from the PDF — the exact trap noted on
           the DOH Consolidated report. */}
-      <div ref={printableRef} className="overflow-x-auto rounded-lg border border-gray-200 bg-card p-4">
+      <div ref={printableRef} className="form-print overflow-x-auto rounded-lg border border-gray-200 bg-card p-4">
         {/* Header band, as printed. */}
         <div className="mb-3 text-sm">
           <div className="flex flex-wrap gap-x-8 gap-y-1">

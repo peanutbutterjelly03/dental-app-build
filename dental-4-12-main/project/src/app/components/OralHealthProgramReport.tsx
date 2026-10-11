@@ -1,4 +1,5 @@
 import { useMemo, useState, useRef, Fragment } from 'react';
+import { usePrintOrientation } from '../hooks/usePrintOrientation';
 import { useDohReportData } from '../hooks/useDohReportData';
 import { SkeletonTable } from './Skeleton';
 import { FORM_SECTION_BAND, BLOCKED_CELL, BLOCKED_TITLE, FORM_SUBROW_LABEL } from '../utils/dohFormStyle';
@@ -281,11 +282,14 @@ const SERVICE_ROWS: Row[] = [
  *  The three a/b/c referral rows and the prescriptions row were missing
  *  entirely. */
 const OTHER_ROWS: Row[] = [
-  { key: 'ref_primary', label: 'No. of patients referred to other Primary Care Facilities', field: null },
-  { key: 'ref_higher', label: 'Total no. of patients referred to Higher Level of Care', field: null },
-  { key: 'ref_cancer', label: 'a. No. of patients for Oral Cancer Screening Referrals', field: null, indent: true },
-  { key: 'ref_surgical', label: 'b. No. of patients for Surgical Procedures', field: null, indent: true },
-  { key: 'ref_private', label: 'c. No. of Referrals to Private Facilities', field: null, indent: true },
+  // Sprint 127 — fed by the REFERRAL model. `ref_higher` is the total of the
+  // three indented rows plus referrals recorded as higher_level with no stated
+  // sub-kind; see useDohReportData for why that is not double-counting.
+  { key: 'ref_primary', label: 'No. of patients referred to other Primary Care Facilities', field: 'ref_primary' },
+  { key: 'ref_higher', label: 'Total no. of patients referred to Higher Level of Care', field: 'ref_higher' },
+  { key: 'ref_cancer', label: 'a. No. of patients for Oral Cancer Screening Referrals', field: 'ref_cancer', indent: true },
+  { key: 'ref_surgical', label: 'b. No. of patients for Surgical Procedures', field: 'ref_surgical', indent: true },
+  { key: 'ref_private', label: 'c. No. of Referrals to Private Facilities', field: 'ref_private', indent: true },
   { key: 'prescriptions', label: 'No. of patients given Dental Prescriptions', field: null },
 ];
 
@@ -303,6 +307,8 @@ function loadSet(key: string): Set<string> {
 }
 
 export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }: { schoolYear?: string | null; schoolName?: string | null }) => {
+  // → A wide banded grid, like the consolidated report.
+  usePrintOrientation('landscape');
   // Scoped to the SAME school the DOH tab's picker selects, not the sidebar's
   // current school — the two are different controls and this form is read
   // beside the consolidated report.
@@ -628,7 +634,7 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
         </div>
       )}
 
-      <div ref={printableRef} className="bg-card rounded-xl border border-border overflow-x-auto">
+      <div ref={printableRef} className="form-print bg-card rounded-xl border border-border overflow-x-auto">
         <table className="border-collapse w-full">
           <thead className="bg-gray-50">
             {/* Three header levels, matching the paper form: population group
@@ -679,6 +685,19 @@ export const OralHealthProgramReport = ({ schoolYear = null, schoolName = null }
           </tbody>
         </table>
       </div>
+      {/* Sprint 129 — said on the form rather than left for an inspector to
+          find. Rows a/b/c print indented under the Higher Level total, so the
+          arithmetic looks like it should cross-foot. It does not always: each
+          row counts PATIENTS, and one pupil referred for both a surgical
+          procedure and a private facility in the same school year is counted
+          once in the total and once in EACH sub-row. Adding a+b+c would
+          double-count that pupil, so the total is deliberately not their sum. */}
+      <p className="text-xs text-muted-foreground mt-2">
+        Every referral row counts <span className="font-medium text-foreground">patients, not referral slips</span>.
+        A pupil referred more than once in the school year is counted once per row, so the
+        Higher Level of Care total is <span className="font-medium text-foreground">not necessarily a + b + c</span> —
+        a pupil appearing in two sub-rows is still one patient in the total.
+      </p>
     </div>
   );
 };

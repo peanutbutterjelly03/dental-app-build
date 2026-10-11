@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import { usePrintOrientation } from '../hooks/usePrintOrientation';
 import { useSchoolSummary, type BySex, type SchoolSummaryTally } from '../hooks/useSchoolSummary';
 import { SkeletonTable } from './Skeleton';
 import { FORM_SECTION_BAND } from '../utils/dohFormStyle';
@@ -98,6 +99,8 @@ interface Props {
 }
 
 export function SchoolSummaryReport({ schoolName, schoolYear }: Props) {
+  // → A short summary sheet, not a wide grid.
+  usePrintOrientation('portrait');
   const { tally, unsexedCount, loading, error } = useSchoolSummary(schoolName, schoolYear);
   const printableRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState<'pdf' | 'xlsx' | null>(null);
@@ -193,7 +196,7 @@ export function SchoolSummaryReport({ schoolName, schoolYear }: Props) {
         </div>
       </div>
 
-      <div ref={printableRef} className="bg-card rounded-xl border border-border p-4">
+      <div ref={printableRef} className="form-print bg-card rounded-xl border border-border p-4">
         {/* Wide content scrolls inside its own container — the table must never
             push the page sideways at 390px (CLAUDE.md, three device classes). */}
         <div className="overflow-x-auto">
@@ -232,7 +235,13 @@ export function SchoolSummaryReport({ schoolName, schoolYear }: Props) {
         {/* Every claim the table makes, and every one it declines to make.
             Inside the printable region deliberately: a filed copy that shows
             "—" without saying why invites someone to read it as zero. */}
-        <div className="mt-3 space-y-1 text-[11px] leading-relaxed text-muted-foreground">
+        {/* ⚠ `print-hide` (Sprint 133): these notes explain the SYSTEM to a
+            reader on screen — why a cell reads "—", why there is no (m)
+            row — and none of them is printed on the paper sheet. They sit
+            inside the printable root because they belong beside the table
+            on screen, so print has to drop them explicitly. The sheet filed
+            with the City Health Office must look like the official form. */}
+        <div className="print-hide mt-3 space-y-1 text-[11px] leading-relaxed text-muted-foreground">
           <p>
             <span className="font-semibold">MALE / FEMALE</span> count students; each{' '}
             <span className="font-semibold">TOTAL</span> counts teeth.{' '}

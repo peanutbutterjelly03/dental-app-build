@@ -1,18 +1,24 @@
 import "dotenv/config";
 import "../dnsFix.js"; // this machine's Node 24 + Atlas SRV workaround
 import { connectDB } from "../config/db.js";
+import { announceTarget } from "./announceTarget.js";
 import { User } from "../models/index.js";
 import { hashPassword } from "../utils/password.js";
+import { requireSecretEnv } from "./seedEnv.js";
 import mongoose from "mongoose";
 
 async function main() {
   const email = process.env.SEED_ADMIN_EMAIL;
-  const password = process.env.SEED_ADMIN_PASSWORD;
-  if (!email || !password) {
-    throw new Error("SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD must be set in .env");
+  if (!email) {
+    console.error("SEED_ADMIN_EMAIL must be set in .env.");
+    process.exit(1);
   }
+  // Same guard as seedDemo: .env.example ships SEED_ADMIN_PASSWORD as the
+  // literal "choose-a-password", and this is the super-user account.
+  const password = requireSecretEnv("SEED_ADMIN_PASSWORD");
 
   await connectDB();
+  announceTarget("seedAdmin");
 
   const existing = await User.findOne({ email: email.toLowerCase().trim() });
   if (existing) {

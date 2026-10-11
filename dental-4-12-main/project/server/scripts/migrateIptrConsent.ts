@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 import { connectDB } from "../config/db.js";
 import Student from "../models/Student.js";
 import StudentIptr from "../models/StudentIptr.js";
+import { announceTarget } from "./announceTarget.js";
 
 // One-off migration: carry STUDENT.consent_status (removed from the schema,
 // but still sitting in existing MongoDB documents) onto STUDENT_IPTR, the
@@ -34,6 +35,9 @@ const CONFIRM = process.argv.includes("--confirm");
 
 async function run() {
   await connectDB();
+  // ⚠ AFTER connectDB, never before: it prints "(unknown host)" otherwise
+  // and tells you nothing, which is worse than not printing at all.
+  announceTarget("migrate:iptr-consent");
 
   // .lean() reads the raw MongoDB document regardless of what the current
   // schema declares, so the old consent_status is still readable even though
@@ -71,9 +75,14 @@ async function run() {
       continue;
     }
     willWrite++;
+    // ⚠ NO NAMES. `last_name`/`first_name` are ENCRYPTED on STUDENT and this
+    // read is `.lean()`, which returns the raw `<iv>:<ciphertext>` — silently,
+    // with a 200 and no error (the Sprint 118 trap). Printing them produced
+    // lines like "d100a362…:355fa4e0…, ca9a1fe9…:8c277708…", which identify
+    // nothing and cannot be checked against a pupil. The id is not encrypted
+    // and is what you would grep for.
     console.log(
-      `  ${String(s.last_name ?? "").trim()}, ${String(s.first_name ?? "").trim()}  ` +
-        `${latest.school_year} → complete` +
+      `  student ${String(s._id)}  ${latest.school_year} → complete` +
         (sorted.length > 1 ? `   (${sorted.length - 1} older year(s) left "pending")` : ""),
     );
     if (CONFIRM) {

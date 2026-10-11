@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, ALL_SCHOOLS } from '../context/AuthContext';
 import { getSchoolColor } from '../utils/schoolColors';
-import { School, ChevronRight, LogOut, MapPin } from 'lucide-react';
+import { School, ChevronRight, LogOut, MapPin, Layers } from 'lucide-react';
 
 const SCHOOL_META: Record<string, { shortName: string; address: string; levels: string }> = {
   'Bagong Tanyag Integrated School': {
@@ -43,7 +43,7 @@ export const SchoolSelect = () => {
 
   if (!user) return null;
 
-  const handleSelectSchool = (school: string) => {
+  const handleSelectSchool = (school: string | null) => {
     setSelectedSchool(school);
     navigate('/');
   };
@@ -98,6 +98,45 @@ export const SchoolSelect = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              {/* ⚠ ALL SCHOOLS, restored (Sprint 180). Sprint 67 made this a
+                  real option in the old sidebar dropdown; her Switch School
+                  page replaced that dropdown and lists only the three schools,
+                  so adopting it removed the cross-school view entirely — while
+                  a dozen screens still branch on it. FhsisReport prints the
+                  words "All schools" on a filed return, DentalChartNav shows it
+                  as the kicker, and a day note saved with no school is defined
+                  as the barangay-wide one.
+
+                  It is also what the BHO STAFF ROLE IS FOR: "consolidated
+                  reports across all schools" (CLAUDE.md). Without this they can
+                  only ever see one school at a time.
+
+                  ⚠ Shown only to users who actually hold every school. A
+                  school_admin pinned to one must not be offered a view across
+                  all three, and `user.schools` is already that list. */}
+              {/* ⚠ The sentinel is ALL_SCHOOLS ('__ALL__'), not null and not ''.
+                  `schoolChoiceMade` is `schoolChoice !== null`, so null means
+                  "has not chosen yet" and RootLayout bounces back here; '' is
+                  not a school name, so `schools.includes('')` fails on the next
+                  load and the choice evaporates. The context maps '__ALL__' to
+                  a null `selectedSchool`, which is what every screen reads. */}
+              {user.schools.length > 1 && (
+                <button
+                  onClick={() => handleSelectSchool(ALL_SCHOOLS)}
+                  className="group w-full text-left bg-white rounded-2xl border-2 border-border p-6 hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5"
+                >
+                  <div className="w-full h-1.5 rounded-full mb-5 bg-primary" />
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 bg-primary-surface">
+                      <Layers className="w-6 h-6 text-primary" />
+                    </div>
+                  </div>
+                  <h2 className="font-bold text-foreground mb-1">All schools</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Every school at once — the view the consolidated DOH reports are filed from.
+                  </p>
+                </button>
+              )}
               {user.schools.map(school => {
                 const sc = getSchoolColor(school);
                 const meta = SCHOOL_META[school];

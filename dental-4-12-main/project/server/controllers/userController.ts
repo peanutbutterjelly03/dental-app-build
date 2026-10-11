@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import mongoose from "mongoose";
 import { createHash, randomInt, randomBytes } from "node:crypto";
 import { User, ROLES } from "../models/index.js";
 import { hashPassword } from "../utils/password.js";
@@ -8,7 +9,15 @@ import { sendEmail, otpEmailHtml, resetEmailHtml } from "../utils/mailer.js";
 const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 
 export async function createUser(req: Request, res: Response) {
-  const { full_name, email, role, school_id, password } = req.body;
+  // ⚠ `school_ids`, PLURAL. Until 2026-09-11 this read `school_id` — the name
+  // Sprint 100 renamed away — and wrote it back as `school_id: school_id || null`.
+  // The User schema has no such path, so mongoose's strict mode dropped the key
+  // silently and `school_ids` took its default of `[]`, which User.ts documents
+  // as meaning ALL SCHOOLS. Every account created through this route was
+  // therefore created unscoped, including the school_admin the form had just
+  // been used to pin to one school. The account form sent `school_ids` the whole
+  // time (AccountManagement.tsx); nothing here read it. Found as SEC-18.
+  const { full_name, email, role, school_ids, password } = req.body;
 
   if (!full_name || !email || !role || !password) {
     res.status(400).json({ error: "full_name, email, role, and password are required" });
@@ -17,6 +26,16 @@ export async function createUser(req: Request, res: Response) {
   if (!ROLES.includes(role)) {
     res.status(400).json({ error: `role must be one of: ${ROLES.join(", ")}` });
     return;
+  }
+  // Validated here rather than left to mongoose's cast: a bad id would other-
+  // wise surface as a CastError the error handler turns into a 400 naming
+  // internal schema details (SEC-09), and an id arriving as something other
+  // than an array would cast to a single-element array instead of failing.
+  if (school_ids !== undefined) {
+    if (!Array.isArray(school_ids) || !school_ids.every((id) => mongoose.isValidObjectId(id))) {
+      res.status(400).json({ error: "school_ids must be an array of school ids" });
+      return;
+    }
   }
   // Length over complexity rules, per NIST guidance — a long passphrase beats
   // a short password with forced special characters.
@@ -30,7 +49,7 @@ export async function createUser(req: Request, res: Response) {
     full_name,
     email: String(email).toLowerCase().trim(),
     role,
-    school_id: school_id || null,
+    school_ids: school_ids ?? [],
     password_hash,
   });
 

@@ -228,22 +228,15 @@ export const SchoolManagement = () => {
                   onChange={(e) => setForm({ ...form, city: e.target.value })} />
               </div>
             </div>
-            {editing && (
-              <label className="flex items-start gap-2 text-sm text-foreground bg-gray-50 rounded-lg p-3">
-                <input
-                  type="checkbox"
-                  checked={form.allow_school_year_override}
-                  onChange={(e) => setForm({ ...form, allow_school_year_override: e.target.checked })}
-                  className="w-4 h-4 mt-0.5 accent-primary"
-                />
-                <span>
-                  Allow school-year rollover anytime
-                  <span className="block text-xs text-muted-foreground mt-0.5">
-                    "Start New School Year" on Update School Year is normally only clickable March–August. Checking this lets the dentist/dental aide run it for this school outside that window.
-                  </span>
-                </span>
-              </label>
-            )}
+            {/* ⚠ The "Allow school-year rollover anytime" toggle is GONE
+                (Sprint 187). Sprint 185 removed the March–August window it
+                governed, so it gated nothing and its own description named a
+                rule that no longer exists — a control that looks like it does
+                something and cannot. Found by opening this screen as a System
+                Admin for the first time since the redesign.
+
+                `allow_school_year_override` stays on the SCHOOL model for now,
+                unread. A dead checkbox misleads; an unused column does not. */}
             {formError && <Notice variant="error">{formError}</Notice>}
             <div className="flex gap-3 pt-1">
               <button onClick={() => setShowForm(false)} disabled={submitting}

@@ -6,7 +6,7 @@ const REFRESH_TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60;
 export interface AuthTokenPayload {
   sub: string;
   role: string;
-  school_id: string | null;
+  school_ids: string[];
 }
 
 // The refresh token carries whether this login opted into "Remember me".

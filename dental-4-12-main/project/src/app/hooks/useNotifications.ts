@@ -17,8 +17,11 @@ export interface NotificationCounts {
   appointmentsToday: number;
   /** Risk assessments the dentist has not validated. */
   awaitingValidation: number;
-  /** Calendar reminders/notes (stored as DentistRotation rows) whose date
-   *  range covers today. */
+  /** Day notes (DAY_NOTE) falling on today. ⚠ ALWAYS 0 IN PRACTICE:
+   *  `/stats/notifications` does not return this field — see the merge-over-
+   *  EMPTY note in `reload` below. The older comment here said these were
+   *  "stored as DentistRotation rows", which was true only on the design
+   *  branch whose repurposing was rejected in favour of DAY_NOTE (`7e817cdf`). */
   remindersToday: number;
 }
 
@@ -45,7 +48,14 @@ export function useNotifications(enabled: boolean, schoolName: string | null) {
     setLoading(true);
     try {
       const q = schoolName ? `?school=${encodeURIComponent(schoolName)}` : '';
-      setCounts(await apiClient.get<NotificationCounts>(`/stats/notifications${q}`));
+      // ⚠ MERGED OVER `EMPTY`, never assigned raw. /stats/notifications does
+      // not return `remindersToday` — the field is declared in this file and on
+      // no server response — so assigning the payload straight in left it
+      // `undefined`, and every sum touching it became NaN. `NaN > 0` is false,
+      // which is why the sidebar badge silently stopped rendering while the
+      // counts themselves were correct.
+      const fresh = await apiClient.get<Partial<NotificationCounts>>(`/stats/notifications${q}`);
+      setCounts({ ...EMPTY, ...fresh });
       setError(null);
     } catch (err) {
       // A failed badge must not blank the sidebar or shout: it is ambient.

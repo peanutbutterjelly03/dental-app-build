@@ -16,8 +16,8 @@ import { AccountManagement } from "./components/AccountManagement";
 import { AuditTrail } from "./components/AuditTrail";
 import { SchoolManagement } from './components/SchoolManagement';
 import { ArchiveManagement } from './components/ArchiveManagement';
-import { Notifications } from './components/Notifications';
 import { UpdateSchoolYear } from './components/UpdateSchoolYear';
+import { Notifications } from './components/Notifications';
 
 const DentalChartKeyed = () => { const { id } = useParams(); return <DentalChart key={id} />; };
 

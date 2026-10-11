@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { Search, Plus, X, CheckCircle, AlertCircle, Clock, Shield, School as SchoolIcon, List, ChevronRight, Users } from 'lucide-react';
 import { getGradeColor } from '../utils/gradeColors';
 import { useRPCTracking } from '../hooks/useRPCTracking';
-import { treatmentCodes, treatmentLabel } from './DentalChart';
+import type { ApiDentist } from '../api/types';
+import { treatmentCodes, treatmentLabel } from '../utils/dentalChartCodes';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
 import { activatable } from '../utils/a11y';
 import { Pagination, usePagination } from './Pagination';
@@ -31,8 +32,23 @@ const ViewToggle = ({ mode, onChange }: { mode: 'school' | 'list'; onChange: (m:
 export const RPCTracking = () => {
   const { selectedSchool, user } = useAuth();
   const navigate = useNavigate();
+  // Sprint 149 — DENTAL_CHART.dentist_id is required, so charting from here
+  // needs the DENTIST row behind the signed-in user. Resolved the same way
+  // DentalChart does it (`d.user_id === user.id`); an aide has none, which is
+  // why the "chart now" button is hidden for them rather than failing on save.
+  const [dentists, setDentists] = useState<ApiDentist[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await apiClient.get<ApiDentist[]>('/dentists');
+        if (!cancelled) setDentists(rows);
+      } catch { /* charting stays unavailable; recording a visit still works */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  const currentDentist = dentists.find((d) => d.user_id === user?.id);
   const toast = useToast();
-  const { records: rpcRecords, loading, error, reload } = useRPCTracking();
 
   // Recording a visit (Sprint 81). Until now PREVENTIVE_CARE_RECORD had NO
   // write path anywhere in the app — the two-visit RPC module could be read
@@ -43,6 +59,21 @@ export const RPCTracking = () => {
   // not know stores null, which reads as "not recorded" on FHSIS, rather than
   // being pushed into a default that would invent the facility split.
   const [facilityBased, setFacilityBased] = useState<boolean | null>(null);
+  // Sprint 147 — what was DONE at the visit. Recording a visit IS recording
+  // treatment: CLAUDE.md's module 5 defines an RPC visit as exactly these
+  // services, and page 2 of the Target Client List prints them per visit.
+  //
+  // ⚠ Defaults are TRUE, not false, and that is a deliberate reading of the
+  // clinic's workflow rather than a shortcut: an RPC visit that happened
+  // performed the routine set. The dentist unticks what was skipped, which is
+  // the rarer action. Nothing is written as `false` unless it was unticked.
+  const [services, setServices] = useState({
+    oral_screening: true,
+    oral_prophylaxis: true,
+    fluoride_varnish: true,
+    oral_hygiene_instruction: true,
+  });
+  const [cariesRisk, setCariesRisk] = useState<'Low' | 'Moderate' | 'High' | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -71,19 +102,47 @@ export const RPCTracking = () => {
     : null;
   const targetSchoolYear = visitDate ? schoolYearLabel(new Date(`${visitDate}T00:00:00`)) : '';
 
-  const saveVisit = async () => {
+  const saveVisit = async (chartNow = false) => {
     if (!recording || !targetIptrId || !recording.nextVisitNumber) return;
     setSaving(true);
     setSaveError(null);
     try {
-      await apiClient.post('/preventive-care-records', {
+      const visit = await apiClient.post<{ _id: string }>('/preventive-care-records', {
         iptr_id: targetIptrId,
         visit_date: visitDate,
         visit_number: recording.nextVisitNumber,
         facility_based: facilityBased,
+        ...services,
+        caries_risk: cariesRisk,
       });
+
+      // Sprint 149 — the charting done AT this visit, created already attached
+      // to it. The dentist screens and treats at the same visit, so a visit
+      // that involved charting has exactly one chart, and that chart's tooth
+      // records are what was found and done there.
+      //
+      // ⚠ Created ONLY on "Record visit & chart now". A visit that was purely
+      // a screening should not leave an empty charting behind for someone to
+      // read as "charted, found nothing".
+      //
+      // ⚠ `dentist_id` is required by the model, so this path needs one. The
+      // aide can record a visit but cannot open a charting — the button is
+      // hidden for them rather than failing at save.
+      if (chartNow && currentDentist) {
+        const chart = await apiClient.post<{ _id: string }>('/dental-charts', {
+          iptr_id: targetIptrId,
+          dentist_id: currentDentist._id,
+          date_charted: visitDate,
+          preventive_id: visit._id,
+        });
+        navigate(`/dental-chart/${recording.id}?tab=chart&chart=${chart._id}`);
+      }
       toast.success(`Visit ${recording.nextVisitNumber} recorded for ${recording.studentName}.`);
       setRecording(null);
+      // ⚠ Reset, or the next pupil inherits this one's ticks — a service
+      // recorded on a form because a modal remembered it is a fabricated entry.
+      setServices({ oral_screening: true, oral_prophylaxis: true, fluoride_varnish: true, oral_hygiene_instruction: true });
+      setCariesRisk(null);
       await reload();
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Failed to record the visit');
@@ -106,44 +165,59 @@ export const RPCTracking = () => {
   const [statusFilter, setStatusFilter] = useState('outstanding');
   const [treatmentFilter, setTreatmentFilter] = useState('all');
 
-  const calculateAge = (birthdate: string) => {
-    const today = new Date();
-    const birth = new Date(birthdate);
-    let age = today.getFullYear() - birth.getFullYear();
-    const m = today.getMonth() - birth.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
-    return age;
+  // ── Sprint 146: FILTERED AND PAGED ON THE SERVER ────────────────────────
+  //
+  // ⚠ Every filter moved together, including the SCHOOL context. Paging the
+  // query while one stayed here would have filtered only the visible page —
+  // and a page count describing a roll the user is not looking at.
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const {
+    records: rpcRecords,
+    total,
+    schoolTotal,
+    sectionOptions,
+    loading,
+    error,
+    reload,
+  } = useRPCTracking({
+    q: searchTerm,
+    school: selectedSchool ?? undefined,
+    grade: gradeFilter,
+    section: sectionFilter,
+    gender: genderFilter,
+    ageGroup: ageGroupFilter,
+    status: statusFilter,
+    treatment: treatmentFilter,
+    limit: pageSize,
+    offset: (page - 1) * pageSize,
+  });
+
+  // Back to page 1 on any filter change — a narrowed filter can otherwise
+  // leave the user on a page that no longer exists, looking at nothing.
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, selectedSchool, gradeFilter, sectionFilter, genderFilter, ageGroupFilter, statusFilter, treatmentFilter]);
+
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  // Changing page size keeps you near the same records rather than dumping you
+  // back to the top — the same rule usePagination applied.
+  const changePageSize = (next: number) => {
+    const firstRow = (page - 1) * pageSize;
+    setPageSize(next);
+    setPage(Math.floor(firstRow / next) + 1);
   };
 
-  const getAgeGroup = (age: number) => {
-    if (age <= 4) return '4 & below';
-    if (age <= 9) return '5-9';
-    if (age <= 14) return '10-14';
-    if (age <= 19) return '15-19';
-    return '20 & above';
-  };
+  // ⚠ The local `calculateAge`/`getAgeGroup` copies were deleted in Sprint 146.
+  // They were a THIRD copy of the DOH age brackets — `shared/age.ts` says in
+  // its own header that a second copy is how two screens disagree about a
+  // 9-year-old, and the filter that used them now runs on the server anyway.
 
-  const schoolRecords = selectedSchool
-    ? rpcRecords.filter(r => r.school === selectedSchool)
-    : rpcRecords;
 
-  const filtered = useMemo(() => schoolRecords.filter(r => {
-    const age = calculateAge(r.birthdate);
-    if (gradeFilter !== 'all' && r.grade !== gradeFilter) return false;
-    if (sectionFilter !== 'all' && r.section !== sectionFilter) return false;
-    if (genderFilter !== 'all' && r.gender !== genderFilter) return false;
-    if (ageGroupFilter !== 'all' && getAgeGroup(age) !== ageGroupFilter) return false;
-    if (statusFilter === 'outstanding') { if (r.status === 'complete') return false; }
-    else if (statusFilter !== 'all' && r.status !== statusFilter) return false;
-    if (treatmentFilter !== 'all' && !r.treatmentCodes.includes(treatmentFilter)) return false;
-    if (searchTerm && !r.studentName.toLowerCase().includes(searchTerm.toLowerCase())) return false;
-    return true;
-  }), [schoolRecords, gradeFilter, sectionFilter, genderFilter, ageGroupFilter, statusFilter, treatmentFilter, searchTerm]);
 
-  // Paged (Sprint 58): this list rendered EVERY filtered row, which is fine at
-  // demo scale and thousands of DOM rows at ~8,000 students. Reset keys are the
-  // filter inputs, never `filtered` — see Pagination.tsx.
-  const pager = usePagination(filtered, [gradeFilter, sectionFilter, genderFilter, ageGroupFilter, statusFilter, treatmentFilter, searchTerm]);
+  // Already filtered and paged by the server (Sprint 146).
+  const filtered = rpcRecords;
+
 
   // sectionFilter was missing from both of these — an active section filter
   // neither lit up "Clear All" nor got cleared by it.
@@ -199,7 +273,7 @@ export const RPCTracking = () => {
         </div>
         <div className="flex flex-wrap gap-2">
           <FS value={gradeFilter} onChange={g => { setGradeFilter(g); setSectionFilter('all'); }} label="All Grades" opts={GRADES.map(g=>({v:g,l:g}))} />
-          <FS value={sectionFilter} onChange={setSectionFilter} label="All Sections" opts={[...new Set((gradeFilter !== 'all' ? schoolRecords.filter(r => r.grade === gradeFilter) : schoolRecords).map(r => r.section))].sort().map(s => ({v:s,l:s}))} />
+          <FS value={sectionFilter} onChange={setSectionFilter} label="All Sections" opts={sectionOptions.map(sec => ({ v: sec, l: sec }))} />
           <FS value={genderFilter} onChange={setGenderFilter} label="All Genders" opts={[{v:'Male',l:'Male'},{v:'Female',l:'Female'}]} />
           <FS value={ageGroupFilter} onChange={setAgeGroupFilter} label="All Age Groups" opts={[{v:'4 & below',l:'4 & below'},{v:'5-9',l:'5-9'},{v:'10-14',l:'10-14'},{v:'15-19',l:'15-19'},{v:'20 & above',l:'20 & above'}]} />
           {/* 'outstanding' is listed first and is the default — FS renders its
@@ -225,7 +299,7 @@ export const RPCTracking = () => {
             <tbody className="divide-y divide-gray-100">
               {filtered.length === 0 ? (
                 <tr><td colSpan={canRecord ? 8 : 7} className="text-center py-12 text-muted-foreground">{hasActiveFilters ? <>No records match your filters. <button onClick={clearFilters} className="text-primary hover:underline font-medium">Clear filters</button></> : 'No RPC records for this school yet.'}</td></tr>
-              ) : pager.paged.map(r => {
+              ) : filtered.map(r => {
                 const sc = statusConfig[r.status] || statusConfig['not-started'];
                 const gc = getGradeColor(r.grade);
                 return (
@@ -279,11 +353,16 @@ export const RPCTracking = () => {
         </div>
         <div className="px-4 py-3 border-t border-gray-100 text-sm text-muted-foreground">
           <Pagination
-            {...pager}
-            onPage={pager.setPage}
-            onPageSize={pager.changePageSize}
+            page={page}
+            pageCount={pageCount}
+            pageSize={pageSize}
+            from={total === 0 ? 0 : (page - 1) * pageSize + 1}
+            to={Math.min(page * pageSize, total)}
+            total={total}
+            onPage={setPage}
+            onPageSize={changePageSize}
             noun="records"
-            detail={filtered.length !== schoolRecords.length ? `(filtered from ${schoolRecords.length})` : ''}
+            detail={total !== schoolTotal ? `(filtered from ${schoolTotal})` : ''}
           />
         </div>
       </div>
@@ -354,11 +433,70 @@ export const RPCTracking = () => {
               </p>
             </fieldset>
 
+            <fieldset>
+              <legend className="block text-sm font-medium text-foreground mb-1">Services performed</legend>
+              {/* These are the form's own per-visit columns, in its order. */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                {([
+                  ['oral_screening', 'Oral screening'],
+                  ['oral_prophylaxis', 'Oral prophylaxis'],
+                  ['fluoride_varnish', 'Fluoride varnish'],
+                  ['oral_hygiene_instruction', 'Oral hygiene instruction'],
+                ] as const).map(([key, label]) => (
+                  <label key={key} className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={services[key]}
+                      onChange={(e) => setServices((prev) => ({ ...prev, [key]: e.target.checked }))}
+                      className="w-4 h-4 rounded accent-primary"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Ticked by default — untick anything that was not done. These fill the Target Client List&apos;s
+                per-visit columns, which until now had to guess from the dental chart.
+              </p>
+            </fieldset>
+
+            <fieldset>
+              <legend className="block text-sm font-medium text-foreground mb-1">Caries risk assessed at this visit</legend>
+              {/* ⚠ "Moderate" is the FORM's word for the band the predictive
+                  module calls "Medium". On the form, the form wins. */}
+              <div className="flex flex-wrap gap-2">
+                {([['Low', 'Low'], ['Moderate', 'Moderate'], ['High', 'High'], [null, 'Not assessed']] as const).map(([val, label]) => (
+                  <button
+                    key={String(val)}
+                    type="button"
+                    onClick={() => setCariesRisk(val)}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${cariesRisk === val ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:bg-gray-50'}`}
+                  >{label}</button>
+                ))}
+              </div>
+            </fieldset>
+
             {saveError && <p className="text-sm text-destructive">{saveError}</p>}
           </div>
           <div className="flex justify-end gap-2 px-6 py-4 border-t">
             <button onClick={() => setRecording(null)} disabled={saving} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-gray-50 disabled:opacity-50">Cancel</button>
-            <button onClick={saveVisit} disabled={saving || !visitDate || !targetIptrId} className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:opacity-90 disabled:opacity-50">
+            {/* Sprint 149 — two ways out, because a visit and a charting are
+                different acts even though they happen together. "Record visit"
+                alone leaves no empty charting behind for someone to read as
+                "charted, found nothing"; "& chart now" creates the charting
+                already attached to this visit and opens it.
+                ⚠ Hidden for an aide: DENTAL_CHART needs a dentist_id, and an
+                aide has no DENTIST row — better absent than failing on save. */}
+            {currentDentist && (
+              <button
+                onClick={() => saveVisit(true)}
+                disabled={saving || !visitDate || !targetIptrId}
+                className="px-4 py-2 text-sm font-medium border border-primary text-primary rounded-lg hover:bg-primary/5 disabled:opacity-50"
+              >
+                {saving ? 'Saving…' : 'Record visit & chart now'}
+              </button>
+            )}
+            <button onClick={() => saveVisit(false)} disabled={saving || !visitDate || !targetIptrId} className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:opacity-90 disabled:opacity-50">
               {saving ? 'Saving…' : 'Record visit'}
             </button>
           </div>

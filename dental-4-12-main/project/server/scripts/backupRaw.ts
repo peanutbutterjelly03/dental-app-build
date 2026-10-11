@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import mongoose from "mongoose";
 import { connectDB } from "../config/db.js";
+import { announceTarget } from "./announceTarget.js";
 
 /*
  * Full raw dump of every collection, to a timestamped JSON folder.
@@ -39,6 +40,7 @@ const OUT_ROOT = outFlag !== -1 && argv[outFlag + 1] ? argv[outFlag + 1] : "back
 
 async function main() {
   await connectDB();
+  announceTarget("backupRaw");
   const db = mongoose.connection.db;
   if (!db) throw new Error("no database handle after connect");
 

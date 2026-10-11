@@ -1,7 +1,21 @@
-import { getQueue, removeFromQueue, markFailed, markAuthRequired, markConflict, resetToPending, resolveConflictKeepMine, type QueuedWrite } from './db';
+import { getQueue, removeFromQueue, markFailed, markAuthRequired, markConflict, resetToPending, resolveConflictKeepMine, claimWrite, releaseClaim, type QueuedWrite } from './db';
 import { notifyQueueChange } from './queueEvents';
+import { isOwnedBy } from './queueRules';
+import { loadUserCache } from './authCache';
 
+// ⚠ NOT a cross-context guard, and it was mistaken for one until Sprint 159a.
+// This module is instantiated separately in the page and in the service worker,
+// so each has its OWN copy of this flag. It still earns its place — it stops a
+// single context re-entering itself when `online` fires while a drain is already
+// running — but the guard that actually prevents two contexts sending the same
+// write is the per-row claim in db.ts (BUG-03).
 let processing = false;
+
+/** Identifies THIS context for the duration of its life. A page load and a
+ *  service-worker activation each get their own, which is what makes a claim
+ *  meaningful — "someone else is already sending this" is only answerable if
+ *  the two can tell each other apart. */
+const CONTEXT_ID = `${typeof window === 'undefined' ? 'sw' : 'page'}-${Math.random().toString(36).slice(2)}`;
 
 // A raw request, deliberately NOT going through apiClient — apiClient queues
 // failed writes, and reusing it here would risk re-queueing a sync attempt
@@ -70,14 +84,30 @@ export async function processQueue(): Promise<void> {
   if (processing || !navigator.onLine) return;
   processing = true;
   try {
+    // SEC-27. Read once per drain rather than per row: the signed-in user
+    // cannot change mid-drain without a page load, and a load starts a fresh
+    // drain anyway.
+    const currentUserId = loadUserCache()?.id ?? null;
     const queue = await getQueue();
     for (const write of queue) {
       if (write.status === 'failed' || write.status === 'auth') break;
       if (write.status === 'conflict') continue; // already flagged, waiting on manual resolution — doesn't block others
 
+      // SEC-27: someone else's unsynced work, or nobody signed in. HOLD it —
+      // skip, never drop. `continue` rather than `break` for the same reason a
+      // conflict does: a row waiting for its owner to sign in must not wedge
+      // the writes of the person actually sitting here.
+      if (!isOwnedBy(write, currentUserId)) continue;
+
+      // BUG-03: claim the row before sending it. If another context (the
+      // service worker, or another tab) already holds it, leave it alone — it
+      // is mid-flight there, and sending it here is the duplicate.
+      if (!(await claimWrite(write.id!, CONTEXT_ID))) continue;
+
       const conflictRecord = await checkForConflict(write);
       if (conflictRecord) {
         await markConflict(write.id!, conflictRecord);
+        await releaseClaim(write.id!);
         notifyQueueChange();
         continue;
       }
@@ -93,6 +123,7 @@ export async function processQueue(): Promise<void> {
           // this is NOT a permanent failure — flag it as needing sign-in and
           // stop. Signing back in and hitting Retry will push it through.
           await markAuthRequired(write.id!, 'Your session expired — sign in again to sync this change.');
+          await releaseClaim(write.id!);
           notifyQueueChange();
           break;
         } else {
@@ -102,16 +133,30 @@ export async function processQueue(): Promise<void> {
           // Prefer the server's own wording: a 409 here is usually the
           // duplicate-student guard, and "error 409" gives whoever is clearing
           // the queue nothing to act on.
+          //
+          // A 404 is the one case where the server's own wording is useless.
+          // Since Sprint 159b an archived record answers 404 to a PUT (BUG-04),
+          // and "Not found" tells the person clearing the queue nothing about
+          // what to do. Name the likely cause instead: this write cannot ever
+          // succeed as it stands, so Discard is the action, not Retry.
           await markFailed(
             write.id!,
-            result.message ?? `The server rejected this change (error ${result.status}).`,
+            result.status === 404
+              ? 'The record this change belongs to was archived or removed while you were offline, so it can no longer be saved. Discard this change, then re-enter it on the current record if it is still needed.'
+              : result.message ?? `The server rejected this change (error ${result.status}).`,
           );
+          await releaseClaim(write.id!);
           notifyQueueChange();
           break;
         }
       } catch {
         // Network failed mid-sync (went offline again) — stop, leave this
         // item pending, it'll retry on the next online event.
+        //
+        // ⚠ Release the claim, or the retry waits out a whole lease for no
+        // reason. The lease exists for the case this line cannot cover: a
+        // context KILLED mid-send, which never reaches any catch block.
+        await releaseClaim(write.id!).catch(() => {});
         break;
       }
     }

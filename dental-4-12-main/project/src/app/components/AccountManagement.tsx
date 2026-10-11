@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Plus, Edit, Power, Search, KeyRound, Mail } from 'lucide-react';
 import { useUsers, ROLE_LABELS } from '../hooks/useUsers';
 import { apiClient, ApiError } from '../api/client';
-import type { ApiRole } from '../api/types';
+import type { ApiRole, ApiSchool } from '../api/types';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Notice } from './Notice';
@@ -11,6 +11,79 @@ import { Modal } from './Modal';
 import { useAuth } from '../context/AuthContext';
 
 const ROLES: ApiRole[] = ['dentist', 'dental_aide', 'school_admin', 'bho_staff', 'system_admin'];
+
+/** School assignment picker (Sprint 100). Replaces a single-select dropdown:
+ *  one dentist and one aide rotate across all three schools, and other roles
+ *  may cover several, which a lone `school_id` could not express.
+ *
+ *  An EMPTY list means all schools, so the two modes are made explicit with
+ *  radios rather than left as "unchecked means everything" — an implicit rule
+ *  the admin would have to know. Checkboxes rather than `<select multiple>`:
+ *  there are only a handful of schools, and multi-select is close to unusable
+ *  on the phone width this app is checked at. */
+const SchoolAssignment = ({
+  value,
+  onChange,
+  schools,
+  idPrefix,
+}: {
+  value: string[];
+  onChange: (ids: string[]) => void;
+  schools: ApiSchool[];
+  idPrefix: string;
+}) => {
+  const all = value.length === 0;
+  const toggle = (id: string) =>
+    onChange(value.includes(id) ? value.filter((v) => v !== id) : [...value, id]);
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-foreground mb-2">Assigned Schools</label>
+      <div className="border border-border rounded-lg divide-y divide-border">
+        <label className="flex items-start gap-3 p-3 cursor-pointer">
+          <input
+            type="radio"
+            name={`${idPrefix}-scope`}
+            checked={all}
+            onChange={() => onChange([])}
+            className="mt-0.5"
+          />
+          <span className="text-sm">
+            <span className="text-foreground">All schools</span>
+            <span className="block text-xs text-muted-foreground">Barangay level — full access, and stays correct if a school is added later.</span>
+          </span>
+        </label>
+        <label className="flex items-start gap-3 p-3 cursor-pointer">
+          <input
+            type="radio"
+            name={`${idPrefix}-scope`}
+            checked={!all}
+            onChange={() => onChange(schools[0] ? [schools[0]._id] : [])}
+            className="mt-0.5"
+          />
+          <span className="text-sm">
+            <span className="text-foreground">Specific schools</span>
+            <span className="block text-xs text-muted-foreground">Pick one or more. A rotating dentist or aide needs every school they cover.</span>
+          </span>
+        </label>
+        {!all && (
+          <div className="p-3 space-y-2 max-h-48 overflow-y-auto">
+            {schools.map((school) => (
+              <label key={school._id} className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={value.includes(school._id)}
+                  onChange={() => toggle(school._id)}
+                />
+                <span className="text-sm text-foreground">{school.school_name}</span>
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 export const AccountManagement = () => {
   const { users, schools, loading, error, reload } = useUsers();
@@ -22,10 +95,10 @@ export const AccountManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({ full_name: '', email: '', role: 'dentist' as ApiRole, school_id: '', password: '' });
+  const [form, setForm] = useState({ full_name: '', email: '', role: 'dentist' as ApiRole, school_ids: [] as string[], password: '' });
 
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ full_name: '', email: '', role: 'dentist' as ApiRole, school_id: '' });
+  const [editForm, setEditForm] = useState({ full_name: '', email: '', role: 'dentist' as ApiRole, school_ids: [] as string[] });
   const [editError, setEditError] = useState<string | null>(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
 
@@ -39,8 +112,9 @@ export const AccountManagement = () => {
   const editingUser = users.find((u) => u.id === editingUserId) ?? null;
 
   const openEdit = (user: (typeof users)[number]) => {
-    const school = schools.find((s) => s.school_name === user.school);
-    setEditForm({ full_name: user.name, email: user.email, role: user.role, school_id: school?._id ?? '' });
+    // Read the ids directly. This used to match `user.school` back to a school
+    // BY NAME, which breaks the moment that label reads "2 schools".
+    setEditForm({ full_name: user.name, email: user.email, role: user.role, school_ids: user.schoolIds });
     setEditError(null);
     setTwofaStep('idle');
     setTwofaCode('');
@@ -102,7 +176,7 @@ export const AccountManagement = () => {
     }
     setEditSubmitting(true);
     try {
-      await apiClient.put(`/users/${editingUserId}`, { ...editForm, school_id: editForm.school_id || null });
+      await apiClient.put(`/users/${editingUserId}`, editForm);
       setEditingUserId(null);
       await reload();
       toast.success('Account updated.');
@@ -127,9 +201,9 @@ export const AccountManagement = () => {
     }
     setSubmitting(true);
     try {
-      await apiClient.post('/users', { ...form, school_id: form.school_id || null });
+      await apiClient.post('/users', form);
       setShowCreateForm(false);
-      setForm({ full_name: '', email: '', role: 'dentist', school_id: '', password: '' });
+      setForm({ full_name: '', email: '', role: 'dentist', school_ids: [], password: '' });
       await reload();
       toast.success('Account created.');
     } catch (err) {
@@ -306,19 +380,12 @@ export const AccountManagement = () => {
                 ))}
               </select>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-2">Assigned School</label>
-              <select
-                value={form.school_id}
-                onChange={(e) => setForm({ ...form, school_id: e.target.value })}
-                className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1E40AF] focus:border-transparent"
-              >
-                <option value="">All Schools (Barangay level — full access)</option>
-                {schools.map(school => (
-                  <option key={school._id} value={school._id}>{school.school_name}</option>
-                ))}
-              </select>
-            </div>
+            <SchoolAssignment
+              idPrefix="create"
+              value={form.school_ids}
+              onChange={(school_ids) => setForm({ ...form, school_ids })}
+              schools={schools}
+            />
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-foreground mb-2">Temporary Password</label>
               {/* new-password: this sets ANOTHER user's password. Without the
@@ -553,19 +620,12 @@ export const AccountManagement = () => {
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Assigned School</label>
-                <select
-                  value={editForm.school_id}
-                  onChange={(e) => setEditForm({ ...editForm, school_id: e.target.value })}
-                  className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1E40AF] focus:border-transparent"
-                >
-                  <option value="">All Schools (Barangay level — full access)</option>
-                  {schools.map(school => (
-                    <option key={school._id} value={school._id}>{school.school_name}</option>
-                  ))}
-                </select>
-              </div>
+              <SchoolAssignment
+                idPrefix="edit"
+                value={editForm.school_ids}
+                onChange={(school_ids) => setEditForm({ ...editForm, school_ids })}
+                schools={schools}
+              />
               <p className="text-xs text-muted-foreground">Password isn't changed here — use the Reset Password action instead.</p>
 
               {/* Two-factor authentication */}

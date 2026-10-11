@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { RotateCcw, Archive as ArchiveIcon } from 'lucide-react';
 import { apiClient, ApiError } from '../api/client';
-import type { ApiStudent, ApiSchool, ApiStudentIptr, ApiAppointment, ApiTreatment } from '../api/types';
+import type { ApiStudent, ApiSchool, ApiStudentIptr, ApiAppointment, ApiTreatment, ApiReferral } from '../api/types';
 import { SkeletonPageHeader, SkeletonTable } from './Skeleton';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Notice } from './Notice';
@@ -80,6 +80,16 @@ const KINDS: Kind[] = [
     path: '/treatments',
     describe: (r: ApiTreatment) => r.diagnosis || 'Treatment record',
     detail: (r: ApiTreatment) => [formatDate(r.date), r.treatment_done].filter(Boolean).join(' · '),
+  },
+  {
+    // Sprint 129. Added because Sprint 127 shipped REFERRAL without it, which
+    // meant an archived referral was invisible here and therefore impossible to
+    // restore — soft-deleted in name only.
+    key: 'referrals',
+    label: 'Referrals',
+    path: '/referrals',
+    describe: (r: ApiReferral) => r.facility_name || 'Referral',
+    detail: (r: ApiReferral) => [formatDate(r.date_issued), r.reason].filter(Boolean).join(' · '),
   },
 ];
 

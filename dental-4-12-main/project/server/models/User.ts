@@ -6,7 +6,13 @@ export const ROLES = ["system_admin", "dentist", "dental_aide", "school_admin", 
 
 const userSchema = new mongoose.Schema(
   {
-    school_id: { type: mongoose.Schema.Types.ObjectId, ref: "School", default: null },
+    // ERD deviation (Sprint 100): the Chapter 3 ERD gives USER a single
+    // `school_id`, which cannot express the real staffing — one dentist and one
+    // aide rotate across all three schools, and the user confirmed other roles
+    // may cover several too. EMPTY ARRAY MEANS ALL SCHOOLS: that keeps
+    // system_admin and bho_staff working exactly as the old `school_id: null`
+    // did, with one rule instead of a per-role special case.
+    school_ids: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: "School" }], default: [] },
     role: { type: String, enum: ROLES, required: true },
     full_name: { type: String, required: true },
     email: {

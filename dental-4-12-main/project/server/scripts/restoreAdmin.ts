@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { connectDB } from "../config/db.js";
+import { announceTarget } from "./announceTarget.js";
 import { User } from "../models/index.js";
 import mongoose from "mongoose";
 
@@ -9,6 +10,7 @@ import mongoose from "mongoose";
 // exists. Run this to get back in:  npm run restore:admin
 async function main() {
   await connectDB();
+  announceTarget("restoreAdmin");
 
   const archived = await User.find({ role: "system_admin", isArchived: true }).select("email");
   if (archived.length === 0) {

@@ -3,6 +3,7 @@
 import "../dnsFix.js";
 import "dotenv/config";
 import { connectDB } from "../config/db.js";
+import { announceTarget } from "./announceTarget.js";
 import {
   StudentIptr,
   MedicalHistory,
@@ -95,6 +96,7 @@ async function expectNoPerformanceIndexes(label: string, model: mongoose.Model<a
 
 async function run() {
   await connectDB();
+  announceTarget("verifySprint91Indexes");
   console.log(`\nSprint 91 index verification — db: ${mongoose.connection.name}\n`);
 
   // ⚠ WAIT FOR THE INDEX BUILDS. Mongoose builds declared indexes in the

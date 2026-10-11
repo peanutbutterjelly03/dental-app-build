@@ -2,6 +2,7 @@ import "dotenv/config";
 import "../dnsFix.js"; // this machine's Node 24 + Atlas SRV workaround
 import mongoose from "mongoose";
 import { connectDB } from "../config/db.js";
+import { announceTarget } from "./announceTarget.js";
 import { Student, DentalAide, MedicalHistory, Treatment } from "../models/index.js";
 
 // Sprint 26 one-time migration: re-encrypt every encrypted field with a fresh
@@ -34,6 +35,7 @@ async function main() {
   }
 
   await connectDB();
+  announceTarget("reencryptFieldIVs");
 
   let totalOk = 0;
   const failures: { collection: string; id: string; error: string }[] = [];

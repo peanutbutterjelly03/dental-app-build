@@ -15,7 +15,6 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { SkeletonBlock } from './Skeleton';
-import { getGradeColor } from '../utils/gradeColors';
 import { CHART, RISK_COLORS, FUNNEL_RAMP } from '../utils/chartColors';
 import { getSchoolShortName } from '../utils/schoolColors';
 import { toLocalDateString, formatDateWithWeekday } from '../utils/localDate';
@@ -40,7 +39,7 @@ import { useRPCTracking } from '../hooks/useRPCTracking';
 import { apiClient } from '../api/client';
 import type { ApiUser, ApiTreatment, ApiStudentIptr, ApiAuditTrail, ApiRiskStratification } from '../api/types';
 import { windowStart, AUDIT_WINDOW_DAYS } from '../hooks/useAuditTrail';
-import { treatmentCodes, treatmentLabel } from './DentalChart';
+import { treatmentCodes, treatmentLabel } from '../utils/dentalChartCodes';
 
 export const Dashboard = () => {
   const { user, selectedSchool } = useAuth();
@@ -60,7 +59,11 @@ export const Dashboard = () => {
     return { from, to };
   }, []);
   const { sessions: allSessions, loading: appointmentsLoading } = useAppointments(weekWindow);
-  const { records: rpcRecords, loading: rpcLoading } = useRPCTracking();
+  // ⚠ SCOPED, and `status: 'all'`. Without the school the funnel counted every
+  // school while every other tile on this page counted one; without status the
+  // endpoint defaults to "outstanding" and the completed pupils never arrive.
+  const { records: rpcRecords, funnel: rpcFunnel, loading: rpcLoading } =
+    useRPCTracking({ school: selectedSchool ?? '', status: 'all' });
   const [users, setUsers] = useState<ApiUser[]>([]);
   const [treatmentCount, setTreatmentCount] = useState(0);
   const [iptrsByStudent, setIptrsByStudent] = useState<Map<string, string[]>>(new Map());
@@ -143,7 +146,7 @@ export const Dashboard = () => {
   const mediumRiskCount = allStudents.filter((s) => s.riskLevel === 'Medium').length;
   const lowRiskCount = allStudents.filter((s) => s.riskLevel === 'Low').length;
   const screenedCount = allStudents.filter((s) => s.riskLevel !== null).length;
-  const rpcCompletionRate = scopedRpc.length ? Math.round((scopedRpc.filter((r) => r.status === 'complete').length / scopedRpc.length) * 100) : 0;
+  const rpcCompletionRate = rpcFunnel.enrolled ? Math.round((rpcFunnel.complete / rpcFunnel.enrolled) * 100) : 0;
   const pendingChartsCount = allStudents.filter((s) => {
     const iptrIds = iptrsByStudent.get(s.id) ?? [];
     return iptrIds.length > 0 && !iptrIds.some((id) => chartedIptrIds.has(id));
@@ -155,9 +158,10 @@ export const Dashboard = () => {
   // scopedRpc (RPC records), NOT allStudents -- a student with no RPC record is
   // absent from this denominator, so these must never be captioned as a share
   // of enrolled patients.
-  const rpcBothVisitsCount = scopedRpc.filter((r) => r.status === 'complete').length;
-  const rpcVisit1Count = scopedRpc.filter((r) => r.visit1Status === 'Completed').length;
-  const rpcVisit1Rate = scopedRpc.length ? Math.round((rpcVisit1Count / scopedRpc.length) * 100) : 0;
+  // All three read the server's population counts, not the delivered rows.
+  const rpcBothVisitsCount = rpcFunnel.complete;
+  const rpcVisit1Count = rpcFunnel.visit1;
+  const rpcVisit1Rate = rpcFunnel.enrolled ? Math.round((rpcVisit1Count / rpcFunnel.enrolled) * 100) : 0;
 
   // School lookup for records that reach a student via chart→iptr or preventive→iptr chains
   const studentSchoolById = useMemo(
@@ -530,7 +534,7 @@ export const Dashboard = () => {
               // Blue = operational state, per the v4 color rule: amber already
               // means "medium caries risk" on this same screen.
               valueClass="text-primary"
-              trailing={`${rpcBothVisitsCount} of ${scopedRpc.length}`}
+              trailing={`${rpcBothVisitsCount} of ${rpcFunnel.enrolled}`}
               context="Both visits completed"
               linkTo="/rpc"
               loading={rpcLoading}
@@ -551,7 +555,7 @@ export const Dashboard = () => {
                 </span>
               )}
               {mostOverdueDays !== null && ' · '}
-              Visit 1 done for {rpcVisit1Count} of {scopedRpc.length} ({rpcVisit1Rate}%) · target 100% by end of school year
+              Visit 1 done for {rpcVisit1Count} of {rpcFunnel.enrolled} ({rpcVisit1Rate}%) · target 100% by end of school year
             </div>
           )}
         </div>
@@ -594,9 +598,14 @@ export const Dashboard = () => {
           <div className="bg-card p-4 rounded-xl border border-border">
             <h2 className="text-sm font-bold text-foreground">Oral Health Trend</h2>
             <p className="text-[11px] text-muted-foreground mb-3">Mean DMFT index · last 6 months</p>
-            {/* No historical monthly snapshots exist yet to compute a real
-                trend from -- an honest empty state, not fabricated numbers. */}
-            <NoDataYet message="No historical trend data yet. This chart will populate once monthly snapshots begin accumulating." />
+            {/* ⚠ Sprint 105, KEPT over her version. Hers reads "will populate
+                once monthly snapshots begin accumulating" — NOTHING ACCUMULATES
+                THEM. There is no snapshot mechanism anywhere in the app or the
+                server, so that sentence promises a feature that will never
+                arrive on its own, which is worse than an empty chart: it tells
+                the reader it works and merely needs time. Building it needs a
+                scheduled job and somewhere to keep the series. */}
+            <NoDataYet message="Not built yet — nothing records the monthly DMFT snapshots this trend would be drawn from, so it will stay empty until that is added." />
           </div>
         </div>
 
@@ -619,15 +628,21 @@ export const Dashboard = () => {
                     darkest = widest. Count sits inside the bar when it fits,
                     beside it in ink when the bar is too short. */}
                 {[
-                  { label: 'Enrolled', value: scopedRpc.length, ...FUNNEL_RAMP[0] },
-                  { label: 'Visit 1 completed', value: scopedRpc.filter((r) => r.visit1Status === 'Completed').length, ...FUNNEL_RAMP[1] },
-                  { label: 'Both visits completed', value: scopedRpc.filter((r) => r.visit2Status === 'Completed').length, ...FUNNEL_RAMP[2] },
+                  // ⚠ From the SERVER's population counts, not from the rows
+                  // this page received. /stats/rpc-rows defaults its status
+                  // filter to "outstanding", which excludes by definition every
+                  // pupil who finished — so counting the delivered rows made
+                  // "Both visits completed" permanently 0, and RPC Completion
+                  // permanently 0%. Two pupils had both visits the whole time.
+                  { label: 'Enrolled', value: rpcFunnel.enrolled, ...FUNNEL_RAMP[0] },
+                  { label: 'Visit 1 completed', value: rpcFunnel.visit1, ...FUNNEL_RAMP[1] },
+                  { label: 'Both visits completed', value: rpcFunnel.both, ...FUNNEL_RAMP[2] },
                 ].map((step) => (
                   <BarRow
                     key={step.label}
                     label={step.label}
                     value={step.value}
-                    pct={Math.round((step.value / scopedRpc.length) * 100)}
+                    pct={rpcFunnel.enrolled ? Math.round((step.value / rpcFunnel.enrolled) * 100) : 0}
                     color={step.color}
                   />
                 ))}
@@ -888,7 +903,13 @@ export const Dashboard = () => {
     const oralHealthStatusData = [
       // semantic status colors (Sprint 23o): good=green, needs-care=red,
       // in-progress=brand blue, no-data-yet=neutral gray (not warning-amber)
-      { name: 'Orally Fit', value: schoolStudents.filter((s) => s.oralStatus === 'Orally Fit').length, color: CHART.success },
+      // ⚠ Label only. The VALUE is `oralStatus === 'Orally Fit'`, which
+      // `deriveOralStatus` sets purely from a Low risk stratification — it is
+      // not the DOH "Orally Fit Child" indicator, whose definition (caries-free
+      // or treated, no debris, no gum pathology) needs a judgement nothing in
+      // this system stores. Printing the DOH term here would put a clinical
+      // claim on a screen the barangay files returns from.
+      { name: 'Low caries risk', value: schoolStudents.filter((s) => s.oralStatus === 'Orally Fit').length, color: CHART.success },
       { name: 'Needs Treatment', value: schoolStudents.filter((s) => s.oralStatus === 'Needs Treatment').length, color: CHART.danger },
       { name: 'Under Treatment', value: schoolStudents.filter((s) => s.oralStatus === 'Under Treatment').length, color: CHART.brand },
       { name: 'Not Yet Screened', value: schoolStudents.filter((s) => s.oralStatus === 'Not Yet Screened').length, color: CHART.neutral },
@@ -1167,9 +1188,19 @@ export const Dashboard = () => {
               linkTo="/reports"
               loading={studentsLoading}
             />
+            {/* ⚠ "Low caries risk", NOT "Orally fit". This figure is derived
+                from RISK_STRATIFICATION — `risk === 'Low'` — and nothing else.
+                "Orally Fit Child" is a DOH indicator with a clinical definition
+                (caries-free or treated, no debris, no gum pathology), and the
+                IPTR deliberately leaves that row blank because nothing we store
+                can decide it. Showing a risk band under the DOH term, on the
+                dashboard of the role that files City Health Office returns, is
+                how an approximation gets copied onto a form as the real thing.
+                Same reasoning, same day, same indicator — now the same answer
+                in both places. */}
             <SummaryCell
               icon={CheckCircle}
-              label="Orally fit"
+              label="Low caries risk"
               value={`${orallyFitPct}%`}
               valueClass="text-success"
               trailing={`${orallyFitCount} of ${totalStudents}`}
@@ -1235,9 +1266,9 @@ export const Dashboard = () => {
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-foreground">Age Bracket</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-foreground">Total Students</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-foreground">Orally Fit</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-foreground">Low caries risk</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-foreground">Needs Treatment</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-foreground">Fitness Rate</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-foreground">Low-risk rate</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">

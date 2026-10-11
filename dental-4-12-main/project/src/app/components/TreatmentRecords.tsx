@@ -43,7 +43,7 @@ export const TreatmentRecords = () => {
   const { selectedSchool } = useAuth();
   const { students: allStudents, loading: studentsLoading } = useStudents();
   // School-scoped like every other list page
-  const mockPatients = useMemo(
+  const allPatients = useMemo(
     () => (selectedSchool ? allStudents.filter((s) => s.school === selectedSchool) : allStudents),
     [allStudents, selectedSchool],
   );
@@ -68,8 +68,8 @@ export const TreatmentRecords = () => {
   }, []);
 
   const sourcePatients = useMemo(
-    () => (viewMode === 'treatment' ? mockPatients.filter((p) => treatmentIds.has(p.id)) : mockPatients),
-    [viewMode, treatmentIds, mockPatients],
+    () => (viewMode === 'treatment' ? allPatients.filter((p) => treatmentIds.has(p.id)) : allPatients),
+    [viewMode, treatmentIds, allPatients],
   );
 
   const filtered = useMemo(() => sourcePatients.filter(t => {
@@ -115,7 +115,12 @@ export const TreatmentRecords = () => {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Treatment</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{filtered.length} record{filtered.length !== 1 ? 's' : ''} found</p>
+          {/* ⚠ STUDENTS, not treatment records. The rows come from
+              `useStudents()` — this is the picker you choose a pupil from.
+              TREATMENT held ZERO rows on dev when this was checked
+              (2026-09-06) while the page announced "26 records found", which
+              is a fabricated figure on a clinical screen. */}
+          <p className="text-sm text-muted-foreground mt-0.5">{filtered.length} student{filtered.length !== 1 ? 's' : ''}</p>
         </div>
         <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
           <button onClick={() => setViewMode('treatment')} className={`px-3 py-1.5 rounded-md text-sm font-medium ${viewMode === 'treatment' ? 'bg-white text-[#1E40AF] shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>Treatment List</button>
@@ -126,7 +131,7 @@ export const TreatmentRecords = () => {
         <div className="flex flex-wrap gap-2">
           <ListSearchInput value={searchTerm} onChange={setSearchTerm} />
           <FS value={gradeFilter} onChange={g => { setGradeFilter(g); setSectionFilter('all'); }} label="All Grades" opts={GRADES.map(g => ({ v: g, l: g }))} />
-          <FS value={sectionFilter} onChange={setSectionFilter} label="All Sections" opts={[...new Set((gradeFilter !== 'all' ? mockPatients.filter((r:any) => r.grade === gradeFilter) : mockPatients).map((r:any) => r.section))].sort().map((s:any) => ({ v: s, l: s }))} />
+          <FS value={sectionFilter} onChange={setSectionFilter} label="All Sections" opts={[...new Set((gradeFilter !== 'all' ? allPatients.filter((r:any) => r.grade === gradeFilter) : allPatients).map((r:any) => r.section))].sort().map((s:any) => ({ v: s, l: s }))} />
           <FS value={genderFilter} onChange={setGenderFilter} label="All Genders" opts={[{ v:'Male', l:'Male' }, { v:'Female', l:'Female' }]} />
           <FS value={ageGroupFilter} onChange={setAgeGroupFilter} label="All Age Groups"
             opts={[{ v:'4 & below', l:'4 & below' }, { v:'5-9', l:'5-9' }, { v:'10-14', l:'10-14' }, { v:'15-19', l:'15-19' }, { v:'20 & above', l:'20 & above' }]} />
@@ -173,7 +178,7 @@ export const TreatmentRecords = () => {
               {...pager}
               onPage={pager.setPage}
               onPageSize={pager.changePageSize}
-              noun="records"
+              noun="students"
               detail={filtered.length !== sourcePatients.length ? `(filtered from ${sourcePatients.length})` : ''}
             />
           </div>

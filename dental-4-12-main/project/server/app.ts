@@ -3,7 +3,15 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import { connectDB } from "./config/db.js";
+import { checkStartupSecrets } from "./utils/secretGuard.js";
 import routes from "./routes/index.js";
+
+// Runs on every boot — local and Vercel both enter through this file. Warns
+// (never throws) when a secret is missing or still an .env.example
+// placeholder. It is also the loud version of the Sprint 111 trap: a bad
+// MONGODB_URI does not stop app.listen(), so the boot used to look perfectly
+// healthy while every request 500'd.
+checkStartupSecrets();
 
 const app = express();
 

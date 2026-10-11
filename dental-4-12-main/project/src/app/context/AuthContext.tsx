@@ -80,14 +80,49 @@ function clearSessionHint() {
  *  which is what it already meant — only the persisted value is special. */
 export const ALL_SCHOOLS = '__ALL__';
 
+/**
+ * A short, stable tag for a user id.
+ *
+ * NOT cryptography and not claimed to be: FNV-1a, and anyone holding the list
+ * of user ids could match tags to them. Its only job is that the value sitting
+ * in localStorage is no longer a REAL user id, which is the one part of the
+ * 2026-08-25 audit report that was independently verified (backlog #21).
+ *
+ * Why this and not "just clear it on logout": the id is what stops a second
+ * person on a shared clinic PC inheriting the first one's school. Removing it
+ * would either re-ask every returning user or hand them someone else's school.
+ * Tagging keeps the guard and drops the disclosure.
+ *
+ * Synchronous on purpose — `initialSchoolFor` derives initial state, so a
+ * SubtleCrypto digest (async) would ripple through the provider's first render.
+ */
+function userTag(userId: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < userId.length; i++) {
+    h ^= userId.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(36);
+}
+
 function loadStoredSchool(userId: string, schools: string[]): string | null {
   try {
     const raw = window.localStorage.getItem(SCHOOL_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    // Only honor a value stored by this same user that still names one of
-    // their schools (guards against shared machines and renamed schools).
-    if (!parsed || parsed.userId !== userId) return null;
+    if (!parsed) return null;
+    // Records written before the tag change hold a raw `userId`. Honour one
+    // that matches so a returning user is not re-asked, but REWRITE it in the
+    // new shape immediately — otherwise the raw id would sit there until the
+    // user next changed school, which is the leak this is closing.
+    if (typeof parsed.userId === 'string') {
+      const matches = parsed.userId === userId;
+      storeSchool(userId, matches ? (parsed.school ?? null) : null);
+      if (!matches) return null;
+    } else if (parsed.u !== userTag(userId)) {
+      // A value stored by a DIFFERENT user on this machine.
+      return null;
+    }
     if (parsed.school === ALL_SCHOOLS) return ALL_SCHOOLS;
     return schools.includes(parsed.school) ? parsed.school : null;
   } catch {
@@ -98,7 +133,7 @@ function loadStoredSchool(userId: string, schools: string[]): string | null {
 function storeSchool(userId: string, school: string | null) {
   try {
     if (school === null) window.localStorage.removeItem(SCHOOL_KEY);
-    else window.localStorage.setItem(SCHOOL_KEY, JSON.stringify({ userId, school }));
+    else window.localStorage.setItem(SCHOOL_KEY, JSON.stringify({ u: userTag(userId), school }));
   } catch {
     // storage unavailable (private mode etc.) — selection just won't persist
   }
@@ -118,8 +153,13 @@ function initialSchoolFor(user: User): string | null {
 
 async function resolveUser(apiUser: ApiUser): Promise<User> {
   const allSchools = await apiClient.get<ApiSchool[]>('/schools');
-  const schools = apiUser.school_id
-    ? allSchools.filter((s) => s._id === apiUser.school_id).map((s) => s.school_name)
+  // Empty assignment means ALL schools (Sprint 100) — the same meaning the old
+  // single `school_id: null` carried. A user with two of three schools now
+  // gets a switcher listing exactly those two, which the single FK could not
+  // express at all.
+  const assigned = apiUser.school_ids ?? [];
+  const schools = assigned.length
+    ? allSchools.filter((s) => assigned.includes(s._id)).map((s) => s.school_name)
     : allSchools.map((s) => s.school_name);
 
   return {
@@ -222,8 +262,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     clearUserCache();
     clearSessionHint();
     setSelectedSchoolState(null);
-    // deliberately keep SCHOOL_KEY: logging back in on the same machine
-    // shouldn't re-ask a question the user already answered
+    // Deliberately keep SCHOOL_KEY: logging back in on the same machine
+    // shouldn't re-ask a question the user already answered. Since Sprint 125
+    // the stored record holds a TAG rather than the user id, so what survives
+    // logout no longer identifies who was here (backlog #21).
   }, []);
 
   return (
